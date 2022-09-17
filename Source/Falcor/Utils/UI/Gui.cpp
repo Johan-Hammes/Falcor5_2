@@ -202,6 +202,16 @@ namespace Falcor
         // Add the default font
         pGui->addFont("", "Framework/Fonts/trebucbd.ttf");
         pGui->addFont("monospace", "Framework/Fonts/consolab.ttf");
+
+        pGui->addFont("roboto_14", "Framework/Fonts/Roboto-Regular.ttf");
+        pGui->addFont("roboto_14_bold", "Framework/Fonts/Roboto-Bold.ttf");
+        pGui->addFont("roboto_14_italic", "Framework/Fonts/Roboto-Italic.ttf");
+
+        pGui->addFont("roboto_20", "Framework/Fonts/Roboto-Regular.ttf", 20);
+        pGui->addFont("roboto_20_bold", "Framework/Fonts/Roboto-Bold.ttf", 20);
+
+        pGui->addFont("roboto_26", "Framework/Fonts/Roboto-Regular.ttf", 26);
+        pGui->addFont("roboto_26_bold", "Framework/Fonts/Roboto-Bold.ttf", 26);
         pGui->setActiveFont("");
 
         // Create the blend state
@@ -940,7 +950,7 @@ namespace Falcor
         return float4(color.i32[0] % 1000 / 2000.0f, color.i32[1] % 1000 / 2000.0f, (color.i32[0] * color.i32[1]) % 1000 / 2000.0f, 1.0f);
     }
 
-    void Gui::addFont(const std::string& name, const std::filesystem::path& path)
+    void Gui::addFont(const std::string& name, const std::filesystem::path& path, float _size)
     {
         std::filesystem::path fullPath;
         if (!findFileInDataDirectories(path, fullPath))
@@ -949,8 +959,7 @@ namespace Falcor
             return;
         }
 
-        float size = 14.0f * mpWrapper->mScaleFactor;
-        ImFont* pFont = ImGui::GetIO().Fonts->AddFontFromFileTTF(fullPath.string().c_str(), size);
+        ImFont* pFont = ImGui::GetIO().Fonts->AddFontFromFileTTF(fullPath.string().c_str(), _size * mpWrapper->mScaleFactor);
         mpWrapper->mFontMap[name] = pFont;
         mpWrapper->compileFonts();
     }

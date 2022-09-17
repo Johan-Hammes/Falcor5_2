@@ -530,7 +530,7 @@ namespace Falcor
 
         /** Add a font
         */
-        void addFont(const std::string& name, const std::filesystem::path& path);
+        void addFont(const std::string& name, const std::filesystem::path& path, float _size = 14.0f);
 
         /** Set the active font
         */
