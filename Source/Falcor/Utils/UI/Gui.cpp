@@ -179,7 +179,7 @@ namespace Falcor
         io.KeyMap[ImGuiKey_X] = (uint32_t)Input::Key::X;
         io.KeyMap[ImGuiKey_Y] = (uint32_t)Input::Key::Y;
         io.KeyMap[ImGuiKey_Z] = (uint32_t)Input::Key::Z;
-        io.IniFilename = nullptr;
+        io.IniFilename = "imgui.ini";
 
         ImGuiStyle& style = ImGui::GetStyle();
         style.Colors[ImGuiCol_WindowBg].w = 0.9f;
