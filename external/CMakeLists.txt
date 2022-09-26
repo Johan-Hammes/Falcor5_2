@@ -65,6 +65,11 @@ set_target_properties(mikktspace PROPERTIES
     FOLDER "Libraries"
 )
 
+# CEREAL
+add_library(cereal-master INTERFACE)
+target_include_directories(cereal-master INTERFACE cereal-master)
+
+
 # imgui_addons
 add_library(imgui_addons INTERFACE)
 target_include_directories(imgui_addons INTERFACE imgui_addons)
