@@ -84,21 +84,23 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
 
 terrainManager::terrainManager()
 {
-    std::ifstream is("terrain_presets.json");
+    
+    std::ifstream is("terrain_presets.binary");
     if (is.good()) {
-        cereal::JSONInputArchive archive(is);
-        archive(presets);
+        cereal::BinaryInputArchive archive(is);
+        archive(CEREAL_NVP(presets));
     }
+    
 }
 
 
 
 terrainManager::~terrainManager()
 {
-    std::ofstream os("terrain_presets.json");
+    std::ofstream os("terrain_presets.binary");
     if (os.good()) {
-        cereal::JSONOutputArchive archive(os);
-        archive(presets);
+        cereal::BinaryOutputArchive archive(os);
+        archive(CEREAL_NVP(presets));
     }
 }
 

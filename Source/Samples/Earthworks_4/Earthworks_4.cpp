@@ -248,10 +248,10 @@ int main(int argc, char** argv)
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
     config.windowDesc.resizableWindow = true;
-    config.windowDesc.mode = Window::WindowMode::AllScreens;
+    config.windowDesc.mode = Window::WindowMode::Fullscreen;
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1440;
-    config.windowDesc.monitor = 1;
+    config.windowDesc.monitor = 0;
 
     Sample::run(config, pRenderer);
     return 0;
