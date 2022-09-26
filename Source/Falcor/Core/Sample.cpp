@@ -137,6 +137,7 @@ namespace Falcor
                         if (mpRenderer) mpRenderer->onHotReload(reloaded);
                     }
                     break;
+                    /*
                 case Input::Key::Escape:
                     if (mVideoCapture.pVideoCapture)
                     {
@@ -147,6 +148,7 @@ namespace Falcor
                         mpWindow->shutdown();
                     }
                     break;
+                    */
                 case Input::Key::Pause:
                 case Input::Key::Space:
                     mClock.isPaused() ? mClock.play() : mClock.pause();

@@ -412,13 +412,32 @@ namespace Falcor
         uint32_t w = desc.width;
         uint32_t h = desc.height;
 
+        int monitorCount;
+        auto monitors = glfwGetMonitors(&monitorCount);
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+
         if (desc.mode == WindowMode::Fullscreen)
         {
             glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-            auto mon = glfwGetPrimaryMonitor();
-            auto mod = glfwGetVideoMode(mon);
+            //auto mon = glfwGetPrimaryMonitor();
+            if (desc.monitor >= 0 && desc.monitor < monitorCount) {
+                monitor = monitors[desc.monitor];
+            }
+            auto mod = glfwGetVideoMode(monitor);
             w = mod->width;
             h = mod->height;
+        }
+        else if  (desc.mode == WindowMode::AllScreens)
+        {
+            glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+            w = 0;
+            h = 0;
+            for (int i = 0; i < monitorCount; i++) {
+                auto mod = glfwGetVideoMode(monitors[i]);
+                w += mod->width;
+                h = __max(h, mod->height);
+            }
+            monitor = nullptr;
         }
         else if (desc.mode == WindowMode::Minimized)
         {
@@ -433,7 +452,7 @@ namespace Falcor
             glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         }
 
-        GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), nullptr, nullptr);
+        GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), monitor, nullptr);
         if (!pGLFWWindow)
         {
             throw RuntimeError("Failed to create GLFW window.");

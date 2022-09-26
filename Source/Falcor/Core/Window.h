@@ -56,6 +56,7 @@ namespace Falcor
             Normal,     ///< Normal window.
             Minimized,  ///< Minimized window.
             Fullscreen, ///< Fullscreen window.
+            AllScreens,///< Cover all monitors
         };
 
         /** Window configuration configuration
@@ -67,6 +68,7 @@ namespace Falcor
             std::string title = "Falcor Sample";    ///< Window title.
             WindowMode mode = WindowMode::Normal;   ///< Window mode. In full screen mode, width and height will be ignored.
             bool resizableWindow = true;            ///< Allow the user to resize the window.
+            int32_t monitor = -1;
        };
 
         /** Callbacks interface to be used when creating a new object
