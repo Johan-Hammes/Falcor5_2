@@ -256,7 +256,7 @@ namespace Falcor
 
         /** Returns the raw camera data
         */
-        const CameraData& getData() const { calculateCameraParameters(); return mData; }
+        CameraData& getData() const { calculateCameraParameters(); return mData; }
 
         void updateFromAnimation(const rmcv::mat4& transform) override;
 
