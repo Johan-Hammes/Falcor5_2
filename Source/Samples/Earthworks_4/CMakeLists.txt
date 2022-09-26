@@ -3,10 +3,12 @@ add_falcor_executable(Earthworks_4)
 target_sources(Earthworks_4 PRIVATE
     Earthworks_4.cpp
     Earthworks_4.h
+    computeShader.cpp
+    computeShader.h
+    terrafector.cpp
+    terrafector.h
 	terrain.cpp
     terrain.h
-	computeShader.cpp
-    computeShader.h
 	pixelShader.cpp
     pixelShader.h
 	
@@ -16,6 +18,7 @@ target_sources(Earthworks_4 PRIVATE
 	gpuLights_functions.hlsli
 	groundcover_defines.hlsli
 	groundcover_functions.hlsli
+    materials.hlsli
 	terrainDefines.hlsli
 	terrainFunctions.hlsli
 	compute_bc6h.hlsl

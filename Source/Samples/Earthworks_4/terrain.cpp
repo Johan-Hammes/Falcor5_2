@@ -84,12 +84,22 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
 
 terrainManager::terrainManager()
 {
+    std::ifstream is("terrain_presets.json");
+    if (is.good()) {
+        cereal::JSONInputArchive archive(is);
+        archive(presets);
+    }
 }
 
 
 
 terrainManager::~terrainManager()
 {
+    std::ofstream os("terrain_presets.json");
+    if (os.good()) {
+        cereal::JSONOutputArchive archive(os);
+        archive(presets);
+    }
 }
 
 
@@ -293,8 +303,34 @@ void terrainManager::onGuiRender(Gui* pGui)
 {}
 void terrainManager::onGuiMenubar(Gui* pGui)
 {
-    ImGui::SetCursorPos(ImVec2(200, 0));
-    ImGui::Text("Name here");
+    ImGui::SetCursorPos(ImVec2(150, 0));
+    auto& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_Text] = ImVec4(0.38f, 0.52f, 0.10f, 1);
+    ImGui::Text(presets.name.c_str());
+    style.Colors[ImGuiCol_Text] = ImVec4(0.6f, 0.6f, 0.6f, 1.0f);
+
+    ImGui::SetCursorPos(ImVec2(300, 0));
+    if (ImGui::BeginMenu("terrain"))
+    {
+        if (ImGui::BeginMenu("directories"))
+        {
+            ImGui::Text("root");
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(100);
+            if (ImGui::Selectable("eifel")) {
+                //mMode = modes::terrafector; this->m_Terrain.terrainMode = 0;
+            }
+
+            if (ImGui::MenuItem("root")) {
+                //mMode = modes::terrafector; this->m_Terrain.terrainMode = 0;
+            }
+            if (ImGui::Selectable("selctable")) {
+                //mMode = modes::terrafector; this->m_Terrain.terrainMode = 0;
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenu();
+    }
 }
 
 void terrainManager::update(RenderContext* _renderContext)

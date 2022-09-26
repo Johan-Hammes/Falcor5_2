@@ -1,0 +1,1111 @@
+#include "terrafector.h"
+
+#include "imgui.h"
+//#include "imgui_internal.h"
+
+#include "cereal/archives/binary.hpp"
+#include "cereal/archives/json.hpp"
+#include <sstream>
+#include <fstream>
+
+
+//#pragma optimize( "", off )
+
+
+bool terrafectorSystem::needsRefresh = false;
+//ecotopeSystem *terrafectorSystem::pEcotopes = nullptr;
+GraphicsProgram::SharedPtr		terrafectorSystem::topdownProgramForBlends = nullptr;
+FILE* terrafectorSystem::_logfile;
+
+
+materialCache terrafectorEditorMaterial::static_materials;
+
+
+//"##1" is BAD
+#define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
+
+#define TEST(x)		if( x ) {changed = true;}
+#define TEXTURE(idx, tooltip)	ImGui::PushID(9999 + idx); \
+								ImGui::PushItemWidth(columnWidth - 30); \
+								{ \
+									style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.05f, 0.08f, 0.9f); \
+									if (ImGui::Button((textureIndex[idx]>=0) ? textureNames[idx].c_str() : tfElement[idx].c_str(), ImVec2(columnWidth - 30, 0))) { loadTexture(idx); changed = true;} \
+									TOOLTIP( texturePaths[idx].c_str() ); \
+									if (ImGui::IsItemHovered()) { terrafectorEditorMaterial::static_materials.dispTexIndex = textureIndex[idx]; } \
+									ImGui::SameLine(); \
+									if (ImGui::Button("X")) { \
+										textureIndex[idx] = -1; \
+										texturePaths[idx] = ""; \
+										textureNames[idx] = ""; \
+									} \
+									style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f); \
+								} \
+								ImGui::PopItemWidth(); \
+								ImGui::PopID();
+
+#define HEADER(txt)		 ImGui::PushFont(_gui->getFont("roboto_26")); \
+						ImGui::Text(txt); \
+						ImGui::PopFont();
+
+#define FLOAT_BOOL(name, val)	bool boolean = val > 0; \
+								if (ImGui::Checkbox(name, &boolean)) { val = boolean; changed = true;}
+
+#define HEADER_BOOL(txt, name, toggle)	ImGui::PushFont(_gui->getFont("roboto_26")); \
+										ImGui::Text(txt); \
+										ImGui::PopFont(); \
+										ImGui::SameLine();\
+										FLOAT_BOOL(name, toggle)
+
+
+
+
+
+
+materialCache::materialCache()
+{
+    //sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024);
+}
+
+uint materialCache::find_insert_material(const std::filesystem::path _path)
+{
+    for (uint i = 0; i < materialVector.size(); i++)
+    {
+        if (materialVector[i].fullPath.compare(_path) == 0)
+        {
+            fprintf(terrafectorSystem::_logfile, "		  materialCache - found (%s)\n", _path.filename().string().c_str());
+            fflush(terrafectorSystem::_logfile);
+            return i;
+        }
+    }
+
+    // else add new
+    fprintf(terrafectorSystem::_logfile, "\n		  add Material - %s\n", _path.filename().string().c_str());
+    fflush(terrafectorSystem::_logfile);
+
+    materialVector.emplace_back();
+    materialVector.back().import(_path);
+
+    return (uint)(materialVector.size() - 1);
+}
+
+
+uint materialCache::find_insert_texture(const std::filesystem::path _path, bool isSRGB)
+{
+    for (uint i = 0; i < textureVector.size(); i++)
+    {
+        if (textureVector[i]->getSourcePath().compare(_path) == 0)
+        {
+            return i;
+        }
+    }
+
+    Texture::SharedPtr tex = Texture::createFromFile(_path, true, isSRGB);
+    if (tex)
+    {
+        tex->setSourcePath(_path);
+        tex->setName(_path.filename().string());
+        textureVector.emplace_back(tex);
+
+        float compression = 2.0f;
+        if (isSRGB) compression = 6.0f;
+        texMb += (float)(tex->getWidth() * tex->getHeight() * 4.0f) / 1024.0f / 1024.0f / compression * 1.333f;	// for 4:1 compression + MIPS
+
+        fprintf(terrafectorSystem::_logfile, "			%s\n", tex->getName().c_str());
+        fflush(terrafectorSystem::_logfile);
+
+        return (uint)(textureVector.size() - 1);
+    }
+    else
+    {
+        fprintf(terrafectorSystem::_logfile, "			failed %s \n", _path.string().c_str());
+        fflush(terrafectorSystem::_logfile);
+        return 0;
+    }
+}
+
+
+Texture::SharedPtr materialCache::getDisplayTexture()
+{
+    if (dispTexIndex >= 0) {
+        return textureVector.at(dispTexIndex);
+    }
+    else {
+        return nullptr;
+    }
+}
+
+
+
+void materialCache::setTextures(GraphicsVars::SharedPtr _pVars)
+{
+    for (uint i = 0; i < textureVector.size(); i++)
+    {
+        char txt[256];
+        sprintf(txt, "textures[%d]", i);
+        _pVars->setTexture(txt, textureVector[i]);
+
+        // FIXME setSRV is likely faster but do that later, or switch to falcor 5 and bindless
+    }
+}
+
+// FIXME could also just do the individual one
+void materialCache::rebuildStructuredBuffer()
+{
+    size_t offset = 0;
+    for (auto& mat : materialVector)
+    {
+        sb_Terrafector_Materials->setBlob(&mat._constData, offset, sizeof(TF_material));
+        offset += sizeof(TF_material);
+    }
+}
+
+
+void materialCache::rebuildAll()
+{
+    for (auto& mat : materialVector) {
+        mat.rebuildConstantbufferData();
+    }
+
+    rebuildStructuredBuffer();
+}
+
+
+void materialCache::renderGui(Gui* mpGui)
+{
+    auto& style = ImGui::GetStyle();
+    ImGuiStyle oldStyle = style;
+
+    static bool expandMaterial = false;
+    char text[1024];
+
+    ImGui::PushFont(mpGui->getFont("roboto_20"));
+    sprintf(text, "Materials [%d]", (int)materialVector.size());
+    if (ImGui::Selectable(text)) {
+        expandMaterial = !expandMaterial;
+    }
+    ImGui::PopFont();
+    if (ImGui::Button("rebuild")) {
+        rebuildAll();
+    }
+
+
+    if (expandMaterial)
+    {
+        for (uint i = 0; i < materialVector.size(); i++)
+        {
+            ImGui::NewLine();
+            ImGui::SameLine(40);
+
+            if (materialVector[i].isModified) {
+                sprintf(text, "%s *##%d", materialVector[i].displayName.c_str(), i);
+            }
+            else {
+                sprintf(text, "%s##%d", materialVector[i].displayName.c_str(), i);
+            }
+
+
+            if (ImGui::Selectable(text)) {
+                selectedMaterial = i;
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("%d  :  %s", i, materialVector[i].fullPath.c_str());
+            }
+        }
+    }
+
+
+    static bool expandTextures = false;
+    ImGui::NewLine();
+    ImGui::PushFont(mpGui->getFont("roboto_20"));
+    sprintf(text, "Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
+    if (ImGui::Selectable(text)) {
+        expandTextures = !expandTextures;
+    }
+    ImGui::PopFont();
+    if (expandTextures)
+    {
+        for (uint i = 0; i < textureVector.size(); i++)
+        {
+            ImGui::NewLine();
+            ImGui::SameLine(40);
+
+            Texture* pT = textureVector[i].get();
+            sprintf(text, "%s##%d", pT->getName().c_str(), i);
+
+            if (ImGui::Selectable(text))
+            {
+                // Do the overlay thinbgy
+                //std::string cmd = "explorer " + pT->getSourceFilename();
+                //system(cmd.c_str());
+            }
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("%d  :  %s\n%d x %d", i, pT->getSourcePath().c_str(), pT->getWidth(), pT->getHeight());
+                terrafectorEditorMaterial::static_materials.dispTexIndex = i;
+
+                //if (ImGui::IsMouseClicked(1)) {
+                //	ImGui::OpenPopupEx(text, false);
+                //}
+            }
+
+            if (ImGui::BeginPopup(text)) {
+                std::string cmdExp = "explorer " + pT->getSourcePath().string();
+                std::string cmdPs = "\"C:\\Program Files\\Adobe\\Adobe Photoshop 2022\\Photoshop.exe\" " + pT->getSourcePath().string();
+                if (ImGui::Selectable("Explorer")) { system(cmdExp.c_str()); }
+                if (ImGui::Selectable("Photoshop")) { system(cmdPs.c_str()); }
+                ImGui::EndPopup();
+            }
+
+        }
+    }
+
+    style = oldStyle;
+}
+
+
+bool materialCache::renderGuiSelect(Gui* mpGui)
+{
+    if (selectedMaterial >= 0 && selectedMaterial < materialVector.size())
+    {
+        return materialVector[selectedMaterial].renderGUI(mpGui);
+    }
+
+    return false;
+}
+
+
+
+
+
+
+terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfTypes _type, const std::string _path)
+{
+    for (int i = 0; i < children.size(); i++)
+    {
+        if (children[i].name.compare(_name) == 0)
+        {
+            return children.at(i);
+        }
+    }
+
+    children.emplace_back(_type, _name);
+
+    if (_type == tf_fbx)
+    {
+        /*
+        terrafectorElement &me = children.back();
+        me.path = _path;
+        me.name = _path.substr(_path.find_last_of("\\/") + 1, _path.size());
+        std::string fullName = terrafectorEditorMaterial::rootFolder + _path;
+        std::string fullPath = fullName.substr(0, fullName.find_last_of("\\/") + 1);
+
+        fprintf(terrafectorSystem::_logfile, "\n		add FBX - %s\n", fullName.c_str());
+        fflush(terrafectorSystem::_logfile);
+
+        char txt[1024];
+        sprintf(txt, "%s", fullPath.c_str());
+        me.pMesh = Model::createFromFile(fullName.c_str());
+        if (me.pMesh)
+        {
+            int numMat = me.pMesh->getMaterialCount();
+            me.materials.resize(me.pMesh->getMeshCount());
+            //me.materialsIndexSort.resize(me.pMesh->getMeshCount());
+            //me.materialsSort.resize(me.pMesh->getMeshCount());
+            for (uint i = 0; i < me.pMesh->getMeshCount(); i++)
+            {
+                sprintf(txt, "%s", me.pMesh->getMesh(i)->getMaterial()->getName().c_str());
+                sprintf(txt, "%s", (fullPath + me.pMesh->getMesh(i)->getMaterial()->getName() + ".terrafectorMaterial").c_str());
+
+                std::string mat_name = me.pMesh->getMesh(i)->getMaterial()->getName();
+                std::size_t  pos = mat_name.find("_sort_");
+                sprintf(txt, "%s", mat_name.c_str());
+                uint sort = 1000; // net lekker groot
+                if (pos != std::string::npos)
+                {
+
+                    std::string front = mat_name.substr(pos + 6);
+                    sprintf(txt, "%s", front.c_str());
+                    sort = std::stoi(front);
+                    mat_name = mat_name.substr(0, pos);
+                    sprintf(txt, "%s", mat_name.c_str());
+                }
+
+                // search in vector/ add if not found
+                me.materials[i].sortVal = sort;
+                me.materials[i].sortIndex = i;
+                me.materials[i].index = terrafectorEditorMaterial::static_materials.find_insert_material(fullPath + mat_name + ".terrafectorMaterial");
+                me.materials[i].materialName = mat_name;
+            }
+
+
+            struct {
+                bool operator()(subMesh a, subMesh b) const { return a.sortVal < b.sortVal; }
+            } customLess;
+            std::sort(me.materials.begin(), me.materials.end(), customLess);
+
+        }
+        */
+    }
+
+    return children.back();
+}
+
+
+void terrafectorElement::renderGui(Gui* _pGui, float tab)
+{
+
+
+    float y = ImGui::GetCursorPosY();
+
+    if (bExpanded) {
+        for (int i = (int)children.size() - 1; i >= 0; i--)
+        {
+            children.at(i).renderGui(_pGui, tab + 30.0f);
+        }
+        /*
+        if (children.size() > 1) {
+            ImGuiWindow* window = ImGui::GetCurrentWindow();
+            ImVec2 A = window->Rect().GetTL();
+            A.x += tab + 25;
+            A.y += y - 10;
+            float delY = ImGui::GetCursorPosY() - y;
+            ImVec2 B = A;
+            B.y += delY - 10;
+            window->DrawList->AddLine(A, B, ImColor(100, 100, 100, 255), 1.0f);
+        }
+        */
+    }
+
+    ImGui::SameLine(tab);
+    switch (type) {
+    case tf_heading:
+        ImGui::PushFont(_pGui->getFont("roboto_20"));
+        // fime unique name add counter
+        // if not expanded show number fo children
+        if (ImGui::Selectable(name.c_str())) {
+            bExpanded = !bExpanded;
+        }
+        ImGui::PopFont();
+        break;
+    case tf_fbx:
+        if (ImGui::Selectable(name.c_str())) {
+            bExpanded = !bExpanded;
+        }
+        if (bExpanded)
+        {
+            //static uint CNT = 0;
+            //ImGui::PushID(CNT);
+            for (uint i = 0; i < materials.size(); i++)
+                //for (uint i = (int)materials.size()-1; i >= 0 ; i--)
+            {
+                ImGui::NewLine();
+                ImGui::SameLine(tab + 40);
+                if (ImGui::Selectable((materials[i].materialName + "##" + name).c_str()))
+                {
+                    terrafectorEditorMaterial::static_materials.selectedMaterial = materials[i].index;
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    ImGui::SetTooltip("%d  :  %s\nMAT %d   :   %s\n", materials[i].sortIndex, materials[i].materialName.c_str(), materials[i].index, terrafectorEditorMaterial::static_materials.materialVector.at(materials[i].index).displayName.c_str());
+                }
+            }
+            //ImGui::PopID();
+            //CNT++;
+            //if (CNT > 100000) CNT = 0;
+        }
+        break;
+    }
+
+    ImGui::NewLine();
+}
+
+
+void terrafectorElement::render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars)
+{
+    /*
+    switch (type) {
+    case tf_fbx:
+
+        if (pMesh)
+        {
+
+            for (uint i = 0; i < pMesh->getMeshCount(); i++)
+            {
+                uint meshIndex = materials[i].sortIndex;
+                uint matIndex = materials[i].index;
+                uint sort = materials[i].sortVal;
+
+#define mat terrafectorEditorMaterial::static_materials.materialVector.at( matIndex )
+                //terrafectorEditorMaterial *mat = terrafectorEditorMaterial::static_materials.materialVector.at( matIndex );
+
+                if (!mat.constantBuffer && terrafectorSystem::topdownProgramForBlends)
+                {
+                    mat.constantBuffer = Buffer::createStructured(vConstantBuffer::create((Program::SharedPtr)terrafectorSystem::topdownProgramForBlends, "gTopdownConstants");
+                    mat.rebuildConstantbuffer();
+                }
+
+
+
+                _pState->setBlendState(mat.blendstate);
+                _pVars->setConstantBuffer("gTopdownConstants", mat.constantBuffer);
+
+                for (uint j = 0; j < 9; j++)
+                {
+                    int texIndex = mat.textureIndex[j];
+                    if (texIndex >= 0)
+                    {
+                        char txt[256];
+                        sprintf(txt, "textures[%d]", j);
+                        _pVars->setTexture(txt, terrafectorEditorMaterial::static_materials.textureVector[texIndex]);
+                    }
+                    // FIXME setSRV is likely faster but do that later, or switch to falcor 5 and bindless
+                }
+
+#define MESH pMesh->getMesh(meshIndex)
+                //const std::shared_ptr<Falcor::Mesh> mesh = ;
+                _pState->setVao(MESH->getVao());
+                _pRenderContext->pushGraphicsState(_pState);  //??? set graphics state
+                _pRenderContext->pushGraphicsVars(_pVars);
+                {
+                    _pRenderContext->drawIndexed(MESH->getIndexCount(), 0, 0);
+                }
+                _pRenderContext->popGraphicsVars();
+                _pRenderContext->popGraphicsState();
+            }
+        }
+        break;
+    }
+    */
+
+    for (int i = 0; i < (int)children.size(); i++)
+    {
+        children.at(i).render(_pRenderContext, _pCamera, _pState, _pVars);
+    }
+}
+
+
+// class terrafectorMaterial ######################################################################################################################################################
+
+std::string terrafectorEditorMaterial::rootFolder;
+
+terrafectorEditorMaterial::terrafectorEditorMaterial() {
+    for (int i = 0; i < 16; i++)
+        for (int j = 0; j < 4; j++)
+            _constData.ecotopeMasks[i][j] = 0;
+
+    if (terrafectorSystem::topdownProgramForBlends)
+    {
+        // FXIME ADD IN
+        //constantBuffer = Buffer::create((Program::SharedPtr)terrafectorSystem::topdownProgramForBlends, "gTopdownConstants");
+    }
+}
+
+terrafectorEditorMaterial::~terrafectorEditorMaterial() {
+}
+
+// unique hash of blendstates 
+uint32_t terrafectorEditorMaterial::blendHash() {
+    uint32_t hash = 0;
+    return hash;
+}
+
+void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _replacePath) {
+
+    std::ifstream is(_path);
+    if (is.fail()) {
+        displayName = "failed to load";
+        fullPath = _path;
+    }
+    else
+    {
+        cereal::JSONInputArchive archive(is);
+        serialize(archive);
+
+        if (_replacePath) fullPath = _path;
+        reloadTextures();
+        rebuildBlendstate();
+        //			rebuildConstantbuffer();
+        isModified = false;
+    }
+}
+
+void terrafectorEditorMaterial::import(bool _replacePath) {
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"terrafectorMaterial"} };
+    if (openFileDialog(filters, path))
+    {
+        import(path, _replacePath);
+    }
+}
+
+// FIXME has to take root path into account
+void terrafectorEditorMaterial::reloadTextures()
+{
+    for (int idx = 0; idx < tfTextureSize; idx++) {
+        if (texturePaths[idx].size()) {
+            char txt[1000];
+            sprintf(txt, "%s", (rootFolder + texturePaths[idx]).c_str());
+
+            textureIndex[idx] = terrafectorEditorMaterial::static_materials.find_insert_texture(rootFolder + texturePaths[idx], tfSRGB[idx]);
+            //pTexture[idx] = createTextureFromFile(rootFolder + texturePaths[idx], false, tfSRGB[idx]);
+            textureNames[idx] = texturePaths[idx].substr(texturePaths[idx].find_last_of("\\/") + 1);
+        }
+    }
+}
+
+
+void terrafectorEditorMaterial::eXport(std::filesystem::path _path) {
+    std::ofstream os(_path);
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive);
+    isModified = false;
+}
+
+void terrafectorEditorMaterial::eXport() {
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"terrafectorMaterial"} };
+    if (saveFileDialog(filters, path))
+    {
+        eXport(path);
+    }
+}
+
+
+void terrafectorEditorMaterial::loadTexture(int idx)
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"dds"}, {"png"}, {"jpg"} };
+    if (openFileDialog(filters, path))
+    {
+        if (path.string().find(rootFolder) == 0) {
+            std::string relative = path.string().substr(rootFolder.length());
+            textureIndex[idx] = terrafectorEditorMaterial::static_materials.find_insert_texture(path, tfSRGB[idx]);
+            textureNames[idx] =  path.filename().string();
+            texturePaths[idx] = relative;
+        }
+
+        rebuildBlendstate();
+    }
+}
+
+
+
+
+
+
+bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
+{
+    bool changed = false;
+
+    float columnWidth = ImGui::GetWindowWidth() / 3 - 10;
+
+
+#define HI(v)   ImVec4(0.502f, 0.075f, 0.256f, v)
+#define MED(v)  ImVec4(0.455f, 0.198f, 0.301f, v)
+#define LOW(v)  ImVec4(0.232f, 0.201f, 0.271f, v)
+#define BG(v)   ImVec4(0.200f, 0.220f, 0.270f, v)
+#define TEXTG(v) ImVec4(0.860f, 0.930f, 0.890f, v)
+
+    auto& style = ImGui::GetStyle();
+    ImGuiStyle oldStyle = style;
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
+
+    style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+    style.Colors[ImGuiCol_ButtonHovered] = MED(0.86f);
+
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+    style.FrameRounding = 6.0f;
+
+
+
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    {
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (isModified)
+        {
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.5f, 0.0f, 0.9f);
+        }
+        char txt[256];
+        sprintf(txt, "%s", displayName.c_str());
+        if (ImGui::InputText("##name", txt, 256))
+        {
+            displayName = txt;
+        }
+        TOOLTIP(fullPath.string().c_str());
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+    }
+    ImGui::PopFont();
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    {
+        ImGui::SameLine();
+        if (isModified)
+        {
+            style.Colors[ImGuiCol_Button] = ImVec4(0.99f, 0.17f, 0.13f, 0.9f);
+            ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 200);
+            if (ImGui::Button("Save", ImVec2(80, 0))) { eXport(fullPath); }
+            TOOLTIP(fullPath.string().c_str());
+            style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+        }
+
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 100);
+        if (ImGui::Button("Load", ImVec2(80, 0))) { import(); }
+        TOOLTIP("Load a new file - replacing the current\n You will edit somethign else");
+
+
+        ImGui::PushItemWidth(columnWidth);
+        {
+            if (ImGui::Combo("##mattype", &_constData.materialType, "terrafector material\0rubber\0puddle\0uv1 - legacy rubber\0")) { ; }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 200);
+        if (ImGui::Button("Save copy", ImVec2(80, 0))) { eXport(); }
+        TOOLTIP("Save to a diffirent file");
+
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 100);
+        if (ImGui::Button("Import", ImVec2(80, 0))) { import(false); changed = true; }
+        TOOLTIP("Load another files contents into this file");
+    }
+    ImGui::PopFont();
+
+
+
+
+
+    ImGui::NewLine();
+
+    ImGui::Columns(3);
+    {
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.0f, 0.7f);
+        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 150));
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+        {
+            HEADER("uv scale");
+            {
+                changed |= ImGui::DragFloat2("uv", &_constData.uvScale.x, 0.1f, -10.0f, 10.0f);
+                TOOLTIP("base uv scale");
+
+                changed |= ImGui::DragFloat("detail", &_constData.worldSize, 0.1f, 1.0f, 32.0f, "%2.2f m");
+                TOOLTIP("detail texture world size");
+
+                FLOAT_BOOL("clamp u alpha", _constData.baseAlphaClampU);
+                TOOLTIP("clamp u for edge masks");
+                if (_constData.baseAlphaClampU) {
+                    changed |= ImGui::DragFloat2("uv_clamped", &_constData.uvScaleClampAlpha.x, 0.1f, -10.0f, 10.0f);
+                    TOOLTIP("alpha clamp uv scale\nThis is ONLY applied to the base alpha texture when it is also clamped in U");
+                }
+            }
+        }
+        ImGui::EndChildFrame();
+
+
+
+        ImGui::NewLine();
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.04f, 0.02f, 0.02f, 0.7f);
+        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 380));
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+        {
+            HEADER_BOOL("alpha", "##useAlpha", _constData.useAlpha);
+            if (_constData.useAlpha)
+            {
+                FLOAT_BOOL("debug", _constData.debugAlpha);
+                ImGui::Text("vertex colour (red)");
+                changed |= ImGui::SliderFloat("##vertexalpha", &_constData.vertexAlphaScale, 0, 1, "%.2f");
+                TOOLTIP("vertex alpha influence - packed in red");
+
+                ImGui::NewLine();
+                ImGui::Text("base texture");
+                changed |= ImGui::SliderFloat("##texturealpha", &_constData.baseAlphaScale, 0, 1, "%.2f");
+                TOOLTIP("texture alpha influence");
+                if (_constData.baseAlphaScale > 0)
+                {
+                    TEXTURE(baseAlpha, "");
+
+                    ImGui::PushItemWidth(columnWidth / 2 - 10);
+                    {
+                        changed |= ImGui::DragFloat("##brightnessAlpha", &_constData.baseAlphaBrightness, 0.05f, -1, 1);
+                        TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
+                        ImGui::SameLine();
+                        changed |= ImGui::DragFloat("##constrastAlpha", &_constData.baseAlphaContrast, 0.1f, 0.1f, 5);
+                        TOOLTIP("contrast \n\nclamp(alpha  * contrast + brighness)");
+
+
+                    }
+                    ImGui::PopItemWidth();
+                }
+                else {
+                    ImGui::NewLine();
+                    ImGui::NewLine();
+                    ImGui::NewLine();
+                }
+
+                ImGui::NewLine();
+                ImGui::Text("detail texture");
+                changed |= ImGui::SliderFloat("##detailalpha", &_constData.detailAlphaScale, 0, 1, "%.2f");
+                TOOLTIP("detail texture influence");
+                if (_constData.detailAlphaScale > 0)
+                {
+                    TEXTURE(detailAlpha, "");
+
+                    ImGui::PushItemWidth(columnWidth / 2 - 10);
+                    {
+                        changed |= ImGui::DragFloat("##brightnessAlphaDetail", &_constData.detailAlphaBrightness, 0.05f, -1, 1);
+                        TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
+                        ImGui::SameLine();
+                        changed |= ImGui::DragFloat("##constrastAlphaDetail", &_constData.detailAlphaContrast, 0.1f, 0.1f, 5);
+                        TOOLTIP("contrast \n\nclamp(alpha  * contrast + brighness)");
+                    }
+                    ImGui::PopItemWidth();
+
+                }
+                else
+                {
+                    ImGui::NewLine();
+                    ImGui::NewLine();
+                }
+
+            }
+            else
+            {
+                for (uint i = 0; i < 14; i++) {
+                    ImGui::NewLine();
+                }
+            }
+        }
+        ImGui::EndChildFrame();
+
+
+
+        if (_constData.materialType == 0)
+        {
+            ImGui::NewLine();
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.1f, 0.0f, 0.7f);
+            ImGui::BeginChildFrame(123451, ImVec2(columnWidth, 290));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            {
+
+                HEADER_BOOL("elevation", "##useElevation", _constData.useElevation);
+                if (_constData.useElevation)
+                {
+                    changed |= ImGui::Checkbox("absolute height", &useAbsoluteElevation);
+                    _constData.useAbsoluteElevation = useAbsoluteElevation;
+                    //ImGui::Text("%f", _constData.useAbsoluteElevation);
+                    //ImGui::SliderFloat("shit", &_constData.useAbsoluteElevation, 0, 100);
+                    TOOLTIP("is true, use absolute height and blend with terrain\notherwise offset is relative i.e. raise or lower the existing ground");
+
+                    FLOAT_BOOL("use vertex.y", _constData.useVertexY);
+                    TOOLTIP("add the vertex heights in the mesh");
+
+                    changed |= ImGui::DragFloat("y offset", &_constData.YOffset, 0.1f, -10, 10, "%.3f m");
+                    TOOLTIP("offset to shift the mesh up or down");
+
+                    TEXTURE(baseElevation, "");
+                    changed |= ImGui::DragFloat("base scale ##elevation", &_constData.baseElevationScale, 0.001f, 0, 1, "%.3f m");
+                    TOOLTIP("scale of the displacement texture");
+                    changed |= ImGui::DragFloat("base offset ##elevation", &_constData.baseElevationOffset, 0.1f, 0, 1, "%.2f");
+                    TOOLTIP("texture value that represents zero");
+
+                    TEXTURE(detailElevation, "");
+                    changed |= ImGui::DragFloat("detail scale ##elevation", &_constData.detailElevationScale, 0.001f, 0, 1, "%.3f m");
+                    TOOLTIP("offset to shift the mesh up or down");
+                    changed |= ImGui::DragFloat("detail offset ##elevation", &_constData.detailElevationOffset, 0.1f, 0, 1, "%.2f");
+                    TOOLTIP("texture value that represents zero");
+
+                    if (textureIndex[baseElevation] == -1) _constData.baseElevationScale = 0;
+                    if (textureIndex[detailElevation] == -1) _constData.detailElevationScale = 0;
+
+                }
+                else
+                {
+                    for (uint i = 0; i < 7; i++) {
+                        ImGui::NewLine();
+                    }
+                }
+
+
+
+            }
+            ImGui::EndChildFrame();
+
+
+
+
+        }
+    }
+
+
+    ImGui::NextColumn();
+    {
+        if (_constData.materialType == 0)
+        {
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.04f, 0.1f, 0.7f);
+            ImGui::BeginChildFrame(123452, ImVec2(columnWidth, 70));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            {
+                HEADER("material");
+                changed |= ImGui::Combo("##material index", &_constData.standardMaterialType, "tarmac\0soil\0grass\0");
+                TOOLTIP("material index\n It sets reflectance, microFiber, microShadow and lightWrap to fixed values");
+            }
+            ImGui::EndChildFrame();
+
+            ImGui::NewLine();
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.14f, 0.1f, 0.7f);
+            ImGui::BeginChildFrame(123453, ImVec2(columnWidth, 530));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            {
+                HEADER_BOOL("albedo & pbr", "####useAlbedo", _constData.useColour);
+                if (_constData.useColour)
+                {
+                    TEXTURE(baseAlbedo, "");
+
+                    ImGui::Text("        ");
+                    ImGui::SameLine();
+                    changed |= ImGui::SliderFloat("##albedoScale", &_constData.albedoBlend, -1, 1, "base     :    detail");
+                    TOOLTIP("blend between main and detail texture \n\n-1 : all main texture \n 0 : 50/50 \n 1 : all detail \n\nA = lerp(albedo, 0.5, saturate(blend)); \nB = lerp(detail, 0.5, saturate(-blend)); \nOut.Albedo.rgb = clamp(0.04, 0.90, A * B * scaleAlbedo * 2); // 0.04, 0.90 charcoal to fresh snow\n");
+                    TEXTURE(detailAlbedo, "");
+
+                    changed |= ImGui::ColorEdit3("albedo scale", &_constData.albedoScale.x);
+                    TOOLTIP("fixed colour scale \n128 128 128 means no change\nIf the texture is averaged around 0.5 (WARNING ABOUT SRGB)\nthis can be absolute albedo\nThis value is in linear colour - you CANNOT copy values from photoshop in SRGB");
+
+                    if (textureIndex[baseAlbedo] == -1) _constData.albedoBlend = 1;
+                    if (textureIndex[detailAlbedo] == -1) _constData.albedoBlend = -1;
+
+
+                    ImGui::NewLine();
+                    ImGui::NewLine();
+                    HEADER("roughness");
+
+                    TEXTURE(baseRoughness, "");
+
+                    ImGui::Text("        ");
+                    ImGui::SameLine();
+                    changed |= ImGui::SliderFloat("##roughnessScale", &_constData.roughnessBlend, -1, 1, "base     :    detail");
+                    TOOLTIP("blend between main and detail texture \n\n-1 : all main texture \n 0 : 50/50 \n 1 : all detail \n\nA = lerp(albedo, 0.5, saturate(blend)); \nB = lerp(detail, 0.5, saturate(-blend)); \nOut.Albedo.rgb = clamp(0.04, 0.90, A * B * scaleAlbedo * 2); // 0.04, 0.90 charcoal to fresh snow\n");
+                    TEXTURE(detailRoughness, "");
+
+                    changed |= ImGui::SliderFloat("rough scale", &_constData.roughnessScale, 0.1f, 10);
+
+                    if (textureIndex[baseRoughness] == -1) _constData.roughnessBlend = 1;
+                    if (textureIndex[detailRoughness] == -1) _constData.roughnessBlend = -1;
+
+
+                    ImGui::NewLine();
+                    ImGui::NewLine();
+                    HEADER("porosity");
+                    changed |= ImGui::SliderFloat("porosity", &_constData.porosity, 0, 1);
+
+
+                    ImGui::NewLine();
+                    ImGui::NewLine();
+                    HEADER("ao");
+                    ImGui::Text("Not sure if it is needed");
+                }
+            }
+            ImGui::EndChildFrame();
+
+            ImGui::NewLine();
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.04f, 0.1f, 0.7f);
+            ImGui::BeginChildFrame(1234561, ImVec2(columnWidth, 220));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            {
+                HEADER("physics");
+                ImGui::Text("dry grip value");
+                ImGui::Text("wet grip value");
+                ImGui::Text("what else");
+            }
+            ImGui::EndChildFrame();
+        }
+    }
+
+
+    ImGui::NextColumn();
+    {
+        if (_constData.materialType == 0)
+        {
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.06f, 0.06f, 0.06f, 0.7f);
+            ImGui::BeginChildFrame(123454, ImVec2(columnWidth, 860));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            {
+                HEADER_BOOL("ecotopes", "##useEcotopes", _constData.useEcotopes);
+
+                changed |= ImGui::SliderFloat("elevation", &_constData.permanenceElevation, 0, 1, "ecotope   :   terrafector");
+                TOOLTIP("what controls the final elevation");
+                changed |= ImGui::SliderFloat("colour", &_constData.permanenceColour, 0, 1, "ecotope   :   terrafector");
+                TOOLTIP("what controls the final colour");
+                changed |= ImGui::SliderFloat("ecotopes", &_constData.permanenceEcotopes, 0, 1, "ecotope   :   terrafector");
+                TOOLTIP("what controls the final ecotopes");
+                ImGui::NewLine();
+
+
+                changed |= ImGui::SliderFloat("cull grass", &_constData.cullA, 0, 1);
+                changed |= ImGui::SliderFloat("cull bushes", &_constData.cullB, 0, 1);
+                changed |= ImGui::SliderFloat("cull trees", &_constData.cullC, 0, 1);
+                ImGui::NewLine();
+                ImGui::NewLine();
+
+                if (_constData.useEcotopes)
+                {
+
+
+                    TEXTURE(ecotope, "");
+
+                    ImGui::NewLine();
+
+                    /*
+                    for (uint i = 0; i < 15; i++)
+                    {
+                        if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
+                            changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
+                        }
+                        else {
+                            char ect_name[256];
+                            sprintf(ect_name, "ecotope %d", i);
+                            changed |= ImGui::ColorEdit4(ect_name, &_constData.ecotopeMasks[i][0], true);
+                        }
+                        TOOLTIP("remember to set alpha");
+                        if (i % 3 == 2) ImGui::NewLine();
+
+                    }
+                    */
+                }
+            }
+            ImGui::EndChildFrame();
+
+
+
+        }
+    }
+
+
+    ImGui::Columns(1);
+
+    style = oldStyle;
+
+    if (changed) {
+        rebuildConstantbuffer();
+        rebuildBlendstate();
+        isModified = true;
+    }
+    return changed;
+}
+
+
+void terrafectorEditorMaterial::rebuildBlendstate() {
+
+    // FIXME REMOVE FROM HERE just 2 static types
+    BlendState::Desc		  blendDesc;
+    blendDesc.setIndependentBlend(true);
+    for (int i = 0; i < 8; i++)
+    {
+        // clear all
+        blendDesc.setRenderTargetWriteMask(i, true, true, true, true);
+        blendDesc.setRtBlend(i, true);
+        blendDesc.setRtParams(i, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
+    }
+
+    blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
+
+    blendstate = BlendState::create(blendDesc);
+    terrafectorSystem::needsRefresh = true;
+}
+
+
+void terrafectorEditorMaterial::rebuildConstantbufferData()
+{
+    // rework the indicis
+    _constData.baseAlphaTexture = textureIndex[baseAlpha];
+    _constData.detailAlphaTexture = textureIndex[detailAlpha];
+    _constData.baseElevationTexture = textureIndex[baseElevation];
+    _constData.detailElevationTexture = textureIndex[detailElevation];
+    _constData.baseAlbedoTexture = textureIndex[baseAlbedo];
+    _constData.detailAlbedoTexture = textureIndex[detailAlbedo];
+    _constData.baseRoughnessTexture = textureIndex[baseRoughness];
+    _constData.detailRoughnessTexture = textureIndex[detailRoughness];
+    _constData.ecotopeTexture = textureIndex[ecotope];
+}
+
+void terrafectorEditorMaterial::rebuildConstantbuffer()
+{
+    rebuildConstantbufferData();
+
+    //constantBuffer->setBlob(&_constData, 0, sizeof(_constData));
+    //constantBuffer->uploadToGPU();
+    terrafectorSystem::needsRefresh = true;
+
+    // also update structures buffer for the cvache
+    static_materials.rebuildStructuredBuffer();
+}
+
+
+
+
+
+
+
+
+void terrafectorSystem::loadFile()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"terrafectorSystem"} };
+    if (openFileDialog(filters, path))
+    {
+        std::ifstream is(path);
+        cereal::BinaryInputArchive archive(is);
+        serialize(archive);
+    }
+}
+
+
+void terrafectorSystem::saveFile()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"terrafectorSystem"} };
+    if (saveFileDialog(filters, path))
+    {
+        std::ofstream os(path);
+        cereal::BinaryOutputArchive archive(os);
+        serialize(archive);
+    }
+}
+
+
+void terrafectorSystem::renderGui(Gui* mpGui)
+{
+    int id = 1000;
+    float W = ImGui::GetWindowWidth();
+    auto& style = ImGui::GetStyle();
+    style.ButtonTextAlign = ImVec2(0, 0.5);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.0f, 0.7f, 0.9f, 0.7f);
+
+    top.renderGui(mpGui);
+    roads.renderGui(mpGui);
+    base.renderGui(mpGui);
+
+    // Materials
+    ImGui::NewLine();
+    terrafectorEditorMaterial::static_materials.renderGui(mpGui);
+
+}
+
+
+
+// render back to front
+void terrafectorSystem::render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars)
+{
+    //terrafectorEditorMaterial::static_materials.setTextures(_pVars);
+    // not due to small number of textures
+
+    base.render(_pRenderContext, _pCamera, _pState, _pVars);
+    roads.render(_pRenderContext, _pCamera, _pState, _pVars);
+    top.render(_pRenderContext, _pCamera, _pState, _pVars);
+}

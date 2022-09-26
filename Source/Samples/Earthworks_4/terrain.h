@@ -32,8 +32,55 @@
 #include"groundcover_defines.hlsli"
 #include"terrainDefines.hlsli"
 #include"gpuLights_defines.hlsli"
+#include"terrafector.h"
+
+#include "../../external/cereal-master/include/cereal/cereal.hpp"
+#include "../../external/cereal-master/include/cereal/archives/binary.hpp"
+#include "../../external/cereal-master/include/cereal/archives/json.hpp"
+#include <fstream>
+#define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
+#define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
+#define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
+
 
 using namespace Falcor;
+
+struct _presets
+{
+    std::string rootPath = "";
+    std::string resourcePath = "";
+    std::string exportPath = "";
+    std::string gisPath = "";
+    std::string name = "";
+
+    // these are for quick load
+    std::string lastTerrain = "";
+    std::string lastRoad = "";
+    std::string lastRoadMaterial = "";
+    std::string lastTerrafectorMaterial = "";
+    std::string lastTexture = "";
+    std::string lastFbx = "";
+
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(rootPath));
+        _archive(CEREAL_NVP(resourcePath));
+        _archive(CEREAL_NVP(exportPath));
+        _archive(CEREAL_NVP(gisPath));
+        _archive(CEREAL_NVP(name));
+
+        _archive(CEREAL_NVP(lastTerrain));
+        _archive(CEREAL_NVP(lastRoad));
+        _archive(CEREAL_NVP(lastRoadMaterial));
+        _archive(CEREAL_NVP(lastTerrafectorMaterial));
+        _archive(CEREAL_NVP(lastTexture));
+        _archive(CEREAL_NVP(lastFbx));
+    }
+};
+CEREAL_CLASS_VERSION(_presets, 100);
+
 
 
 class quadtree_tile
@@ -89,7 +136,8 @@ private:
     std::vector<quadtree_tile>	m_tiles;
     std::list<quadtree_tile*>	m_free;
     std::list<quadtree_tile*>	m_used;
-    
+
+    _presets presets;
 
     computeShader compute_MouseUnderTerrain;
 

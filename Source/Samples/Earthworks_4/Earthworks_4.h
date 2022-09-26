@@ -31,13 +31,15 @@
 
 using namespace Falcor;
 
+
+
 class Earthworks_4 : public IRenderer
 {
 public:
     void onLoad(RenderContext* pRenderContext) override;
     void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo) override;
     void onShutdown() override;
-    void onResizeSwapChain(uint32_t width, uint32_t height) override;
+    void onResizeSwapChain(uint32_t _width, uint32_t _height) override;
     bool onKeyEvent(const KeyboardEvent& keyEvent) override;
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
     void onGuiRender(Gui* pGui) override;
@@ -47,13 +49,31 @@ private:
     void initGui(Gui* pGui);
     void guiStyle(Gui* pGui);
 
-    float2                      screenSize;
+    GraphicsState::Viewport viewport3d;
+    float2                              screenSize;
     Fbo::SharedPtr		        hdrFbo;
-    Texture::SharedPtr	        hdrHalfCopy;
+    Texture::SharedPtr	    hdrHalfCopy;
 
     GraphicsState::SharedPtr    graphicsState;
     //ToneMapper::SharedPtr		toneMapper;
     //RenderGraph               graph;
     Camera::SharedPtr	        camera;
     terrainManager              terrain;
+    bool showAbout = false;
+    Texture::SharedPtr aboutTex;
+
+    struct {
+        bool    vsync = true;
+        bool    minimal = true;
+    }refresh;
+
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(refresh.vsync));
+        _archive(CEREAL_NVP(refresh.minimal));
+    }
 };
+CEREAL_CLASS_VERSION(Earthworks_4, 100);
+
