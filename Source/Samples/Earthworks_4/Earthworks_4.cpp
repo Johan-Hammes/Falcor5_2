@@ -87,9 +87,9 @@ void Earthworks_4::onGuiRender(Gui* pGui)
 
     ImGui::PushFont(pGui->getFont("roboto_20"));
     {
+       
         onGuiMenubar(pGui);
         terrain.onGuiRender(pGui);
-        Gui::Window w(pGui, "Test", { 400, 300 }, { 0, 100 });
 
         if (aboutTex && showAbout) {
             //ImGui::OpenPopup("1234");
@@ -235,6 +235,10 @@ void Earthworks_4::guiStyle(Gui* pGui)
 
     style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.0f);
     style.Colors[ImGuiCol_Border] = ImVec4(0.03f, 0.03f, 0.03f, 1.0f);
+
+    style.Colors[ImGuiCol_ModalWindowDimBg] = DARKLIME(0.3f);
+
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.f, 0.f, 0.f, 0.8f);
 
     style.FrameRounding = 4.0f;
 }

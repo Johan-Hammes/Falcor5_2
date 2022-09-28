@@ -37,6 +37,7 @@
 #include "../../external/cereal-master/include/cereal/cereal.hpp"
 #include "../../external/cereal-master/include/cereal/archives/binary.hpp"
 #include "../../external/cereal-master/include/cereal/archives/json.hpp"
+#include "../../external/cereal-master/include/cereal/archives/xml.hpp"
 #include <fstream>
 #define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
 #define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
@@ -45,41 +46,51 @@
 
 using namespace Falcor;
 
-struct _presets
-{
-    std::string rootPath = "";
-    std::string resourcePath = "";
-    std::string exportPath = "";
-    std::string gisPath = "";
-    std::string name = "";
 
+struct _lastFile
+{
     // these are for quick load
-    std::string lastTerrain = "";
-    std::string lastRoad = "";
-    std::string lastRoadMaterial = "";
-    std::string lastTerrafectorMaterial = "";
-    std::string lastTexture = "";
-    std::string lastFbx = "";
+    std::string terrain = "X:/resources/terrains/eifel/eifel.terrain";
+    std::string road = "X:/resources/terrains/eifel/roads/day6.roadnetwork";
+    std::string roadMaterial = "X:/resources/terrafectors_and_road_materials/roads/sidewalk_Asphalt.roadMaterial";
+    std::string terrafectorMaterial = "";
+    std::string texture = "";
+    std::string fbx = "";
 
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
-        _archive(CEREAL_NVP(rootPath));
-        _archive(CEREAL_NVP(resourcePath));
-        _archive(CEREAL_NVP(exportPath));
-        _archive(CEREAL_NVP(gisPath));
-        _archive(CEREAL_NVP(name));
-
-        _archive(CEREAL_NVP(lastTerrain));
-        _archive(CEREAL_NVP(lastRoad));
-        _archive(CEREAL_NVP(lastRoadMaterial));
-        _archive(CEREAL_NVP(lastTerrafectorMaterial));
-        _archive(CEREAL_NVP(lastTexture));
-        _archive(CEREAL_NVP(lastFbx));
+        _archive(CEREAL_NVP(terrain));
+        _archive(CEREAL_NVP(road));
+        _archive(CEREAL_NVP(roadMaterial));
+        _archive(CEREAL_NVP(terrafectorMaterial));
+        _archive(CEREAL_NVP(texture));
+        _archive(CEREAL_NVP(fbx));
     }
 };
-CEREAL_CLASS_VERSION(_presets, 100);
+CEREAL_CLASS_VERSION(_lastFile, 100);
+
+
+struct _terrainSettings
+{
+    // these are for quick load
+    std::string name = "eifel";
+    std::string projection = "\" + proj = tmerc + lat_0 = 50.39 + lon_0 = 6.91 + k_0 = 1 + x_0 = 0 + y_0 = 0 + ellps = GRS80 + units = m\"";
+    float size = 40000.f;
+
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(name));
+        _archive(CEREAL_NVP(projection));
+        _archive(CEREAL_NVP(size));
+    }
+
+    void renderGui(Gui* _gui);
+};
+CEREAL_CLASS_VERSION(_terrainSettings, 100);
 
 
 
@@ -137,7 +148,10 @@ private:
     std::list<quadtree_tile*>	m_free;
     std::list<quadtree_tile*>	m_used;
 
-    _presets presets;
+    _lastFile lastfile;
+    _terrainSettings settings;
+
+    bool requestPopupSettings = false;
 
     computeShader compute_MouseUnderTerrain;
 

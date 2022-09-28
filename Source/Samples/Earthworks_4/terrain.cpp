@@ -27,9 +27,48 @@
  **************************************************************************/
 #include "terrain.h"
 #include "imgui.h"
+#include <imgui_internal.h>
 #include <random>
 
 
+
+void _terrainSettings::renderGui(Gui* _gui)
+{
+    ImGui::PushFont(_gui->getFont("roboto_32"));
+    {
+        static const int maxSize = 2048;
+        char buf[maxSize];
+        sprintf_s(buf, maxSize, name.c_str());
+        ImGui::SetNextItemWidth(300);
+        if (ImGui::InputText("##name", buf, maxSize))
+        {
+            name = buf;
+        }
+
+        ImGui::NewLine();
+        ImGui::PushFont(_gui->getFont("roboto_20"));
+        {
+            ImGui::Text("projection");
+            sprintf_s(buf, maxSize, projection.c_str());
+            ImGui::SetNextItemWidth(1000);
+            if (ImGui::InputText("##projection", buf, maxSize))
+            {
+                projection = buf;
+            }
+        }
+        ImGui::Text("size");
+        ImGui::PopFont();
+
+        ImGui::SetNextItemWidth(150);
+        ImGui::DragFloat("##size", &size, 1, 1000, 200000, "%5.0f m ");
+
+        ImGui::NewLine();
+        ImGui::Button("Save");
+        ImGui::SameLine();
+        ImGui::Button("Save as");
+    }
+    ImGui::PopFont();
+}
 
 
 void quadtree_tile::init(uint _index)
@@ -84,23 +123,21 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
 
 terrainManager::terrainManager()
 {
-    
-    std::ifstream is("terrain_presets.binary");
+    std::ifstream is("lastFile.xml");
     if (is.good()) {
-        cereal::BinaryInputArchive archive(is);
-        archive(CEREAL_NVP(presets));
+        cereal::XMLInputArchive archive(is);
+        archive(CEREAL_NVP(lastfile));
     }
-    
 }
 
 
 
 terrainManager::~terrainManager()
 {
-    std::ofstream os("terrain_presets.binary");
+    std::ofstream os("lastFile.xml");
     if (os.good()) {
-        cereal::BinaryOutputArchive archive(os);
-        archive(CEREAL_NVP(presets));
+        cereal::XMLOutputArchive archive(os);
+        archive(CEREAL_NVP(lastfile));
     }
 }
 
@@ -299,37 +336,40 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
 
 
 
+
 void terrainManager::onShutdown()
 {}
-void terrainManager::onGuiRender(Gui* pGui)
-{}
+void terrainManager::onGuiRender(Gui* _gui)
+{
+    if (requestPopupSettings) {
+        ImGui::OpenPopup("settings");
+        requestPopupSettings = false;
+    }
+    if (ImGui::BeginPopup("settings"))      // modal
+    {
+        settings.renderGui(_gui);
+        ImGui::EndPopup();
+    }
+}
+
+
 void terrainManager::onGuiMenubar(Gui* pGui)
 {
+    bool b = false;
+
     ImGui::SetCursorPos(ImVec2(150, 0));
     auto& style = ImGui::GetStyle();
     style.Colors[ImGuiCol_Text] = ImVec4(0.38f, 0.52f, 0.10f, 1);
-    ImGui::Text(presets.name.c_str());
+    //ImGui::Text(presets.name.c_str());
     style.Colors[ImGuiCol_Text] = ImVec4(0.6f, 0.6f, 0.6f, 1.0f);
 
-    ImGui::SetCursorPos(ImVec2(300, 0));
+    ImGui::SetCursorPos(ImVec2(200, 0));
     if (ImGui::BeginMenu("terrain"))
     {
-        if (ImGui::BeginMenu("directories"))
+        if (ImGui::MenuItem("settings"))
         {
-            ImGui::Text("root");
-            ImGui::SameLine();
-            ImGui::SetCursorPosX(100);
-            if (ImGui::Selectable("eifel")) {
-                //mMode = modes::terrafector; this->m_Terrain.terrainMode = 0;
-            }
+            requestPopupSettings = true;
 
-            if (ImGui::MenuItem("root")) {
-                //mMode = modes::terrafector; this->m_Terrain.terrainMode = 0;
-            }
-            if (ImGui::Selectable("selctable")) {
-                //mMode = modes::terrafector; this->m_Terrain.terrainMode = 0;
-            }
-            ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }
