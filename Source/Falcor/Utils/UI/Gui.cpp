@@ -212,6 +212,8 @@ namespace Falcor
 
         pGui->addFont("roboto_26", "Framework/Fonts/Roboto-Regular.ttf", 26);
         pGui->addFont("roboto_26_bold", "Framework/Fonts/Roboto-Bold.ttf", 26);
+
+        pGui->addFont("roboto_32", "Framework/Fonts/Roboto-Regular.ttf", 32);
         pGui->setActiveFont("");
 
         // Create the blend state
