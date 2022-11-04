@@ -44,7 +44,62 @@
 #define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
 
 
+#include "../../external/openJPH/include/openjph/ojph_arg.h"
+#include "../../external/openJPH/include/openjph/ojph_mem.h"
+#include "../../external/openJPH/include/openjph/ojph_file.h"
+#include "../../external/openJPH/include/openjph/ojph_codestream.h"
+#include "../../external/openJPH/include/openjph/ojph_params.h"
+#include "../../external/openJPH/include/openjph/ojph_message.h"
+
 using namespace Falcor;
+
+
+template<typename K, typename V = K>
+class LRUCache
+{
+
+private:
+    std::list<K>items;
+    std::unordered_map <K, std::pair<V, typename std::list<K>::iterator>> keyValuesMap;
+    uint csize = 50;	// arbitrary default
+
+public:
+    LRUCache() { ; }
+
+    void resize(uint s) {
+        csize = s;
+        items.clear();
+        keyValuesMap.clear();
+    }
+
+    void set(const K key, const V value) {
+        auto pos = keyValuesMap.find(key);
+        if (pos == keyValuesMap.end()) {
+            items.push_front(key);
+            keyValuesMap[key] = { value, items.begin() };
+            if (keyValuesMap.size() > csize) {
+                keyValuesMap.erase(items.back());
+                items.pop_back();
+            }
+        }
+        else {
+            items.erase(pos->second.second);
+            items.push_front(key);
+            keyValuesMap[key] = { value, items.begin() };
+        }
+    }
+
+    bool get(const K key, V& value) {
+        auto pos = keyValuesMap.find(key);
+        if (pos == keyValuesMap.end())
+            return false;
+        items.erase(pos->second.second);
+        items.push_front(key);
+        keyValuesMap[key] = { pos->second.first, items.begin() };
+        value = pos->second.first;
+        return true;
+    }
+};
 
 
 struct _lastFile
@@ -79,6 +134,10 @@ struct _terrainSettings
     std::string projection = "\" + proj = tmerc + lat_0 = 50.39 + lon_0 = 6.91 + k_0 = 1 + x_0 = 0 + y_0 = 0 + ellps = GRS80 + units = m\"";
     float size = 40000.f;
 
+    std::string dirRoot = "X:/resources/terrains/eifel";
+    std::string dirExport = "C:/Kunos/acevo_content/content/terrains/Eifel";
+    std::string dirGis = "X:/resources/terrains/eifel";
+    std::string dirResource = "X:/resources";
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -86,11 +145,18 @@ struct _terrainSettings
         _archive(CEREAL_NVP(name));
         _archive(CEREAL_NVP(projection));
         _archive(CEREAL_NVP(size));
+        if (_version >= 101)
+        {
+            _archive(CEREAL_NVP(dirRoot));
+            _archive(CEREAL_NVP(dirExport));
+            _archive(CEREAL_NVP(dirGis));
+            _archive(CEREAL_NVP(dirResource));
+        }
     }
 
     void renderGui(Gui* _gui);
 };
-CEREAL_CLASS_VERSION(_terrainSettings, 100);
+CEREAL_CLASS_VERSION(_terrainSettings, 101);
 
 
 
@@ -99,6 +165,10 @@ class quadtree_tile
 public:
     void init(uint _index);
     void set(uint _lod, uint _x, uint _y, float _size, float4 _origin, quadtree_tile* _parent);
+    void reset() {
+        forSplit = false;
+        forRemove = false;
+    }
 
 private:
 public:
@@ -108,22 +178,56 @@ public:
 
     float4 boundingSphere;		// position has to be power of two to allow us to store large world offsets using float rather than double
     float4 origin;
-    float size;
-    uint lod;
-    uint y;
-    uint x;
+    float   size;
+    uint    lod;
+    uint    y;
+    uint    x;
 
-    bool	forSplit;
-    bool	forRemove;          // the children
-    bool	main_ShouldSplit;
-    bool	env_ShouldSplit;
+    bool    	forSplit;
+    bool	    forRemove;          // the children
+    bool    	main_ShouldSplit;
+    bool	    env_ShouldSplit;
 
-    uint numQuads;
-    uint numPlants;
-    uint elevationHash;
+    uint    numQuads;
+    uint    numPlants;
+    uint    elevationHash;
 };
 
 
+enum CameraType {
+    CameraType_Main_Left,
+    CameraType_Main_Center,
+    CameraType_Main_Right,
+    CameraType_Rear_Left,
+    CameraType_Rear_Center,
+    CameraType_Rear_Right,
+    CameraType_MAX,
+};
+
+struct terrainCamera {
+    bool bUse;
+    float3 position;
+    glm::mat4x4 view;
+    glm::mat4x4 proj;
+    glm::mat4x4 viewProj;
+    glm::mat4x4 viewProjTranspose;
+    float resolution;
+    std::array<float4, 4> frustumPlane;
+    glm::mat4x4 frustumMatrix;
+};
+
+struct heightMap {
+    float2 origin;
+    float size;
+    float hgt_offset;
+    float hgt_scale;
+    std::string filename;	// jpeg2000 file
+
+    // for export
+    uint lod;
+    uint y;
+    uint x;
+};
 
 class terrainManager
 {
@@ -135,18 +239,40 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiMenubar(Gui* pGui);
-    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo);
+    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
     bool onMouseEvent(const MouseEvent& mouseEvent);
     void onHotReload(HotReloadFlags reloaded);
 
+    void allocateTiles(uint numT);			// ??? FIXME pass shader in as well to allocate GPU memory
+    void reset(bool _fullReset = false);
+    void loadElevationHash();
+
+    void clearCameras();
+    void setCamera(unsigned int _index, glm::mat4 *viewMatrix, glm::mat4 *projMatrix, float3 position, bool b_use, float _resolution);
     void update(RenderContext* pRenderContext);
 
 private:
+    bool testForSplit(quadtree_tile* _tile);
+    bool testFrustum(quadtree_tile* _tile);
+    void markForRemove(quadtree_tile* _tile);
+
+    void hashAndCache(quadtree_tile* pTile);
+    void setChild(quadtree_tile* pTile, int y, int x);
+    void splitOne(RenderContext* _renderContext);
+    void splitChild(quadtree_tile* _pTile, RenderContext* _renderContext);
+    void splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _renderContext);
+
     uint                        numTiles = 1024;
     std::vector<quadtree_tile>	m_tiles;
     std::list<quadtree_tile*>	m_free;
     std::list<quadtree_tile*>	m_used;
+    unsigned int frustumFlags[2048];
+    bool fullResetDoNotRender = false;
+    bool debug = true;
+
+    std::array<terrainCamera, CameraType_MAX> cameraViews;
+    float3 cameraOrigin;
 
     _lastFile lastfile;
     _terrainSettings settings;
@@ -154,6 +280,12 @@ private:
     bool requestPopupSettings = false;
 
     computeShader compute_MouseUnderTerrain;
+
+    std::map<uint32_t, heightMap> elevationTileHashmap;
+    struct textureCacheElement {
+        Texture::SharedPtr	  texture = nullptr;
+    };
+    LRUCache<uint32_t, textureCacheElement> elevationCache;
 
     struct {
         uint                bakeSize = 1024;
@@ -205,6 +337,8 @@ private:
         Texture::SharedPtr      vertex_B_texture;
         Texture::SharedPtr      vertex_clear;		        // 0 for fast clear
         Texture::SharedPtr      vertex_preload;	            // a pre allocated 1/8 verts
+
+        Texture::SharedPtr	    rootElevation;
     } split;
 
     Sampler::SharedPtr			sampler_Trilinear;

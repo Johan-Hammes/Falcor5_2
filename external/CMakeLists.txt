@@ -69,6 +69,17 @@ set_target_properties(mikktspace PROPERTIES
 add_library(cereal-master INTERFACE)
 target_include_directories(cereal-master INTERFACE cereal-master)
 
+# OpenJPH-master
+#add_library(OpenJPH-master INTERFACE)
+#add_subdirectory(OpenJPH-master)
+#target_include_directories(OpenJPH-master INTERFACE OpenJPH-master)
+
+#add_subdirectory(openJPH)
+
+# openJPH
+add_library( openJPH INTERFACE )
+target_include_directories( openJPH INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/openJPH/include" )
+target_link_libraries( openJPH INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/openJPH/lib/openjph.lib" )
 
 # imgui_addons
 add_library(imgui_addons INTERFACE)

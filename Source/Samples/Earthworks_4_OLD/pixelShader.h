@@ -1,0 +1,28 @@
+#pragma once
+#include "Falcor.h"
+
+using namespace Falcor;
+
+class pixelShader
+{
+public:
+	void load(const std::filesystem::path& _path, const std::string _vsEntry, const std::string _psEntry, Vao::Topology _topology);                                                  // "RenderPasses/SkyBox/SkyBox.3d.slang", "vsMain", "psMain");
+	void renderIndirect(RenderContext::SharedPtr _renderContext, Buffer::SharedPtr _indirectArgs, BlendState::SharedPtr BS, uint _startArg = 0, uint _numArgs = 1);
+	void drawIndexedInstanced(RenderContext::SharedPtr _renderContext, uint32_t _index, uint32_t _instance);
+    void setFbo(Fbo::SharedPtr _fbo) { state->setFbo(_fbo); }
+
+	const GraphicsProgram::SharedPtr Program() { return program; }
+    Buffer::SharedPtr ConstantBuffer() { return constantBuffer; }
+	GraphicsState::SharedPtr State() { return state; }
+	GraphicsVars::SharedPtr Vars() { return vars; }
+
+private:
+	Program::DefineList                 defineList;
+	GraphicsProgram::SharedPtr          program;
+	ProgramReflection::SharedConstPtr   reflection;
+    Buffer::SharedPtr                   constantBuffer;
+	GraphicsVars::SharedPtr             vars;
+	GraphicsState::SharedPtr            state;
+	Vao::SharedPtr                      vao;
+	Vao::BufferVec                      bufferVec;
+};

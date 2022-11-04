@@ -1,0 +1,9 @@
+Name: openjph
+Description: Open source implementation of JPH
+Version: 
+Requires: 
+prefix=D:/Temp/OpenJPH/install
+includedir=
+libdir=
+Libs: 
+Cflags: 

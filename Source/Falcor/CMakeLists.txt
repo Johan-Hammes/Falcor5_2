@@ -912,6 +912,7 @@ target_link_libraries(Falcor
         python
         slang slang-gfx
         imgui imgui_addons
+        openJPH
         nanovdb
         nvtt
         external_includes
