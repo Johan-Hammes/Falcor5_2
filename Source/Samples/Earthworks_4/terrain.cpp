@@ -219,6 +219,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
         split.tileFbo = Fbo::create2D(tile_numPixels, tile_numPixels, desc, 1, 8);
         split.bakeFbo = Fbo::create2D(split.bakeSize, split.bakeSize, desc, 1, 8);
 
+        compressed_Normals_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R11G11B10Float, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);	  // Now an array	  at 1024 tiles its 256 Mb , Fair bit but do-ablwe
+        compressed_Albedo_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::BC6HU16, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+        compressed_PBR_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::BC6HU16, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+        height_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R32Float, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);	  // Now an array	  1024 tiles is 64 MB - really nice and small
 
         split.drawArgs_quads = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
         split.drawArgs_plants = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
@@ -337,7 +341,26 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
 
     elevationCache.resize(45);
     loadElevationHash();
+
+    init_TopdownRender();
 }
+
+
+void terrainManager::init_TopdownRender()
+{
+    split.tileCamera = Camera::create();
+
+    split.shader_spline3D.load("render_Spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_splineTerrafector.load("render_SplineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
+
+    // mesh terrafector shader
+    split.shader_meshTerrafector.load("render_MeshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_meshTerrafector.Vars()->setSampler("SMP", sampler_Trilinear);
+    split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
+    split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+}
+
 
 void terrainManager::allocateTiles(uint numTiles)
 {
@@ -443,8 +466,6 @@ void terrainManager::loadElevationHash()
                 else
                 {
                     map.filename = fullpath;
-                    char txt[1024];
-                    sprintf(txt, "%s", fullpath.c_str());
                     elevationTileHashmap[hash] = map;
                 }
             }
@@ -574,7 +595,7 @@ void terrainManager::clearCameras()
 
 }
 
-void terrainManager::setCamera(unsigned int _index, glm::mat4 *viewMatrix, glm::mat4 *projMatrix, float3 position, bool b_use, float _resolution)
+void terrainManager::setCamera(unsigned int _index, glm::mat4* viewMatrix, glm::mat4* projMatrix, float3 position, bool b_use, float _resolution)
 {
     if (_index < CameraType_MAX)
     {
@@ -620,9 +641,9 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 *viewMatrix, glm::
 void terrainManager::update(RenderContext* _renderContext)
 {
     bool dirty = false;
-    
+
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
-    
+
     for (auto& tile : m_used)
     {
         tile->reset();
@@ -639,7 +660,7 @@ void terrainManager::update(RenderContext* _renderContext)
             ++itt;
         }
     }
-    
+
     splitOne(_renderContext);
 
     {
@@ -671,7 +692,7 @@ void terrainManager::update(RenderContext* _renderContext)
 
 void terrainManager::hashAndCache(quadtree_tile* pTile)
 {
-    
+
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
     std::map<uint32_t, heightMap>::iterator it = elevationTileHashmap.find(hash);
     if (it != elevationTileHashmap.end()) {
@@ -712,7 +733,7 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
 
         split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
     }
-    
+
 }
 
 
@@ -818,11 +839,73 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         split.compute_tileBicubic.Vars()["gConstants"]["hgt_scale"] = elevationMap.hgt_scale;
         split.compute_tileBicubic.dispatch(_renderContext, cs_w, cs_w);
     }
+
+
+    {
+        splitRenderTopdown(_tile, _renderContext);
+        _renderContext->copySubresource(height_Array.get(), _tile->index, split.tileFbo->getColorTexture(0).get(), 0);  // for picking
+    }
 }
 
 void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _renderContext)
 {
+    FALCOR_PROFILE("renderTopdown");
 
+    // set up the camera -----------------------
+    float s = _pTile->size / 2.0f;
+    float x = _pTile->origin.x + s;
+    float z = _pTile->origin.z + s;
+    glm::mat4 view, proj;
+    glm::mat4 cam = glm::mat4(1.0f);
+    view[0] = glm::vec4(1, 0, 0, 0);
+    view[1] = glm::vec4(0, 0, 1, 0);
+    view[2] = glm::vec4(0, -1, 0, 0);
+    view[3] = glm::vec4(-x, z, 0, 1);
+
+    s *= 256.0f / 248.0f;
+
+    if (_pTile->lod == 6 && _pTile->y == 41 && _pTile->x == 33)
+    {
+        bool bCM = true;
+    }
+    split.tileCamera->setViewMatrix((rmcv::mat4&)view);
+
+    proj = glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f);
+    split.tileCamera->setProjectionMatrix((rmcv::mat4&)proj);
+    split.tileCamera->getData();
+
+
+    //terrafectors.render(pRenderContext, split.tileCamera, mpTileGraphicsState, mpTileTopdownVars);
+
+    {
+ 
+
+        // Now render the roadNetwork
+        split.shader_splineTerrafector.Vars()->setBuffer("splineData", sb_SplineData);
+        terrafectorEditorMaterial::static_materials.setTextures(split.shader_splineTerrafector.Vars());
+
+        split.shader_splineTerrafector.getState()->setRasterizerState(rasterstateSplines);
+
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("view", view);
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("proj", proj);
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("viewproj", proj * view);
+
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("bHidden", 0);
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("numSubdiv", numSubdiv);
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("dLeft", 0.0f);
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("dRight", 0.0f);
+        split.shader_splineTerrafector.ConstantBuffer()->setVariable("colour", float4(0.01, 0.01, 0.01, 0.5));
+
+        // Visible ********************************************************************************
+        split.shader_splineTerrafector.State()->setDepthStencilState(depthstateAll);
+        if (bSplineAsTerrafector) {
+            split.shader_splineTerrafector.State()->setBlendState(blendstateRoadsCombined);
+            split.shader_splineTerrafector.Vars()->setStructuredBuffer("indexData", sb_IndexData);
+            split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, numSubdiv * 6, numStaticSplinesIndex);
+        }
+
+
+    }
 }
 
 

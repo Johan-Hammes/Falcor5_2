@@ -32,7 +32,11 @@ target_sources(Earthworks_4 PRIVATE
 	compute_tileJumpFlood.hlsl
 	compute_tileNormals.hlsl
 	compute_tilePassthrough.hlsl
-	compute_tileSplitMerge.hlsl 
+	compute_tileSplitMerge.hlsl
+
+    render_meshTerrafector.hlsl
+    render_splineTerrafector.hlsl
+    render_spline.hlsl
 )
 
 

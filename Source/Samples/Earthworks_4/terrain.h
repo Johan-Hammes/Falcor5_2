@@ -244,6 +244,7 @@ public:
     bool onMouseEvent(const MouseEvent& mouseEvent);
     void onHotReload(HotReloadFlags reloaded);
 
+    void init_TopdownRender();
     void allocateTiles(uint numT);			// ??? FIXME pass shader in as well to allocate GPU memory
     void reset(bool _fullReset = false);
     void loadElevationHash();
@@ -274,6 +275,11 @@ private:
     std::array<terrainCamera, CameraType_MAX> cameraViews;
     float3 cameraOrigin;
 
+    Texture::SharedPtr compressed_Normals_Array;
+    Texture::SharedPtr compressed_Albedo_Array;
+    Texture::SharedPtr compressed_PBR_Array;
+    Texture::SharedPtr height_Array;
+
     _lastFile lastfile;
     _terrainSettings settings;
 
@@ -291,6 +297,8 @@ private:
         uint                bakeSize = 1024;
         Fbo::SharedPtr		tileFbo;
         Fbo::SharedPtr		bakeFbo;
+        Camera::SharedPtr	tileCamera;
+
         Texture::SharedPtr	noise_u16;
 
         computeShader		compute_tileClear;
@@ -339,6 +347,10 @@ private:
         Texture::SharedPtr      vertex_preload;	            // a pre allocated 1/8 verts
 
         Texture::SharedPtr	    rootElevation;
+
+        pixelShader             shader_spline3D;
+        pixelShader             shader_splineTerrafector;
+        pixelShader             shader_meshTerrafector;    // these two should merge
     } split;
 
     Sampler::SharedPtr			sampler_Trilinear;
