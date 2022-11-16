@@ -350,15 +350,53 @@ void terrainManager::init_TopdownRender()
 {
     split.tileCamera = Camera::create();
 
-    split.shader_spline3D.load("render_Spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
-    split.shader_splineTerrafector.load("render_SplineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
-    split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
+ //   split.shader_spline3D.load("Samples/Earthworks_4/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+ //   split.shader_splineTerrafector.load("Samples/Earthworks_4/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+ //   split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
 
     // mesh terrafector shader
-    split.shader_meshTerrafector.load("render_MeshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
-    split.shader_meshTerrafector.Vars()->setSampler("SMP", sampler_Trilinear);
-    split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
-    split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+ //   split.shader_meshTerrafector.load("Samples/Earthworks_4/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+  //  split.shader_meshTerrafector.Vars()->setSampler("SMP", sampler_Trilinear);
+  //  split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
+  //  split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+
+    DepthStencilState::Desc depthDesc;
+    depthDesc.setDepthEnabled(true);
+    depthDesc.setDepthWriteMask(false);
+    depthDesc.setStencilEnabled(false);
+
+    depthDesc.setDepthFunc(DepthStencilState::Func::Greater);
+    split.depthstateFuther = DepthStencilState::create(depthDesc);
+
+    depthDesc.setDepthFunc(DepthStencilState::Func::LessEqual);
+    split.depthstateCloser = DepthStencilState::create(depthDesc);
+
+    depthDesc.setDepthFunc(DepthStencilState::Func::Always);
+    split.depthstateAll = DepthStencilState::create(depthDesc);
+
+    RasterizerState::Desc rsDesc;
+    rsDesc.setFillMode(RasterizerState::FillMode::Solid).setCullMode(RasterizerState::CullMode::None);
+    split.rasterstateSplines = RasterizerState::create(rsDesc);
+
+    BlendState::Desc blendDesc;
+    blendDesc.setRtBlend(0, true);
+    blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::Zero, BlendState::BlendFunc::Zero);
+    split.blendstateSplines = BlendState::create(blendDesc);
+
+    blendDesc.setIndependentBlend(true);
+    for (int i = 0; i < 8; i++)
+    {
+        // clear all
+        blendDesc.setRenderTargetWriteMask(i, true, true, true, true);
+        blendDesc.setRtBlend(i, true);
+        blendDesc.setRtParams(i, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
+    }
+
+    blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha);
+    split.blendstateRoadsCombined = BlendState::create(blendDesc);
+
+    //splines.bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxBezier);
+    //splines.indexData = Buffer::createStructured(sizeof(bezierLayer), "indexData", splines.maxIndex);
 }
 
 
@@ -855,8 +893,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     float s = _pTile->size / 2.0f;
     float x = _pTile->origin.x + s;
     float z = _pTile->origin.z + s;
-    glm::mat4 view, proj;
-    glm::mat4 cam = glm::mat4(1.0f);
+    rmcv::mat4 view, proj;
     view[0] = glm::vec4(1, 0, 0, 0);
     view[1] = glm::vec4(0, 0, 1, 0);
     view[2] = glm::vec4(0, -1, 0, 0);
@@ -868,43 +905,39 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     {
         bool bCM = true;
     }
-    split.tileCamera->setViewMatrix((rmcv::mat4&)view);
+    split.tileCamera->setViewMatrix(view);
 
-    proj = glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f);
-    split.tileCamera->setProjectionMatrix((rmcv::mat4&)proj);
+    proj = rmcv::toRMCV(glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f));
+    split.tileCamera->setProjectionMatrix(proj);
     split.tileCamera->getData();
-
 
     //terrafectors.render(pRenderContext, split.tileCamera, mpTileGraphicsState, mpTileTopdownVars);
 
+    //??? should probably be in the roadnetwork code, but look at the optimize step first
+    if (splineAsTerrafector)           // Now render the roadNetwork
     {
- 
-
-        // Now render the roadNetwork
-        split.shader_splineTerrafector.Vars()->setBuffer("splineData", sb_SplineData);
         terrafectorEditorMaterial::static_materials.setTextures(split.shader_splineTerrafector.Vars());
 
-        split.shader_splineTerrafector.getState()->setRasterizerState(rasterstateSplines);
+        split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
 
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("view", view);
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("proj", proj);
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("viewproj", proj * view);
+        split.shader_splineTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
 
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("bHidden", 0);
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("numSubdiv", numSubdiv);
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("dLeft", 0.0f);
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("dRight", 0.0f);
-        split.shader_splineTerrafector.ConstantBuffer()->setVariable("colour", float4(0.01, 0.01, 0.01, 0.5));
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["view"] = view;
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["proj"] = proj;
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["viewproj"] = proj * view;
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["numSubdiv"] = split.numSubdiv;
+        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["bHidden"] = 0;
+        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["dLeft"] = 0.0f;
+        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["dRight"] = 0.0f;
+        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["colour"] = float4(0.01, 0.01, 0.01, 0.5);
 
         // Visible ********************************************************************************
-        split.shader_splineTerrafector.State()->setDepthStencilState(depthstateAll);
-        if (bSplineAsTerrafector) {
-            split.shader_splineTerrafector.State()->setBlendState(blendstateRoadsCombined);
-            split.shader_splineTerrafector.Vars()->setStructuredBuffer("indexData", sb_IndexData);
-            split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, numSubdiv * 6, numStaticSplinesIndex);
-        }
+        split.shader_splineTerrafector.State()->setDepthStencilState(split.depthstateAll);
 
-
+        split.shader_splineTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
+        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData);
+        split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
+        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, split.numSubdiv * 6, splines.numIndex);
     }
 }
 

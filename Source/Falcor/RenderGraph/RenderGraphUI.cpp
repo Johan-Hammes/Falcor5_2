@@ -794,7 +794,8 @@ namespace Falcor
         bool isPopupOpen = false;
         bool first = false;
 
-        if (!(isPopupOpen = ImGui::IsPopupOpen(ImGui::GetCurrentWindow()->GetID("PinMenu"))))
+        //if (!(isPopupOpen = ImGui::IsPopupOpen(ImGui::GetCurrentWindow()->GetID("PinMenu"))))
+        if (!(isPopupOpen = ImGui::IsPopupOpen("PinMenu")))
         {
             ImGui::OpenPopup("PinMenu");
             first = true;
@@ -945,7 +946,8 @@ namespace Falcor
         }
         else
         {
-            if (ImGui::IsPopupOpen(ImGui::GetCurrentWindow()->GetID("PinMenu")))
+            //if (ImGui::IsPopupOpen(ImGui::GetCurrentWindow()->GetID("PinMenu")))
+            if (ImGui::IsPopupOpen("PinMenu"))
             {
                 ImGui::CloseCurrentPopup();
             }

@@ -284,6 +284,7 @@ private:
     _terrainSettings settings;
 
     bool requestPopupSettings = false;
+    bool splineAsTerrafector = false;
 
     computeShader compute_MouseUnderTerrain;
 
@@ -348,10 +349,26 @@ private:
 
         Texture::SharedPtr	    rootElevation;
 
+        int                     numSubdiv = 64;
         pixelShader             shader_spline3D;
         pixelShader             shader_splineTerrafector;
         pixelShader             shader_meshTerrafector;    // these two should merge
+        DepthStencilState::SharedPtr    depthstateCloser;
+        DepthStencilState::SharedPtr    depthstateFuther;
+        DepthStencilState::SharedPtr    depthstateAll;
+        RasterizerState::SharedPtr      rasterstateSplines;
+        BlendState::SharedPtr           blendstateSplines;
+        BlendState::SharedPtr		    blendstateRoadsCombined;
     } split;
+
+    struct
+    {
+        uint32_t maxBezier = 131072;            // 17 bits packed - likely to change soon
+        uint32_t maxIndex = 524288;             // *4 seems enough, 2022 at *1.7 for Nurburg
+        Buffer::SharedPtr bezierData;
+        Buffer::SharedPtr indexData;
+        uint numIndex = 0;
+    }splines;
 
     Sampler::SharedPtr			sampler_Trilinear;
     Sampler::SharedPtr			sampler_Clamp;

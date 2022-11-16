@@ -81,6 +81,7 @@ namespace Falcor
     {
         // Toggle console with "`" key.
         if (ImGui::IsKeyPressed('`')) show = !show;
+        //if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_Apostrophe)) show = !show;
 
         // Allow closing console with escape key.
         if (show && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape))) show = false;
@@ -95,7 +96,7 @@ namespace Falcor
         ImGui::PopTextWrapPos();
         if (mScrollToBottom)
         {
-            ImGui::SetScrollHere(1.0f);
+            ImGui::SetScrollHereY(1.0f);
             mScrollToBottom = false;
         }
         ImGui::EndChild();

@@ -830,6 +830,7 @@ target_sources(Falcor PRIVATE
     ../../external/imgui/imstb_truetype.h
     ../../external/imgui/imgui.cpp
     ../../external/imgui/imgui_draw.cpp
+    #../../external/imgui/imgui_tables.cpp
     ../../external/imgui/imgui_widgets.cpp
     ../../external/imgui_addons/imguinodegrapheditor/imguinodegrapheditor.h
     ../../external/imgui_addons/imguinodegrapheditor/imguinodegrapheditor.cpp

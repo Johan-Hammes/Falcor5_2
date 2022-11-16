@@ -160,6 +160,7 @@ namespace Falcor
         ImGui::CreateContext();
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         io.KeyMap[ImGuiKey_Tab] = (uint32_t)Input::Key::Tab;
         io.KeyMap[ImGuiKey_LeftArrow] = (uint32_t)Input::Key::Left;
         io.KeyMap[ImGuiKey_RightArrow] = (uint32_t)Input::Key::Right;

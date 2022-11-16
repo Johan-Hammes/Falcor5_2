@@ -493,6 +493,8 @@ namespace Falcor
             }
         }
 
+        
+
         if (gpDevice)
         {
             // Copy the render-target
@@ -515,6 +517,9 @@ namespace Falcor
             if (captureVideoUI) captureVideoFrame();
             if (mCaptureScreen) captureScreen();
 
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+
             {
                 FALCOR_PROFILE_CUSTOM("present", Profiler::Flags::Internal);
                 gpDevice->present();
@@ -522,6 +527,8 @@ namespace Falcor
         }
 
         mInputState.endFrame();
+
+       
 
         Console::instance().flush();
     }
