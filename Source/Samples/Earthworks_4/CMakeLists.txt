@@ -33,6 +33,7 @@ target_sources(Earthworks_4 PRIVATE
 	compute_tileNormals.hlsl
 	compute_tilePassthrough.hlsl
 	compute_tileSplitMerge.hlsl
+    compute_terrain_under_mouse.hlsl
 
     render_meshTerrafector.hlsl
     render_splineTerrafector.hlsl

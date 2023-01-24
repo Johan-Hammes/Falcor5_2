@@ -135,14 +135,14 @@ void Earthworks_4::onLoad(RenderContext* pRenderContext)
 void Earthworks_4::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
     terrain.setCamera(CameraType_Main_Center, (glm::mat4*) & camera->getViewMatrix(), (glm::mat4*) & camera->getProjMatrix(), camera->getPosition(), true, 1920);
-    //terrain.update(pRenderContext);
+    terrain.update(pRenderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
     const float4 clearColor(0.01f, 0.01f, 0.01f, 1);
     pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     pRenderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
-    //terrain.onFrameRender(pRenderContext, pTargetFbo);
+    terrain.onFrameRender(pRenderContext, pTargetFbo);
 }
 
 
@@ -176,7 +176,7 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 
 bool Earthworks_4::onMouseEvent(const MouseEvent& _mouseEvent)
 {
-    terrain.onMouseEvent(_mouseEvent);
+    terrain.onMouseEvent(_mouseEvent, screenSize);
     return false;
 }
 
@@ -255,9 +255,9 @@ int main(int argc, char** argv)
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
     config.windowDesc.resizableWindow = true;
-    config.windowDesc.mode = Window::WindowMode::Normal;
-    config.windowDesc.width = 260;
-    config.windowDesc.height = 140;
+    config.windowDesc.mode = Window::WindowMode::Fullscreen;
+    config.windowDesc.width = 1260;
+    config.windowDesc.height = 1140;
     config.windowDesc.monitor = 0;
 
     Sample::run(config, pRenderer);

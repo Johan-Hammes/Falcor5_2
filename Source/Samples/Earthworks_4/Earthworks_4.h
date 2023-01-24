@@ -61,6 +61,7 @@ private:
     terrainManager              terrain;
     bool showAbout = false;
     Texture::SharedPtr aboutTex;
+    
 
     struct {
         bool    vsync = true;

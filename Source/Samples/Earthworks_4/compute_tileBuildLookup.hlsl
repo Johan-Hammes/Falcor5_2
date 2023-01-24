@@ -23,6 +23,20 @@ cbuffer gConstants
 };
 
 
+uint unpackFrustum(uint x)
+{
+    uint index = x >> 2;
+    uint offset = x & 0x3;
+    switch (offset)
+    {
+    case 0: return frustumflags[index].x;
+    case 1: return frustumflags[index].y;
+    case 2: return frustumflags[index].z;
+    case 3: return frustumflags[index].w;
+    }
+    return 0;
+}
+
 
 [numthreads(32, 1, 1)]
 void main(uint dispatchId : SV_DispatchThreadId)
@@ -94,11 +108,9 @@ void main(uint dispatchId : SV_DispatchThreadId)
 			So the really interesting part is that doing frustum culling does almost nothing for rendering speed, the vertex shader is just not the bottlenect
 			and its a hell of a lot easier to just have one surface to bother with
 		*/
-		//static uint unpackFrustum[1024] = (uint[1024])frustumflags;  
 		
 		tiles[t].flags = 0;
-		//if ((unpackFrustum[t] & (1<<20)))
-		//if ((frustumflags[t] & (1<<20)))
+		if ((unpackFrustum(t) & (1<<20)))
 		{
 			tiles[t].flags = 1<<31;
 			
@@ -106,11 +118,11 @@ void main(uint dispatchId : SV_DispatchThreadId)
 			InterlockedAdd( feedback[0].numTerrainTiles, 1, slot );
 			
 			
-			
 			DrawArgs_Terrain[0].instanceCount = 0;
 			
 			uint totalTriangles = tiles[t].numTriangles;
 			uint numB = (totalTriangles >> 6) + 1;									// FIXME hardcoded
+            
 			for (uint i = 0; i < numB; i++)
 			{
 				uint numTriangles = min(totalTriangles, 64);  						// number of plants ion this block
@@ -128,7 +140,9 @@ void main(uint dispatchId : SV_DispatchThreadId)
 				terrainLookup[numLookupBlocks].tile = t + (numTriangles <<16);		// packing - mocve to function					;-) I think tiles[t].index  = t
 				terrainLookup[numLookupBlocks].offset = t * numVertPerTile + (i * 64 * 3);	
 			}
+            
 		}
+        
 	
 	}
 }

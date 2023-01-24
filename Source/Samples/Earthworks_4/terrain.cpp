@@ -29,8 +29,9 @@
 #include "imgui.h"
 #include <imgui_internal.h>
 #include <random>
+#include "Utils/UI/TextRenderer.h"
 
-
+#pragma optimize("", off)
 
 void _terrainSettings::renderGui(Gui* _gui)
 {
@@ -92,7 +93,7 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
     boundingSphere = origin + float4(size / 2, 0, size / 2, 0);
     boundingSphere.w = 1.0f;
 
-    parent = parent;
+    parent = _parent;
     child[0] = nullptr;
     child[1] = nullptr;
     child[2] = nullptr;
@@ -189,8 +190,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
 
     {
         split.buffer_tileCenters = Buffer::createStructured(sizeof(float4), numTiles);
-        split.buffer_tileCenter_readback = Buffer::create(sizeof(float4) * numTiles, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::Read);
-        split.tileCenters.resize(numTiles);
+        //split.buffer_tileCenter_readback = Buffer::create(sizeof(float4) * numTiles, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess, Buffer::CpuAccess::Read);
+        split.buffer_tileCenter_readback = Buffer::create(sizeof(float4) * numTiles, Resource::BindFlags::None, Buffer::CpuAccess::Read);
+        //split.tileCenters.resize(numTiles);
     }
 
 
@@ -229,6 +231,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
         split.drawArgs_tiles = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
 
         split.buffer_feedback = Buffer::createStructured(sizeof(GC_feedback), 1);
+        split.buffer_feedback_read = Buffer::createStructured(sizeof(GC_feedback), 1, Resource::BindFlags::None, Buffer::CpuAccess::Read);
 
         split.buffer_tiles = Buffer::createStructured(sizeof(gpuTile), numTiles);
         split.buffer_instance_quads = Buffer::createStructured(sizeof(instance_PLANT), numTiles * numQuadsPerTile);
@@ -240,6 +243,12 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
 
         split.buffer_terrain = Buffer::createStructured(sizeof(Terrain_vertex), numVertPerTile * numTiles);
 
+
+        compute_TerrainUnderMouse.load("Samples/Earthworks_4/compute_terrain_under_mouse.hlsl");
+        compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
+        compute_TerrainUnderMouse.Vars()->setTexture("gHeight", height_Array);
+        compute_TerrainUnderMouse.Vars()->setBuffer("tiles", split.buffer_tiles);
+        compute_TerrainUnderMouse.Vars()->setBuffer("groundcover_feedback", split.buffer_feedback);
 
         // clear
         split.compute_tileClear.load("Samples/Earthworks_4/compute_tileClear.hlsl");
@@ -530,6 +539,16 @@ void terrainManager::onGuiRender(Gui* _gui)
         settings.renderGui(_gui);
         ImGui::EndPopup();
     }
+    
+    if (requestPopupDebug) {
+        ImGui::OpenPopup("debug");
+        requestPopupDebug = false;
+    }
+    if (ImGui::BeginPopup("debug"))      // modal
+    {
+        ImGui::Text("%d", m_used.size());
+        ImGui::EndPopup();
+    }
 }
 
 
@@ -549,7 +568,10 @@ void terrainManager::onGuiMenubar(Gui* pGui)
         if (ImGui::MenuItem("settings"))
         {
             requestPopupSettings = true;
-
+        }
+        if (ImGui::MenuItem("debug"))
+        {
+            requestPopupDebug = true;
         }
         ImGui::EndMenu();
     }
@@ -564,6 +586,25 @@ bool all(float4 in)
     if (in.w == 0) return false;
     return true;
 }
+
+
+void terrainManager::testForSurfaceMain()
+{
+    bool bCM = true;
+    for (auto& tile : m_used)
+    {
+        bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
+        bool bCM2 = true;
+        if (surface) {
+            frustumFlags[tile->index] |= 1 << 20;
+        }
+    }
+}
+
+void terrainManager::testForSurfaceEnv()
+{
+}
+
 
 #define mainMaxLod 15
 bool terrainManager::testForSplit(quadtree_tile* _tile)
@@ -681,6 +722,7 @@ void terrainManager::update(RenderContext* _renderContext)
     bool dirty = false;
 
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
+    memset(frustumFlags, 0, sizeof(unsigned int) * 2048);		// clear all
 
     for (auto& tile : m_used)
     {
@@ -702,24 +744,36 @@ void terrainManager::update(RenderContext* _renderContext)
     splitOne(_renderContext);
 
     {
+        testForSurfaceMain();
+
+        for (auto& tile : m_used)
+        {
+            //bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
+            bool surface = tile->parent &&  tile->child[0] == nullptr;
+            bool bCM2 = true;
+            if (surface) {
+                frustumFlags[tile->index] |= 1 << 20;
+            }
+        }
+
+        auto pCB = split.compute_tileBuildLookup.Vars()->getParameterBlock("gConstants");
+        pCB->setBlob(frustumFlags, 0, 2048 * sizeof(unsigned int));	// FIXME number of tiles
         uint cnt = (numTiles + 31) >> 5;
-        //split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
+        split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
     if (dirty)
     {
-        /*
         // readback of tile centers
         _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
         const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
-        std::memcpy(&split.tileCenters, pData, sizeof(float4) * 2048);
+        std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
         split.buffer_tileCenter_readback.get()->unmap();
         for (int i = 0; i < m_tiles.size(); i++)
         {
             m_tiles[i].origin.y = split.tileCenters[i].x;
             m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
         }
-        */
     }
 }
 
@@ -793,7 +847,7 @@ void terrainManager::splitOne(RenderContext* _renderContext)
 {
     if (m_free.size() < 4) return;
 
-    for (auto const& tile : m_used)
+    for (auto& tile : m_used)
     {
         if (tile->forSplit)
         {
@@ -881,9 +935,126 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
     {
         splitRenderTopdown(_tile, _renderContext);
-        _renderContext->copySubresource(height_Array.get(), _tile->index, split.tileFbo->getColorTexture(0).get(), 0);  // for picking
+        _renderContext->copySubresource(height_Array.get(), _tile->index, split.tileFbo->getColorTexture(0).get(), 0);  // for picking only
+    }
+
+    {
+        FALCOR_PROFILE("compute");
+
+        {
+            // Do this early to avoid stalls
+            FALCOR_PROFILE("copy_VERT");
+            _renderContext->copyResource(split.vertex_B_texture.get(), split.vertex_clear.get());			// not 100% sure this clear is needed
+            _renderContext->copyResource(split.vertex_A_texture.get(), split.vertex_preload.get());
+        }
+
+        {
+            // compress and copy colour data
+            FALCOR_PROFILE("compress_copy_Albedo");
+            split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(1));
+            split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
+            _renderContext->copySubresource(compressed_Albedo_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
+        }
+
+        {
+            FALCOR_PROFILE("normals");
+            //split.compute_tileNormals.Vars()["gConstants"]["pixSize"] = pixelSize;
+            split.compute_tileNormals.dispatch(_renderContext, cs_w, cs_w);
+        }
+
+        {
+            // for verts. Do this early to avoid stalls
+            FALCOR_PROFILE("MIP_heights");
+            split.tileFbo->getColorTexture(0)->generateMips(_renderContext);
+            //cs_tile_ElevationMipmap.dispatch(pRenderContext, w / 4, h / 4); 			// Ek aanvaar die werk en is vinniger 0.057 -> 0.027   maar syncronization issues hier wat ek in A gaan oplos
+        }
+
+        {
+            FALCOR_PROFILE("copy_PBR");
+            split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(2));
+            split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
+            _renderContext->copySubresource(compressed_PBR_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
+        }
+
+        {
+            FALCOR_PROFILE("verticies");
+            split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
+            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize, 1, 2, _tile->index);
+            split.compute_tileVerticis.dispatch(_renderContext, cs_w / 2, cs_w / 2);
+        }
+
+        {
+            FALCOR_PROFILE("copy normals");
+            _renderContext->copySubresource(compressed_Normals_Array.get(), _tile->index, split.normals_texture.get(), 0);
+            /*
+            PROFILE(normalsBC6H);
+            csBC6H_compressor.getVars()->setTexture("gSource", mpNormals);
+            csBC6H_compressor.dispatch(pRenderContext, w / 4, h / 4);
+            pRenderContext->copySubresource(mpCompressed_Normals_Array.get(), pTile->m_idx, mpCompressed_TMP.get(), 0);
+            */
+        }
+
+        /*
+        // both of these need to chnage to work on child not parent
+        {
+          FALCOR_PROFILE("cs_tile_Generate");
+          uint32_t w_gen = tile_numPixels / tile_cs_ThreadSize_Generate - 1;
+          uint32_t h_gen = tile_numPixels / tile_cs_ThreadSize_Generate - 1;
+          cs_tile_Generate.getCB()->setVariable<uint>(0, pTile->m_idx);
+          cs_tile_Generate.dispatch(pRenderContext, w_gen, h_gen);
+        }
+
+        {
+          FALCOR_PROFILE("cs_tile_Passthrough");
+          uint cnt = (numQuadsPerTile) >> 8;	  // FIXME - hiesdie oordoen is es dan stadig - dit behoort Compute indoirect te wees  en die regte getal te gebruik
+          cs_tile_Passthrough.getCB()->setVariable<uint>(0, pTile->m_idx);
+          cs_tile_Passthrough.getCB()->setVariable<uint>(sizeof(int), pTile->m_X & 0x1);
+          cs_tile_Passthrough.getCB()->setVariable<uint>(sizeof(int) * 2, pTile->m_Y & 0x1);
+          cs_tile_Passthrough.dispatch(pRenderContext, cnt, 1);
+        }
+        */
+
+        // jumpflood algorithm (1+JFA+1) tp build voroinoi diagram ------------------------------------------------------------------------
+        // ek weet 32 en 6 loops is goed
+        {
+            FALCOR_PROFILE("jumpflood");
+
+            uint step = 2;
+            for (int j = 0; j < 4; j++) {
+                split.compute_tileJumpFlood.Vars()["gConstants"]["step"] = step;
+                if (j & 0x1) {
+                    split.compute_tileJumpFlood.Vars()->setTexture("gInVerts", split.vertex_B_texture);
+                    split.compute_tileJumpFlood.Vars()->setTexture("gOutVerts", split.vertex_A_texture);
+                }
+                else {
+                    split.compute_tileJumpFlood.Vars()->setTexture("gInVerts", split.vertex_A_texture);
+                    split.compute_tileJumpFlood.Vars()->setTexture("gOutVerts", split.vertex_B_texture);
+
+                }
+
+                split.compute_tileJumpFlood.dispatch(_renderContext, cs_w / 2, cs_w / 2);
+                step /= 2;
+                if (step < 1) step = 1;
+            }
+
+            split.compute_tileJumpFlood.Vars()->setTexture("gInVerts", NULL);
+            split.compute_tileJumpFlood.Vars()->setTexture("gOutVerts", NULL);
+        }
+
+        {
+            FALCOR_PROFILE("delaunay");
+            uint32_t firstVertex = _tile->index * numVertPerTile;
+            uint32_t zero = 0;
+            split.buffer_terrain->getUAVCounter()->setBlob(&zero, 0, sizeof(uint32_t));	// damn, I misuse increment, count in 1's but write in 3's
+            split.compute_tileDelaunay.Vars()["gConstants"]["tile_Index"] =  _tile->index; 
+            split.compute_tileDelaunay.dispatch(_renderContext, cs_w / 2, cs_w / 2);
+            //mpRenderContext->copyResource(mpDefaultFBO->getColorTexture(0).get(), mpVertsMap.get());
+            //mpVertsMap->captureToFile(0, 0, "e:\\voroinoi_verts.png");
+        }
     }
 }
+
+
 
 void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _renderContext)
 {
@@ -943,8 +1114,23 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-void terrainManager::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo)
+void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo)
 {
+    {
+        FALCOR_PROFILE("terrain_under_mouse");
+        compute_TerrainUnderMouse.Vars()["gConstants"]["mousePos"] = mousePosition;
+        compute_TerrainUnderMouse.Vars()["gConstants"]["mouseDir"] = mouseDirection;
+        compute_TerrainUnderMouse.Vars()["gConstants"]["mouseCoords"] = mouseCoord;
+        compute_TerrainUnderMouse.Vars()->setTexture("gHDRBackbuffer", _fbo->getColorTexture(0));
+
+        compute_TerrainUnderMouse.dispatch(_renderContext, 32, 1);
+
+        _renderContext->copyResource(split.buffer_feedback_read.get(), split.buffer_feedback.get());
+
+        const uint8_t* pData = (uint8_t*)split.buffer_feedback_read->map(Buffer::MapType::Read);
+        std::memcpy(&split.feedback, pData, sizeof(GC_feedback));
+        split.buffer_feedback_read->unmap();
+    }
 
     if (debug)
     {
@@ -954,14 +1140,21 @@ void terrainManager::onFrameRender(RenderContext* pRenderContext, const Fbo::Sha
         for (int i = 0; i < 8; i++)
         {
             dstRect = glm::vec4(250 + i * 150, 60, 250 + i * 150 + 128, 60 + 128);
-            pRenderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
+            _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
         dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels * 2, 60 + tile_numPixels * 2);
-        pRenderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
+        _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
         //dstRect = vec4(512, 612, 1024, 1124);
         //pRenderContext->blit(mpCompressed_Normals->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
+        char debugTxt[1024];
+        TextRenderer::setColor(float3(0.1, 0.1, 0.1));
+        sprintf(debugTxt, "%d of %d tiles used", (int)m_used.size(), (int)m_tiles.size());
+        TextRenderer::render(_renderContext, debugTxt, _fbo, {100, 300});
+
+        sprintf(debugTxt, "%d of %d tiles / verts", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts);
+        TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 320 });
     }
 }
 
@@ -982,8 +1175,17 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 }
 
 
-bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent)
+bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize)
 {
+    glm::vec2 pos = mouseEvent.pos;
+    pos.y = 1.0 - pos.y;
+    glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), cameraViews[CameraType_Main_Center].view, cameraViews[CameraType_Main_Center].proj, glm::vec4(0, 0, _screenSize));
+    glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), cameraViews[CameraType_Main_Center].view, cameraViews[CameraType_Main_Center].proj, glm::vec4(0, 0, _screenSize));
+    mouseDirection = glm::normalize(F - N);
+    screenSize = _screenSize;
+    mousePosition = cameraViews[CameraType_Main_Center].view[3];
+    mouseCoord = mouseEvent.pos * _screenSize;
+
     return false;
 }
 

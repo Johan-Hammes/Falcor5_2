@@ -22,7 +22,8 @@ RWStructuredBuffer<gpuTile>		tiles;		// also update minHgt_mm and maxHgt_mm
 
 cbuffer gConstants
 {
-	float4 pixSize;			// .x pixsize			?? why not use float
+	float pixSize;			// .x pixsize			?? why not use float
+	float3 padd;
 };
 
 
@@ -35,7 +36,7 @@ void main(uint2 crd : SV_DispatchThreadId)
 	float dx = gInHgt[crd_clamped + int2(-1, 0)].r - gInHgt[crd_clamped + int2(1, 0)].r;
 	float dy = gInHgt[crd_clamped + int2(0, -1)].r - gInHgt[crd_clamped + int2(0, 1)].r;
 	
-	float3 n = normalize(float3(dx, 2.0 * pixSize.x, dy));
+	float3 n = normalize(float3(dx, 2.0 * pixSize, dy));
 	gOutNormals[crd] = n * 0.5 + 0.5;
 	
 	float3 shade = saturate(dot(n, normalize(float3(0.71, 0.2, 0.71 )))) * 0.1;

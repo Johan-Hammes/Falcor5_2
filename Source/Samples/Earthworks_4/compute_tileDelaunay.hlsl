@@ -33,7 +33,7 @@ void addTriangles(uint A, uint B, uint C, uint D)
 {
 
 	uint offset = tile_Index * numVertPerTile;
-	uint flag = ((A != B) << 3) + ((A != C) << 2) + ((D != B) << 1) + ((D != C) << 0);
+	uint flag = ((uint)(A != B) << 3) + ((uint)(A != C) << 2) + ((uint)(D != B) << 1) + ((uint)(D != C) << 0);
 	uint idx = 0;
 			
 	if (flag == 15) 		// we have 4

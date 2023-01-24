@@ -241,7 +241,7 @@ public:
     void onGuiMenubar(Gui* pGui);
     void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
-    bool onMouseEvent(const MouseEvent& mouseEvent);
+    bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize);
     void onHotReload(HotReloadFlags reloaded);
 
     void init_TopdownRender();
@@ -254,6 +254,8 @@ public:
     void update(RenderContext* pRenderContext);
 
 private:
+    void testForSurfaceMain();
+    void testForSurfaceEnv();
     bool testForSplit(quadtree_tile* _tile);
     bool testFrustum(quadtree_tile* _tile);
     void markForRemove(quadtree_tile* _tile);
@@ -284,9 +286,14 @@ private:
     _terrainSettings settings;
 
     bool requestPopupSettings = false;
+    bool requestPopupDebug = false;
     bool splineAsTerrafector = false;
 
-    computeShader compute_MouseUnderTerrain;
+    glm::vec3 mouseDirection;
+    glm::vec3 mousePosition;
+    glm::vec2 screenSize;
+    glm::vec2 mouseCoord;
+    computeShader compute_TerrainUnderMouse;
 
     std::map<uint32_t, heightMap> elevationTileHashmap;
     struct textureCacheElement {
@@ -323,6 +330,8 @@ private:
         Buffer::SharedPtr       drawArgs_plants;
         Buffer::SharedPtr       drawArgs_tiles;         // block based
         Buffer::SharedPtr       buffer_feedback;
+        Buffer::SharedPtr		buffer_feedback_read;
+        GC_feedback             feedback;
 
         std::vector<gpuTile>    cpuTiles;
         Buffer::SharedPtr       buffer_tiles;
@@ -335,7 +344,7 @@ private:
 
         Buffer::SharedPtr	    buffer_tileCenters;
         Buffer::SharedPtr		buffer_tileCenter_readback;
-        std::vector<float4>		tileCenters;
+        std::array<float4, 2048>		tileCenters;
 
         Buffer::SharedPtr       buffer_terrain;
 
