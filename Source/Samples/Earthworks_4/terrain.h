@@ -183,10 +183,10 @@ public:
     uint    y;
     uint    x;
 
-    bool    	forSplit;
-    bool	    forRemove;          // the children
-    bool    	main_ShouldSplit;
-    bool	    env_ShouldSplit;
+    bool    	forSplit = false;
+    bool	    forRemove = false;          // the children
+    bool    	main_ShouldSplit = false;
+    bool	    env_ShouldSplit = false;
 
     uint    numQuads;
     uint    numPlants;
@@ -239,9 +239,9 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiMenubar(Gui* pGui);
-    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo);
+    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
-    bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize);
+    bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
     void onHotReload(HotReloadFlags reloaded);
 
     void init_TopdownRender();
@@ -250,7 +250,7 @@ public:
     void loadElevationHash();
 
     void clearCameras();
-    void setCamera(unsigned int _index, glm::mat4 *viewMatrix, glm::mat4 *projMatrix, float3 position, bool b_use, float _resolution);
+    void setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution);
     void update(RenderContext* pRenderContext);
 
 private:
@@ -258,7 +258,7 @@ private:
     void testForSurfaceEnv();
     bool testForSplit(quadtree_tile* _tile);
     bool testFrustum(quadtree_tile* _tile);
-    void markForRemove(quadtree_tile* _tile);
+    void markChildrenForRemove(quadtree_tile* _tile);
 
     void hashAndCache(quadtree_tile* pTile);
     void setChild(quadtree_tile* pTile, int y, int x);
@@ -281,6 +281,8 @@ private:
     Texture::SharedPtr compressed_Albedo_Array;
     Texture::SharedPtr compressed_PBR_Array;
     Texture::SharedPtr height_Array;
+
+    pixelShader terrainShader;
 
     _lastFile lastfile;
     _terrainSettings settings;
@@ -378,6 +380,21 @@ private:
         Buffer::SharedPtr indexData;
         uint numIndex = 0;
     }splines;
+
+    struct
+    {
+        bool        hit;
+        glm::vec3   terrain;
+        float       cameraHeight;
+        glm::vec3   toGround;
+        glm::vec3   pan;
+        glm::vec3   orbit;
+        float       orbitRadius;
+        float       mouseToHeightRatio;
+
+        glm::vec3   newPosition;
+        glm::vec3   newTarget;
+    }mouse;
 
     Sampler::SharedPtr			sampler_Trilinear;
     Sampler::SharedPtr			sampler_Clamp;

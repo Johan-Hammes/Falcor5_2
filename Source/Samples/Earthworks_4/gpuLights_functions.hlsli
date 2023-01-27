@@ -14,7 +14,7 @@ bool light_intersect_Volume(float3 pos, float radius, gpu_LIGHT light )
 	float R = length(lightPos);
 	if ( R > (radius + light.radius) ) return false;
 	return true;
-	
+/*
 	//float3 p_R = pos - (light.position - light.direction * radius);
 	//float f = dot( light.direction, normalize(p_R));
 	float f = dot( light.direction, normalize(lightPos));
@@ -26,6 +26,7 @@ bool light_intersect_Volume(float3 pos, float radius, gpu_LIGHT light )
 	}
 	
 	return false;
+    */
 }
 
 

@@ -182,6 +182,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
                 glm::uint index = (mY + 4) * 128 + mX + 4;
                 if (x == 16) index -= 4;
                 if (y == 16) index -= 4 * 128;
+
+                unsigned int packValue = ((mX + 1) << 9) + ((mY + 1) << 1);
+                vertexData[index] = packValue;
             }
         }
         split.vertex_preload = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, vertexData.data(), Resource::BindFlags::ShaderResource);
@@ -243,6 +246,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
 
         split.buffer_terrain = Buffer::createStructured(sizeof(Terrain_vertex), numVertPerTile * numTiles);
 
+        terrainShader.load("Samples/Earthworks_4/render_Tiles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+        terrainShader.Vars()->setBuffer("tiles", split.buffer_tiles);
+        terrainShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_terrain);
 
         compute_TerrainUnderMouse.load("Samples/Earthworks_4/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
@@ -549,6 +555,8 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::Text("%d", m_used.size());
         ImGui::EndPopup();
     }
+
+    ImGui::SetTooltip("%d (%3.1f, %3.1f, %3.1f) pan(%3.1f, %3.1f, %3.1f)", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z, mouse.pan.x, mouse.pan.y, mouse.pan.z);
 }
 
 
@@ -649,10 +657,7 @@ bool terrainManager::testForSplit(quadtree_tile* _tile)
         return true;
     }
 
-    if (!_tile->main_ShouldSplit) {
-        markForRemove(_tile);
-        return true;
-    }
+    
 
     return false;
 }
@@ -662,8 +667,16 @@ bool terrainManager::testFrustum(quadtree_tile* _tile)
     return true;
 }
 
-void terrainManager::markForRemove(quadtree_tile* _tile)
-{}
+void terrainManager::markChildrenForRemove(quadtree_tile* _tile)
+{
+    for (uint i = 0; i < 4; i++) {
+        if (_tile->child[i]) {
+            markChildrenForRemove(_tile->child[i]);
+            _tile->child[i]->forRemove = true;
+            _tile->child[i] = nullptr;
+        }
+    }
+}
 
 
 void terrainManager::clearCameras()
@@ -674,7 +687,7 @@ void terrainManager::clearCameras()
 
 }
 
-void terrainManager::setCamera(unsigned int _index, glm::mat4* viewMatrix, glm::mat4* projMatrix, float3 position, bool b_use, float _resolution)
+void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution)
 {
     if (_index < CameraType_MAX)
     {
@@ -682,8 +695,8 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4* viewMatrix, glm::
 
         cameraViews[_index].bUse = b_use;
         cameraViews[_index].resolution = _resolution;
-        cameraViews[_index].view = *viewMatrix;
-        cameraViews[_index].proj = *projMatrix;
+        cameraViews[_index].view = viewMatrix;
+        cameraViews[_index].proj = projMatrix;
         cameraViews[_index].viewProj = cameraViews[_index].view * cameraViews[_index].proj;
         cameraViews[_index].position = position;
 
@@ -727,12 +740,21 @@ void terrainManager::update(RenderContext* _renderContext)
     for (auto& tile : m_used)
     {
         tile->reset();
+    }
+
+    for (auto& tile : m_used)
+    {
         dirty |= testForSplit(tile);
+
+        if (!tile->main_ShouldSplit && tile->child[0]) {
+            markChildrenForRemove(tile);
+        }
     }
 
     for (auto itt = m_used.begin(); itt != m_used.end();)               // do al merges
     {
         if ((*itt)->forRemove) {
+            (*itt)->forRemove = false;
             m_free.push_back(*itt);
             itt = m_used.erase(itt);
         }
@@ -771,7 +793,7 @@ void terrainManager::update(RenderContext* _renderContext)
         split.buffer_tileCenter_readback.get()->unmap();
         for (int i = 0; i < m_tiles.size(); i++)
         {
-            m_tiles[i].origin.y = split.tileCenters[i].x;
+            m_tiles[i].origin.y =  split.tileCenters[i].x;
             m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
         }
     }
@@ -845,6 +867,7 @@ void terrainManager::setChild(quadtree_tile* pTile, int y, int x)
 
 void terrainManager::splitOne(RenderContext* _renderContext)
 {
+    /* Bloody hell, pick the best one to do*/
     if (m_free.size() < 4) return;
 
     for (auto& tile : m_used)
@@ -1114,8 +1137,60 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo)
+void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState)
 {
+    {
+        FALCOR_PROFILE("terrainManager");
+
+        _graphicsState->setFbo(_fbo);
+
+        terrainShader.State() = _graphicsState;
+        terrainShader.State()->setFbo(_fbo);
+
+        terrainShader.Vars()->setTexture("gAlbedoArray", compressed_Albedo_Array);
+        terrainShader.Vars()->setTexture("gPBRArray", compressed_PBR_Array);
+        terrainShader.Vars()->setTexture("gNormArray", compressed_Normals_Array);
+        //terrainShader.Vars()->setTexture("gGISAlbedo", mpColourOverlay);
+
+        terrainShader.Vars()->setSampler("gSmpAniso", sampler_ClampAnisotropic);
+
+        terrainShader.Vars()->setBuffer("VB", split.buffer_terrain);
+
+        glm::mat4 V = toGLM(_camera->getViewMatrix());
+        glm::mat4 P = toGLM(_camera->getProjMatrix());
+        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+        rmcv::mat4 view, proj, viewproj;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                view[j][i] = V[j][i];
+                proj[j][i] = P[j][i];
+                viewproj[j][i] = VP[j][i];
+            }
+        }
+        terrainShader.Vars()["gConstantBuffer"]["view"] = view;
+        terrainShader.Vars()["gConstantBuffer"]["proj"] = proj;
+        terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
+
+        /*
+        terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gisOverlayStrenght;
+        terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)bShowGIS;
+        terrainShader.Vars()["PerFrameCB"]["redStrength"] = redStrength;
+        terrainShader.Vars()["PerFrameCB"]["redScale"] = redScale;
+        terrainShader.Vars()["PerFrameCB"]["redOffset"] = redOffset;
+        terrainShader.Vars()["PerFrameCB"]["gisBox"] = overlayBox;
+        terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+        */
+        /*
+        terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", nearInscatter);
+        terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", nearOutscatter);
+        terrainShader.Vars()->setTexture("gAtmosphereInscatter", farInscatter);
+        terrainShader.Vars()->setTexture("gAtmosphereOutscatter", farOutscatter);
+        */
+
+        terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
+    }
+
     {
         FALCOR_PROFILE("terrain_under_mouse");
         compute_TerrainUnderMouse.Vars()["gConstants"]["mousePos"] = mousePosition;
@@ -1130,6 +1205,21 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         const uint8_t* pData = (uint8_t*)split.buffer_feedback_read->map(Buffer::MapType::Read);
         std::memcpy(&split.feedback, pData, sizeof(GC_feedback));
         split.buffer_feedback_read->unmap();
+
+        mouse.hit = false;
+        if (split.feedback.tum_idx > 0)
+        {
+            mouse.hit = true;
+            mouse.terrain = split.feedback.tum_Position;
+            mouse.cameraHeight = split.feedback.heightUnderCamera;
+            mouse.toGround = mouse.terrain - _camera->getPosition();
+            mouse.mouseToHeightRatio = glm::length(mouse.toGround) / (_camera->getPosition().y - mouse.cameraHeight);
+            if (!ImGui::IsMouseDown(1)) mouse.pan = mouse.terrain;
+            if (!ImGui::IsMouseDown(2)) mouse.orbit = mouse.terrain;
+
+        }
+
+        
     }
 
     if (debug)
@@ -1145,6 +1235,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels * 2, 60 + tile_numPixels * 2);
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
+
+        dstRect = glm::vec4(800 + 8 * 150, 60, 800 + 8 * 150 + tile_numPixels*2, 60 + tile_numPixels*2);
+        _renderContext->blit(split.vertex_preload->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
         //dstRect = vec4(512, 612, 1024, 1124);
         //pRenderContext->blit(mpCompressed_Normals->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
@@ -1175,7 +1268,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 }
 
 
-bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize)
+bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera)
 {
     glm::vec2 pos = mouseEvent.pos;
     pos.y = 1.0 - pos.y;
@@ -1183,8 +1276,54 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
     glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), cameraViews[CameraType_Main_Center].view, cameraViews[CameraType_Main_Center].proj, glm::vec4(0, 0, _screenSize));
     mouseDirection = glm::normalize(F - N);
     screenSize = _screenSize;
-    mousePosition = cameraViews[CameraType_Main_Center].view[3];
+    mousePosition = _camera->getPosition();
     mouseCoord = mouseEvent.pos * _screenSize;
+
+
+    switch (mouseEvent.type)
+    {
+    case MouseEvent::Type::Move:
+    {
+        //if (bRightButton)  // PAN
+        if (ImGui::IsMouseDown(1))
+        {
+            glm::vec3 newPos = mouse.terrain - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
+            glm::vec3 deltaPos = newPos - _camera->getPosition();
+
+            glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+            _camera->setPosition(newPos);
+            _camera->setTarget(newTarget);
+        }
+    }
+    break;
+    case MouseEvent::Type::Wheel:
+    {
+        if (mouse.hit)
+        {
+            float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
+            mouse.toGround *= scale;
+            glm::vec3 newPos = mouse.terrain - mouse.toGround;
+            glm::vec3 deltaPos = newPos - _camera->getPosition();
+            glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+
+            _camera->setPosition(newPos);
+            _camera->setTarget(newTarget);
+        }
+    }
+    break;
+    case MouseEvent::Type::ButtonDown:
+    {
+        if (mouseEvent.button == Input::MouseButton::Middle)
+        {
+            mouse.orbitRadius = glm::length(mouse.toGround);
+        }
+    }
+    break;
+    case MouseEvent::Type::ButtonUp:
+    {
+    }
+    break;
+    }
 
     return false;
 }

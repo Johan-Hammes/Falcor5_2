@@ -34,8 +34,8 @@ void pixelShader::load(const std::filesystem::path& _path, const std::string _vs
 
 void pixelShader::renderIndirect(RenderContext* _renderContext, Buffer::SharedPtr _indirectArgs, BlendState::SharedPtr BS, uint _startArg, uint _numArgs)
 {
-	vars->setBuffer("gConstantBuffer", constantBuffer);
-	state->setBlendState(BS);
+	//vars->setBuffer("gConstantBuffer", constantBuffer);
+	if (BS) state->setBlendState(BS);
     _renderContext->drawIndirect(state.get(), vars.get(), _numArgs, _indirectArgs.get(), _startArg*16, nullptr, 0);
 }
 
@@ -43,6 +43,6 @@ void pixelShader::renderIndirect(RenderContext* _renderContext, Buffer::SharedPt
 
 void pixelShader::drawIndexedInstanced(RenderContext* _renderContext, uint32_t _index, uint32_t _instance)
 {
-    vars->setBuffer("gConstantBuffer", constantBuffer);
+    //vars->setBuffer("gConstantBuffer", constantBuffer);
     _renderContext->drawIndexedInstanced(state.get(), vars.get(), _index, _instance, 0, 0, 0);
 }

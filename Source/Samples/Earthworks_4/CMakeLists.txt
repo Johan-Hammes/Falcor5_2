@@ -38,6 +38,10 @@ target_sources(Earthworks_4 PRIVATE
     render_meshTerrafector.hlsl
     render_splineTerrafector.hlsl
     render_spline.hlsl
+    render_Tiles.hlsl
+    render_Common.hlsli
+    PBR.hlsli
+    material.hlsli
 )
 
 

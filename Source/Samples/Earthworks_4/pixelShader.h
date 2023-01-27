@@ -7,7 +7,7 @@ class pixelShader
 {
 public:
 	void load(const std::filesystem::path& _path, const std::string _vsEntry, const std::string _psEntry, Vao::Topology _topology);                                                  // "RenderPasses/SkyBox/SkyBox.3d.slang", "vsMain", "psMain");
-	void renderIndirect(RenderContext* _renderContext, Buffer::SharedPtr _indirectArgs, BlendState::SharedPtr BS, uint _startArg = 0, uint _numArgs = 1);
+	void renderIndirect(RenderContext* _renderContext, Buffer::SharedPtr _indirectArgs, BlendState::SharedPtr BS = nullptr, uint _startArg = 0, uint _numArgs = 1);
 	void drawIndexedInstanced(RenderContext* _renderContext, uint32_t _index, uint32_t _instance);
     void setFbo(Fbo::SharedPtr _fbo) { state->setFbo(_fbo); }
 

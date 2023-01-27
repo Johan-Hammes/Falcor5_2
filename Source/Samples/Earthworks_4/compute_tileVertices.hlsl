@@ -28,7 +28,7 @@ cbuffer gConstants
 void main(uint2 coord : SV_DispatchThreadId)
 {
 
-	if (coord.x == 127 && coord.y== 127) {
+	if (coord.x == 127 && coord.y == 127) {
 		uint tileIdx = constants.w;
 		float centerHeight = gInHgt.SampleLevel(linearSampler, float2(0.5, 0.5), 0);
 		tileCenters[tileIdx].min = centerHeight;

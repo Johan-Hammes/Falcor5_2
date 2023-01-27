@@ -106,14 +106,28 @@ void Earthworks_4::onLoad(RenderContext* pRenderContext)
 {
     graphicsState = GraphicsState::create();
 
+    BlendState::Desc bsDesc;
+    bsDesc.setRtBlend(0, true).setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::One, BlendState::BlendFunc::Zero);
+    graphicsState->setBlendState( BlendState::create(bsDesc) );
+
+    DepthStencilState::Desc dsDesc;
+    dsDesc.setDepthEnabled(true);
+    dsDesc.setDepthWriteMask(true);
+    graphicsState->setDepthStencilState( DepthStencilState::create(dsDesc) );
+    
+    RasterizerState::Desc rsDesc;
+    rsDesc.setCullMode(RasterizerState::CullMode::None);
+    graphicsState->setRasterizerState( RasterizerState::create(rsDesc) );
+
     camera = Camera::create();
     camera->setDepthRange(0.5f, 40000.0f);
     camera->setAspectRatio(1920.0f / 1080.0f);
     camera->setFocalLength(15.0f);
-    camera->setPosition(float3(0, 500, 0));
+    camera->setPosition(float3(0, 900, 0));
+    camera->setTarget(float3(0, 900, 100));
 
     terrain.onLoad(pRenderContext);
-
+/*
     FILE* file = fopen("camera.bin", "rb");
     if (file) {
         CameraData data;
@@ -121,6 +135,7 @@ void Earthworks_4::onLoad(RenderContext* pRenderContext)
         camera->getData() = data;
         fclose(file);
     }
+    */
     std::ifstream is("earthworks4_presets.json");
     if (is.good()) {
         cereal::JSONInputArchive archive(is);
@@ -134,7 +149,7 @@ void Earthworks_4::onLoad(RenderContext* pRenderContext)
 
 void Earthworks_4::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    terrain.setCamera(CameraType_Main_Center, (glm::mat4*) & camera->getViewMatrix(), (glm::mat4*) & camera->getProjMatrix(), camera->getPosition(), true, 1920);
+    terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     terrain.update(pRenderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
@@ -142,7 +157,9 @@ void Earthworks_4::onFrameRender(RenderContext* pRenderContext, const Fbo::Share
     pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     pRenderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
-    terrain.onFrameRender(pRenderContext, pTargetFbo);
+    graphicsState->setFbo(pTargetFbo);
+
+    terrain.onFrameRender(pRenderContext, pTargetFbo, camera, graphicsState);
 }
 
 
@@ -176,7 +193,7 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 
 bool Earthworks_4::onMouseEvent(const MouseEvent& _mouseEvent)
 {
-    terrain.onMouseEvent(_mouseEvent, screenSize);
+    terrain.onMouseEvent(_mouseEvent, screenSize, camera);
     return false;
 }
 
