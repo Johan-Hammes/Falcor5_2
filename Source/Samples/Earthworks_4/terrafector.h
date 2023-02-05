@@ -6,12 +6,15 @@
 #include<unordered_map>
 #include<list>
 
+#include "cereal/archives/binary.hpp"
+#include "cereal/archives/xml.hpp"
 #include "cereal/cereal.hpp"
 #include "cereal/types/map.hpp"
 #include "cereal/types/vector.hpp"
 #include "cereal/types/list.hpp"
 #include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
+#include <fstream>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -26,6 +29,11 @@ using namespace Falcor;
 #include"hlsl/terrainDefines.hlsli"
 #include"hlsl/gpuLights_defines.hlsli"
 #include"hlsl/materials.hlsli"
+
+
+#define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
+#define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
+#define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
 
 
 // FIXME move to hlsl

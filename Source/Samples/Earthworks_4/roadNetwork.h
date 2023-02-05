@@ -1,102 +1,11 @@
 #pragma once
 
 
-#include "Falcor.h"
 #include "terrafector.h"
+#include "roads_materials.h"
+#include "roads_bezier.h"
 #include "roads_intersection.h"
 
-using namespace Falcor;
-
-#define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
-#define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
-#define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
-
-
-
-class roadMaterialLayer {
-public:
-    roadMaterialLayer() { ; }
-    virtual ~roadMaterialLayer() { ; }
-
-    static std::string rootFolder;
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const version)
-    {
-        archive(CEREAL_NVP(displayName));
-        archive(CEREAL_NVP(bezierIndex));
-        archive(CEREAL_NVP(sideA));
-        archive(CEREAL_NVP(offsetA));
-        archive(CEREAL_NVP(sideB));
-        archive(CEREAL_NVP(offsetB));
-        archive(CEREAL_NVP(material));
-    }
-
-public:
-    std::string		displayName = "please change me";
-    uint			bezierIndex = 0;
-    uint			sideA = 0;
-    float			offsetA = 0.0f;
-    uint			sideB = 0;
-    float			offsetB = 0.0f;
-    std::string		material;
-    int				materialIndex = -1;
-};
-CEREAL_CLASS_VERSION(roadMaterialLayer, 100);
-
-
-
-struct roadMaterialGroup
-{
-    std::string				displayName = "please change me";
-    std::string				relativePath;
-    Texture::SharedPtr		thumbnail = nullptr;
-
-    std::vector<roadMaterialLayer> layers;
-    void import(std::string _path);
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const version)
-    {
-        archive(CEREAL_NVP(displayName));
-        archive(CEREAL_NVP(relativePath));
-        archive(CEREAL_NVP(layers));
-    }
-};
-CEREAL_CLASS_VERSION(roadMaterialGroup, 100);
-
-
-
-class roadMaterialCache {
-public:
-    void renderGui(Gui* _gui);
-    uint find_insert_material(const std::string _path);
-    void reloadMaterials();
-
-    std::vector<roadMaterialGroup>	materialVector;
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const version)
-    {
-        archive(CEREAL_NVP(materialVector));
-    }
-};
-CEREAL_CLASS_VERSION(roadMaterialCache, 100);
-
-
-
-
-
-
-
-enum bezier_edge { center, outside };
-struct bezierLayer
-{
-    bezierLayer() { ; }
-    bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, uint bezierIndex, float w0, float w1, bool startSeg = false, bool endSeg = false);
-    uint A;			// flags, material, index [2][14][16]			combine with rootindex in constant buffer
-    uint B;			// w0, w1 [4][14][14]
-};
 
 
 
@@ -401,130 +310,12 @@ public:
 
 
 
-struct splineTest {
-    float3 pos;
-    float3 returnPos;
-    bool bVertex;
-    bool bSegment;
-    int index;
-
-    bool bStreetview;
-    int streetviewIndex;
-
-    // intersections
-    int cornerNum = -1;
-    int cornerFlag;	// tangent or point
-    bool bCenter;
-
-    bool bCtrl;
-    bool bAlt;
-    bool bShift;
-
-    // lets see what we can add for lanes
-    bool bRight;
-    int lane;
-
-    float testDistance;
-};
-
-
-
-struct splineUV {
-    float3 pos;
-    float U;
-    float V;
-    glm::vec3 dU;
-    glm::vec3 dV;
-    glm::vec3 N;			// ??? maybe textyure dep[endent
-    glm::vec3 E1;
-    glm::vec3 E2;
-};
 
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-class intersection;
-class roadSection {
-public:
-    roadSection() { ; }
-    virtual ~roadSection() { ; }
-
-    void convertToGPU_Realistic(uint _from = 99999, uint _to = 88888, bool _stylized = false, bool _showMaterials = true);
-    void clearSelection();
-    void selectAll();
-    void newSelection(int index);
-    void addSelection(int index);
-    void breakLink(bool bStart);
-    void setAIOnly(bool AI);
-
-
-    int GUID;
-    int int_GUID_start = -1;
-    int int_GUID_end = -1;
-    std::vector<splinePoint> points;
-
-    void saveType(int index);
-    void loadSelected(int index);
-    void loadCompleteRoad();
-
-    void optimizeTangents(int lane);
-    void optimizeSpacing(int lane);
-    void solveUV(int lane);
-    void solveWidthFromLanes();
-    void solveEnergyAndLength(int lane, int _min, int _max);
-    void solveRoad(int index = -1);
-    void solveStart();
-    void solveEnd();
-
-    void setCenterline(uint type);
-
-    void pushPoint(float3 p, float3 n, uint _lod);
-    void insertPoint(int index, float3 p, float3 n, uint _lod);
-    void deletePoint(int index);
-    bool testAgainstPoint(splineTest* testdata, bool includeEnd = true);
-    float getDistance();
-
-    void findUV(glm::vec3 p, splineUV* uv);
-    void findUVTile(glm::vec3 p, glm::vec3 c1, glm::vec3 c2, glm::vec3 c3, glm::vec3 c4, glm::vec3 b1, glm::vec3 b2, glm::vec3 b3, glm::vec3 b4, splineUV* uv);
-
-    std::array<bool, 9> leftLaneInUse;
-    std::array<bool, 9> rightLaneInUse;
-
-    int buildQuality = 0;
-
-    static splinePoint lastEditedPoint;
-    static std::vector<intersection>* static_global_intersectionList;
-
-
-    bool isClosedLoop = false;
-
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const version)
-    {
-        archive(CEREAL_NVP(GUID));
-        archive(CEREAL_NVP(int_GUID_start));
-        archive(CEREAL_NVP(int_GUID_end));
-        archive(CEREAL_NVP(points));
-        archive(CEREAL_NVP(buildQuality));
-
-        if (version >= 101) {
-            archive(CEREAL_NVP(isClosedLoop));
-        }
-    }
-};
-CEREAL_CLASS_VERSION(roadSection, 101);
 
 
 
@@ -681,7 +472,7 @@ public:
     void setEditRight(bool _r) { editRight = _r; }
     void setEditLane(int _l) { editLaneIndex = _l; }
 
-    static roadMaterialCache roadMatCache;
+    //static roadMaterialCache roadMatCache;
     void loadRoadMaterial(uint _side, uint _slot);
     void clearRoadMaterial(uint _side, uint _slot);
     uint getRoadMaterial(uint _side, uint _slot, uint _index);

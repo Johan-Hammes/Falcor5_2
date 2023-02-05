@@ -1,5 +1,7 @@
 add_falcor_executable(Earthworks_4)
 
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8388608")
+
 target_sources(Earthworks_4 PRIVATE
     Earthworks_4.cpp
     Earthworks_4.h
@@ -9,6 +11,10 @@ target_sources(Earthworks_4 PRIVATE
     roads_bezier.h
     roads_Intersection.cpp
     roads_Intersection.h
+    roads_materials.cpp
+    roads_materials.h
+    roads_road.cpp
+    roads_road.h
     roadNetwork.cpp
     roadNetwork.h
     terrafector.cpp

@@ -13,6 +13,55 @@ using namespace Falcor;
 
 
 
+void cubic_Casteljau_Full(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3, glm::vec3& pos, glm::vec3& vel, glm::vec3& acc)
+{
+    glm::vec3 pA = lerp(P0, P1, t);
+    glm::vec3 pB = lerp(P1, P2, t);
+    glm::vec3 pC = lerp(P2, P3, t);
+
+    glm::vec3 pD = lerp(pA, pB, t);
+    glm::vec3 pE = lerp(pB, pC, t);
+
+    pos = lerp(pD, pE, t);
+    vel = (pE - pD) * 3.0f;
+
+    glm::vec3 D0 = P1 - P0;
+    glm::vec3 D1 = P2 - P1;
+    glm::vec3 D2 = P3 - P2;
+
+    glm::vec3 DD0 = D1 - D0;
+    glm::vec3 DD1 = D2 - D1;
+    acc = lerp(DD0, DD1, t) * 6.0f;
+}
+
+
+
+glm::vec3 cubic_Casteljau(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3)
+{
+    glm::vec3 pA = lerp(P0, P1, t);
+    glm::vec3 pB = lerp(P1, P2, t);
+    glm::vec3 pC = lerp(P2, P3, t);
+
+    glm::vec3 pD = lerp(pA, pB, t);
+    glm::vec3 pE = lerp(pB, pC, t);
+
+    return lerp(pD, pE, t);
+}
+
+
+
+glm::vec3 cubic_Casteljau(float t, bezierPoint* A, bezierPoint* B)
+{
+    return cubic_Casteljau(t, A->pos, A->forward(), B->backward(), B->pos);
+}
+
+
+
+glm::vec3 del_cubic_Casteljau(float t0, float t1, bezierPoint* A, bezierPoint* B)
+{
+    return cubic_Casteljau(t1, A->pos, A->forward(), B->backward(), B->pos) - cubic_Casteljau(t0, A->pos, A->forward(), B->backward(), B->pos);
+}
+
 
 struct splinePoint;
 enum bezierSide { left, middle, right };
@@ -214,3 +263,17 @@ struct splinePoint {
     }
 };
 CEREAL_CLASS_VERSION(splinePoint, 102);
+
+
+
+enum bezier_edge { center, outside };
+struct bezierLayer
+{
+    bezierLayer() { ; }
+    bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, uint bezierIndex, float w0, float w1, bool startSeg = false, bool endSeg = false);
+    uint A;			// flags, material, index [2][14][16]			combine with rootindex in constant buffer
+    uint B;			// w0, w1 [4][14][14]
+};
+
+
+

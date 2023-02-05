@@ -17,6 +17,7 @@
 
 
 
+
 intersectionRoadLink* intersection::findLink(int roadGUID)
 {
     for (int i = 0; i < roadLinks.size(); i++) {
