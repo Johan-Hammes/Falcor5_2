@@ -41,12 +41,6 @@ public:
     void onGuiRender(Gui* pGui) override;
 
 private:
-    void loadModel(ResourceFormat fboFormat);
-    void loadModelFromFile(const std::filesystem::path& path, ResourceFormat fboFormat);
-    void resetCamera();
-    void setModelString(double loadTime);
-    void setCamController();
-
     bool mUseTriLinearFiltering = true;
     Sampler::SharedPtr mpPointSampler = nullptr;
     Sampler::SharedPtr mpLinearSampler = nullptr;

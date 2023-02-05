@@ -13,18 +13,61 @@
 #include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 //#include "ecotope.h"
 
 
 
 using namespace Falcor;
-#include"groundcover_defines.hlsli"
-#include"terrainDefines.hlsli"
-#include"gpuLights_defines.hlsli"
-#include"materials.hlsli"
+#include"hlsl/groundcover_defines.hlsli"
+#include"hlsl/terrainDefines.hlsli"
+#include"hlsl/gpuLights_defines.hlsli"
+#include"hlsl/materials.hlsli"
 
 
+// FIXME move to hlsl
+typedef struct  {
+    glm::float3 pos;
+    glm::float2 uv;
+    uint        material;
+}triVertex;
 
+class triangleBlock {
+public:
+private:
+    std::array<glm::int4, 128> index;
+};
+
+class tileTriangleBlock {
+public:
+    void clear();
+    void clearRemapping(uint _size);
+    void insertTriangle(const uint material, const uint F[3], const aiVector3D *_verts);
+private:
+public:
+    std::vector<triVertex> verts;
+    std::vector<int> remapping;
+    std::vector<triangleBlock> indexBlocks;
+    std::vector<uint> tempIndexBuffer;
+};
+
+class lodTriangleMesh {
+public:
+    void create(uint _lod);
+    void clearRemapping(uint _size);
+    void prepForMesh(aiAABB _aabb);
+    void insertTriangle(const uint material, const uint F[3], const aiVector3D* _verts);
+    void logStats();
+private:
+    uint xMin, xMax, yMin, yMax;
+    uint lod;
+    uint grid;
+    float tileSize;
+    std::vector<tileTriangleBlock> tiles;
+};
 
 
 
@@ -245,7 +288,7 @@ public:
 	BlendState::SharedPtr		blendstate;
 	//Buffer::SharedPtr	constantBuffer;  FIXME ADD BACK
 };
-CEREAL_CLASS_VERSION(terrafectorEditorMaterial, 102);
+//CEREAL_CLASS_VERSION(terrafectorEditorMaterial, 102);
 
 
 
@@ -266,7 +309,9 @@ public:
 	void renderGui(Gui* _pGui, float tab = 0);
 	void render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars);
 
-	//Model::SharedPtr		pMesh;
+    void loadPath(std::string _path);
+
+	TriangleMesh::SharedPtr		pMesh;
 	struct subMesh {
 		uint index;
 		uint sortVal;
@@ -274,11 +319,9 @@ public:
 		std::string materialName;
 	};
 	std::vector<subMesh>	materials;
-	//std::vector<uint>		materialsIndex;
-	//std::vector<uint>		materialsIndexSort;
-	//std::vector<uint>		materialsSort;
 	bool visible = true;
 	bool bExpanded = false;
+    bool bakeOnly = false;
 }; 
 
 
@@ -288,15 +331,8 @@ public:
 class terrafectorSystem
 {
 public:
-	terrafectorSystem() {
-		roads.find_insert("root");
-		roads.find_insert("markings");
-		roads.find_insert("lanes");
-		roads.find_insert("patches");
-		roads.find_insert("curvature");
-	}
+    terrafectorSystem() { ;	}
 	virtual ~terrafectorSystem() { ; }
-
 
 	void loadFile();
 	void saveFile();
@@ -306,6 +342,7 @@ public:
 	void renderGui(Gui* mpGui);
 	void render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars);
 
+    void loadPath(std::string _path);
 
 
 public:
@@ -316,9 +353,8 @@ public:
 	static FILE *_logfile;
 
 
-	terrafectorElement base = terrafectorElement(tf_heading, "base");
-	terrafectorElement roads = terrafectorElement(tf_heading, "roads");
-	terrafectorElement top = terrafectorElement(tf_heading, "top");
-	terrafectorElement &getRoad(const std::string name) { return roads.find_insert(name); }
+	terrafectorElement root = terrafectorElement(tf_heading, "root");
+
+    static lodTriangleMesh     lod_4_mesh;
 };
 

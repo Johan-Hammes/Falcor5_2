@@ -30,15 +30,17 @@
 #include "imgui.h"
 #include "Core/Platform/MonitorInfo.h"
 
+FILE* logFile;
+
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
-void Earthworks_4::onGuiMenubar(Gui* pGui)
+void Earthworks_4::onGuiMenubar(Gui* _gui)
 {
     if (ImGui::BeginMainMenuBar())
     {
         ImGui::Text("Earthworks 4");
 
-        terrain.onGuiMenubar(pGui);
+        terrain.onGuiMenubar(_gui);
 
         if (ImGui::BeginMenu("settings"))
         {
@@ -74,26 +76,23 @@ void Earthworks_4::onGuiMenubar(Gui* pGui)
 
 
 
-void Earthworks_4::onGuiRender(Gui* pGui)
+void Earthworks_4::onGuiRender(Gui* _gui)
 {
     static bool init = true;
     if (init)
     {
-        guiStyle(pGui);
-        initGui(pGui);
-
+        guiStyle();
         init = false;
     }
 
-    ImGui::PushFont(pGui->getFont("roboto_20"));
+    ImGui::PushFont(_gui->getFont("roboto_20"));
     {
        
-        onGuiMenubar(pGui);
-        terrain.onGuiRender(pGui);
+        onGuiMenubar(_gui);
+        terrain.onGuiRender(_gui);
 
         if (aboutTex && showAbout) {
-            //ImGui::OpenPopup("1234");
-            Gui::Window a(pGui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
+            Gui::Window a(_gui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
             a.image("#about", aboutTex, float2(aboutTex->getWidth(), aboutTex->getHeight()));
         }
     }
@@ -102,7 +101,7 @@ void Earthworks_4::onGuiRender(Gui* pGui)
 
 
 
-void Earthworks_4::onLoad(RenderContext* pRenderContext)
+void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
     graphicsState = GraphicsState::create();
 
@@ -126,7 +125,7 @@ void Earthworks_4::onLoad(RenderContext* pRenderContext)
     camera->setPosition(float3(0, 900, 0));
     camera->setTarget(float3(0, 900, 100));
 
-    terrain.onLoad(pRenderContext);
+    terrain.onLoad(_renderContext, logFile);
 /*
     FILE* file = fopen("camera.bin", "rb");
     if (file) {
@@ -147,19 +146,22 @@ void Earthworks_4::onLoad(RenderContext* pRenderContext)
 
 
 
-void Earthworks_4::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
+void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
+    gpDevice->toggleVSync(refresh.vsync);
+    //Sleep(30);
+
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
-    terrain.update(pRenderContext);
+    terrain.update(_renderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
     const float4 clearColor(0.01f, 0.01f, 0.01f, 1);
-    pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
-    pRenderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+    _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+    _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
     graphicsState->setFbo(pTargetFbo);
 
-    terrain.onFrameRender(pRenderContext, pTargetFbo, camera, graphicsState);
+    terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState);
 }
 
 
@@ -174,9 +176,9 @@ void Earthworks_4::onShutdown()
         fwrite(&data, sizeof(CameraData), 1, file);
         fclose(file);
     }
-    std::ofstream os("earthworks4_presets.json");
+    std::ofstream os("earthworks4_presets.xml");
     if (os.good()) {
-        cereal::JSONOutputArchive archive(os);
+        cereal::XMLOutputArchive archive(os);
         serialize(archive, 100);
     }
 }
@@ -219,22 +221,7 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
 
 
 
-void Earthworks_4::initGui(Gui* pGui)
-{
-    //pGui->addFont("roboto_14", "Framework/Fonts/Roboto-Regular.ttf");
-    //pGui->addFont("roboto_14_bold", "Framework/Fonts/Roboto-Bold.ttf");
-    //pGui->addFont("roboto_14_italic", "Framework/Fonts/Roboto-Italic.ttf");
-
-    //pGui->addFont("roboto_20", "Framework/Fonts/Roboto-Regular.ttf", 20);
-    //pGui->addFont("roboto_20_bold", "Framework/Fonts/Roboto-Bold.ttf", 20);
-
-    //pGui->addFont("roboto_26", "Framework/Fonts/Roboto-Regular.ttf", 26);
-    //pGui->addFont("roboto_26_bold", "Framework/Fonts/Roboto-Bold.ttf", 26);
-}
-
-
-
-void Earthworks_4::guiStyle(Gui* pGui)
+void Earthworks_4::guiStyle()
 {
 #define HI(v)   ImVec4(0.502f, 0.075f, 0.256f, v)
 #define MED(v)  ImVec4(0.455f, 0.198f, 0.301f, v)
@@ -276,6 +263,8 @@ int main(int argc, char** argv)
     config.windowDesc.width = 1260;
     config.windowDesc.height = 1140;
     config.windowDesc.monitor = 0;
+
+    logFile = fopen("log.txt", "w");
 
     Sample::run(config, pRenderer);
     return 0;

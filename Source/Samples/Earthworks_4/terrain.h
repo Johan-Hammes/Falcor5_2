@@ -29,9 +29,9 @@
 #include "Falcor.h"
 #include "computeShader.h"
 #include "pixelShader.h"
-#include"groundcover_defines.hlsli"
-#include"terrainDefines.hlsli"
-#include"gpuLights_defines.hlsli"
+#include"hlsl/groundcover_defines.hlsli"
+#include"hlsl/terrainDefines.hlsli"
+#include"hlsl/gpuLights_defines.hlsli"
 #include"terrafector.h"
 
 #include "../../external/cereal-master/include/cereal/cereal.hpp"
@@ -235,7 +235,7 @@ public:
     terrainManager();
     virtual ~terrainManager();
 
-    void onLoad(RenderContext* _renderContext);
+    void onLoad(RenderContext* _renderContext, FILE* _logfile);
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiMenubar(Gui* pGui);
@@ -266,6 +266,9 @@ private:
     void splitChild(quadtree_tile* _pTile, RenderContext* _renderContext);
     void splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _renderContext);
 
+    uint gisHash(glm::vec3 _position);
+    void gisReload(glm::vec3 _position);
+
     uint                        numTiles = 1024;
     std::vector<quadtree_tile>	m_tiles;
     std::list<quadtree_tile*>	m_free;
@@ -293,6 +296,7 @@ private:
 
     glm::vec3 mouseDirection;
     glm::vec3 mousePosition;
+    glm::vec2 mousePositionOld;
     glm::vec2 screenSize;
     glm::vec2 mouseCoord;
     computeShader compute_TerrainUnderMouse;
@@ -302,6 +306,22 @@ private:
         Texture::SharedPtr	  texture = nullptr;
     };
     LRUCache<uint32_t, textureCacheElement> elevationCache;
+
+    terrafectorSystem		terrafectors;
+    //ecotopeSystem			mEcosystem;
+    //roadNetwork			    mRoadNetwork;
+
+    struct {
+        Texture::SharedPtr texture = nullptr;
+        uint hash = 0;
+        glm::vec4 box;
+        bool show = true;
+        float strenght = 1.0f;
+
+        float redStrength = 1.0f;
+        float redScale = 5.0f;
+        float redOffset = 0.05f;
+    }gis_overlay;
 
     struct {
         uint                bakeSize = 1024;
@@ -385,6 +405,7 @@ private:
     {
         bool        hit;
         glm::vec3   terrain;
+        float       panDistance;
         float       cameraHeight;
         glm::vec3   toGround;
         glm::vec3   pan;

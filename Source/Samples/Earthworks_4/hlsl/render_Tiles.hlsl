@@ -202,8 +202,6 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 
 
 
-    Attr.N_mesh = gNormArray.Sample(gSmpAniso, vIn.texCoords).rgb;
-    return float4(Attr.N_mesh, 1);
 
 
 
@@ -231,7 +229,8 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	//mat.AO = PBR.b;
 	
 	//mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
-	
+
+    mat.diff.rgb = Attr.N_mesh;
 	
 	if (showGIS)
 	{
@@ -289,6 +288,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	}
 		
 	//colour.rg += vIn.texCoords.rg;
+    colour.rgb = mat.diff.rgb;
 
 	return float4(colour, 1);
 }

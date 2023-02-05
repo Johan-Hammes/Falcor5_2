@@ -36,18 +36,17 @@ using namespace Falcor;
 class Earthworks_4 : public IRenderer
 {
 public:
-    void onLoad(RenderContext* pRenderContext) override;
-    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo) override;
+    void onLoad(RenderContext* _renderContext) override;
+    void onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo) override;
     void onShutdown() override;
     void onResizeSwapChain(uint32_t _width, uint32_t _height) override;
     bool onKeyEvent(const KeyboardEvent& keyEvent) override;
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
-    void onGuiRender(Gui* pGui) override;
-    void onGuiMenubar(Gui* pGui);
+    void onGuiRender(Gui* _gui) override;
+    void onGuiMenubar(Gui* _gui);
 
 private:
-    void initGui(Gui* pGui);
-    void guiStyle(Gui* pGui);
+    void guiStyle();
 
     GraphicsState::Viewport viewport3d;
     float2                              screenSize;

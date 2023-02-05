@@ -144,8 +144,9 @@ terrainManager::~terrainManager()
 
 
 
-void terrainManager::onLoad(RenderContext* pRenderContext)
+void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 {
+    terrafectors._logfile = _logfile;
     {
         Sampler::Desc samplerDesc;
         samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(8);
@@ -358,6 +359,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext)
     loadElevationHash();
 
     init_TopdownRender();
+
+    terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
+    terrafectors.loadPath(settings.dirRoot + "/terrafectors/");
 }
 
 
@@ -679,6 +683,31 @@ void terrainManager::markChildrenForRemove(quadtree_tile* _tile)
 }
 
 
+uint terrainManager::gisHash(glm::vec3 _position)
+{
+    uint z = (uint)floor((_position.z + (settings.size / 2.0f)) * 16.0f / settings.size);
+    uint x = (uint)floor((_position.x + (settings.size / 2.0f)) * 16.0f / settings.size);
+
+    return (z << 16) + x;
+}
+
+void terrainManager::gisReload(glm::vec3 _position)
+{
+    uint hash = gisHash(_position);
+    if (hash != gis_overlay.hash)
+    {
+        gis_overlay.hash = hash;
+        uint x = hash & 0xffff;
+        uint z = hash >> 16;
+
+        std::filesystem::path path = settings.dirRoot + "/overlay/" + char(65 + hash & 0xff) + "_" + std::to_string(z) + "_image.dds";
+        gis_overlay.texture = Texture::createFromFile( path, true, true, Resource::BindFlags::ShaderResource);
+
+        gis_overlay.box = glm::vec4(-350 - (settings.size / 2.0f) + x * 2500, -350 - (settings.size / 2.0f) + z*2500, 3200, 3200);    // fixme this sort of asumes 40 x 40 km
+    }
+}
+
+
 void terrainManager::clearCameras()
 {
     for (uint i = 0; i < CameraType_MAX; i++) {
@@ -784,7 +813,7 @@ void terrainManager::update(RenderContext* _renderContext)
         split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
-    if (dirty)
+   // if (dirty)
     {
         // readback of tile centers
         _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
@@ -1105,7 +1134,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     split.tileCamera->setProjectionMatrix(proj);
     split.tileCamera->getData();
 
-    //terrafectors.render(pRenderContext, split.tileCamera, mpTileGraphicsState, mpTileTopdownVars);
+    //terrafectors.render(_renderContext, split.tileCamera, mpTileGraphicsState, mpTileTopdownVars);
 
     //??? should probably be in the roadnetwork code, but look at the optimize step first
     if (splineAsTerrafector)           // Now render the roadNetwork
@@ -1139,6 +1168,8 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState)
 {
+    //gisReload(_camera->getPosition());
+
     {
         FALCOR_PROFILE("terrainManager");
 
@@ -1150,7 +1181,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainShader.Vars()->setTexture("gAlbedoArray", compressed_Albedo_Array);
         terrainShader.Vars()->setTexture("gPBRArray", compressed_PBR_Array);
         terrainShader.Vars()->setTexture("gNormArray", compressed_Normals_Array);
-        //terrainShader.Vars()->setTexture("gGISAlbedo", mpColourOverlay);
+        terrainShader.Vars()->setTexture("gGISAlbedo", gis_overlay.texture);
 
         terrainShader.Vars()->setSampler("gSmpAniso", sampler_ClampAnisotropic);
 
@@ -1172,13 +1203,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
 
+        
+        terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gis_overlay.strenght;
+        terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)gis_overlay.show;
+        terrainShader.Vars()["PerFrameCB"]["gisBox"] = gis_overlay.box;
+
+        terrainShader.Vars()["PerFrameCB"]["redStrength"] = gis_overlay.redStrength;
+        terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
+        terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
+        
         /*
-        terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gisOverlayStrenght;
-        terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)bShowGIS;
-        terrainShader.Vars()["PerFrameCB"]["redStrength"] = redStrength;
-        terrainShader.Vars()["PerFrameCB"]["redScale"] = redScale;
-        terrainShader.Vars()["PerFrameCB"]["redOffset"] = redOffset;
-        terrainShader.Vars()["PerFrameCB"]["gisBox"] = overlayBox;
         terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
         */
         /*
@@ -1214,7 +1248,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             mouse.cameraHeight = split.feedback.heightUnderCamera;
             mouse.toGround = mouse.terrain - _camera->getPosition();
             mouse.mouseToHeightRatio = glm::length(mouse.toGround) / (_camera->getPosition().y - mouse.cameraHeight);
-            if (!ImGui::IsMouseDown(1)) mouse.pan = mouse.terrain;
+            if (!ImGui::IsMouseDown(1)) {
+                mouse.pan = mouse.terrain;
+                mouse.panDistance = glm::length(mouse.toGround);
+            }
             if (!ImGui::IsMouseDown(2)) mouse.orbit = mouse.terrain;
 
         }
@@ -1233,11 +1270,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
-        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels * 2, 60 + tile_numPixels * 2);
+        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels , 60 + tile_numPixels );
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
-        dstRect = glm::vec4(800 + 8 * 150, 60, 800 + 8 * 150 + tile_numPixels*2, 60 + tile_numPixels*2);
-        _renderContext->blit(split.vertex_preload->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
         //dstRect = vec4(512, 612, 1024, 1124);
         //pRenderContext->blit(mpCompressed_Normals->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
@@ -1287,13 +1322,35 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         //if (bRightButton)  // PAN
         if (ImGui::IsMouseDown(1))
         {
-            glm::vec3 newPos = mouse.terrain - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
+            glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
             glm::vec3 deltaPos = newPos - _camera->getPosition();
 
             glm::vec3 newTarget = _camera->getTarget() + deltaPos;
             _camera->setPosition(newPos);
             _camera->setTarget(newTarget);
         }
+
+        // orbit
+        if (ImGui::IsMouseDown(2))
+        {
+            glm::vec3 D = _camera->getTarget() - _camera->getPosition();
+            glm::vec3 U = glm::vec3(0, 1, 0);
+            glm::vec3 R = glm::normalize(glm::cross(U, D));
+            glm::vec2 diff = pos - mousePositionOld;
+            glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
+
+            glm::vec3 Dnorm = glm::normalize(D);
+            if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
+            if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
+
+            glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
+            mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
+            glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
+
+            _camera->setPosition(mouse.orbit - mouse.toGround);
+            _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
+        }
+        mousePositionOld = pos;
     }
     break;
     case MouseEvent::Type::Wheel:
