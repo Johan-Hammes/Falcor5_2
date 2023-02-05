@@ -15,18 +15,7 @@ static bool showMaterials = false;
 //roadMaterialCache roadNetwork::roadMatCache;
 Texture::SharedPtr roadNetwork::displayThumbnail;
 
-bool isSaneVector(glm::vec3 v)
-{
-    if (std::isnan(v.x)) return false;
-    if (std::isnan(v.y)) return false;
-    if (std::isnan(v.z)) return false;
 
-    if (fabs(v.x) > 100.f) return false;
-    if (fabs(v.y) > 100.f) return false;
-    if (fabs(v.z) > 100.f) return false;
-
-    return true;
-}
 
 
 
@@ -1250,14 +1239,9 @@ void AI_bezier::load(FILE* file)
     --------------------------------------------------------------------------------------------------------------------*/
 roadNetwork::roadNetwork()
 {
-
-
     odeBezier.setGrid(50.0f, 500, 500);		// so 25x25km we do not need the edges
-
     roadSectionsList.reserve(10000);
     intersectionList.reserve(10000);
-    roadSection::static_global_intersectionList = &intersectionList;
-
 }
 
 
@@ -1418,7 +1402,7 @@ void roadNetwork::loadRoadMaterial(uint _side, uint _slot)
             filename = filename.substr(0, filename.size() - 4);
         }
 
-        uint idx = roadNetwork::roadMatCache.find_insert_material(filename);
+        uint idx = roadMatCache.find_insert_material(filename);
         for (int i = selectFrom; i < selectTo; i++)
         {
             currentRoad->points[i].setMaterialIndex(_side, _slot, idx);
@@ -2882,7 +2866,7 @@ void roadNetwork::updateDynamicRoad()
 
     if (currentRoad) {
         //currentRoad->convertToGPU_Stylized(&bezierCount, false, selectFrom, selectTo);
-        currentRoad->convertToGPU_Realistic(selectFrom, selectTo, true, showMaterials);
+        currentRoad->convertToGPU_Realistic(staticBezierData, staticIndexData, selectFrom, selectTo, true, showMaterials);
 
     }
 
@@ -2890,9 +2874,9 @@ void roadNetwork::updateDynamicRoad()
         for (int i = 0; i < currentIntersection->roadLinks.size(); i++) {
             currentIntersection->roadLinks[i].roadPtr = &roadSectionsList.at(currentIntersection->roadLinks[i].roadGUID);
             //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Stylized(&bezierCount);
-            currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(0, 0, true, false);
+            currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, 0, 0, true, false);
         }
-        currentIntersection->convertToGPU(&bezierCount);
+        currentIntersection->convertToGPU(staticBezierData, staticIndexData, &bezierCount);
     }
 
     debugNumBezier = (uint)staticBezierData.size();
@@ -2911,8 +2895,7 @@ void roadNetwork::updateAllRoads(bool _forExport)
     //roadNetwork::staticIndexDataSolid.clear();
 
     for (auto& roadSection : roadSectionsList) {
-        //roadSection.convertToGPU_Stylized(&bezierCount, _forExport);
-        roadSection.convertToGPU_Realistic();
+        roadSection.convertToGPU_Realistic(staticBezierData, staticIndexData);
     }
 
     //	for (auto &intersection : intersectionList) {
@@ -2928,11 +2911,7 @@ void roadNetwork::updateAllRoads(bool _forExport)
 void roadNetwork::physicsTest(glm::vec3 pos)
 {
     physicsMouseIntersection.updatePosition(glm::vec2(pos.x, pos.z));
-
-    //for (int i = 0; i < 300; i++) 
-    {
-        odeBezier.intersect(&physicsMouseIntersection);
-    }
+    odeBezier.intersect(&physicsMouseIntersection);
 }
 
 

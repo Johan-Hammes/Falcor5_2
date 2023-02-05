@@ -14,54 +14,7 @@ using namespace Falcor;
 #include"roads_road.h"
 
 
-enum typeOfCorner { automatic, radius, artistic };
-class roadSection;
-class intersectionRoadLink {
-public:
-    bool operator < (const intersectionRoadLink& str) const
-    {
-        return (angle < str.angle);
-    }
 
-    float angle;
-    roadSection* roadPtr;
-    uint roadGUID;
-    bool broadStart;	// are we attached to the start, if false the end
-
-    float pushBack_A;
-    float pushBack_B;
-    float pushBack;
-    float3 cornerUp_A;
-    float3 cornerUp_B;
-
-    float3 corner_A;
-    float3 corner_B;
-    float3 cornerTangent_A;
-    float3 cornerTangent_B;
-
-    float3 tangentVector;			// from the center at the road connection angle, and perpendicular to the intersection andchorNormal
-
-    int cornerType = typeOfCorner::automatic;
-    float cornerRadius = 5.0f;
-    bool bOpenCorner;
-    float theta; // the angle of this corner
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const version)
-    {
-        archive(CEREAL_NVP(angle));
-        archive(CEREAL_NVP(roadGUID));
-        archive(CEREAL_NVP(broadStart));
-        archive_float3(corner_A);
-        archive_float3(cornerTangent_A);
-        archive_float3(corner_B);
-        archive_float3(cornerTangent_B);
-        archive_float3(tangentVector);
-        archive(CEREAL_NVP(cornerType));
-        archive(CEREAL_NVP(cornerRadius));
-    }
-};
-CEREAL_CLASS_VERSION(intersectionRoadLink, 100);
 
 
 
@@ -89,7 +42,7 @@ public:
     std::vector<intersectionRoadLink> roadLinks;
 
     std::vector<cubicDouble> lanesTarmac;
-    void convertToGPU(uint* totalBezierCount, bool _forExport = false);
+    void convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, uint* totalBezierCount, bool _forExport = false);
     void updateTarmacLanes();
 
     template<class Archive>

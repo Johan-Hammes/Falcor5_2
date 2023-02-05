@@ -311,22 +311,11 @@ public:
 
 
 
-
-
-
-
-
-
-
-
-
-
 class roadNetwork {
 public:
     roadNetwork();
     bool init();
     virtual ~roadNetwork() { ; }
-
 
     void renderGUI(Gui* _gui);
     void renderGUI_3d(Gui* _gui);
@@ -347,8 +336,6 @@ public:
 
     void newRoadSpline();
     void newIntersection();
-
-
 
     float getDistance();	// how many km of roads do we have
     int getDone();		// what percentage is at highest quality level

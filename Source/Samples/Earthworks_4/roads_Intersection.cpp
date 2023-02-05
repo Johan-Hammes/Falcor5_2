@@ -121,7 +121,7 @@ void intersection::updateCorner(float3 pos, float3 normal, int idx, int flags)
 
 
 
-void intersection::convertToGPU(uint* totalBezierCount, bool _forExport)
+void intersection::convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, uint* totalBezierCount, bool _forExport)
 {
     uint size = (uint)lanesTarmac.size() / 3;
     if (size == 0) return;
@@ -129,20 +129,20 @@ void intersection::convertToGPU(uint* totalBezierCount, bool _forExport)
 
     for (uint i = 0; i < size; i++)
     {
-        roadNetwork::staticIndexData.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, 0, *totalBezierCount, 0.0f, 0.0f));
-        roadNetwork::staticIndexData.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 53, *totalBezierCount, -0.1f, -0.2f));
-        roadNetwork::staticIndexData.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 53, *totalBezierCount, 0.1f, 0.2f));
-        roadNetwork::staticBezierData.push_back(lanesTarmac[i * 3]);
+        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, 0, *totalBezierCount, 0.0f, 0.0f));
+        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 53, *totalBezierCount, -0.1f, -0.2f));
+        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 53, *totalBezierCount, 0.1f, 0.2f));
+        _bezier.push_back(lanesTarmac[i * 3]);
         (*totalBezierCount)++;
 
-        roadNetwork::staticIndexData.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, 0, *totalBezierCount, 0.0f, 0.0f));
-        roadNetwork::staticIndexData.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 53, *totalBezierCount, -0.1f, -0.2f));
-        roadNetwork::staticIndexData.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 53, *totalBezierCount, 0.1f, 0.2f));
-        roadNetwork::staticBezierData.push_back(lanesTarmac[i * 3 + 1]);
+        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, 0, *totalBezierCount, 0.0f, 0.0f));
+        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 53, *totalBezierCount, -0.1f, -0.2f));
+        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 53, *totalBezierCount, 0.1f, 0.2f));
+        _bezier.push_back(lanesTarmac[i * 3 + 1]);
         (*totalBezierCount)++;
 
         // push that last point
-        roadNetwork::staticBezierData.push_back(lanesTarmac[i * 3 + 2]);
+        _bezier.push_back(lanesTarmac[i * 3 + 2]);
         (*totalBezierCount)++;
     }
 }
