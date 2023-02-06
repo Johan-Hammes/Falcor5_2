@@ -18,6 +18,59 @@
 
 
 
+void cubic_Casteljau_Full(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3, glm::vec3& pos, glm::vec3& vel, glm::vec3& acc)
+{
+    glm::vec3 pA = lerp(P0, P1, t);
+    glm::vec3 pB = lerp(P1, P2, t);
+    glm::vec3 pC = lerp(P2, P3, t);
+
+    glm::vec3 pD = lerp(pA, pB, t);
+    glm::vec3 pE = lerp(pB, pC, t);
+
+    pos = lerp(pD, pE, t);
+    vel = (pE - pD) * 3.0f;
+
+    glm::vec3 D0 = P1 - P0;
+    glm::vec3 D1 = P2 - P1;
+    glm::vec3 D2 = P3 - P2;
+
+    glm::vec3 DD0 = D1 - D0;
+    glm::vec3 DD1 = D2 - D1;
+    acc = lerp(DD0, DD1, t) * 6.0f;
+}
+
+
+
+glm::vec3 cubic_Casteljau(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3)
+{
+    glm::vec3 pA = lerp(P0, P1, t);
+    glm::vec3 pB = lerp(P1, P2, t);
+    glm::vec3 pC = lerp(P2, P3, t);
+
+    glm::vec3 pD = lerp(pA, pB, t);
+    glm::vec3 pE = lerp(pB, pC, t);
+
+    return lerp(pD, pE, t);
+}
+
+
+
+glm::vec3 cubic_Casteljau(float t, bezierPoint* A, bezierPoint* B)
+{
+    return cubic_Casteljau(t, A->pos, A->forward(), B->backward(), B->pos);
+}
+
+
+
+glm::vec3 del_cubic_Casteljau(float t0, float t1, bezierPoint* A, bezierPoint* B)
+{
+    return cubic_Casteljau(t1, A->pos, A->forward(), B->backward(), B->pos) - cubic_Casteljau(t0, A->pos, A->forward(), B->backward(), B->pos);
+}
+
+
+
+
+
 /*  roadSection
     --------------------------------------------------------------------------------------------------------------------*/
 //std::vector<cubicDouble>	roadNetwork::staticBezierData;
@@ -538,34 +591,34 @@ void roadSection::solveStart()
 
     if (int_GUID_start >= 0)
     {
-        intersectionRoadLink* link = static_global_intersectionList->at(int_GUID_start).findLink(GUID);
-        if (link) {
+        //intersectionRoadLink* link = static_global_intersectionList->at(int_GUID_start).findLink(GUID);
+        if (startLink) {
 
             // tests
-            if (!isSaneVector(link->cornerTangent_A)) {
+            if (!isSaneVector(startLink->cornerTangent_A)) {
                 bool bCM = true;
             }
-            if (!isSaneVector(link->tangentVector)) {
+            if (!isSaneVector(startLink->tangentVector)) {
                 bool bCM = true;
             }
-            if (!isSaneVector(link->cornerTangent_B)) {
+            if (!isSaneVector(startLink->cornerTangent_B)) {
                 bool bCM = true;
             }
 
-            points[0].bezier[left].pos = link->corner_A;
-            points[0].bezier[left].tangentForward = glm::normalize(link->cornerTangent_A);
+            points[0].bezier[left].pos = startLink->corner_A;
+            points[0].bezier[left].tangentForward = glm::normalize(startLink->cornerTangent_A);
             points[0].bezier[left].tangentBack = points[0].bezier[left].tangentForward;
-            points[0].bezier[left].dst_Forward = glm::length(link->cornerTangent_A);
+            points[0].bezier[left].dst_Forward = glm::length(startLink->cornerTangent_A);
 
-            points[0].bezier[middle].tangentForward = glm::normalize(link->tangentVector);
+            points[0].bezier[middle].tangentForward = glm::normalize(startLink->tangentVector);
             points[0].bezier[middle].tangentBack = points[0].bezier[middle].tangentForward;
             points[0].bezier[middle].dst_Back = 0;
-            points[0].bezier[middle].dst_Forward = glm::length(link->tangentVector) * 2;
+            points[0].bezier[middle].dst_Forward = glm::length(startLink->tangentVector) * 2;
 
-            points[0].bezier[right].pos = link->corner_B;
-            points[0].bezier[right].tangentForward = glm::normalize(link->cornerTangent_B);
+            points[0].bezier[right].pos = startLink->corner_B;
+            points[0].bezier[right].tangentForward = glm::normalize(startLink->cornerTangent_B);
             points[0].bezier[right].tangentBack = points[0].bezier[right].tangentForward;
-            points[0].bezier[right].dst_Forward = glm::length(link->cornerTangent_B);
+            points[0].bezier[right].dst_Forward = glm::length(startLink->cornerTangent_B);
         }
 
         // and adjust the lanes, widths etc
@@ -589,35 +642,35 @@ void roadSection::solveEnd()
 
     if (int_GUID_end >= 0)
     {
-        intersectionRoadLink* link = static_global_intersectionList->at(int_GUID_end).findLink(GUID);
-        if (link) {
+        //intersectionRoadLink* link = static_global_intersectionList->at(int_GUID_end).findLink(GUID);
+        if (endLink) {
 
             // tests
-            if (!isSaneVector(link->cornerTangent_A)) {
+            if (!isSaneVector(endLink->cornerTangent_A)) {
                 bool bCM = true;
             }
-            if (!isSaneVector(link->tangentVector)) {
+            if (!isSaneVector(endLink->tangentVector)) {
                 bool bCM = true;
             }
-            if (!isSaneVector(link->cornerTangent_B)) {
+            if (!isSaneVector(endLink->cornerTangent_B)) {
                 bool bCM = true;
             }
 
             int idx = (int)points.size() - 1;
 
-            points[idx].bezier[left].pos = link->corner_B;
-            points[idx].bezier[left].tangentForward = -glm::normalize(link->cornerTangent_B);
+            points[idx].bezier[left].pos = endLink->corner_B;
+            points[idx].bezier[left].tangentForward = -glm::normalize(endLink->cornerTangent_B);
             points[idx].bezier[left].tangentBack = points[idx].bezier[left].tangentForward;
-            points[idx].bezier[left].dst_Back = glm::length(link->cornerTangent_B);
+            points[idx].bezier[left].dst_Back = glm::length(endLink->cornerTangent_B);
 
-            points[idx].bezier[middle].tangentForward = -glm::normalize(link->tangentVector);
+            points[idx].bezier[middle].tangentForward = -glm::normalize(endLink->tangentVector);
             points[idx].bezier[middle].tangentBack = points[idx].bezier[middle].tangentForward;
-            points[idx].bezier[middle].dst_Back = glm::length(link->tangentVector) * 2; // FIXME 2 may not be perfect
+            points[idx].bezier[middle].dst_Back = glm::length(endLink->tangentVector) * 2; // FIXME 2 may not be perfect
 
-            points[idx].bezier[right].pos = link->corner_A;
-            points[idx].bezier[right].tangentForward = -glm::normalize(link->cornerTangent_A);
+            points[idx].bezier[right].pos = endLink->corner_A;
+            points[idx].bezier[right].tangentForward = -glm::normalize(endLink->cornerTangent_A);
             points[idx].bezier[right].tangentBack = points[idx].bezier[right].tangentForward;
-            points[idx].bezier[right].dst_Back = glm::length(link->cornerTangent_A);
+            points[idx].bezier[right].dst_Back = glm::length(endLink->cornerTangent_A);
 
             // and adjust the lanes, widths etc
             for (int i = 0; i < 9; i++)

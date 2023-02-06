@@ -7,12 +7,16 @@ target_sources(Earthworks_4 PRIVATE
     Earthworks_4.h
     computeShader.cpp
     computeShader.h
+    roads_AI.cpp
+    roads_AI.h
     roads_bezier.cpp
     roads_bezier.h
     roads_Intersection.cpp
     roads_Intersection.h
     roads_materials.cpp
     roads_materials.h
+    roads_physics.cpp
+    roads_physics.h
     roads_road.cpp
     roads_road.h
     roadNetwork.cpp

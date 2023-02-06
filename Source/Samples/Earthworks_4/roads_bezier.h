@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Falcor.h"
+#include "terrafector.h"
 using namespace Falcor;
 
 #include "cereal/cereal.hpp"
@@ -88,7 +89,8 @@ CEREAL_CLASS_VERSION(bezierPoint, 100);
 
 
 
-struct laneDescription {
+struct laneDescription
+{
     float laneWidth = 0.0f;
     int type = 0;				// this is really a material rework when we get there
     float2 percentage;			// % across the width for their points (inner, outer)
@@ -108,8 +110,8 @@ CEREAL_CLASS_VERSION(laneDescription, 100);
 
 
 
-struct splinePoint {
-
+struct splinePoint
+{
     splinePoint();
 
     void addHeight(float h);
@@ -230,51 +232,3 @@ struct bezierLayer
 
 
 
-void cubic_Casteljau_Full(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3, glm::vec3& pos, glm::vec3& vel, glm::vec3& acc)
-{
-    glm::vec3 pA = lerp(P0, P1, t);
-    glm::vec3 pB = lerp(P1, P2, t);
-    glm::vec3 pC = lerp(P2, P3, t);
-
-    glm::vec3 pD = lerp(pA, pB, t);
-    glm::vec3 pE = lerp(pB, pC, t);
-
-    pos = lerp(pD, pE, t);
-    vel = (pE - pD) * 3.0f;
-
-    glm::vec3 D0 = P1 - P0;
-    glm::vec3 D1 = P2 - P1;
-    glm::vec3 D2 = P3 - P2;
-
-    glm::vec3 DD0 = D1 - D0;
-    glm::vec3 DD1 = D2 - D1;
-    acc = lerp(DD0, DD1, t) * 6.0f;
-}
-
-
-
-glm::vec3 cubic_Casteljau(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3)
-{
-    glm::vec3 pA = lerp(P0, P1, t);
-    glm::vec3 pB = lerp(P1, P2, t);
-    glm::vec3 pC = lerp(P2, P3, t);
-
-    glm::vec3 pD = lerp(pA, pB, t);
-    glm::vec3 pE = lerp(pB, pC, t);
-
-    return lerp(pD, pE, t);
-}
-
-
-
-glm::vec3 cubic_Casteljau(float t, bezierPoint* A, bezierPoint* B)
-{
-    return cubic_Casteljau(t, A->pos, A->forward(), B->backward(), B->pos);
-}
-
-
-
-glm::vec3 del_cubic_Casteljau(float t0, float t1, bezierPoint* A, bezierPoint* B)
-{
-    return cubic_Casteljau(t1, A->pos, A->forward(), B->backward(), B->pos) - cubic_Casteljau(t0, A->pos, A->forward(), B->backward(), B->pos);
-}

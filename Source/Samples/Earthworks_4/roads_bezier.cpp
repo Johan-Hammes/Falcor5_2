@@ -94,6 +94,8 @@ cubicDouble::cubicDouble(splinePoint a, splinePoint b, bool bRight, float w0, fl
     }
 }
 
+
+
 cubicDouble::cubicDouble(splinePoint a, splinePoint b, bool bRight, float2 A, float2 D)
 {
     float2 B = A;// glm::lerp(A, D, 0.333f);
@@ -188,6 +190,7 @@ bool isSanePosition(glm::vec3 v)
 }
 
 
+
 void splinePoint::solveMiddlePos()
 {
     if (bAutoGenerate) {
@@ -202,15 +205,16 @@ void splinePoint::solveMiddlePos()
 
 
 
-void splinePoint::addHeight(float h) {
+void splinePoint::addHeight(float h)
+{
     height_AboveAnchor += h;
-
     solveMiddlePos();
 }
 
 
 
-void splinePoint::addTangent(float _t) {
+void splinePoint::addTangent(float _t)
+{
     tangent_Offset += _t;
     solveMiddlePos();
 }
@@ -285,3 +289,6 @@ int splinePoint::getMaterialIndex(uint _side, uint _slot)
     }
     return 0;
 }
+
+
+

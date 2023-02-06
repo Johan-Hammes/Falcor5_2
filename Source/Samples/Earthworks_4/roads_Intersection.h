@@ -18,7 +18,8 @@ using namespace Falcor;
 
 
 
-class intersection {
+class intersection
+{
 public:
     intersection() { ; }
     virtual ~intersection() { ; }

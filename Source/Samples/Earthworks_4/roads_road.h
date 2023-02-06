@@ -1,12 +1,18 @@
 #pragma once
 
-
 #include"roads_bezier.h"
 #include"roads_materials.h"
 
+
+
 enum typeOfCorner { automatic, radius, artistic };
 class roadSection;
-class intersectionRoadLink {
+class intersection;
+
+
+
+class intersectionRoadLink
+{
 public:
     bool operator < (const intersectionRoadLink& str) const
     {
@@ -55,7 +61,8 @@ CEREAL_CLASS_VERSION(intersectionRoadLink, 100);
 
 
 
-struct splineTest {
+struct splineTest
+{
     float3 pos;
     float3 returnPos;
     bool bVertex;
@@ -83,7 +90,8 @@ struct splineTest {
 
 
 
-struct splineUV {
+struct splineUV
+{
     float3 pos;
     float U;
     float V;
@@ -96,8 +104,8 @@ struct splineUV {
 
 
 
-class intersection;
-class roadSection {
+class roadSection
+{
 public:
     roadSection() { ; }
     virtual ~roadSection() { ; }
@@ -146,9 +154,12 @@ public:
     int buildQuality = 0;
 
     static splinePoint lastEditedPoint;
-
+    static std::vector<intersection>* static_global_intersectionList;
+    intersectionRoadLink* startLink = nullptr;      // FIXME solve these after load
+    intersectionRoadLink* endLink = nullptr;
 
     bool isClosedLoop = false;
+
 
 
     template<class Archive>
@@ -166,3 +177,10 @@ public:
     }
 };
 CEREAL_CLASS_VERSION(roadSection, 101);
+
+
+
+
+
+
+

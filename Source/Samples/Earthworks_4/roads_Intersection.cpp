@@ -30,13 +30,15 @@ intersectionRoadLink* intersection::findLink(int roadGUID)
 
 
 
-void intersection::clearRoads() {
+void intersection::clearRoads()
+{
     roadLinks.clear();
 }
 
 
 
-bool intersection::isClose(glm::vec3 P, float dist) {
+bool intersection::isClose(glm::vec3 P, float dist)
+{
     return(glm::length(P - this->anchor) < dist);
 }
 

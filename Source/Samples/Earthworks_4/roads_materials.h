@@ -4,7 +4,8 @@
 
 
 
-class roadMaterialLayer {
+class roadMaterialLayer
+{
 public:
     roadMaterialLayer() { ; }
     virtual ~roadMaterialLayer() { ; }
@@ -58,7 +59,8 @@ CEREAL_CLASS_VERSION(roadMaterialGroup, 100);
 
 
 
-class roadMaterialCache {
+class roadMaterialCache
+{
 public:
     void renderGui(Gui* _gui);
     uint find_insert_material(const std::string _path);
