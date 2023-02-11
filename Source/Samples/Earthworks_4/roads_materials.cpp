@@ -4,14 +4,14 @@
 #include "imgui_internal.h"
 
 
+#pragma optimize( "", off )
+
 
 /*  roadMaterialGroup
     --------------------------------------------------------------------------------------------------------------------*/
 void roadMaterialGroup::import(std::string _relativepath)
 {
-    char txt[1024];
-    sprintf(txt, "%s", (terrafectorEditorMaterial::rootFolder + _relativepath).c_str());
-    std::ifstream is(terrafectorEditorMaterial::rootFolder + _relativepath);
+    std::ifstream is(terrafectorEditorMaterial::rootFolder + _relativepath + "_xml");
     if (is.fail()) {
         displayName = "failed to load";
         relativePath = _relativepath;
@@ -83,7 +83,7 @@ void roadMaterialCache::reloadMaterials()
         // reload from disk - account for changes
         mat.import(mat.relativePath);
 
-        roadMatCache.find_insert_material(terrafectorEditorMaterial::rootFolder + mat.relativePath);
+        roadMaterialCache::getInstance().find_insert_material(terrafectorEditorMaterial::rootFolder + mat.relativePath);
         for (auto& layer : mat.layers)
         {
             layer.materialIndex = terrafectorEditorMaterial::static_materials.find_insert_material(terrafectorEditorMaterial::rootFolder + layer.material);

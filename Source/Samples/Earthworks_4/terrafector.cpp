@@ -179,8 +179,10 @@ void lodTriangleMesh::logStats()
 
 materialCache::materialCache()
 {
-    //sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024);
+ //   sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024);
 }
+
+
 
 uint materialCache::find_insert_material(const std::filesystem::path _path)
 {
@@ -252,13 +254,14 @@ Texture::SharedPtr materialCache::getDisplayTexture()
 
 
 
-void materialCache::setTextures(GraphicsVars::SharedPtr _pVars)
+void materialCache::setTextures(ShaderVar& _var)
 {
-    for (uint i = 0; i < textureVector.size(); i++)
+    for (size_t i = 0; i < textureVector.size(); i++)
     {
-        char txt[256];
-        sprintf(txt, "textures[%d]", i);
-        _pVars->setTexture(txt, textureVector[i]);
+        _var[i] = textureVector[i];
+        //char txt[256];
+        //sprintf(txt, "textures[%d]", i);
+        //_pVars->setTexture(txt, textureVector[i]);
 
         // FIXME setSRV is likely faster but do that later, or switch to falcor 5 and bindless
     }
@@ -690,7 +693,7 @@ uint32_t terrafectorEditorMaterial::blendHash() {
 
 void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _replacePath) {
 
-    _path += ".xml";
+    _path += "_xml";
     std::ifstream is(_path);
     if (is.fail()) {
         displayName = "failed to load";

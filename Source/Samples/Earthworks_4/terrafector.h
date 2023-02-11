@@ -89,7 +89,7 @@ public:
 	uint find_insert_material(const std::filesystem::path _path);
 	uint find_insert_texture(const std::filesystem::path _path, bool isSRGB);
 
-	void setTextures(GraphicsVars::SharedPtr _pVars);
+	void setTextures(ShaderVar& var);
 
 	void rebuildStructuredBuffer();
 	void rebuildAll();

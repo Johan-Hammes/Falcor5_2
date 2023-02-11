@@ -62,6 +62,19 @@ CEREAL_CLASS_VERSION(roadMaterialGroup, 100);
 class roadMaterialCache
 {
 public:
+    static roadMaterialCache& getInstance()
+    {
+        static roadMaterialCache    instance;       // Guaranteed to be destroyed.
+                                                    // Instantiated on first use.
+        return instance;
+    }
+private:
+    roadMaterialCache() {}
+public:
+    roadMaterialCache(roadMaterialCache const&) = delete;
+    void operator=(roadMaterialCache const&) = delete;
+
+public:
     void renderGui(Gui* _gui);
     uint find_insert_material(const std::string _path);
     void reloadMaterials();
@@ -77,4 +90,4 @@ public:
 CEREAL_CLASS_VERSION(roadMaterialCache, 100);
 
 
-static roadMaterialCache roadMatCache;
+

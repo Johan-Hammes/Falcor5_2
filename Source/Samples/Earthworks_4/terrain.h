@@ -33,6 +33,7 @@
 #include"hlsl/terrainDefines.hlsli"
 #include"hlsl/gpuLights_defines.hlsli"
 #include"terrafector.h"
+#include "roadNetwork.h"
 
 #include "../../external/cereal-master/include/cereal/cereal.hpp"
 #include "../../external/cereal-master/include/cereal/archives/binary.hpp"
@@ -251,7 +252,7 @@ public:
 
     void clearCameras();
     void setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution);
-    void update(RenderContext* pRenderContext);
+    bool update(RenderContext* pRenderContext);
 
 private:
     void testForSurfaceMain();
@@ -275,7 +276,7 @@ private:
     std::list<quadtree_tile*>	m_used;
     unsigned int frustumFlags[2048];
     bool fullResetDoNotRender = false;
-    bool debug = true;
+    bool debug = false;
 
     std::array<terrainCamera, CameraType_MAX> cameraViews;
     float3 cameraOrigin;
@@ -289,6 +290,8 @@ private:
 
     _lastFile lastfile;
     _terrainSettings settings;
+    int terrainMode = 3;
+    bool hasChanged = false;
 
     bool requestPopupSettings = false;
     bool requestPopupDebug = false;
@@ -309,7 +312,11 @@ private:
 
     terrafectorSystem		terrafectors;
     //ecotopeSystem			mEcosystem;
-    //roadNetwork			    mRoadNetwork;
+    roadNetwork			    mRoadNetwork;
+
+    bool bSplineAsTerrafector = false;
+    bool showRoadOverlay = true;
+    bool showRoadSpline = true;
 
     struct {
         Texture::SharedPtr texture = nullptr;
@@ -396,10 +403,19 @@ private:
     {
         uint32_t maxBezier = 131072;            // 17 bits packed - likely to change soon
         uint32_t maxIndex = 524288;             // *4 seems enough, 2022 at *1.7 for Nurburg
+        uint32_t numStaticSplines = 0;
+        uint32_t numStaticSplinesIndex = 0;
         Buffer::SharedPtr bezierData;
         Buffer::SharedPtr indexData;
         uint numIndex = 0;
     }splines;
+
+    struct
+    {
+        std::vector<uint32_t> tileHash;
+        float quality = 0.0002f;
+        FILE* txt_file = nullptr;
+    }bake;
 
     struct
     {

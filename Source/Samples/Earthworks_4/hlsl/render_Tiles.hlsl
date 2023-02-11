@@ -178,7 +178,6 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	float3 			diffuse = float3(0, 0, 0);
 	float3 			specular = float3(0, 0, 0);
 		
-	//return float4(1, 0, 0, 1);
 	
 	//vIn.texCoords.xy *= frac(vIn.texCoords.xy * 4) / 4;
 	//vIn.texCoords.z /= 2;
@@ -229,8 +228,8 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	//mat.AO = PBR.b;
 	
 	//mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
-
-    mat.diff.rgb = Attr.N_mesh;
+    mat.diff.rgb = 1;
+    float3 light = saturate(dot(Attr.N_mesh, float3(0.5, 0.9, 0.0))) * float3(2.02, 1.53, 1.05)    + (saturate(dot(Attr.N_mesh, float3(-0.5, 0.9, 0.5))) * float3(0.07, 0.1, 0.2));
 	
 	if (showGIS)
 	{
@@ -288,7 +287,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	}
 		
 	//colour.rg += vIn.texCoords.rg;
-    colour.rgb = mat.diff.rgb;
+    colour.rgb = mat.diff.rgb * light;
 
 	return float4(colour, 1);
 }

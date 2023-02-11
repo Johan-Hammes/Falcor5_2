@@ -7,7 +7,7 @@
 #include "assimp/Exporter.hpp"
 using namespace Assimp;
 
-//#pragma optimize( "", off )
+#pragma optimize( "", off )
 
 
 static bool showMaterials = false;
@@ -171,7 +171,7 @@ void roadNetwork::loadRoadMaterial(uint _side, uint _slot)
             filename = filename.substr(0, filename.size() - 4);
         }
 
-        uint idx = roadMatCache.find_insert_material(filename);
+        uint idx = roadMaterialCache::getInstance().find_insert_material(filename);
         for (int i = selectFrom; i < selectTo; i++)
         {
             currentRoad->points[i].setMaterialIndex(_side, _slot, idx);
@@ -201,8 +201,8 @@ uint roadNetwork::getRoadMaterial(uint _side, uint _slot, uint _index)
 const std::string roadNetwork::getMaterialName(uint _side, uint _slot)
 {
     int idx = currentRoad->points[selectFrom].getMaterialIndex(_side, _slot);
-    if (idx >= 0 && idx < roadMatCache.materialVector.size()) {
-        return std::to_string(idx) + roadMatCache.materialVector.at(idx).displayName;
+    if (idx >= 0 && idx < roadMaterialCache::getInstance().materialVector.size()) {
+        return std::to_string(idx) + roadMaterialCache::getInstance().materialVector.at(idx).displayName;
         //return std::to_string(idx);
     }
     return "";
@@ -213,8 +213,8 @@ const std::string roadNetwork::getMaterialName(uint _side, uint _slot)
 const std::string roadNetwork::getMaterialPath(uint _side, uint _slot)
 {
     int idx = currentRoad->points[selectFrom].getMaterialIndex(_side, _slot);
-    if (idx >= 0 && idx < roadMatCache.materialVector.size()) {
-        return roadMatCache.materialVector.at(idx).relativePath;
+    if (idx >= 0 && idx < roadMaterialCache::getInstance().materialVector.size()) {
+        return roadMaterialCache::getInstance().materialVector.at(idx).relativePath;
     }
     return "";
 }
@@ -224,8 +224,8 @@ const std::string roadNetwork::getMaterialPath(uint _side, uint _slot)
 const Texture::SharedPtr roadNetwork::getMaterialTexture(uint _side, uint _slot)
 {
     int idx = currentRoad->points[selectFrom].getMaterialIndex(_side, _slot);
-    if (idx >= 0 && idx < roadMatCache.materialVector.size()) {
-        return roadMatCache.materialVector.at(idx).thumbnail;
+    if (idx >= 0 && idx < roadMaterialCache::getInstance().materialVector.size()) {
+        return roadMaterialCache::getInstance().materialVector.at(idx).thumbnail;
     }
     return nullptr;
 }
@@ -913,7 +913,6 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 void roadNetwork::renderGUI(Gui* _gui)
 {
-
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
         ImGui::Text("%d rd, %d int", (int)roadSectionsList.size(), (int)intersectionList.size());
@@ -922,7 +921,6 @@ void roadNetwork::renderGUI(Gui* _gui)
     ImGui::PopFont();
 
     char txt[256];
-    ImGui::Separator();
     sprintf(txt, "#bezier - %d (%d Kb)", (int)debugNumBezier, ((int)debugNumBezier * (int)sizeof(cubicDouble)) / 1024);
     ImGui::Text(txt);
     sprintf(txt, "#layer - %d (%d Kb)", (int)debugNumIndex, ((int)debugNumIndex * (int)sizeof(bezierLayer) / 1024));
@@ -930,6 +928,23 @@ void roadNetwork::renderGUI(Gui* _gui)
     sprintf(txt, "#ODE - %d (%d Kb)", (int)odeBezier.bezierBounding.size(), ((int)odeBezier.bezierBounding.size() * (int)sizeof(physicsBezier)) / 1024);
     ImGui::Text(txt);
 
+    ImGui::NewLine();
+
+    float W = ImGui::GetWindowWidth() / 2 - 15;
+    auto& style = ImGui::GetStyle();
+    style.ButtonTextAlign = ImVec2(0.0, 0.5);
+    if (ImGui::Button("Load", ImVec2(W, 0))) {
+        load(101);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Save", ImVec2(W, 0))) { save(); }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("'ctrl - s' for quick save");
+
+    W = ImGui::GetWindowWidth() - 30;
+    if (ImGui::Button("roads to EVO", ImVec2(W, 0))) { exportBinary(); }
+    if (ImGui::Button("bridges to MAX", ImVec2(W, 0))) { exportBridges(); }
+    if (ImGui::Button("roads to MAX", ImVec2(W, 0))) { exportRoads(); }
 }
 
 
@@ -1010,6 +1025,7 @@ void roadNetwork::load(uint _version)
     {
         load(lastUsedFilename, _version);
     }
+    updateAllRoads();
 }
 
 
@@ -1024,14 +1040,19 @@ void roadNetwork::load(std::filesystem::path _path, uint _version)
         serialize(archive, _version);
 
         for (auto& roadSection : roadSectionsList) {
-            roadSection.startLink = intersectionList.at(roadSection.int_GUID_start).findLink(roadSection.GUID);
-            roadSection.endLink = intersectionList.at(roadSection.int_GUID_end).findLink(roadSection.GUID);
+            if (roadSection.int_GUID_start < intersectionList.size()) {
+                roadSection.startLink = intersectionList.at(roadSection.int_GUID_start).findLink(roadSection.GUID);
+            }
+            if (roadSection.int_GUID_end < intersectionList.size()) {
+                roadSection.endLink = intersectionList.at(roadSection.int_GUID_end).findLink(roadSection.GUID);
+            }
             roadSection.solveRoad();
             roadSection.solveRoad();
         }
-
-        roadMatCache.reloadMaterials();
+        
+        roadMaterialCache::getInstance().reloadMaterials();
         terrafectorEditorMaterial::static_materials.rebuildAll();
+        
     }
 
     currentRoad = nullptr;
@@ -1677,6 +1698,8 @@ void roadNetwork::updateAllRoads(bool _forExport)
     debugNumIndex = (uint)staticIndexData.size();
 
     odeBezier.buildGridFromBezier();
+
+    isDirty = true;
 }
 
 void roadNetwork::physicsTest(glm::vec3 pos)

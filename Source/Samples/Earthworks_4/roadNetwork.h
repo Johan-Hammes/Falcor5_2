@@ -99,7 +99,7 @@ public:
     aiIntersection	AIpathIntersect;
 
 
-    bool isDirty;
+    bool isDirty = false;
     bezierIntersection physicsMouseIntersection;
     bool bHIT;
     int hitRandomFeedbackValue;
@@ -159,7 +159,7 @@ public:
     void serialize(Archive& archive, std::uint32_t const version)
     {
         if (version >= 101) {
-            archive(CEREAL_NVP(roadMatCache));
+            archive(CEREAL_NVP(roadMaterialCache::getInstance()));
         }
         archive(CEREAL_NVP(roadSectionsList));
         archive(CEREAL_NVP(intersectionList));

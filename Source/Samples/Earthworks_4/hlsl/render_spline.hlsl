@@ -1,13 +1,52 @@
-#include "render_Common.hlsli"
+//#include "render_Common.hlsli"
 #include "materials.hlsli"
 
+/*
+#define LocalRootSignature  "RootFlags(LOCAL_ROOT_SIGNATURE),"  \
+    "DescriptorTable("                  \
+    "CBV(n0, numDescriptors = 1),"  \
+    "UAV(u0, numDescriptors = 3),"  \
+    "SRV(t0, space = 2, numDescriptors = unbounded, offset = 0)"
 
-Texture2D textures[48];		//    switch: /enable_unbounded_descriptor_tables    D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES
-SamplerState  SMP;
+[rootsignature(LocalRootSignature)]
+
+*/
+//Texture2D<float4> bindless_textures[] : register(t0, space1);
+
+//DescriptorTable(CBV(b0), UAV(u0, numDescriptors = 3), SRV(t0, numDescriptors = unbounded))
+/*
+DescriptorTable(
+    SRV(t0, space = 0, numDescriptors = unbounded, offset = 0),
+    SRV(t0, space = 1, numDescriptors = unbounded, offset = 0),
+    SRV(t0, space = 2, numDescriptors = unbounded, offset = 0)
+    visibility = SHADER_VISIBLITY_ALL)
+
+Texture2D textures2d[8192] : register(t0, space0);
+Texture3D textures3d[8192] : register(t0, space1);
+TextureCube texturesCube[8192] : register(t0, space2);
+*/
+
+//Texture2D textures[48];		//    switch: /enable_unbounded_descriptor_tables    D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES
+//Texture2D test;
+SamplerState  SMP : register(s0);
 StructuredBuffer<TF_material> materials;
+StructuredBuffer<cubicDouble> splineData;
+StructuredBuffer<bezierLayer> indexData;
+//Texture2D bindlessTextures2D[] : register(space0);
 
+//Texture2D t_BindlessTextures[] : register(t0, space2);
 
-cbuffer gConstantBuffer
+//Texture2D textures[10] : register(t0);
+//Texture2D bindlesstextures[4096] : register(t0, space0);
+
+struct myTextures
+{
+    Texture2D<float4> T[4096];
+};
+ParameterBlock<myTextures> gmyTextures;
+//StructuredBuffer<myTextures> textureData;
+
+cbuffer gConstantBuffer : register(b0)
 {
     float4x4 view;
 	float4x4 proj;
@@ -52,8 +91,7 @@ struct bezierLayer
 };
 
 
-StructuredBuffer<cubicDouble> splineData;
-StructuredBuffer<bezierLayer> indexData;
+
 
 
 
@@ -90,7 +128,7 @@ inline float4 cubic_Casteljau(float t, float4 P0, float4 P1, float4 P2, float4 P
 #define isOverlap		(isStartOverlap) || (isEndOverlap)
 
 // 12 bits left 4096 materials
-#define material  		(segment.A >> 17) & 0x7ff		
+#define materialFlag  	(segment.A >> 17) & 0x7ff		
 #define index  			segment.A & 0x1ffff
 
 
@@ -99,7 +137,8 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     splineVSOut output;
 	
-	float t = (vId>>1)/(float)numSubdiv;
+	//float t = (vId>>1)/(float)numSubdiv;
+    float t = (vId >> 1) / 64.0;
 	float3 pos, tangent;
 
 
@@ -136,7 +175,7 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 	output.pos =  mul( float4(position, 1), viewproj);
 	output.posW = position;
 	output.flags.x = bHidden;
-	output.flags.y = material;
+	output.flags.y = materialFlag;
 	output.colour = colour;
 	
 	
@@ -185,7 +224,8 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 	float4 colour = vIn.colour;
 	uint material = vIn.flags.y;
 
-	
+
+
 	
 	// EDITING MATERIALS
 	
@@ -251,8 +291,8 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 			alpha_uv = vIn.texCoords.xy * MAT.uvScaleClampAlpha;
 			alpha_uv.x = clamp(alpha_uv.x, 0.05, 0.95);
 		}
-		float alphaBase = textures[MAT.baseAlphaTexture].Sample(SMP, alpha_uv).r;
-		float alphaDetail = textures[MAT.detailAlphaTexture].Sample(SMP, uvWorld).r;
+        float alphaBase = gmyTextures.T[MAT.baseAlphaTexture].Sample(SMP, alpha_uv).r;
+        float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(SMP, uvWorld).r;
 		
 		if (MAT.baseAlphaClampU && alpha_uv.x > 0.9 )
 		{
@@ -268,8 +308,8 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 	
 	if(MAT.useColour)
 	{
-		float3 albedo = textures[MAT.baseAlbedoTexture].Sample(SMP, uv).rgb;
-		float3 albedoDetail = textures[MAT.detailAlbedoTexture].Sample(SMP, uvWorld).rgb;
+        float3 albedo = gmyTextures.T[MAT.baseAlbedoTexture].Sample(SMP, uv).rgb;
+        float3 albedoDetail = gmyTextures.T[MAT.detailAlbedoTexture].Sample(SMP, uvWorld).rgb;
 		
 		float3 A = lerp(albedo, 0.5, saturate(MAT.albedoBlend));
 		float3 B = lerp(albedoDetail, 0.5, saturate(-MAT.albedoBlend));
@@ -282,13 +322,15 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 		alpha = 0.5;
 	}
 	
-	
+    
+    //colour.rgb = bindlesstextures[0].Sample(SMP, uv).rgb;
 
-	
+    //colour.rgb = gmyTextures.T[5].Sample(SMP, uv).rgb;
+
 	colour.rgb *= 0.8f;
-	colour.a = alpha;
+    colour.a = alpha;
 
-	return colour * 0.5;
+	return colour;
 
 
 
@@ -430,5 +472,4 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 }
 
 
-	
 	

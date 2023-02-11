@@ -68,6 +68,9 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
             ImGui::EndMenu();
         }
 
+        ImGui::SetCursorPos(ImVec2(screenSize.x - 100, 0));
+        ImGui::Text( "%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+
         ImGui::SetCursorPos(ImVec2(screenSize.x - 15, 0));
         if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
     }
@@ -126,7 +129,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     camera->setTarget(float3(0, 900, 100));
 
     terrain.onLoad(_renderContext, logFile);
-/*
+
     FILE* file = fopen("camera.bin", "rb");
     if (file) {
         CameraData data;
@@ -134,7 +137,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
         camera->getData() = data;
         fclose(file);
     }
-    */
+    
     std::ifstream is("earthworks4_presets.json");
     if (is.good()) {
         cereal::JSONInputArchive archive(is);
@@ -149,19 +152,21 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
     gpDevice->toggleVSync(refresh.vsync);
-    //Sleep(30);
+    
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
-    terrain.update(_renderContext);
+    bool changed = terrain.update(_renderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
-    const float4 clearColor(0.01f, 0.01f, 0.01f, 1);
+    const float4 clearColor(0.02f, 0.03f, 0.05f, 1);
     _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
     graphicsState->setFbo(pTargetFbo);
 
     terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState);
+
+    if (refresh.minimal && !changed)    Sleep(45);      // aim for 20fps in this mode
 }
 
 
@@ -236,7 +241,7 @@ void Earthworks_4::guiStyle()
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
-    style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.27f, 0.37f, 0.53f, 0.5f);
     style.Colors[ImGuiCol_ButtonHovered] = DARKLIME(1.f);
     style.Colors[ImGuiCol_HeaderHovered] = DARKLIME(1.f);
 

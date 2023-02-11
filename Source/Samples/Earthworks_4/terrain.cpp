@@ -247,27 +247,27 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         split.buffer_terrain = Buffer::createStructured(sizeof(Terrain_vertex), numVertPerTile * numTiles);
 
-        terrainShader.load("Samples/Earthworks_4/render_Tiles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+        terrainShader.load("Samples/Earthworks_4/hlsl/render_Tiles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
         terrainShader.Vars()->setBuffer("tiles", split.buffer_tiles);
         terrainShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_terrain);
 
-        compute_TerrainUnderMouse.load("Samples/Earthworks_4/compute_terrain_under_mouse.hlsl");
+        compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
         compute_TerrainUnderMouse.Vars()->setTexture("gHeight", height_Array);
         compute_TerrainUnderMouse.Vars()->setBuffer("tiles", split.buffer_tiles);
         compute_TerrainUnderMouse.Vars()->setBuffer("groundcover_feedback", split.buffer_feedback);
 
         // clear
-        split.compute_tileClear.load("Samples/Earthworks_4/compute_tileClear.hlsl");
+        split.compute_tileClear.load("Samples/Earthworks_4/hlsl/compute_tileClear.hlsl");
         split.compute_tileClear.Vars()->setBuffer("feedback", split.buffer_feedback);
 
         // split merge
-        split.compute_tileSplitMerge.load("Samples/Earthworks_4/compute_tileSplitMerge.hlsl");
+        split.compute_tileSplitMerge.load("Samples/Earthworks_4/hlsl/compute_tileSplitMerge.hlsl");
         split.compute_tileSplitMerge.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileSplitMerge.Vars()->setBuffer("feedback", split.buffer_feedback);
 
         // generate
-        split.compute_tileGenerate.load("Samples/Earthworks_4/compute_tileGenerate.hlsl");
+        split.compute_tileGenerate.load("Samples/Earthworks_4/hlsl/compute_tileGenerate.hlsl");
         split.compute_tileGenerate.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
         split.compute_tileGenerate.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileGenerate.Vars()->setTexture("gNoise", split.noise_u16);
@@ -278,7 +278,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileGenerate.Vars()->setTexture("gEct4", split.tileFbo->getColorTexture(7));
 
         // passthrough
-        split.compute_tilePassthrough.load("Samples/Earthworks_4/compute_tilePassthrough.hlsl");
+        split.compute_tilePassthrough.load("Samples/Earthworks_4/hlsl/compute_tilePassthrough.hlsl");
         split.compute_tilePassthrough.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
         split.compute_tilePassthrough.Vars()->setBuffer("plant_instance", split.buffer_instance_plants);
         split.compute_tilePassthrough.Vars()->setBuffer("feedback", split.buffer_feedback);
@@ -287,7 +287,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tilePassthrough.Vars()->setTexture("gNoise", split.noise_u16);
 
         // build lookup
-        split.compute_tileBuildLookup.load("Samples/Earthworks_4/compute_tileBuildLookup.hlsl");
+        split.compute_tileBuildLookup.load("Samples/Earthworks_4/hlsl/compute_tileBuildLookup.hlsl");
         split.compute_tileBuildLookup.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileBuildLookup.Vars()->setBuffer("tileLookup", split.buffer_lookup_quads);
         split.compute_tileBuildLookup.Vars()->setBuffer("plantLookup", split.buffer_lookup_plants);
@@ -297,24 +297,24 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileBuildLookup.Vars()->setBuffer("feedback", split.buffer_feedback);
 
         // bicubic
-        split.compute_tileBicubic.load("Samples/Earthworks_4/compute_tileBicubic.hlsl");
+        split.compute_tileBicubic.load("Samples/Earthworks_4/hlsl/compute_tileBicubic.hlsl");
         split.compute_tileBicubic.Vars()->setSampler("linearSampler", sampler_Clamp);
         split.compute_tileBicubic.Vars()->setTexture("gOutput", split.bicubic_upsample_texture);
         split.compute_tileBicubic.Vars()->setTexture("gDebug", split.debug_texture);
         split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.tileFbo->getColorTexture(0));
 
         // ecotopes
-        split.compute_tileEcotopes.load("Samples/Earthworks_4/compute_tileEcotopes.hlsl");
+        split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/compute_tileEcotopes.hlsl");
 
         // normals
-        split.compute_tileNormals.load("Samples/Earthworks_4/compute_tileNormals.hlsl");
+        split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/compute_tileNormals.hlsl");
         split.compute_tileNormals.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileNormals.Vars()->setTexture("gOutNormals", split.normals_texture);
         split.compute_tileNormals.Vars()->setTexture("gOutput", split.debug_texture);
         split.compute_tileNormals.Vars()->setBuffer("tiles", split.buffer_tiles);
 
         // vertices
-        split.compute_tileVerticis.load("Samples/Earthworks_4/compute_tileVertices.hlsl");
+        split.compute_tileVerticis.load("Samples/Earthworks_4/hlsl/compute_tileVertices.hlsl");
         split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
         split.compute_tileVerticis.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileVerticis.Vars()->setTexture("gOutVerts", split.vertex_A_texture);
@@ -324,11 +324,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         // jumpflood
         // It may even be faster to set this up twice and hop between the two
-        split.compute_tileJumpFlood.load("Samples/Earthworks_4/compute_tileJumpFlood.hlsl");
+        split.compute_tileJumpFlood.load("Samples/Earthworks_4/hlsl/compute_tileJumpFlood.hlsl");
         split.compute_tileJumpFlood.Vars()->setTexture("gDebug", split.debug_texture);
 
         // delaunay
-        split.compute_tileDelaunay.load("Samples/Earthworks_4/compute_tileDelaunay.hlsl");
+        split.compute_tileDelaunay.load("Samples/Earthworks_4/hlsl/compute_tileDelaunay.hlsl");
         split.compute_tileDelaunay.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileDelaunay.Vars()->setTexture("gInVerts", split.vertex_A_texture);
         split.compute_tileDelaunay.Vars()->setBuffer("VB", split.buffer_terrain);
@@ -336,7 +336,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileDelaunay.Vars()->setBuffer("tileDrawargsArray", split.drawArgs_tiles);
 
         // elevation mipmap
-        split.compute_tileElevationMipmap.load("Samples/Earthworks_4/compute_tileElevationMipmap.hlsl");
+        split.compute_tileElevationMipmap.load("Samples/Earthworks_4/hlsl/compute_tileElevationMipmap.hlsl");
         split.compute_tileElevationMipmap.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileElevationMipmap.Vars()->setTexture("gDebug", split.debug_texture);
         const auto& mipmapReflector = split.compute_tileElevationMipmap.Reflector()->getDefaultParameterBlock();
@@ -349,7 +349,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         // BC6H compressor
         split.bc6h_texture = Texture::create2D(tile_numPixels / 4, tile_numPixels / 4, Falcor::ResourceFormat::RGBA32Uint, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
-        split.compute_bc6h.load("Samples/Earthworks_4/compute_bc6h.hlsl");
+        split.compute_bc6h.load("Samples/Earthworks_4/hlsl/compute_bc6h.hlsl");
         split.compute_bc6h.Vars()->setTexture("gOutput", split.bc6h_texture);
     }
 
@@ -369,15 +369,21 @@ void terrainManager::init_TopdownRender()
 {
     split.tileCamera = Camera::create();
 
- //   split.shader_spline3D.load("Samples/Earthworks_4/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
- //   split.shader_splineTerrafector.load("Samples/Earthworks_4/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
- //   split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
+    terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024); // FIXME hardcoded
+    split.shader_spline3D.load("Samples/Earthworks_4/hlsl/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+    //split.shader_spline3D.Program()->getReflector()
+    //split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    //split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
+    //split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+    
 
     // mesh terrafector shader
- //   split.shader_meshTerrafector.load("Samples/Earthworks_4/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+ //   split.shader_meshTerrafector.load("Samples/Earthworks_4/hlsl/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
   //  split.shader_meshTerrafector.Vars()->setSampler("SMP", sampler_Trilinear);
   //  split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
   //  split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+    //mpSplineShaderTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 
     DepthStencilState::Desc depthDesc;
     depthDesc.setDepthEnabled(true);
@@ -414,8 +420,8 @@ void terrainManager::init_TopdownRender()
     blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha);
     split.blendstateRoadsCombined = BlendState::create(blendDesc);
 
-    //splines.bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxBezier);
-    //splines.indexData = Buffer::createStructured(sizeof(bezierLayer), "indexData", splines.maxIndex);
+    splines.bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxBezier);
+    splines.indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex);
 }
 
 
@@ -560,7 +566,59 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::EndPopup();
     }
 
-    ImGui::SetTooltip("%d (%3.1f, %3.1f, %3.1f) pan(%3.1f, %3.1f, %3.1f)", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z, mouse.pan.x, mouse.pan.y, mouse.pan.z);
+    Gui::Window rightPanel(_gui, "##rightPanel", {200, 200}, {100, 100});
+    {
+        ImGui::PushFont(_gui->getFont("roboto_20"));
+
+        ImGui::PushItemWidth(ImGui::GetWindowWidth() - 20);
+        if (ImGui::Combo("###modeSelector", &terrainMode, "ortho photo\0Ecotope\0Terrafector\0Bezier road network\0")) { ; }
+        ImGui::PopItemWidth();
+        ImGui::NewLine();
+
+        switch (terrainMode)
+        {
+        case 0: break;
+        case 1: break;
+        case 2: break;
+        case 3:
+            mRoadNetwork.renderGUI(_gui);
+            
+            //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
+            //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
+
+            /*if (ImGui::Checkbox("show baked", &bSplineAsTerrafector)) { reset(true); }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("'b'");
+            ImGui::Checkbox("show road icons", &showRoadOverlay);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("'n'");
+            ImGui::Checkbox("show road splines", &showRoadSpline);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("'m'");*/
+
+            ImGui::NewLine();
+
+            auto& style = ImGui::GetStyle();
+            style.ButtonTextAlign = ImVec2(0.0, 0.5);
+            ImGui::DragFloat("overlay", &gis_overlay.strenght, 0.01f, 0, 1, "%1.2f strength");
+
+            ImGui::DragFloat("redStrength", &gis_overlay.redStrength, 0.01f, 0, 1);
+            ImGui::DragFloat("redScale", &gis_overlay.redScale, 0.01f, 0, 100);
+            ImGui::DragFloat("redOffset", &gis_overlay.redOffset, 0.01f, 0, 1);
+
+            ImGui::Separator();
+            ImGui::DragFloat("jp2 quality", &bake.quality, 0.0001f, 0.0001f, 0.01f, "%3.5f");
+            break;
+
+        }
+        ImGui::PopFont();
+    }
+    rightPanel.release();
+
+    if (!ImGui::IsRootWindowOrAnyChildHovered())
+    {
+        //ImGui::SetTooltip("%d (%3.1f, %3.1f, %3.1f) pan(%3.1f, %3.1f, %3.1f)", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z, mouse.pan.x, mouse.pan.y, mouse.pan.z);
+    }
 }
 
 
@@ -587,6 +645,11 @@ void terrainManager::onGuiMenubar(Gui* pGui)
         }
         ImGui::EndMenu();
     }
+
+    float x = ImGui::GetCursorPosX();
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 600, 0));
+    ImGui::Text(lastfile.terrain.c_str());
+    ImGui::SetCursorPos(ImVec2(x, 0));
 }
 
 //mimic hlsl all()
@@ -759,9 +822,17 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::m
 }
 
 
-void terrainManager::update(RenderContext* _renderContext)
+bool terrainManager::update(RenderContext* _renderContext)
 {
     bool dirty = false;
+
+    if (mRoadNetwork.isDirty)
+    {
+        splines.numStaticSplines = __min((int)roadNetwork::staticBezierData.size(), splines.maxBezier);
+        splines.numStaticSplinesIndex = __min((int)roadNetwork::staticIndexData.size(), splines.maxIndex);
+        splines.bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numStaticSplines * sizeof(cubicDouble));
+        splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
+    }
 
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
     memset(frustumFlags, 0, sizeof(unsigned int) * 2048);		// clear all
@@ -826,6 +897,12 @@ void terrainManager::update(RenderContext* _renderContext)
             m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
         }
     }
+
+    if (hasChanged) {
+        hasChanged = false;
+        return true;
+    }
+    return false;
 }
 
 
@@ -899,10 +976,13 @@ void terrainManager::splitOne(RenderContext* _renderContext)
     /* Bloody hell, pick the best one to do*/
     if (m_free.size() < 4) return;
 
+    
+    // FIXME PICK A BETTER ONE HERE
     for (auto& tile : m_used)
     {
         if (tile->forSplit)
         {
+            hasChanged = true;
             hashAndCache(tile);
 
             if (true)	// antani, check for hashAndCache() return value is it ready
@@ -1139,7 +1219,10 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     //??? should probably be in the roadnetwork code, but look at the optimize step first
     if (splineAsTerrafector)           // Now render the roadNetwork
     {
-        terrafectorEditorMaterial::static_materials.setTextures(split.shader_splineTerrafector.Vars());
+        //auto& block = split.shader_splineTerrafector.Vars()->getParameterBlock("gmyTextures");
+        //ShaderVar& var = block->findMember("T");
+        //terrafectorEditorMaterial::static_materials.setTextures(var);
+        
 
         split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
 
@@ -1168,7 +1251,20 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState)
 {
-    //gisReload(_camera->getPosition());
+    gisReload(_camera->getPosition());
+
+    glm::mat4 V = toGLM(_camera->getViewMatrix());
+    glm::mat4 P = toGLM(_camera->getProjMatrix());
+    glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+    rmcv::mat4 view, proj, viewproj;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            view[j][i] = V[j][i];
+            proj[j][i] = P[j][i];
+            viewproj[j][i] = VP[j][i];
+        }
+    }
+
 
     {
         FALCOR_PROFILE("terrainManager");
@@ -1187,17 +1283,6 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         terrainShader.Vars()->setBuffer("VB", split.buffer_terrain);
 
-        glm::mat4 V = toGLM(_camera->getViewMatrix());
-        glm::mat4 P = toGLM(_camera->getProjMatrix());
-        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
-        rmcv::mat4 view, proj, viewproj;
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                view[j][i] = V[j][i];
-                proj[j][i] = P[j][i];
-                viewproj[j][i] = VP[j][i];
-            }
-        }
         terrainShader.Vars()["gConstantBuffer"]["view"] = view;
         terrainShader.Vars()["gConstantBuffer"]["proj"] = proj;
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
@@ -1223,6 +1308,49 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         */
 
         terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
+    }
+
+    if (splines.numStaticSplines && showRoadSpline && !bSplineAsTerrafector)
+    {
+        FALCOR_PROFILE("splines");
+
+        split.shader_spline3D.State()->setFbo(_fbo);
+        split.shader_spline3D.State()->setRasterizerState(split.rasterstateSplines);
+        split.shader_spline3D.State()->setBlendState(split.blendstateSplines);
+        split.shader_spline3D.State()->setDepthStencilState(split.depthstateAll);
+
+        split.shader_spline3D.Vars()["gConstantBuffer"]["view"] = view;
+        split.shader_spline3D.Vars()["gConstantBuffer"]["proj"] = proj;
+        split.shader_spline3D.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+
+        split.shader_spline3D.Vars()->setBuffer("splineData", splines.bezierData);
+        split.shader_spline3D.Vars()->setBuffer("indexData", splines.indexData);
+        split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+
+
+        //split.shader_spline3D.Vars()->getRootDescriptor()
+        
+
+        auto &block = split.shader_spline3D.Vars()->getParameterBlock("gmyTextures");
+        ShaderVar& var = block->findMember("T");// > getRootVar().;
+        //var[(size_t)4000] = gis_overlay.texture;
+
+        terrafectorEditorMaterial::static_materials.setTextures(var);
+
+        //const auto& splineReflector = split.shader_spline3D.Vars()->getReflection()->getDefaultParameterBlock();
+        //ParameterBlockReflection::BindLocation bind_textures = splineReflector->getResourceBinding("textures");
+        //auto &block = split.shader_spline3D.Vars()->getParameterBlock(bind_textures);
+        //const auto &r = splineReflector->getResource("textures");
+
+        //auto &rvar = split.shader_spline3D.Vars()->getReflection()->getResource("textures");
+        //auto& block = split.shader_spline3D.Vars()->getParameterBlock(rvar->getBindLocation());
+        
+        //split.shader_spline3D.Vars()["textures[0]"].setTexture(gis_overlay.texture);
+        //split.shader_spline3D.Vars()->setTexture(bind_textures, gis_overlay.texture);
+        //terrainShader.Vars()->setTexture("textures[0]", gis_overlay.texture);
+        //terrainShader.Vars()->setTexture("gGISAlbedo", gis_overlay.texture);
+
+        split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplines);
     }
 
     {
@@ -1328,6 +1456,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
             glm::vec3 newTarget = _camera->getTarget() + deltaPos;
             _camera->setPosition(newPos);
             _camera->setTarget(newTarget);
+            hasChanged = true;
         }
 
         // orbit
@@ -1349,6 +1478,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
 
             _camera->setPosition(mouse.orbit - mouse.toGround);
             _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
+            hasChanged = true;
         }
         mousePositionOld = pos;
     }
@@ -1365,6 +1495,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
 
             _camera->setPosition(newPos);
             _camera->setTarget(newTarget);
+            hasChanged = true;
         }
     }
     break;
