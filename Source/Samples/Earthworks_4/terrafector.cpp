@@ -259,13 +259,9 @@ void materialCache::setTextures(ShaderVar& _var)
     for (size_t i = 0; i < textureVector.size(); i++)
     {
         _var[i] = textureVector[i];
-        //char txt[256];
-        //sprintf(txt, "textures[%d]", i);
-        //_pVars->setTexture(txt, textureVector[i]);
-
-        // FIXME setSRV is likely faster but do that later, or switch to falcor 5 and bindless
     }
 }
+
 
 // FIXME could also just do the individual one
 void materialCache::rebuildStructuredBuffer()

@@ -194,25 +194,35 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 float shevrons(float2 UV)
 {
-	if (UV.x < 0.01) return 0.5;
-	if (UV.x > 0.99) return 0.5;
-	
-	float newU = abs(0.5 - UV.x) * 3;
-	if (newU < 0.5){
-		float newV = frac( 1 * (UV.y + newU * 0.3));
-		if (newV > 0.93) {
-			return 0.7;
-		}
-	} 
-	
-	return 0;
+    if (UV.x < 0.02) return 0.9;
+    if (UV.x > 0.98) return 0.9;
+
+    float newU = abs(0.5 - UV.x) * 3;
+    if (newU < 0.5) {
+        float newV = frac(1 * (UV.y + newU * 0.3));
+        if (newV > 0.93) {
+            return 0.7;
+        }
+    }
+
+
+    if (frac(UV.y * 32) > 0.5)
+    {
+        if (frac(UV.x * 2) > 0.5)return 0.1;
+    }
+    else
+    {
+        if (frac(UV.x * 2) <= 0.5)return 0.1;
+    }
+
+    return 0;
 }
 
-float dots(float2 UV)
+float4 dots(float2 UV)
 {
-	if (frac(UV.y * 5) < 0.25) return 1.0;
-	if(UV.x > 0.4 && UV.x < 0.6)return 1.0;
-	return 0;
+    if (frac(UV.y * 5) < 0.25) return float4(1, 1, 1, 1);
+    if (UV.x > 0.4 && UV.x < 0.6)return float4(1, 1, 1, 1);
+    return float4(0, 0, 0, 0.5);
 }
 
 
@@ -231,22 +241,30 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 	
 	// middle line dotted white
 	if(material == 800) {
-		return float4(0.6, 0.6, 0.6, dots(vIn.texCoords.xy)*0.4);
+        return dots(vIn.texCoords.xy);
 	}
 	
 	// middle line dotted red
 	if(material == 801) {
-		return float4(1.9, 0.0, 0.0, dots(vIn.texCoords.xy));
+        return dots(vIn.texCoords.xy) * float4(1, 0, 0, 1);
 	}
 	
 	// green shevron
 	if(material == 802) {
-		return float4(0.0, 0.3, 0.0, shevrons(vIn.texCoords.xy));
+        float A = shevrons(vIn.texCoords.xz);
+        if (vIn.texCoords.z < 0.02 && vIn.texCoords.x > 0.5) return 0.8;
+        if (vIn.texCoords.z > 0.98 && vIn.texCoords.x > 0.5) return 0.8;
+        if (A < 0.01) return float4(saturate((vIn.flags.z) / 150.0f - 0.5) * 10, saturate((vIn.flags.w) / 50.0f - 0.0), saturate((vIn.flags.w) / 50.0f - 0.0), 0.19);
+        return float4(0.0, 0.4, 0.0, A);
 	}
 	
 	// blue shevron
 	if(material == 803) {
-		return float4(0.0, 0.0, 0.4, shevrons(vIn.texCoords.xy));
+        float A = shevrons(vIn.texCoords.xz);
+        if (vIn.texCoords.z < 0.02 && vIn.texCoords.x > 0.5) return 0.8;
+        if (vIn.texCoords.z > 0.98 && vIn.texCoords.x > 0.5) return 0.8;
+        if (A < 0.01) return float4(saturate((vIn.flags.z) / 150.0f - 0.5) * 10, saturate((vIn.flags.w) / 50.0f - 0.0), saturate((vIn.flags.w) / 50.0f - 0.0), 0.19);
+        return float4(0.0, 0.0, 0.5, A);
 	}
 	
 	
@@ -258,7 +276,7 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 	
 	// selection
 	if(material == 999) {
-		return float4(0.5, 0.5, 0.0, dots(vIn.texCoords.xy * 3));
+        return dots(vIn.texCoords.xy * 3) * float4(1, 1, 0, 1);
 	}
 	
 	if(material == 1000) {

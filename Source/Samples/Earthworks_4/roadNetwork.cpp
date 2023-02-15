@@ -1615,17 +1615,17 @@ void roadNetwork::currentRoadtoAI()
 
 
 
-void roadNetwork::incrementLane(int index, float _amount, roadSection* _road)
+void roadNetwork::incrementLane(int index, float _amount, roadSection* _road, bool _symmetrical)
 {
     if (index < 0)		// do all
     {
-        if (editRight) {
+        if (_symmetrical || editRight) {
             for (auto& pnt : _road->points) {
                 pnt.lanesRight[editLaneIndex].laneWidth += _amount;
                 if ((editLaneIndex > 0) && pnt.lanesRight[editLaneIndex].laneWidth < 0) pnt.lanesRight[editLaneIndex].laneWidth = 0;
             }
         }
-        else {
+        if (_symmetrical || !editRight) {
             for (auto& pnt : _road->points) {
                 pnt.lanesLeft[editLaneIndex].laneWidth += _amount;
                 if ((editLaneIndex > 0) && pnt.lanesLeft[editLaneIndex].laneWidth < 0) pnt.lanesLeft[editLaneIndex].laneWidth = 0;
@@ -1634,12 +1634,12 @@ void roadNetwork::incrementLane(int index, float _amount, roadSection* _road)
     }
     else				// selective
     {
-        if (editRight) {
+        if (_symmetrical || editRight) {
             _road->points[index].lanesRight[editLaneIndex].laneWidth += _amount;
             if ((editLaneIndex > 0) && _road->points[index].lanesRight[editLaneIndex].laneWidth < 0) _road->points[index].lanesRight[editLaneIndex].laneWidth = 0;
             _road->lastEditedPoint = _road->points[index];
         }
-        else {
+        if (_symmetrical || !editRight) {
             _road->points[index].lanesLeft[editLaneIndex].laneWidth += _amount;
             if ((editLaneIndex > 0) && _road->points[index].lanesLeft[editLaneIndex].laneWidth < 0) _road->points[index].lanesLeft[editLaneIndex].laneWidth = 0;
             _road->lastEditedPoint = _road->points[index];

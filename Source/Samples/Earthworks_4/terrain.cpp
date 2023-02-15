@@ -376,7 +376,7 @@ void terrainManager::init_TopdownRender()
     //split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     //split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
     //split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
-    
+
 
     // mesh terrafector shader
  //   split.shader_meshTerrafector.load("Samples/Earthworks_4/hlsl/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
@@ -422,6 +422,9 @@ void terrainManager::init_TopdownRender()
 
     splines.bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxBezier);
     splines.indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex);
+
+    splines.dynamic_bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxDynamicBezier);
+    splines.dynamic_indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxDynamicIndex);
 }
 
 
@@ -555,7 +558,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         settings.renderGui(_gui);
         ImGui::EndPopup();
     }
-    
+
     if (requestPopupDebug) {
         ImGui::OpenPopup("debug");
         requestPopupDebug = false;
@@ -566,7 +569,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::EndPopup();
     }
 
-    Gui::Window rightPanel(_gui, "##rightPanel", {200, 200}, {100, 100});
+    Gui::Window rightPanel(_gui, "##rightPanel", { 200, 200 }, { 100, 100 });
     {
         ImGui::PushFont(_gui->getFont("roboto_20"));
 
@@ -582,7 +585,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         case 2: break;
         case 3:
             mRoadNetwork.renderGUI(_gui);
-            
+
             //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
             //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
 
@@ -615,9 +618,12 @@ void terrainManager::onGuiRender(Gui* _gui)
     }
     rightPanel.release();
 
-    if (!ImGui::IsRootWindowOrAnyChildHovered())
+    if (!ImGui::IsAnyWindowHovered())
     {
-        //ImGui::SetTooltip("%d (%3.1f, %3.1f, %3.1f) pan(%3.1f, %3.1f, %3.1f)", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z, mouse.pan.x, mouse.pan.y, mouse.pan.z);
+        char TTTEXT[1024];
+        sprintf(TTTEXT, "%d (%3.1f, %3.1f, %3.1f)\n", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z);
+        sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
+        ImGui::SetTooltip(TTTEXT);
     }
 }
 
@@ -724,7 +730,7 @@ bool terrainManager::testForSplit(quadtree_tile* _tile)
         return true;
     }
 
-    
+
 
     return false;
 }
@@ -764,9 +770,9 @@ void terrainManager::gisReload(glm::vec3 _position)
         uint z = hash >> 16;
 
         std::filesystem::path path = settings.dirRoot + "/overlay/" + char(65 + hash & 0xff) + "_" + std::to_string(z) + "_image.dds";
-        gis_overlay.texture = Texture::createFromFile( path, true, true, Resource::BindFlags::ShaderResource);
+        gis_overlay.texture = Texture::createFromFile(path, true, true, Resource::BindFlags::ShaderResource);
 
-        gis_overlay.box = glm::vec4(-350 - (settings.size / 2.0f) + x * 2500, -350 - (settings.size / 2.0f) + z*2500, 3200, 3200);    // fixme this sort of asumes 40 x 40 km
+        gis_overlay.box = glm::vec4(-350 - (settings.size / 2.0f) + x * 2500, -350 - (settings.size / 2.0f) + z * 2500, 3200, 3200);    // fixme this sort of asumes 40 x 40 km
     }
 }
 
@@ -826,6 +832,8 @@ bool terrainManager::update(RenderContext* _renderContext)
 {
     bool dirty = false;
 
+    updateDynamicRoad(false);
+    mRoadNetwork.testHit(split.feedback.tum_Position);
     if (mRoadNetwork.isDirty)
     {
         splines.numStaticSplines = __min((int)roadNetwork::staticBezierData.size(), splines.maxBezier);
@@ -871,7 +879,7 @@ bool terrainManager::update(RenderContext* _renderContext)
         for (auto& tile : m_used)
         {
             //bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
-            bool surface = tile->parent &&  tile->child[0] == nullptr;
+            bool surface = tile->parent && tile->child[0] == nullptr;
             bool bCM2 = true;
             if (surface) {
                 frustumFlags[tile->index] |= 1 << 20;
@@ -884,7 +892,7 @@ bool terrainManager::update(RenderContext* _renderContext)
         split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
-   // if (dirty)
+    // if (dirty)
     {
         // readback of tile centers
         _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
@@ -893,7 +901,7 @@ bool terrainManager::update(RenderContext* _renderContext)
         split.buffer_tileCenter_readback.get()->unmap();
         for (int i = 0; i < m_tiles.size(); i++)
         {
-            m_tiles[i].origin.y =  split.tileCenters[i].x;
+            m_tiles[i].origin.y = split.tileCenters[i].x;
             m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
         }
     }
@@ -976,7 +984,7 @@ void terrainManager::splitOne(RenderContext* _renderContext)
     /* Bloody hell, pick the best one to do*/
     if (m_free.size() < 4) return;
 
-    
+
     // FIXME PICK A BETTER ONE HERE
     for (auto& tile : m_used)
     {
@@ -1178,7 +1186,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             uint32_t firstVertex = _tile->index * numVertPerTile;
             uint32_t zero = 0;
             split.buffer_terrain->getUAVCounter()->setBlob(&zero, 0, sizeof(uint32_t));	// damn, I misuse increment, count in 1's but write in 3's
-            split.compute_tileDelaunay.Vars()["gConstants"]["tile_Index"] =  _tile->index; 
+            split.compute_tileDelaunay.Vars()["gConstants"]["tile_Index"] = _tile->index;
             split.compute_tileDelaunay.dispatch(_renderContext, cs_w / 2, cs_w / 2);
             //mpRenderContext->copyResource(mpDefaultFBO->getColorTexture(0).get(), mpVertsMap.get());
             //mpVertsMap->captureToFile(0, 0, "e:\\voroinoi_verts.png");
@@ -1222,7 +1230,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         //auto& block = split.shader_splineTerrafector.Vars()->getParameterBlock("gmyTextures");
         //ShaderVar& var = block->findMember("T");
         //terrafectorEditorMaterial::static_materials.setTextures(var);
-        
+
 
         split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
 
@@ -1288,7 +1296,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
 
-        
+
         terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gis_overlay.strenght;
         terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)gis_overlay.show;
         terrainShader.Vars()["PerFrameCB"]["gisBox"] = gis_overlay.box;
@@ -1296,7 +1304,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainShader.Vars()["PerFrameCB"]["redStrength"] = gis_overlay.redStrength;
         terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
         terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
-        
+
         /*
         terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
         */
@@ -1310,7 +1318,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
     }
 
-    if (splines.numStaticSplines && showRoadSpline && !bSplineAsTerrafector)
+    if ((splines.numStaticSplines || splines.numDynamicSplines) && showRoadSpline && !bSplineAsTerrafector)
     {
         FALCOR_PROFILE("splines");
 
@@ -1323,34 +1331,24 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         split.shader_spline3D.Vars()["gConstantBuffer"]["proj"] = proj;
         split.shader_spline3D.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
 
-        split.shader_spline3D.Vars()->setBuffer("splineData", splines.bezierData);
-        split.shader_spline3D.Vars()->setBuffer("indexData", splines.indexData);
         split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 
-
-        //split.shader_spline3D.Vars()->getRootDescriptor()
-        
-
-        auto &block = split.shader_spline3D.Vars()->getParameterBlock("gmyTextures");
-        ShaderVar& var = block->findMember("T");// > getRootVar().;
-        //var[(size_t)4000] = gis_overlay.texture;
-
+        auto& block = split.shader_spline3D.Vars()->getParameterBlock("gmyTextures");
+        ShaderVar& var = block->findMember("T");        // FIXME pre get
         terrafectorEditorMaterial::static_materials.setTextures(var);
 
-        //const auto& splineReflector = split.shader_spline3D.Vars()->getReflection()->getDefaultParameterBlock();
-        //ParameterBlockReflection::BindLocation bind_textures = splineReflector->getResourceBinding("textures");
-        //auto &block = split.shader_spline3D.Vars()->getParameterBlock(bind_textures);
-        //const auto &r = splineReflector->getResource("textures");
-
-        //auto &rvar = split.shader_spline3D.Vars()->getReflection()->getResource("textures");
-        //auto& block = split.shader_spline3D.Vars()->getParameterBlock(rvar->getBindLocation());
-        
-        //split.shader_spline3D.Vars()["textures[0]"].setTexture(gis_overlay.texture);
-        //split.shader_spline3D.Vars()->setTexture(bind_textures, gis_overlay.texture);
-        //terrainShader.Vars()->setTexture("textures[0]", gis_overlay.texture);
-        //terrainShader.Vars()->setTexture("gGISAlbedo", gis_overlay.texture);
-
-        split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplines);
+        if (splines.numDynamicSplines > 0)
+        {
+            split.shader_spline3D.Vars()->setBuffer("splineData", splines.dynamic_bezierData);
+            split.shader_spline3D.Vars()->setBuffer("indexData", splines.dynamic_indexData);
+            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numDynamicSplines);
+        }
+        else
+        {
+            split.shader_spline3D.Vars()->setBuffer("splineData", splines.bezierData);
+            split.shader_spline3D.Vars()->setBuffer("indexData", splines.indexData);
+            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplines);
+        }
     }
 
     {
@@ -1383,8 +1381,6 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             if (!ImGui::IsMouseDown(2)) mouse.orbit = mouse.terrain;
 
         }
-
-        
     }
 
     if (debug)
@@ -1398,7 +1394,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
-        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels , 60 + tile_numPixels );
+        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels, 60 + tile_numPixels);
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
 
@@ -1407,7 +1403,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         char debugTxt[1024];
         TextRenderer::setColor(float3(0.1, 0.1, 0.1));
         sprintf(debugTxt, "%d of %d tiles used", (int)m_used.size(), (int)m_tiles.size());
-        TextRenderer::render(_renderContext, debugTxt, _fbo, {100, 300});
+        TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 300 });
 
         sprintf(debugTxt, "%d of %d tiles / verts", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 320 });
@@ -1415,16 +1411,460 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 }
 
 
+
+void terrainManager::updateDynamicRoad(bool _bezierChanged) {
+    // active road ----------------------------------------------------------------------------------------------------------------
+    splineTest.bSegment = false;
+    splineTest.bVertex = false;
+    splineTest.testDistance = 1000;
+    splineTest.bCenter = false;
+    splineTest.cornerNum = -1;
+    splineTest.pos = split.feedback.tum_Position;
+    splineTest.bStreetview = false;
+
+    //mRoadNetwork.testHit(feedback.tum_Position);
+
+    static bool bRefresh;
+    if (_bezierChanged) { bRefresh = true; }
+    if (bRefresh || mRoadNetwork.isDirty)
+    {
+        splines.numDynamicSplines = 0;
+        splines.numDynamicSplinesIndex = 0;
+        mRoadNetwork.updateDynamicRoad();
+        splines.numDynamicSplines = __min(splines.maxDynamicBezier, (int)roadNetwork::staticBezierData.size());
+        splines.numDynamicSplinesIndex = __min(splines.maxDynamicBezier * 10, (int)roadNetwork::staticIndexData.size());
+        splines.dynamic_bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numDynamicSplines * sizeof(cubicDouble));
+        splines.dynamic_indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numDynamicSplinesIndex * sizeof(bezierLayer));
+
+        mRoadNetwork.isDirty = false;
+    }
+    if (!_bezierChanged) { bRefresh = false; }
+
+    mRoadNetwork.intersectionSelectedRoad = nullptr;
+
+
+    if (mRoadNetwork.currentRoad && mRoadNetwork.currentRoad->points.size() >= 3)
+    {
+        //mSpriteRenderer.clearDynamic();
+        mRoadNetwork.currentRoad->testAgainstPoint(&splineTest);
+
+        // mouse to spline markers ---------------------------------------------------------------------------------------
+        /*
+        if (splineTest.bVertex) {
+            mSpriteRenderer.pushMarker(splineTest.returnPos, 4, 3.0f);
+        }
+        if (splineTest.bSegment) {
+            mSpriteRenderer.pushMarker(splineTest.returnPos, 1);
+        }
+
+        // show selection
+        for (auto& point : mRoadNetwork.currentRoad->points)
+        {
+            mSpriteRenderer.pushMarker(point.anchor, 2 - point.constraint, 0.5f);
+
+        }
+
+        if (mRoadNetwork.AI_path_mode)
+        {
+
+            int ssize = (int)mRoadNetwork.pathBezier.segments.size();
+
+            for (int i = 0; i < ssize - 1; i++) {
+                float3 O1 = mRoadNetwork.pathBezier.segments[i].optimalPos;
+                float3 O2 = mRoadNetwork.pathBezier.segments[i + 1].optimalPos;
+                mSpriteRenderer.pushLine(O1, O2, 1, 0.5f);
+
+                O1 = mRoadNetwork.pathBezier.segments[i].A;
+                O2 = mRoadNetwork.pathBezier.segments[i].B;
+                mSpriteRenderer.pushLine(O1, O2, 1, 0.3f);
+            }
+        }
+
+        mSpriteRenderer.loadDynamic();
+        */
+    }
+
+
+
+
+    /*
+
+    if (mRoadNetwork.currentIntersection)
+    {
+        mRoadNetwork.updateDynamicRoad();
+
+        mSpriteRenderer.clearDynamic();
+        intersection* I = mRoadNetwork.currentIntersection;
+
+        //mSpriteRenderer.pushMarker(I->anchor, 3 + I->buildQuality, 4.0);			// anchor
+        float distAnchor = glm::length(I->anchor - splineTest.pos);
+        if (distAnchor < splineTest.testDistance && distAnchor < 8.0f) {
+            splineTest.testDistance = distAnchor;
+            splineTest.bCenter = true;
+            splineTest.bStreetview = false;
+        }
+
+
+        uint RLsize = (uint)I->roadLinks.size();
+        for (uint i = 0; i < RLsize; i++) {
+            intersectionRoadLink* R = &I->roadLinks[i];
+            intersectionRoadLink* RB = &I->roadLinks[(i + RLsize - 1) % RLsize];
+
+
+            // First test against all the roads attached, BUT EXCLUDE the first vertex
+            if (R->roadPtr->testAgainstPoint(&splineTest, false)) {
+                mRoadNetwork.intersectionSelectedRoad = R->roadPtr;
+                splineTest.bCenter = false;
+            }
+
+            float3 Z = R->corner_A - splineTest.pos;
+            Z.y = 0;
+            float distCorner = glm::length(Z);
+            if ((distCorner < 3.0) && (distCorner < splineTest.testDistance)) {
+                splineTest.testDistance = distCorner;
+                splineTest.bCenter = false;
+                splineTest.bSegment = false;
+                splineTest.bVertex = false;
+                splineTest.cornerNum = i;
+                splineTest.cornerFlag = 0;
+                mRoadNetwork.intersectionSelectedRoad = nullptr;
+
+            }
+
+
+            float distA;
+            if (R->cornerType == typeOfCorner::artistic) {
+                Z = (R->corner_A + R->cornerTangent_A) - splineTest.pos;
+                Z.y = 0;
+                distA = glm::length(Z);
+                if (distA < 3.0 && distA < splineTest.testDistance) {
+                    splineTest.testDistance = distA;
+                    splineTest.bCenter = false;
+                    splineTest.bSegment = false;
+                    splineTest.bVertex = false;
+                    splineTest.cornerNum = i;
+                    splineTest.cornerFlag = -1;
+                    mRoadNetwork.intersectionSelectedRoad = nullptr;
+
+                }
+            }
+
+
+            if (RB->cornerType == typeOfCorner::artistic) {
+                Z = (R->corner_B + R->cornerTangent_B) - splineTest.pos;
+                Z.y = 0;
+                distA = glm::length(Z);
+                if (distA < 5.0 && distA < splineTest.testDistance) {
+                    splineTest.testDistance = distA;
+                    splineTest.bCenter = false;
+                    splineTest.bSegment = false;
+                    splineTest.bVertex = false;
+                    splineTest.cornerNum = i;
+                    splineTest.cornerFlag = 1;
+                    mRoadNetwork.intersectionSelectedRoad = nullptr;
+                }
+            }
+
+
+            Z = (I->anchor + R->tangentVector) - splineTest.pos;
+            Z.y = 0;
+            distA = glm::length(Z);
+            if (distA < 5.0 && distA < splineTest.testDistance) {
+                splineTest.testDistance = distA;
+                splineTest.bCenter = false;
+                splineTest.cornerNum = i;
+                splineTest.cornerFlag = 2;
+                mRoadNetwork.intersectionSelectedRoad = nullptr;
+            }
+
+
+
+
+            mSpriteRenderer.pushMarker(R->corner_A, 2 - R->cornerType, 0.5f);						// corner anchor
+            //if (R->cornerType == typeOfCorner::artistic)
+            {
+                mSpriteRenderer.pushLine(R->corner_A, R->corner_A + R->cornerTangent_A, R->cornerType, 0.2f);
+                mSpriteRenderer.pushLine(R->corner_B, R->corner_B + R->cornerTangent_B, RB->cornerType, 0.2f);
+                mSpriteRenderer.pushMarker(R->corner_A + R->cornerTangent_A, 2 - R->cornerType, 0.5f);			// anchor
+                mSpriteRenderer.pushMarker(R->corner_B + R->cornerTangent_B, 2 - RB->cornerType, 0.5f);			// anchor
+            }
+
+            mSpriteRenderer.pushLine(I->anchor, I->anchor + R->tangentVector, 0, 0.3f);
+            mSpriteRenderer.pushMarker(I->anchor + R->tangentVector, 0, 0.5);			// center tangent
+        }
+
+
+
+
+
+
+        // now show what we selected ----------------------------------------------------------------------------------
+        if (mRoadNetwork.intersectionSelectedRoad) {
+            mSpriteRenderer.pushMarker(splineTest.returnPos, 4, 1.0f);
+        }
+        else {
+            if (splineTest.bCenter) {
+                mSpriteRenderer.pushMarker(I->anchor, 4, 1.0);
+            }
+            else if (splineTest.cornerNum >= 0) {
+                intersectionRoadLink* R = &I->roadLinks[splineTest.cornerNum];
+                switch (splineTest.cornerFlag) {
+                case -1:
+                    mSpriteRenderer.pushMarker(R->corner_A + R->cornerTangent_A, 4, 1.0);
+                    break;
+                case 0:
+                    mSpriteRenderer.pushMarker(R->corner_A, 4, 1.0);
+                    break;
+                case 1:
+                    mSpriteRenderer.pushMarker(R->corner_B + R->cornerTangent_B, 4, 1.0);
+                    break;
+                case 2:
+                    mSpriteRenderer.pushMarker(I->anchor + R->tangentVector, 4, 1.0);
+                    break;
+                }
+            }
+        }
+
+        mSpriteRenderer.loadDynamic();
+    }
+    */
+}
+
+
+
 bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 {
+    bool keyPressed = (keyEvent.type == KeyboardEvent::Type::KeyPressed);
+
+    splineTest.bCtrl = keyEvent.hasModifier(Input::Modifier::Ctrl);
+    splineTest.bShift = keyEvent.hasModifier(Input::Modifier::Shift);
+    splineTest.bAlt = keyEvent.hasModifier(Input::Modifier::Alt);
+
     if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
     {
-        if (keyEvent.mods == Input::ModifierFlags::Ctrl)
+        if (keyEvent.hasModifier(Input::Modifier::Ctrl))
         {
             if (keyEvent.key == Input::Key::D)          // debug
             {
                 debug = !debug;
             }
+        }
+
+        switch (terrainMode)
+        {
+        case 3:
+            
+
+            // selection 
+            if (mRoadNetwork.currentRoad && splineTest.bCtrl)
+            {
+                switch (keyEvent.key)
+                {
+                case Input::Key::A:	// select all
+                    mRoadNetwork.currentRoad->selectAll();
+                    mRoadNetwork.selectionType = 2;
+                    return true;
+                    break;
+                case Input::Key::D:	// select all
+                    mRoadNetwork.currentRoad->clearSelection();
+                    mRoadNetwork.selectionType = 0;
+                    return true;
+                    break;
+                }
+            }
+
+            if (keyPressed)
+            {
+                if (keyEvent.hasModifier(Input::Modifier::Ctrl))		// CTRL + key
+                {
+                    switch (keyEvent.key)
+                    {
+                    case Input::Key::C:		// copy
+                        if (splineTest.bVertex) {
+                            mRoadNetwork.copyVertex(splineTest.index);
+                        }
+                        break;
+                    case Input::Key::V:		// paste
+                        if (keyEvent.hasModifier(Input::Modifier::Shift))		// CTRL + SHIFT  + key
+                        {
+                            if (splineTest.bVertex) {
+                                mRoadNetwork.pasteVertexMaterial(splineTest.index);
+                            }
+                        }
+                        else {
+                            if (splineTest.bVertex) {
+                                mRoadNetwork.pasteVertexGeometry(splineTest.index);
+                            }
+                        }
+                        break;
+                    }
+                }
+                else
+                {
+                    switch (keyEvent.key)
+                    {
+                    case Input::Key::Del:
+                        if (mRoadNetwork.currentIntersection) mRoadNetwork.deleteCurrentIntersection();
+                        if (mRoadNetwork.currentRoad) mRoadNetwork.deleteCurrentRoad();
+                        break;
+                    }
+                }
+
+                mRoadNetwork.updateAllRoads();
+                updateDynamicRoad(true);
+            }
+
+            switch (keyEvent.key)
+            {
+            case Input::Key::Escape:	// deselect all
+                if (keyPressed) {
+                    {
+                        if (mRoadNetwork.popupVisible) {
+                            ImGui::CloseCurrentPopup();
+                            // stuff that, dpoesnt work no key or mouse events, cunsumed by popup
+                        }
+                        else {
+                            mRoadNetwork.currentRoad = nullptr;
+                            mRoadNetwork.currentIntersection = nullptr;
+                            mRoadNetwork.intersectionSelectedRoad = nullptr;
+                            //updateStaticRoad();
+                            updateDynamicRoad(true);
+                        }
+                    }
+                }
+                return true;
+                break;
+            case Input::Key::S:
+                if (keyPressed && keyEvent.hasModifier(Input::Modifier::Ctrl)) {
+                    mRoadNetwork.quickSave();
+                }
+                break;
+            case Input::Key::X:
+                // road new spline
+                if (keyPressed && keyEvent.hasModifier(Input::Modifier::Ctrl)) {
+                    if (mRoadNetwork.currentIntersection) {
+                        mRoadNetwork.currentRoad = nullptr;
+                        mRoadNetwork.currentIntersection_findRoads();
+                        //updateStaticRoad();
+                        updateDynamicRoad(true);
+                    }
+                }
+                return true;
+                break;
+            case Input::Key::G:
+                // road new spline
+                if (keyPressed) {
+                    mRoadNetwork.newRoadSpline();
+                    //updateStaticRoad();
+                }
+                return true;
+                break;
+
+
+            case Input::Key::F:
+                // new node
+                if (keyPressed) {
+                    mRoadNetwork.newIntersection();
+                    mRoadNetwork.currentIntersection->updatePosition(split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
+                    mRoadNetwork.currentIntersection_findRoads();
+                    updateDynamicRoad(true);
+                }
+                return true;
+                break;
+            case Input::Key::H:
+                if (keyPressed && splineTest.bVertex) {
+                    mRoadNetwork.breakCurrentRoad(splineTest.index);
+                    //updateStaticRoad();
+                    updateDynamicRoad(true);
+                }
+                return true;
+                break;
+            case Input::Key::J:
+                if (keyPressed) {
+                    mRoadNetwork.deleteCurrentRoad();
+                    //updateStaticRoad();
+                    updateDynamicRoad(true);
+                }
+                return true;
+                break;
+            case Input::Key::K:
+                if (keyPressed) {
+                    mRoadNetwork.deleteCurrentIntersection();
+                    //updateStaticRoad();
+                    updateDynamicRoad(true);
+                }
+                return true;
+                break;
+            case Input::Key::B:
+                if (keyPressed) {
+                    if (splineTest.bVertex && keyEvent.hasModifier(Input::Modifier::Ctrl)) {
+                        mRoadNetwork.currentRoad->points[splineTest.index].isBridge = !mRoadNetwork.currentRoad->points[splineTest.index].isBridge;
+                    }
+                    else
+                    {
+                        bSplineAsTerrafector = !bSplineAsTerrafector;
+                        reset(true);
+                    }
+                }
+                return true;
+                break;
+            case Input::Key::N:
+                if (keyPressed) {
+                    showRoadOverlay = !showRoadOverlay;
+                }
+                return true;
+                break;
+            case Input::Key::M:
+                if (keyPressed) {
+                    showRoadSpline = !showRoadSpline;
+                }
+                return true;
+                break;
+            case Input::Key::Up:
+                if (splineTest.bVertex) {
+                    if (keyEvent.hasModifier(Input::Modifier::Ctrl)) {
+                        mRoadNetwork.currentRoad->points[splineTest.index].addTangent(1.0f);
+                        mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                    }
+                    else {
+                        mRoadNetwork.currentRoad->points[splineTest.index].addHeight(0.1f);
+                        mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                    }
+                }
+                break;
+
+            case Input::Key::Down:
+                if (splineTest.bVertex) {
+                    if (keyEvent.hasModifier(Input::Modifier::Ctrl)) {
+                        mRoadNetwork.currentRoad->points[splineTest.index].addTangent(-1.0f);
+                        mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                    }
+                    else {
+                        mRoadNetwork.currentRoad->points[splineTest.index].addHeight(-0.1f);
+                        mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                    }
+                }
+                break;
+
+            case Input::Key::Left:
+                if (splineTest.bVertex) {
+                    mRoadNetwork.currentRoad->points[splineTest.index].camber += 0.01f;
+                    mRoadNetwork.currentRoad->points[splineTest.index].constraint = e_constraint::camber;
+                    mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                }
+                break;
+            case Input::Key::Right:
+                if (splineTest.bVertex) {
+                    mRoadNetwork.currentRoad->points[splineTest.index].camber -= 0.01f;
+                    mRoadNetwork.currentRoad->points[splineTest.index].constraint = e_constraint::camber;
+                    mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                }
+                break;
+            }
+
+            break;
+        default:
+            break;
         }
     }
     return false;
@@ -1435,8 +1875,8 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
 {
     glm::vec2 pos = mouseEvent.pos;
     pos.y = 1.0 - pos.y;
-    glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), cameraViews[CameraType_Main_Center].view, cameraViews[CameraType_Main_Center].proj, glm::vec4(0, 0, _screenSize));
-    glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), cameraViews[CameraType_Main_Center].view, cameraViews[CameraType_Main_Center].proj, glm::vec4(0, 0, _screenSize));
+    glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+    glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
     mouseDirection = glm::normalize(F - N);
     screenSize = _screenSize;
     mousePosition = _camera->getPosition();
@@ -1513,6 +1953,253 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
     break;
     }
 
+
+    // rebuild from new camera
+    {
+        glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+        glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+        mouseDirection = glm::normalize(F - N);
+        screenSize = _screenSize;
+        mousePosition = _camera->getPosition();
+        mouseCoord = mouseEvent.pos * _screenSize;
+    }
+
+
+
+    // Now for a complete new block for mouse road interactions
+    // ******************************************************************************************
+    static bool bDragEvent;
+    static glm::vec2 prevPos;
+    glm::vec2 diff = mouseEvent.pos - prevPos;
+    prevPos = mouseEvent.pos;
+
+    switch (mouseEvent.type)
+    {
+    case MouseEvent::Type::Move:
+    {
+        mRoadNetwork.testHit(split.feedback.tum_Position);
+
+        bDragEvent = true;
+        if (bLeftButton)
+        {
+            if (splineTest.bVertex) {
+                if (mRoadNetwork.currentRoad) {
+                    if (splineTest.bCtrl)
+                    {
+                        mRoadNetwork.currentRoad->points[splineTest.index].B += diff.x * 10.0f;
+                        mRoadNetwork.currentRoad->points[splineTest.index].B = __min(1, __max(0, mRoadNetwork.currentRoad->points[splineTest.index].B));
+                    }
+                    else if (splineTest.bShift)
+                    {
+                        mRoadNetwork.currentRoad->points[splineTest.index].tangent_Offset += diff.x * 100.0f;
+                        mRoadNetwork.currentRoad->points[splineTest.index].solveMiddlePos();
+                    }
+                    else if (splineTest.bAlt)
+                    {
+                    }
+                    else
+                    {
+                        mRoadNetwork.currentRoad->points[splineTest.index].setAnchor(split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
+                    }
+
+                    mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                }
+                else if (mRoadNetwork.intersectionSelectedRoad) {
+                    mRoadNetwork.intersectionSelectedRoad->points[splineTest.index].setAnchor(split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
+                    mRoadNetwork.intersectionSelectedRoad->solveRoad(splineTest.index);
+                    mRoadNetwork.solveIntersection();
+                }
+            }
+
+            if (mRoadNetwork.currentIntersection) {
+                if (splineTest.bCenter) {
+                    mRoadNetwork.currentIntersection->updatePosition(split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
+                    {
+                        FALCOR_PROFILE("solveIntersection");
+                        mRoadNetwork.solveIntersection();
+                    }
+                }
+
+                if (splineTest.cornerNum >= 0) {
+                    mRoadNetwork.currentIntersection->updateCorner(split.feedback.tum_Position, split.feedback.tum_Normal, splineTest.cornerNum, splineTest.cornerFlag);
+                    mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerType = typeOfCorner::artistic;
+                }
+            }
+            updateDynamicRoad(true);
+        }
+    }
+    break;
+    case MouseEvent::Type::Wheel:
+
+        if (splineTest.bShift) {
+            if (splineTest.bVertex && splineTest.bCtrl) {
+                if (mRoadNetwork.currentRoad) {
+                    mRoadNetwork.incrementLane(-1, mouseEvent.wheelDelta.y / 10.0f, mRoadNetwork.currentRoad, splineTest.bAlt);
+                    mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                    updateDynamicRoad(true);
+                }
+                else if (mRoadNetwork.intersectionSelectedRoad) {
+                    mRoadNetwork.incrementLane(-1, mouseEvent.wheelDelta.y / 10.0f, mRoadNetwork.intersectionSelectedRoad, splineTest.bAlt);
+                    mRoadNetwork.intersectionSelectedRoad->solveRoad(splineTest.index);
+                    mRoadNetwork.solveIntersection();
+                    updateDynamicRoad(true);
+                }
+                return true;
+            }
+        }
+        else {
+            if (splineTest.bVertex && splineTest.bCtrl) {
+                if (mRoadNetwork.currentRoad) {
+                    mRoadNetwork.incrementLane(splineTest.index, mouseEvent.wheelDelta.y / 10.0f, mRoadNetwork.currentRoad, splineTest.bAlt);
+                    mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                    updateDynamicRoad(true);
+                }
+                else if (mRoadNetwork.intersectionSelectedRoad) {
+                    mRoadNetwork.incrementLane(splineTest.index, mouseEvent.wheelDelta.y / 10.0f, mRoadNetwork.intersectionSelectedRoad, splineTest.bAlt);
+                    mRoadNetwork.intersectionSelectedRoad->solveRoad(splineTest.index);
+                    mRoadNetwork.solveIntersection();
+                    updateDynamicRoad(true);
+                }
+                return true;
+            }
+
+
+            if (splineTest.bCtrl && mRoadNetwork.currentIntersection) {
+                if (mRoadNetwork.currentIntersection && splineTest.cornerNum >= 0) {
+                    if (splineTest.bAlt) {
+                        mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerRadius += mouseEvent.wheelDelta.y / 20.0f;
+                        mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerType = typeOfCorner::radius;
+                    }
+                    else {
+                        mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerRadius += mouseEvent.wheelDelta.y / 5.0f;
+                        mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerType = typeOfCorner::radius;
+                    }
+                    if (mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerRadius < 0.2f) mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerRadius = 0.2f;
+                    mRoadNetwork.solveIntersection();
+                    updateDynamicRoad(true);
+                    return true;
+                }
+            }
+        }
+        break;
+
+    case MouseEvent::Type::ButtonDown:
+    {
+        if (mouseEvent.button == Input::MouseButton::Left)
+        {
+            bLeftButton = true;
+
+            // SUB selection
+            if (splineTest.bCtrl) {
+                if (splineTest.bVertex) {
+                    mRoadNetwork.selectionType = 1;
+                    int mid = (mRoadNetwork.selectFrom + mRoadNetwork.selectTo) / 2;
+                    if (splineTest.index < mRoadNetwork.selectFrom) {
+                        mRoadNetwork.selectFrom = splineTest.index;
+                    }
+                    else if (splineTest.index > mRoadNetwork.selectTo) {
+                        mRoadNetwork.selectTo = splineTest.index;
+                    }
+                    else {
+                        if (splineTest.index < mid) {
+                            mRoadNetwork.selectFrom = splineTest.index;
+                        }
+                        else {
+                            mRoadNetwork.selectTo = splineTest.index;
+                        }
+                    }
+
+                }
+            }
+
+
+            // Selection but now add all the possible subselections
+            if (splineTest.bCtrl) {								// selection
+
+
+                if (mRoadNetwork.AI_path_mode) {
+                    mRoadNetwork.addRoad();
+                }
+                else
+                {
+                    mRoadNetwork.doSelect(split.feedback.tum_Position);
+
+                    if (mRoadNetwork.bHIT) {
+                        mRoadNetwork.setEditRight(mRoadNetwork.hitRoadRight);
+                        mRoadNetwork.setEditLane(mRoadNetwork.hitRoadLane);
+                        //updateStaticRoad();
+
+                    }
+                    updateDynamicRoad(true);
+
+                }
+            }
+            else if (mRoadNetwork.currentRoad) {
+                if (!splineTest.bVertex && !splineTest.bSegment) {
+                    mRoadNetwork.currentRoad->pushPoint(split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
+                    updateDynamicRoad(true);
+                }
+
+                if (splineTest.bSegment) {
+                    mRoadNetwork.currentRoad->insertPoint(splineTest.index, split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
+                    updateDynamicRoad(true);
+                }
+            }
+
+        }
+        if (mouseEvent.button == Input::MouseButton::Middle)
+        {
+            bMiddelButton = true;
+        }
+        if (mouseEvent.button == Input::MouseButton::Right)
+        {
+            bRightButton = true;
+
+            if (splineTest.bCtrl)
+            {
+                if (mRoadNetwork.currentRoad && splineTest.bVertex && mRoadNetwork.currentRoad->points.size() > splineTest.index) {
+                    mRoadNetwork.currentRoad->deletePoint(splineTest.index);
+                    updateDynamicRoad(true);
+                }
+
+                if (mRoadNetwork.currentIntersection) {
+                    if (splineTest.cornerNum >= 0) {
+                        mRoadNetwork.currentIntersection->roadLinks[splineTest.cornerNum].cornerType = typeOfCorner::automatic;
+                        mRoadNetwork.solveIntersection();
+                        updateDynamicRoad(true);
+                    }
+                    if (splineTest.bCenter) {
+                        mRoadNetwork.currentIntersection->customNormal = false;
+                    }
+                }
+            }
+        }
+    }
+    break;
+
+
+    case MouseEvent::Type::ButtonUp:
+    {
+        if (mouseEvent.button == Input::MouseButton::Left)
+        {
+            bLeftButton = false;
+            bDragEvent = false;
+        }
+        if (mouseEvent.button == Input::MouseButton::Middle)
+        {
+            bMiddelButton = false;
+            bDragEvent = false;
+        }
+        if (mouseEvent.button == Input::MouseButton::Right)
+        {
+            //bShowRoadPopup = true;
+            bDragEvent = false;
+            //popupPos = mouseEvent.pos * m_ScreenSize;
+            bRightButton = false;
+        }
+    }
+    break;
+    }
     return false;
 }
 

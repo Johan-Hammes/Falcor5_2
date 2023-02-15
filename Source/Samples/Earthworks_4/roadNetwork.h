@@ -118,7 +118,7 @@ public:
     // interactive lane editing
     bool	editRight = true;
     int		editLaneIndex = 0;
-    void incrementLane(int index, float _amount, roadSection* _road);
+    void incrementLane(int index, float _amount, roadSection* _road, bool _symmetrical);
     void shiftLaneSelect(int i) {
         if (editRight) {
             editLaneIndex += i;

@@ -270,6 +270,8 @@ private:
     uint gisHash(glm::vec3 _position);
     void gisReload(glm::vec3 _position);
 
+    void updateDynamicRoad(bool _bezierChanged);
+
     uint                        numTiles = 1024;
     std::vector<quadtree_tile>	m_tiles;
     std::list<quadtree_tile*>	m_free;
@@ -313,10 +315,15 @@ private:
     terrafectorSystem		terrafectors;
     //ecotopeSystem			mEcosystem;
     roadNetwork			    mRoadNetwork;
+    splineTest			splineTest;
 
     bool bSplineAsTerrafector = false;
     bool showRoadOverlay = true;
     bool showRoadSpline = true;
+
+    bool bLeftButton = false;
+    bool bMiddelButton = false;
+    bool bRightButton = false;
 
     struct {
         Texture::SharedPtr texture = nullptr;
@@ -407,6 +414,13 @@ private:
         uint32_t numStaticSplinesIndex = 0;
         Buffer::SharedPtr bezierData;
         Buffer::SharedPtr indexData;
+
+        uint32_t maxDynamicBezier = 4096;            // 17 bits packed - likely to change soon
+        uint32_t maxDynamicIndex = 16384;             // *4 seems enough, 2022 at *1.7 for Nurburg
+        uint32_t numDynamicSplines = 0;
+        uint32_t numDynamicSplinesIndex = 0;
+        Buffer::SharedPtr dynamic_bezierData;
+        Buffer::SharedPtr dynamic_indexData;
         uint numIndex = 0;
     }splines;
 
