@@ -27,6 +27,7 @@
  **************************************************************************/
 #pragma once
 #include "Falcor.h"
+#include "PointGrey_Camera.h"
 
 using namespace Falcor;
 

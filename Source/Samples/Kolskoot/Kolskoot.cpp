@@ -56,6 +56,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     mpPointSampler = Sampler::create(samplerDesc);
     samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear);
     mpLinearSampler = Sampler::create(samplerDesc);
+
+    PointGrey_Camera::GetSingleton();
 }
 
 void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
