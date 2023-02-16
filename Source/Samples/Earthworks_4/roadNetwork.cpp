@@ -472,29 +472,21 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
-        ImGui::Text("Road %d, {%d}", _road->GUID, _road->points.size());
-        ImGui::PushItemWidth(180);
-        ImGui::SliderInt("q", &_road->buildQuality, 0, 2);
-        ImGui::PopItemWidth();
-
-        ImGui::Checkbox("is closed loop", &_road->isClosedLoop);
-        TOOLTIP("set for tracks\nIt will snap the last point to the first if closer than 20m appart, \nand we have more than 5 points to avoid mess at start of a road");
-
+        ImGui::Text("Road %d, [%d]", _road->GUID, _road->points.size());
     }
     ImGui::PopFont();
 
+    ImGui::PushItemWidth(180);
+    ImGui::SliderInt("q", &_road->buildQuality, 0, 2);
+    ImGui::PopItemWidth();
+
+    ImGui::Checkbox("is closed loop", &_road->isClosedLoop);
+    TOOLTIP("set for tracks\nIt will snap the last point to the first if closer than 20m appart, \nand we have more than 5 points to avoid mess at start of a road");
+
     if (_road->points.size() == 0) return false;
 
-    if (ImGui::Selectable("export XML")) {
-        std::filesystem::path path;
-        FileDialogFilterVec filters = { {"road.xml"} };
-        if (saveFileDialog(filters, path))
-        {
-            std::ofstream os(path);
-            cereal::XMLOutputArchive archive(os);
-            _road->serialize(archive, 101);
-        }
-    }
+
+
 
     // Selection #$###########################################################################
     if (_vertex >= (int)_road->points.size()) _vertex = (int)_road->points.size() - 1;
@@ -507,35 +499,73 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         selectFrom = 0;
         selectTo = (int)_road->points.size() - 1;
     }
+
+
+    for(uint i= selectFrom; i<= selectTo; i++)
+    {
+        // camber
+
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        //ImGuiWindow* window = ImGui::GetCurrentWindow();
+        ImVec2 A;// = window->Rect().GetTL();
+        A.x += 150;
+        A.y += 200 + _road->points[i].camber * 70.0f;
+        ImVec2 B;// = window->Rect().GetTL();
+        B.x += 10;
+        B.y += 200 - _road->points[i].camber * 70.0f;
+        ImVec2 C;// = window->Rect().GetTL();
+        C.x += 80;
+        C.y += 200;
+        drawList->AddLine(A, C, ImColor(0, 0, 255, 255), 5.0f);
+        drawList->AddLine(C, B, ImColor(0, 155, 0, 255), 5.0f);
+    }
+
+    ImGui::SetCursorPosY(200);
+    switch (_road->points[_vertex].constraint) {
+    case e_constraint::none:
+        ImGui::Text("Camber - free =  %3.2f", _road->points[_vertex].camber);
+        break;
+    case e_constraint::camber:
+        ImGui::Text("Camber - constrained =  %3.2f", _road->points[_vertex].camber);
+        break;
+    case e_constraint::fixed:
+        ImGui::Text("Camber - fixed");
+        break;
+    }
+
+
+
+
+
     ImGui::NewLine();
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.7f);
     ImGui::BeginChildFrame(199, ImVec2(220, 100), 0);
     {
         ImGui::Text("Selection");
+
+        ImGui::PushItemWidth(60);
+        if (selectionType == 0)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
+        if (ImGui::Button("None", ImVec2(60, 0))) { selectionType = 0; }
+        TOOLTIP("select None\nDisplay and actions apply to the last vertex under the mouse\nctrl-d");
+        style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+
+        if (selectionType == 1)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Range", ImVec2(60, 0))) { selectionType = 1; }
+        TOOLTIP("select Range\nClick and shift Click for start and end of range");
+        style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+
+        if (selectionType == 2)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("All", ImVec2(60, 0))) { selectionType = 2; }
+        TOOLTIP("select All\nctrl-a");
+        style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+
+        ImGui::PopItemWidth();
+
+
         ImGui::PushFont(_gui->getFont("roboto_32"));
         {
-            ImGui::PushItemWidth(60);
-            if (selectionType == 0)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
-            if (ImGui::Button("None", ImVec2(60, 0))) { selectionType = 0; }
-            TOOLTIP("select None\nDisplay and actions apply to the last vertex under the mouse\nctrl-d");
-            style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
-
-            if (selectionType == 1)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("Range", ImVec2(60, 0))) { selectionType = 1; }
-            TOOLTIP("select Range\nClick and shift Click for start and end of range");
-            style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
-
-            if (selectionType == 2)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
-            ImGui::SameLine();
-            if (ImGui::Button("All", ImVec2(60, 0))) { selectionType = 2; }
-            TOOLTIP("select All\nctrl-a");
-            style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
-
-            ImGui::PopItemWidth();
-
-
-
 
             ImGui::PushItemWidth(90);
             if (ImGui::DragInt("##start", &selectFrom, 1, 0, (int)_road->points.size())) { ; }
@@ -553,45 +583,15 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 
 
-    /*
-
-    {
-        // camber
-        ImGuiWindow* window = ImGui::GetCurrentWindow();
-        ImVec2 A = window->Rect().GetTL();
-        A.x += 90;
-        A.y += 130 + _road->points[_vertex].camber * 40.0f;
-        ImVec2 B = window->Rect().GetTL();
-        B.x += 10;
-        B.y += 130 - _road->points[_vertex].camber * 40.0f;
-        ImVec2 C = window->Rect().GetTL();
-        C.x += 50;
-        C.y += 130;
-        window->DrawList->AddLine(A, C, ImColor(0, 0, 255, 255), 5.0f);
-        window->DrawList->AddLine(C, B, ImColor(0, 155, 0, 255), 5.0f);
-
-        switch (_road->points[_vertex].constraint) {
-        case e_constraint::none:
-            ImGui::Text("Camber - free =  %3.2f", _road->points[_vertex].camber);
-            break;
-        case e_constraint::camber:
-            ImGui::Text("Camber - constrained =  %3.2f", _road->points[_vertex].camber);
-            break;
-        case e_constraint::fixed:
-            ImGui::Text("Camber - fixed");
-            break;
-        }
-    }
-    */
 
 
 
 
 
 
-    ImGui::PushFont(_gui->getFont("roboto_32"));
+
+
     ImGui::Checkbox("show materials", &showMaterials);
-    ImGui::PopFont();
 
 
 
@@ -673,7 +673,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.2f, 0.0f, 1.0f);
-    ImGui::BeginChildFrame(100, ImVec2(970, 260), 0);
+    ImGui::BeginChildFrame(100, ImVec2(970, 280), 0);
     {
         for (int i = 8; i >= 0; i--) {
             style.Colors[ImGuiCol_Button] = ImVec4(0.22f, 0.02f, 0.02f, 0.05f);
@@ -753,7 +753,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     tempY = ImGui::GetCursorPosY();
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.02f, 0.7f, 0.3f);
-    ImGui::BeginChildFrame(200, ImVec2(970, 260), 0);
+    ImGui::BeginChildFrame(200, ImVec2(970, 280), 0);
     for (int i = 0; i < 9; i++) {
         style.Colors[ImGuiCol_Button] = ImVec4(0.22f, 0.02f, 0.02f, 0.05f);
         if (editRight && editLaneIndex == i) { style.Colors[ImGuiCol_Button] = ImVec4(0.22f, 0.02f, 0.02f, 0.95f); }
@@ -1049,10 +1049,10 @@ void roadNetwork::load(std::filesystem::path _path, uint _version)
             roadSection.solveRoad();
             roadSection.solveRoad();
         }
-        
+
         roadMaterialCache::getInstance().reloadMaterials();
         terrafectorEditorMaterial::static_materials.rebuildAll();
-        
+
     }
 
     currentRoad = nullptr;
@@ -1110,7 +1110,7 @@ bool replace(std::string& str, const std::string& from, const std::string& to) {
 }
 */
 void roadNetwork::exportBinary() {
-    
+
     char name[256];
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"gpu"} };
@@ -1651,29 +1651,31 @@ void roadNetwork::incrementLane(int index, float _amount, roadSection* _road, bo
 
 void roadNetwork::updateDynamicRoad()
 {
-    uint bezierCount = 0;
-    odeBezier.clear();
-    roadNetwork::staticBezierData.clear();
-    roadNetwork::staticIndexData.clear();
+    if (currentRoad || currentIntersection)
+    {
+        uint bezierCount = 0;
+        odeBezier.clear();
+        roadNetwork::staticBezierData.clear();
+        roadNetwork::staticIndexData.clear();
 
-    if (currentRoad) {
-        //currentRoad->convertToGPU_Stylized(&bezierCount, false, selectFrom, selectTo);
-        currentRoad->convertToGPU_Realistic(staticBezierData, staticIndexData, selectFrom, selectTo, true, showMaterials);
+        if (currentRoad) {
+            //currentRoad->convertToGPU_Stylized(&bezierCount, false, selectFrom, selectTo);
+            currentRoad->convertToGPU_Realistic(staticBezierData, staticIndexData, selectFrom, selectTo, true, showMaterials);
 
-    }
-
-    if (currentIntersection) {
-        for (int i = 0; i < currentIntersection->roadLinks.size(); i++) {
-            currentIntersection->roadLinks[i].roadPtr = &roadSectionsList.at(currentIntersection->roadLinks[i].roadGUID);
-            //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Stylized(&bezierCount);
-            currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, 0, 0, true, false);
         }
-        currentIntersection->convertToGPU(staticBezierData, staticIndexData, &bezierCount);
+
+        if (currentIntersection) {
+            for (int i = 0; i < currentIntersection->roadLinks.size(); i++) {
+                currentIntersection->roadLinks[i].roadPtr = &roadSectionsList.at(currentIntersection->roadLinks[i].roadGUID);
+                //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Stylized(&bezierCount);
+                currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, 0, 0, true, false);
+            }
+            currentIntersection->convertToGPU(staticBezierData, staticIndexData, &bezierCount);
+        }
+
+        debugNumBezier = (uint)staticBezierData.size();
+        debugNumIndex = (uint)staticIndexData.size();
     }
-
-    debugNumBezier = (uint)staticBezierData.size();
-    debugNumIndex = (uint)staticIndexData.size();
-
 }
 
 

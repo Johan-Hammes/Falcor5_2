@@ -138,9 +138,9 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
         fclose(file);
     }
     
-    std::ifstream is("earthworks4_presets.json");
+    std::ifstream is("earthworks4_presets.xml");
     if (is.good()) {
-        cereal::JSONInputArchive archive(is);
+        cereal::XMLInputArchive archive(is);
         serialize(archive, 100);
     }
 

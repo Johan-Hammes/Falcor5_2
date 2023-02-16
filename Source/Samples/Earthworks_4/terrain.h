@@ -243,6 +243,7 @@ public:
     void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
     bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
+    bool onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
     void onHotReload(HotReloadFlags reloaded);
 
     void init_TopdownRender();

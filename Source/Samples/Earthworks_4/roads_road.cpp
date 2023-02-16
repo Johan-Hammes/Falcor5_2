@@ -1091,7 +1091,7 @@ void roadSection::solveEnergyAndLength(int lane, int _min, int _max)
 
 void roadSection::solveRoad(int index)
 {
-    if (points.size() < 3) return;
+    if (points.size() < 2) return;
 
     int min = 0;
     int max = (int)points.size();

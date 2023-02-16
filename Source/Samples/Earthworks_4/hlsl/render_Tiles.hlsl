@@ -195,6 +195,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.P = vIn.worldPos;
 	Attr.E = normalize(-vIn.eye);
     Attr.N_mesh = gNormArray.Sample(gSmpAniso, vIn.texCoords).rgb *2 - 1;
+    Attr.N_mesh.y = sqrt(1 - (Attr.N_mesh.x * Attr.N_mesh.x) - (Attr.N_mesh.z * Attr.N_mesh.z));
 	Attr.N = Attr.N_mesh;
 	Attr.T = float3(1, 0, 0);
 	Attr.B = float3(0, 0, 1);
@@ -228,15 +229,17 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	//mat.AO = PBR.b;
 	
 	//mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
-    mat.diff.rgb = 1;
-    float3 light = saturate(dot(Attr.N_mesh, float3(0.5, 0.9, 0.0))) * float3(2.02, 1.53, 1.05)    + (saturate(dot(Attr.N_mesh, float3(-0.5, 0.9, 0.5))) * float3(0.07, 0.1, 0.2));
+    mat.diff.rgb = 0.5;
+    //float3 light = saturate(   dot(Attr.N_mesh, float3(0.5, 0.9, 0.0)) * float3(2.02, 1.53, 1.05)   + float3(0.07, 0.1, 0.2)     );
+    float3 light = float3(0.04, 0.08, 0.15) + saturate(dot(Attr.N_mesh, normalize(float3(0.5, 0.2, 0.0))));
 	
 	if (showGIS)
 	{
 		float2 GIS_UV = (vIn.worldPos.xz - gisBox.xy) / gisBox.z;
 		if (GIS_UV.x > 0 && GIS_UV.x < 1 && GIS_UV.y > 0 && GIS_UV.y < 1)
 		{
-			mat.diff = lerp(mat.diff, gGISAlbedo.Sample(gSmpAniso, GIS_UV), gisOverlayStrength); 
+            float4 GIS = gGISAlbedo.Sample(gSmpAniso, GIS_UV);
+			mat.diff = lerp(mat.diff, GIS, gisOverlayStrength);
 		}
 	}
 	
@@ -262,12 +265,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	float3 colour = diffuse + specular * 0.1;
 	
 	
-	// MARK the steep slopes
-	float slopeMark =  saturate((1.0 - Attr.N_mesh.y - redOffset) * redScale);
 	
-	if (slopeMark > 0.01){
-		colour.r = lerp( colour.r, slopeMark, redStrength);
-	}
 
 	
 	// Now for my atmospeher code --------------------------------------------------------------------------------------------------------
@@ -287,8 +285,17 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	}
 		
 	//colour.rg += vIn.texCoords.rg;
-    colour.rgb = mat.diff.rgb * light;
+    colour.rgb = mat.diff.rgb *light;
 
+    // MARK the steep slopes
+    float slopeMark = saturate((1.0 - Attr.N_mesh.y - redOffset) * redScale);
+
+    if (slopeMark > 0.01) {
+        colour.r = lerp(colour.r, slopeMark, redStrength);
+    }
+
+    //colour.rgb = gNormArray.Sample(gSmpAniso, vIn.texCoords).rgb;
+    //colour.g = 1 - Attr.N_mesh.g;
 	return float4(colour, 1);
 }
 

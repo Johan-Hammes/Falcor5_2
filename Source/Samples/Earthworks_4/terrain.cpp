@@ -618,6 +618,45 @@ void terrainManager::onGuiRender(Gui* _gui)
     }
     rightPanel.release();
 
+    switch (terrainMode)
+    {
+    case 0: break;
+    case 1: break;
+    case 2: break;
+    case 3:
+        if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
+        {
+            Gui::Window roadPanel(_gui, "##roadPanel", { 200, 200 }, { 100, 100 });
+            {
+                ImGui::PushFont(_gui->getFont("roboto_20"));
+                static bool fullWidth = false;
+                roadPanel.windowSize(220 + fullWidth * 730, 0);
+
+                if (mRoadNetwork.currentIntersection) {
+                    fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentIntersection);
+
+                    if (mRoadNetwork.currentRoad && (splineTest.bVertex || splineTest.bSegment)) {
+                        ImGui::SetCursorPosY(300);
+                        mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.intersectionSelectedRoad, splineTest.index);
+                    }
+                }
+
+                if (mRoadNetwork.currentRoad) {
+                    static uint _from = 0;
+                    static uint _to = 0;
+                    fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentRoad, splineTest.index);
+                    if ((_from != mRoadNetwork.selectFrom) || (_to != mRoadNetwork.selectTo)) {
+                        updateDynamicRoad(true);
+                    }
+                }
+
+                ImGui::PopFont();
+            }
+            roadPanel.release();
+        }
+        break;
+    }
+
     if (!ImGui::IsAnyWindowHovered())
     {
         char TTTEXT[1024];
@@ -838,8 +877,12 @@ bool terrainManager::update(RenderContext* _renderContext)
     {
         splines.numStaticSplines = __min((int)roadNetwork::staticBezierData.size(), splines.maxBezier);
         splines.numStaticSplinesIndex = __min((int)roadNetwork::staticIndexData.size(), splines.maxIndex);
-        splines.bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numStaticSplines * sizeof(cubicDouble));
-        splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
+        if (splines.numStaticSplines > 0)
+        {
+            splines.bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numStaticSplines * sizeof(cubicDouble));
+            splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
+            mRoadNetwork.isDirty = false;
+        }
     }
 
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
@@ -875,11 +918,10 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     {
         testForSurfaceMain();
-
         for (auto& tile : m_used)
         {
-            //bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
-            bool surface = tile->parent && tile->child[0] == nullptr;
+            bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
+            //bool surface = tile->parent && tile->child[0] == nullptr;
             bool bCM2 = true;
             if (surface) {
                 frustumFlags[tile->index] |= 1 << 20;
@@ -892,7 +934,7 @@ bool terrainManager::update(RenderContext* _renderContext)
         split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
-    // if (dirty)
+    //if (dirty)
     {
         // readback of tile centers
         _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
@@ -1098,7 +1140,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
         {
             FALCOR_PROFILE("normals");
-            //split.compute_tileNormals.Vars()["gConstants"]["pixSize"] = pixelSize;
+            split.compute_tileNormals.Vars()["gConstants"]["pixSize"] = pixelSize;
             split.compute_tileNormals.dispatch(_renderContext, cs_w, cs_w);
         }
 
@@ -1259,7 +1301,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState)
 {
-    gisReload(_camera->getPosition());
+    //gisReload(_camera->getPosition());
 
     glm::mat4 V = toGLM(_camera->getViewMatrix());
     glm::mat4 P = toGLM(_camera->getProjMatrix());
@@ -1341,13 +1383,13 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         {
             split.shader_spline3D.Vars()->setBuffer("splineData", splines.dynamic_bezierData);
             split.shader_spline3D.Vars()->setBuffer("indexData", splines.dynamic_indexData);
-            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numDynamicSplines);
+            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numDynamicSplinesIndex);
         }
-        else
+        else if (splines.numStaticSplines > 0)
         {
             split.shader_spline3D.Vars()->setBuffer("splineData", splines.bezierData);
             split.shader_spline3D.Vars()->setBuffer("indexData", splines.indexData);
-            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplines);
+            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
         }
     }
 
@@ -1426,19 +1468,28 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
 
     static bool bRefresh;
     if (_bezierChanged) { bRefresh = true; }
-    if (bRefresh || mRoadNetwork.isDirty)
+    if (mRoadNetwork.currentRoad || mRoadNetwork.currentIntersection)
+    {
+        if (bRefresh || mRoadNetwork.isDirty)
+        {
+            mRoadNetwork.updateDynamicRoad();
+            splines.numDynamicSplines = __min(splines.maxDynamicBezier, (int)roadNetwork::staticBezierData.size());
+            splines.numDynamicSplinesIndex = __min(splines.maxDynamicIndex, (int)roadNetwork::staticIndexData.size());
+            if (splines.numDynamicSplines > 0)
+            {
+                splines.dynamic_bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numDynamicSplines * sizeof(cubicDouble));
+                splines.dynamic_indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numDynamicSplinesIndex * sizeof(bezierLayer));
+
+                mRoadNetwork.isDirty = false;
+            }
+        }
+        if (!_bezierChanged) { bRefresh = false; }
+    }
+    else
     {
         splines.numDynamicSplines = 0;
         splines.numDynamicSplinesIndex = 0;
-        mRoadNetwork.updateDynamicRoad();
-        splines.numDynamicSplines = __min(splines.maxDynamicBezier, (int)roadNetwork::staticBezierData.size());
-        splines.numDynamicSplinesIndex = __min(splines.maxDynamicBezier * 10, (int)roadNetwork::staticIndexData.size());
-        splines.dynamic_bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numDynamicSplines * sizeof(cubicDouble));
-        splines.dynamic_indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numDynamicSplinesIndex * sizeof(bezierLayer));
-
-        mRoadNetwork.isDirty = false;
     }
-    if (!_bezierChanged) { bRefresh = false; }
 
     mRoadNetwork.intersectionSelectedRoad = nullptr;
 
@@ -1648,12 +1699,16 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
             {
                 debug = !debug;
             }
+            if (keyEvent.key == Input::Key::O)
+            {
+                gisReload(split.feedback.tum_Position);
+            }
         }
 
         switch (terrainMode)
         {
         case 3:
-            
+
 
             // selection 
             if (mRoadNetwork.currentRoad && splineTest.bCtrl)
@@ -1873,101 +1928,111 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
 bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera)
 {
-    glm::vec2 pos = mouseEvent.pos;
-    pos.y = 1.0 - pos.y;
-    glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
-    glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
-    mouseDirection = glm::normalize(F - N);
-    screenSize = _screenSize;
-    mousePosition = _camera->getPosition();
-    mouseCoord = mouseEvent.pos * _screenSize;
+    bool bEdit = onMouseEvent_Roads(mouseEvent, _screenSize, _camera);
 
-
-    switch (mouseEvent.type)
+    if (!bEdit)
     {
-    case MouseEvent::Type::Move:
-    {
-        //if (bRightButton)  // PAN
-        if (ImGui::IsMouseDown(1))
-        {
-            glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
-            glm::vec3 deltaPos = newPos - _camera->getPosition();
-
-            glm::vec3 newTarget = _camera->getTarget() + deltaPos;
-            _camera->setPosition(newPos);
-            _camera->setTarget(newTarget);
-            hasChanged = true;
-        }
-
-        // orbit
-        if (ImGui::IsMouseDown(2))
-        {
-            glm::vec3 D = _camera->getTarget() - _camera->getPosition();
-            glm::vec3 U = glm::vec3(0, 1, 0);
-            glm::vec3 R = glm::normalize(glm::cross(U, D));
-            glm::vec2 diff = pos - mousePositionOld;
-            glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
-
-            glm::vec3 Dnorm = glm::normalize(D);
-            if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
-            if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
-
-            glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
-            mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
-            glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
-
-            _camera->setPosition(mouse.orbit - mouse.toGround);
-            _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
-            hasChanged = true;
-        }
-        mousePositionOld = pos;
-    }
-    break;
-    case MouseEvent::Type::Wheel:
-    {
-        if (mouse.hit)
-        {
-            float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
-            mouse.toGround *= scale;
-            glm::vec3 newPos = mouse.terrain - mouse.toGround;
-            glm::vec3 deltaPos = newPos - _camera->getPosition();
-            glm::vec3 newTarget = _camera->getTarget() + deltaPos;
-
-            _camera->setPosition(newPos);
-            _camera->setTarget(newTarget);
-            hasChanged = true;
-        }
-    }
-    break;
-    case MouseEvent::Type::ButtonDown:
-    {
-        if (mouseEvent.button == Input::MouseButton::Middle)
-        {
-            mouse.orbitRadius = glm::length(mouse.toGround);
-        }
-    }
-    break;
-    case MouseEvent::Type::ButtonUp:
-    {
-    }
-    break;
-    }
-
-
-    // rebuild from new camera
-    {
+        glm::vec2 pos = mouseEvent.pos;
+        pos.y = 1.0 - pos.y;
         glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
         glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
         mouseDirection = glm::normalize(F - N);
         screenSize = _screenSize;
         mousePosition = _camera->getPosition();
         mouseCoord = mouseEvent.pos * _screenSize;
+
+
+
+        switch (mouseEvent.type)
+        {
+        case MouseEvent::Type::Move:
+        {
+            //if (bRightButton)  // PAN
+            if (ImGui::IsMouseDown(1))
+            {
+                glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
+                glm::vec3 deltaPos = newPos - _camera->getPosition();
+
+                glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+                _camera->setPosition(newPos);
+                _camera->setTarget(newTarget);
+                hasChanged = true;
+            }
+
+            // orbit
+            if (ImGui::IsMouseDown(2))
+            {
+                glm::vec3 D = _camera->getTarget() - _camera->getPosition();
+                glm::vec3 U = glm::vec3(0, 1, 0);
+                glm::vec3 R = glm::normalize(glm::cross(U, D));
+                glm::vec2 diff = pos - mousePositionOld;
+                glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
+
+                glm::vec3 Dnorm = glm::normalize(D);
+                if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
+                if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
+
+                glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
+                mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
+                glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
+
+                _camera->setPosition(mouse.orbit - mouse.toGround);
+                _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
+                hasChanged = true;
+            }
+            mousePositionOld = pos;
+        }
+        break;
+        case MouseEvent::Type::Wheel:
+        {
+            if (mouse.hit)
+            {
+                float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
+                mouse.toGround *= scale;
+                glm::vec3 newPos = mouse.terrain - mouse.toGround;
+                glm::vec3 deltaPos = newPos - _camera->getPosition();
+                glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+
+                _camera->setPosition(newPos);
+                _camera->setTarget(newTarget);
+                hasChanged = true;
+            }
+        }
+        break;
+        case MouseEvent::Type::ButtonDown:
+        {
+            if (mouseEvent.button == Input::MouseButton::Middle)
+            {
+                mouse.orbitRadius = glm::length(mouse.toGround);
+            }
+        }
+        break;
+        case MouseEvent::Type::ButtonUp:
+        {
+        }
+        break;
+        }
+
+
+        // rebuild from new camera
+        {
+            glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+            glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+            mouseDirection = glm::normalize(F - N);
+            screenSize = _screenSize;
+            mousePosition = _camera->getPosition();
+            mouseCoord = mouseEvent.pos * _screenSize;
+        }
+
+        return false;
     }
+    return true;
+}
 
 
 
-    // Now for a complete new block for mouse road interactions
-    // ******************************************************************************************
+bool terrainManager::onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera)
+{
     static bool bDragEvent;
     static glm::vec2 prevPos;
     glm::vec2 diff = mouseEvent.pos - prevPos;
