@@ -21,6 +21,9 @@ target_sources(Earthworks_4 PRIVATE
     roads_road.h
     roadNetwork.cpp
     roadNetwork.h
+    Sprites.h
+    Sprites.cpp
+    Sprite_defines.h
     terrafector.cpp
     terrafector.h
 	terrain.cpp
@@ -54,6 +57,7 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/render_meshTerrafector.hlsl
     hlsl/render_splineTerrafector.hlsl
     hlsl/render_spline.hlsl
+    hlsl/render_sprite.hlsl
     hlsl/render_Tiles.hlsl
     hlsl/render_Common.hlsli
     hlsl/PBR.hlsli

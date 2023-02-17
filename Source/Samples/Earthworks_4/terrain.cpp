@@ -360,6 +360,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     init_TopdownRender();
 
+    mSpriteRenderer.onLoad();
+
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
     terrafectors.loadPath(settings.dirRoot + "/terrafectors/");
 }
@@ -582,7 +584,11 @@ void terrainManager::onGuiRender(Gui* _gui)
         {
         case 0: break;
         case 1: break;
-        case 2: break;
+        case 2:
+            terrafectors.renderGui(_gui);
+            ImGui::NewLine();
+            roadMaterialCache::getInstance().renderGui(_gui);
+            break;
         case 3:
             mRoadNetwork.renderGUI(_gui);
 
@@ -622,7 +628,17 @@ void terrainManager::onGuiRender(Gui* _gui)
     {
     case 0: break;
     case 1: break;
-    case 2: break;
+    case 2:
+    {
+        Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
+        {
+            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
+                reset(false);
+            }
+        }
+        tfPanel.release();
+    }
+        break;
     case 3:
         if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
         {
@@ -661,7 +677,7 @@ void terrainManager::onGuiRender(Gui* _gui)
     {
         char TTTEXT[1024];
         sprintf(TTTEXT, "%d (%3.1f, %3.1f, %3.1f)\n", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z);
-        sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
+        //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
         ImGui::SetTooltip(TTTEXT);
     }
 }
@@ -916,6 +932,7 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     splitOne(_renderContext);
 
+    if (dirty)
     {
         testForSurfaceMain();
         for (auto& tile : m_used)
@@ -934,7 +951,7 @@ bool terrainManager::update(RenderContext* _renderContext)
         split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
-    //if (dirty)
+    if (dirty)
     {
         // readback of tile centers
         _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
@@ -1394,6 +1411,14 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
+        FALCOR_PROFILE("sprites");
+        if (showRoadOverlay) {
+            mSpriteRenderer.onRender(_camera, _renderContext, _fbo, nullptr);
+        }
+
+    }
+
+    {
         FALCOR_PROFILE("terrain_under_mouse");
         compute_TerrainUnderMouse.Vars()["gConstants"]["mousePos"] = mousePosition;
         compute_TerrainUnderMouse.Vars()["gConstants"]["mouseDir"] = mouseDirection;
@@ -1496,11 +1521,11 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
 
     if (mRoadNetwork.currentRoad && mRoadNetwork.currentRoad->points.size() >= 3)
     {
-        //mSpriteRenderer.clearDynamic();
+        mSpriteRenderer.clearDynamic();
         mRoadNetwork.currentRoad->testAgainstPoint(&splineTest);
 
         // mouse to spline markers ---------------------------------------------------------------------------------------
-        /*
+        
         if (splineTest.bVertex) {
             mSpriteRenderer.pushMarker(splineTest.returnPos, 4, 3.0f);
         }
@@ -1532,13 +1557,13 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
         }
 
         mSpriteRenderer.loadDynamic();
-        */
+        
     }
 
 
 
 
-    /*
+    
 
     if (mRoadNetwork.currentIntersection)
     {
@@ -1678,7 +1703,7 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
 
         mSpriteRenderer.loadDynamic();
     }
-    */
+    
 }
 
 

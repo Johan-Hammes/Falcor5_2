@@ -34,6 +34,7 @@
 #include"hlsl/gpuLights_defines.hlsli"
 #include"terrafector.h"
 #include "roadNetwork.h"
+#include "Sprites.h"
 
 #include "../../external/cereal-master/include/cereal/cereal.hpp"
 #include "../../external/cereal-master/include/cereal/archives/binary.hpp"
@@ -317,6 +318,7 @@ private:
     //ecotopeSystem			mEcosystem;
     roadNetwork			    mRoadNetwork;
     splineTest			splineTest;
+    spriteRender				mSpriteRenderer;
 
     bool bSplineAsTerrafector = false;
     bool showRoadOverlay = true;

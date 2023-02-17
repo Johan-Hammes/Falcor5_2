@@ -60,6 +60,7 @@ private:
     terrainManager              terrain;
     bool showAbout = false;
     Texture::SharedPtr aboutTex;
+    int slowTimer = 0;      // this is used to alow donw framerate
     
 
     struct {

@@ -166,7 +166,9 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
     terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState);
 
-    if (refresh.minimal && !changed)    Sleep(45);      // aim for 20fps in this mode
+    if (changed) slowTimer = 10;
+    slowTimer--;
+    if (refresh.minimal && (slowTimer < 0))    Sleep(60);      // aim for 15fps in this mode
 }
 
 
@@ -192,6 +194,7 @@ void Earthworks_4::onShutdown()
 
 bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 {
+    slowTimer = 10;
     terrain.onKeyEvent(_keyEvent);
     return false;
 }
@@ -200,6 +203,7 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 
 bool Earthworks_4::onMouseEvent(const MouseEvent& _mouseEvent)
 {
+    slowTimer = 10;
     terrain.onMouseEvent(_mouseEvent, screenSize, camera);
     return false;
 }
