@@ -431,6 +431,7 @@ private:
     {
         std::vector<uint32_t> tileHash;
         float quality = 0.0002f;
+        int roadMaxSplits = 16;
         FILE* txt_file = nullptr;
     }bake;
 

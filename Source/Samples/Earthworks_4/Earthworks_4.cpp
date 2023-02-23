@@ -166,6 +166,21 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
     terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState);
 
+    Texture::SharedPtr tex = terrafectorEditorMaterial::static_materials.getDisplayTexture();
+    if (!tex) {
+        tex = roadNetwork::displayThumbnail;
+    }
+    if (tex)
+    {
+        uint w = tex->getWidth();
+        uint h = tex->getHeight();
+        uint scale = __max(1, __max(w / 1024, h / 1024));
+        glm::vec4 srcRect = glm::vec4(0, 0, w, h);
+        glm::vec4 dstRect = glm::vec4(1000, 30, 1000, 30) + glm::vec4(0, 0, w / scale, h / scale);
+        _renderContext->blit(tex->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
+        terrafectorEditorMaterial::static_materials.dispTexIndex = -1;
+    }
+
     if (changed) slowTimer = 10;
     slowTimer--;
     if (refresh.minimal && (slowTimer < 0))    Sleep(60);      // aim for 15fps in this mode

@@ -616,7 +616,18 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::DragFloat("redOffset", &gis_overlay.redOffset, 0.01f, 0, 1);
 
             ImGui::Separator();
+            float W = ImGui::GetWindowWidth() - 5;
+            ImGui::DragInt("# of splits", &bake.roadMaxSplits, 1, 8, 128);
+            if (ImGui::Button("roads -> fbx", ImVec2(W, 0))) { mRoadNetwork.exportRoads(bake.roadMaxSplits); }
+
+            if (ImGui::Button("bridges -> fbx", ImVec2(W, 0))) { mRoadNetwork.exportBridges(); }
+
+            
+            if (ImGui::Button("Export roads", ImVec2(W, 0))) { mRoadNetwork.exportBinary(); }
+            
             ImGui::DragFloat("jp2 quality", &bake.quality, 0.0001f, 0.0001f, 0.01f, "%3.5f");
+            //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
+            //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
             break;
 
         }
@@ -632,9 +643,11 @@ void terrainManager::onGuiRender(Gui* _gui)
     {
         Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
         {
+            ImGui::PushFont(_gui->getFont("roboto_20"));
             if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
                 reset(false);
             }
+            ImGui::PopFont();
         }
         tfPanel.release();
     }

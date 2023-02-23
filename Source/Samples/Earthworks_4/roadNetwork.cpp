@@ -942,9 +942,9 @@ void roadNetwork::renderGUI(Gui* _gui)
         ImGui::SetTooltip("'ctrl - s' for quick save");
 
     W = ImGui::GetWindowWidth() - 30;
-    if (ImGui::Button("roads to EVO", ImVec2(W, 0))) { exportBinary(); }
-    if (ImGui::Button("bridges to MAX", ImVec2(W, 0))) { exportBridges(); }
-    if (ImGui::Button("roads to MAX", ImVec2(W, 0))) { exportRoads(); }
+    //if (ImGui::Button("roads to EVO", ImVec2(W, 0))) { exportBinary(); }
+    //if (ImGui::Button("bridges to MAX", ImVec2(W, 0))) { exportBridges(); }
+    //if (ImGui::Button("roads to MAX", ImVec2(W, 0))) { exportRoads(); }
 }
 
 
@@ -1351,7 +1351,7 @@ void roadNetwork::exportBridges() {
 
 
 
-void roadNetwork::exportRoads()
+void roadNetwork::exportRoads(int _numSplits)
 {
     int numRoad = (int)roadSectionsList.size();
 
@@ -1369,8 +1369,6 @@ void roadNetwork::exportRoads()
     for (int i = 0; i < numRoad; i++)
     {
         scene->mMeshes[i] = nullptr;
-        //scene->mMeshes[i] = new aiMesh();
-        //scene->mMeshes[i]->mMaterialIndex = 0;
         scene->mRootNode->mMeshes[i] = i;
     }
     scene->mNumMeshes = numRoad;
@@ -1389,30 +1387,30 @@ void roadNetwork::exportRoads()
         {
 
             {
-                pMesh->mFaces = new aiFace[63 * numBez];
-                pMesh->mNumFaces = 63 * numBez;
+                pMesh->mFaces = new aiFace[(_numSplits-1)* numBez];
+                pMesh->mNumFaces = (_numSplits-1) * numBez;
                 pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
 
                 for (uint j = 0; j < numBez; j++)
                 {
-                    for (uint i = 0; i < 63; i++)
+                    for (uint i = 0; i < _numSplits - 1; i++)
                     {
-                        aiFace& face = pMesh->mFaces[j * 63 + i];
+                        aiFace& face = pMesh->mFaces[j * (_numSplits - 1) + i];
 
                         face.mIndices = new unsigned int[4];
                         face.mNumIndices = 4;
 
-                        face.mIndices[0] = (j * 64 + i) * 2 + 0;
-                        face.mIndices[1] = (j * 64 + i) * 2 + 1;
-                        face.mIndices[2] = (j * 64 + i) * 2 + 3;
-                        face.mIndices[3] = (j * 64 + i) * 2 + 2;
+                        face.mIndices[0] = (j * _numSplits + i) * 2 + 0;
+                        face.mIndices[1] = (j * _numSplits + i) * 2 + 1;
+                        face.mIndices[2] = (j * _numSplits + i) * 2 + 3;
+                        face.mIndices[3] = (j * _numSplits + i) * 2 + 2;
                     }
                 }
             }
 
             {
-                pMesh->mVertices = new aiVector3D[128 * numBez];
-                pMesh->mNumVertices = 128 * numBez;
+                pMesh->mVertices = new aiVector3D[_numSplits * 2 * numBez];
+                pMesh->mNumVertices = _numSplits * 2 * numBez;
 
 
                 //for (auto &pnt : road.points)
@@ -1420,9 +1418,10 @@ void roadNetwork::exportRoads()
                 {
                     auto& pnt = road.points[ZZ];
 
-                    for (int y = 0; y < 64; y++)
+                    for (int y = 0; y < _numSplits; y++)
                     {
-                        float t = (float)y / 63.0f;
+                        float total = (float)_numSplits - 1.0f;
+                        float t = (float)y / total;
                         bezierPoint* pntThis = &pnt.bezier[left];
                         bezierPoint* pntNext = &road.points[ZZ + 1].bezier[left];
                         glm::vec3 A = cubic_Casteljau(t, pntThis, pntNext);// -origin;
@@ -1431,8 +1430,8 @@ void roadNetwork::exportRoads()
                         pntNext = &road.points[ZZ + 1].bezier[right];
                         glm::vec3 B = cubic_Casteljau(t, pntThis, pntNext);// -origin; absolute coordinates
 
-                        pMesh->mVertices[ZZ * 128 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
-                        pMesh->mVertices[ZZ * 128 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
+                        pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
+                        pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
                     }
                 }
             }
@@ -1447,10 +1446,16 @@ void roadNetwork::exportRoads()
     }
 
 
-    Exporter exp;
-    exp.Export(scene, "collada", "f:/test_roads.dae");
-    exp.Export(scene, "fbx", "f://test_roads.fbx");
-    exp.Export(scene, "obj", "f://test_roads.obj");
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"fbx"} };
+    if (saveFileDialog(filters, path))
+    {
+        Exporter exp;
+        //exp.Export(scene, "collada", "f:/test_roads.dae");
+        exp.Export(scene, "fbx", path.string().c_str());
+        //exp.Export(scene, "obj", "f://test_roads.obj");		
+    }
+    
 }
 
 

@@ -11,14 +11,14 @@
     --------------------------------------------------------------------------------------------------------------------*/
 void roadMaterialGroup::import(std::string _relativepath)
 {
-    std::ifstream is(terrafectorEditorMaterial::rootFolder + _relativepath + "_xml");
+    std::ifstream is(terrafectorEditorMaterial::rootFolder + _relativepath );
     if (is.fail()) {
         displayName = "failed to load";
         relativePath = _relativepath;
     }
     else
     {
-        cereal::XMLInputArchive archive(is);
+        cereal::JSONInputArchive archive(is);
         serialize(archive, 0);
 
         relativePath = _relativepath;

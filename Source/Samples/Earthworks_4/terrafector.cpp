@@ -21,6 +21,7 @@ bool terrafectorSystem::needsRefresh = false;
 //ecotopeSystem *terrafectorSystem::pEcotopes = nullptr;
 GraphicsProgram::SharedPtr		terrafectorSystem::topdownProgramForBlends = nullptr;
 FILE* terrafectorSystem::_logfile;
+uint logTab;
 
 
 materialCache terrafectorEditorMaterial::static_materials;
@@ -74,7 +75,19 @@ void tileTriangleBlock::clearRemapping(uint _size)
     for (auto& remap : remapping) {
         remap = -1;
     }
+    vertexReuse = 0;
 }
+
+
+
+void tileTriangleBlock::remapMaterials(uint* _map)
+{
+    for (auto& V : verts) {
+        V.material = _map[V.material];
+    }
+}
+
+
 
 void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], const aiVector3D *_verts)
 {
@@ -91,8 +104,12 @@ void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], c
                 V[k].uv.x = M->mTextureCoords[0][F.mIndices[k]].x;
                 V[k].uv.y = M->mTextureCoords[0][F.mIndices[k]].y;
             }*/
+            V.material = _material;
 
             verts.push_back(V);
+        }
+        else {
+            vertexReuse ++;
         }
 
         tempIndexBuffer.push_back(remapping[_F[i]]);
@@ -105,8 +122,12 @@ void lodTriangleMesh::create(uint _lod)
     lod = _lod;
     grid = (uint)pow(2, _lod);
     tileSize = 40000.0f / grid; // FIxeme no boundary and hardcoded for 40k
+    bufferSize = tileSize / 248.0f * 4.0f;
     tiles.resize(grid * grid);
+    materialNames.clear();
 }
+
+
 
 void lodTriangleMesh::clearRemapping(uint _size)
 {
@@ -114,6 +135,17 @@ void lodTriangleMesh::clearRemapping(uint _size)
         tile.clearRemapping(_size);
     }
 }
+
+
+
+void lodTriangleMesh::remapMaterials(uint* _map)
+{
+    for (auto& tile : tiles) {
+        tile.remapMaterials(_map);
+    }
+}
+
+
 
 void lodTriangleMesh::prepForMesh(aiAABB _aabb)
 {
@@ -129,6 +161,14 @@ void lodTriangleMesh::prepForMesh(aiAABB _aabb)
 }
 
 
+
+void lodTriangleMesh::pushMaterialName(std::string _name)
+{
+    materialNames.push_back(_name);
+}
+
+
+
 void lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], const aiVector3D *_verts)
 {
     float left, right, top, bottom;
@@ -137,10 +177,16 @@ void lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], con
     {
         bottom = -20000 + (y * tileSize);
         top = bottom + tileSize;
+        bottom -= bufferSize;
+        top += bufferSize;
+
         for (int x = xMin; x < xMax; x++)
         {
             left = -20000 + (x * tileSize);
             right = left + tileSize;
+
+            left -= bufferSize;
+            right += bufferSize;
             bool flags[4] = { true, true, true, true };
 
             for (int j = 0; j < 3; j++)     // vertex
@@ -175,6 +221,59 @@ void lodTriangleMesh::logStats()
 
 
 
+void lodTriangleMesh::save( const std::string _path)
+{
+    std::ofstream os(_path, std::ios::binary);
+    cereal::BinaryOutputArchive archive(os);
+    serialize(archive, 100);
+}
+
+
+
+void lodTriangleMesh::load(const std::string _path)
+{
+    std::ifstream is(_path, std::ios::binary);
+    cereal::BinaryInputArchive archive(is);
+    serialize(archive, 100);
+}
+
+
+
+void lodTriangleMesh_LoadCombiner::addMesh(std::string _path, lodTriangleMesh& _mesh)
+{
+    // load materials and generate mapping
+    uint materialRemap[4096];
+    uint i = 0;
+    for (auto &material : _mesh.materialNames)   {
+        materialRemap[i] = terrafectorEditorMaterial::static_materials.find_insert_material(_path, material);
+        i++;
+    }
+
+    // Fix material in place
+    _mesh.remapMaterials(materialRemap);
+
+    // Append
+    for (uint i = 0; i < tiles.size(); i++)
+    {
+        tiles[i].verts.insert(tiles[i].verts.end(), _mesh.tiles[i].verts.begin(), _mesh.tiles[i].verts.end());
+        tiles[i].verts.insert(tiles[i].verts.end(), _mesh.tiles[i].verts.begin(), _mesh.tiles[i].verts.end());
+
+        uint startIndex = tiles[i].verts.size();
+        for (uint j = 0; j < _mesh.tiles[i].tempIndexBuffer.size(); j++)
+        {
+            tiles[i].tempIndexBuffer.push_back(_mesh.tiles[i].tempIndexBuffer[j] + startIndex);
+        }
+    }
+}
+
+
+
+void lodTriangleMesh_LoadCombiner::create(uint _lod)
+{
+    uint grid = (uint)pow(2, _lod);
+    tiles.resize(grid * grid);
+}
+
 
 
 materialCache::materialCache()
@@ -184,35 +283,72 @@ materialCache::materialCache()
 
 
 
+uint materialCache::find_insert_material(const std::string _path, const std::string _name)
+{
+    logTab++;
+    std::filesystem::path fullPath = _path + _name + ".terrafectorMaterial";
+    if (std::filesystem::exists(fullPath))
+    {
+        logTab--;
+        return find_insert_material(fullPath);
+    }
+    else
+    {
+        fullPath = rootMaterialPath + _name + ".terrafectorMaterial";
+        if (std::filesystem::exists(fullPath))
+        {
+            logTab--;
+            return find_insert_material(fullPath);
+        }
+    }
+
+    // we got here, not good
+    for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+    fprintf(terrafectorSystem::_logfile, "error : material - %s does not exist\n", _name.c_str());
+    fflush(terrafectorSystem::_logfile);
+
+    logTab--;
+    return 0;
+}
+
+
+
 uint materialCache::find_insert_material(const std::filesystem::path _path)
 {
+    logTab++;
     for (uint i = 0; i < materialVector.size(); i++)
     {
         if (materialVector[i].fullPath.compare(_path) == 0)
         {
-            fprintf(terrafectorSystem::_logfile, "		  materialCache - found (%s)\n", _path.filename().string().c_str());
+            for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+            fprintf(terrafectorSystem::_logfile, "materialCache - found (%s)\n", _path.filename().string().c_str());
             fflush(terrafectorSystem::_logfile);
+            logTab--;
             return i;
         }
     }
 
     // else add new
-    fprintf(terrafectorSystem::_logfile, "\n		  add Material - %s\n", _path.filename().string().c_str());
+    for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+    fprintf(terrafectorSystem::_logfile, "add Material[%d] - %s\n", (int)materialVector.size(), _path.filename().string().c_str());
     fflush(terrafectorSystem::_logfile);
 
     materialVector.emplace_back();
     materialVector.back().import(_path);
 
+    logTab--;
     return (uint)(materialVector.size() - 1);
 }
 
 
 uint materialCache::find_insert_texture(const std::filesystem::path _path, bool isSRGB)
 {
+    logTab++;
     for (uint i = 0; i < textureVector.size(); i++)
     {
         if (textureVector[i]->getSourcePath().compare(_path) == 0)
         {
+            logTab--;
             return i;
         }
     }
@@ -228,15 +364,20 @@ uint materialCache::find_insert_texture(const std::filesystem::path _path, bool 
         if (isSRGB) compression = 6.0f;
         texMb += (float)(tex->getWidth() * tex->getHeight() * 4.0f) / 1024.0f / 1024.0f / compression * 1.333f;	// for 4:1 compression + MIPS
 
-        fprintf(terrafectorSystem::_logfile, "			%s\n", tex->getName().c_str());
+        for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+        fprintf(terrafectorSystem::_logfile, "%s\n", tex->getName().c_str());
         fflush(terrafectorSystem::_logfile);
 
+        logTab--;
         return (uint)(textureVector.size() - 1);
     }
     else
     {
-        fprintf(terrafectorSystem::_logfile, "			failed %s \n", _path.string().c_str());
+        for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+        fprintf(terrafectorSystem::_logfile, "failed %s \n", _path.string().c_str());
         fflush(terrafectorSystem::_logfile);
+
+        logTab--;
         return 0;
     }
 }
@@ -392,11 +533,66 @@ bool materialCache::renderGuiSelect(Gui* mpGui)
 
 
 
+bool terrafectorElement::isMeshCached(const std::string _path)
+{
+    if (!std::filesystem::exists(_path + ".lod4Cache"))
+    {
+        return false;
+    }
+    if (std::filesystem::last_write_time(_path) < std::filesystem::last_write_time(_path + ".lod4Cache"));
+    {
+        return true;
+    }
+    return false;
+}
 
 
+
+void terrafectorElement::splitAndCacheMesh(const std::string _path)
+{
+    Assimp::Importer importer;
+    lodTriangleMesh lodder;
+    lodder.create(4);
+
+    unsigned int flags =
+        aiProcess_FlipUVs |
+        aiProcess_Triangulate |
+        aiProcess_PreTransformVertices |
+        aiProcess_JoinIdenticalVertices;
+
+    const aiScene* scene = nullptr;
+    scene = importer.ReadFile(_path.c_str(), flags);
+
+    if (scene)
+    {
+        glm::int4 index;
+        triVertex V[3];
+        for (uint i = 0; i < scene->mNumMeshes; i++)
+        {
+            lodder.materialNames.push_back(scene->mMaterials[i]->GetName().C_Str());
+
+            aiMesh* M = scene->mMeshes[i];
+            scene->mMaterials[i]->GetName().C_Str();
+            lodder.clearRemapping(M->mNumVertices);
+            lodder.prepForMesh(M->mAABB);
+            for (uint j = 0; j < M->mNumFaces; j++)
+            {
+                aiFace F = M->mFaces[j];
+                lodder.insertTriangle(i, F.mIndices, M->mVertices);     // fixme right material index
+            }
+        }
+
+        lodder.save(_path + ".lod4Cache");
+        std::filesystem::path P = _path;
+        terrafectorElement::meshLoadCombiner.addMesh(P.parent_path().string() + "/", lodder);
+    }
+}
+
+lodTriangleMesh_LoadCombiner terrafectorElement::meshLoadCombiner;
 
 terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfTypes _type, const std::string _path)
 {
+    logTab++;
     for (int i = 0; i < children.size(); i++)
     {
         if (children[i].name.compare(_name) == 0)
@@ -412,7 +608,8 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
 
     if (_type == tf_heading)
     {
-        fprintf(terrafectorSystem::_logfile, "\n		add heading %s\n", _name.c_str());
+        for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+        fprintf(terrafectorSystem::_logfile, "%s\n", _name.c_str());
         fflush(terrafectorSystem::_logfile);
     }
 
@@ -425,73 +622,26 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
         std::string fullName = _path;
         std::string fullPath = fullName.substr(0, fullName.find_last_of("\\/") + 1);
 
-        fprintf(terrafectorSystem::_logfile, "\n		add FBX - %s\n", fullName.c_str());
+        for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
+        fprintf(terrafectorSystem::_logfile, "add mesh - %s\n", fullName.c_str());
         fflush(terrafectorSystem::_logfile);
 
-
-        Assimp::Importer importer;
-
-        unsigned int flags =
-            aiProcess_FlipUVs |
-            aiProcess_Triangulate |
-            aiProcess_PreTransformVertices;
-
-        const aiScene* scene = nullptr;
-        scene = importer.ReadFile(fullName.c_str(), flags);
-
-        if (scene)
-        {
-            me.materials.resize(scene->mNumMeshes);
-            for (uint i = 0; i < scene->mNumMeshes; i++)
-            {
-                uint materialIndex = scene->mMeshes[i]->mMaterialIndex;
-                if (materialIndex < scene->mNumMaterials)
-                {
-                    std::string mat_name = scene->mMaterials[materialIndex]->GetName().C_Str();
-                    std::size_t  pos = mat_name.find("_sort_");
-                    uint sort = 1000; // net lekker groot
-                    if (pos != std::string::npos)
-                    {
-                        std::string front = mat_name.substr(pos + 6);
-                        sort = std::stoi(front);
-                        mat_name = mat_name.substr(0, pos);
-                    }
-                    
-                    // search in vector/ add if not found
-                    me.materials[i].sortVal = sort;
-                    me.materials[i].sortIndex = i;
-                    me.materials[i].index = terrafectorEditorMaterial::static_materials.find_insert_material(fullPath + mat_name + ".terrafectorMaterial");
-                    me.materials[i].materialName = mat_name;
-                    
-                }
-            }
-
-            struct {
-                bool operator()(subMesh a, subMesh b) const { return a.sortVal < b.sortVal; }
-            } customLess;
-            std::sort(me.materials.begin(), me.materials.end(), customLess);
-
-            // Now split and pack
-            // FIXME usethe sorting
-            // FIXME put BAKE_ONLY in diffirent spot
-            glm::int4 index;
-            triVertex V[3];
-            for (uint i = 0; i < scene->mNumMeshes; i++)
-            {
-                aiMesh* M = scene->mMeshes[i];
-                uint numTris = scene->mMeshes[i]->mNumFaces;
-                terrafectorSystem::lod_4_mesh.clearRemapping(M->mNumVertices);
-
-                terrafectorSystem::lod_4_mesh.prepForMesh(M->mAABB);
-                for (uint j = 0; j < numTris; j++)
-                {
-                    aiFace F = M->mFaces[j];
-                    terrafectorSystem::lod_4_mesh.insertTriangle(me.materials[i].index, F.mIndices, M->mVertices);
-                }
-            }
+        bool forceRebuild = false;
+        if (forceRebuild || !isMeshCached(_path)) {
+            splitAndCacheMesh(_path);
         }
+        else
+        {
+            lodTriangleMesh lodder;
+            //lodder.create(4);
+            lodder.load(_path + ".lod4Cache");
+            std::filesystem::path P = _path;
+            terrafectorElement::meshLoadCombiner.addMesh(P.parent_path().string() + "/", lodder);
+        }
+
     }
 
+    logTab--;
     return children.back();
 }
 
@@ -689,7 +839,7 @@ uint32_t terrafectorEditorMaterial::blendHash() {
 
 void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _replacePath) {
 
-    _path += "_xml";
+    //_path += "_xml";
     std::ifstream is(_path);
     if (is.fail()) {
         displayName = "failed to load";
@@ -697,7 +847,7 @@ void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _repla
     }
     else
     {
-        cereal::XMLInputArchive archive(is);
+        cereal::JSONInputArchive archive(is);
         serialize(archive);
 
         if (_replacePath) fullPath = _path;
@@ -809,7 +959,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
 
 
-    ImGui::PushFont(_gui->getFont("roboto_20"));
+    ImGui::PushFont(_gui->getFont("roboto_32"));
     {
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
         if (isModified)
@@ -871,7 +1021,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
     ImGui::Columns(3);
     {
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.0f, 0.7f);
-        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 150));
+        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 170));
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
         {
             HEADER("uv scale");
@@ -895,8 +1045,9 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
 
         ImGui::NewLine();
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.04f, 0.02f, 0.02f, 0.7f);
-        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 380));
+        style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.05f, 0.01f, 0.01f, 0.7f);
+        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 410));
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
         {
             HEADER_BOOL("alpha", "##useAlpha", _constData.useAlpha);
@@ -973,8 +1124,8 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
         if (_constData.materialType == 0)
         {
             ImGui::NewLine();
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.1f, 0.0f, 0.7f);
-            ImGui::BeginChildFrame(123451, ImVec2(columnWidth, 290));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.1f, 0.04f, 0.0f, 0.7f);
+            ImGui::BeginChildFrame(123451, ImVec2(columnWidth, 380));
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
 
@@ -990,14 +1141,20 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                     FLOAT_BOOL("use vertex.y", _constData.useVertexY);
                     TOOLTIP("add the vertex heights in the mesh");
 
+                    ImGui::NewLine();
+
                     changed |= ImGui::DragFloat("y offset", &_constData.YOffset, 0.1f, -10, 10, "%.3f m");
                     TOOLTIP("offset to shift the mesh up or down");
+
+                    ImGui::NewLine();
 
                     TEXTURE(baseElevation, "");
                     changed |= ImGui::DragFloat("base scale ##elevation", &_constData.baseElevationScale, 0.001f, 0, 1, "%.3f m");
                     TOOLTIP("scale of the displacement texture");
                     changed |= ImGui::DragFloat("base offset ##elevation", &_constData.baseElevationOffset, 0.1f, 0, 1, "%.2f");
                     TOOLTIP("texture value that represents zero");
+
+                    ImGui::NewLine();
 
                     TEXTURE(detailElevation, "");
                     changed |= ImGui::DragFloat("detail scale ##elevation", &_constData.detailElevationScale, 0.001f, 0, 1, "%.3f m");
@@ -1044,7 +1201,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
             ImGui::NewLine();
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.14f, 0.1f, 0.7f);
-            ImGui::BeginChildFrame(123453, ImVec2(columnWidth, 530));
+            ImGui::BeginChildFrame(123453, ImVec2(columnWidth, 600));
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
                 HEADER_BOOL("albedo & pbr", "####useAlbedo", _constData.useColour);
@@ -1283,8 +1440,13 @@ void terrafectorSystem::renderGui(Gui* mpGui)
 
 void terrafectorSystem::loadPath(std::string _path)
 {
-//    lod_4_mesh.create(4);
-//    root.loadPath(_path);
+    fprintf(terrafectorSystem::_logfile, "\n\nterrafectorSystem::loadPath()\n", _path.c_str());
+    fprintf(terrafectorSystem::_logfile, "###################################################################\n");
+    logTab = 0;
+
+    terrafectorElement::meshLoadCombiner.create(4);
+    lod_4_mesh.create(4);
+    root.loadPath(_path);
 //    lod_4_mesh.logStats();
 }
 

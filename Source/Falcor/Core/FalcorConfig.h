@@ -27,7 +27,7 @@
  **************************************************************************/
 #pragma once
 
-#define FALCOR_ENABLE_LOGGER            1 // Set this to 1 to enable logging.
+#define FALCOR_ENABLE_LOGGER            0 // Set this to 1 to enable logging.
 #define FALCOR_ENABLE_PROFILER          1 // Set this to 1 to enable CPU/GPU profiling.
 
 /** Render pass hot reloading is currently unused, so we disable it here

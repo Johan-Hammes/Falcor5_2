@@ -8,6 +8,7 @@
 
 #include "cereal/archives/binary.hpp"
 #include "cereal/archives/xml.hpp"
+#include "cereal/archives/json.hpp"
 #include "cereal/cereal.hpp"
 #include "cereal/types/map.hpp"
 #include "cereal/types/vector.hpp"
@@ -37,11 +38,23 @@ using namespace Falcor;
 
 
 // FIXME move to hlsl
-typedef struct  {
+class  triVertex {
+public:
     glm::float3 pos;
     glm::float2 uv;
     uint        material;
-}triVertex;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive_float3(pos);
+        archive_float2(uv);
+        archive(CEREAL_NVP(material));
+    }
+};
+CEREAL_CLASS_VERSION(triVertex, 100);
+
+
 
 class triangleBlock {
 public:
@@ -53,6 +66,7 @@ class tileTriangleBlock {
 public:
     void clear();
     void clearRemapping(uint _size);
+    void remapMaterials(uint* _map);
     void insertTriangle(const uint material, const uint F[3], const aiVector3D *_verts);
 private:
 public:
@@ -60,23 +74,64 @@ public:
     std::vector<int> remapping;
     std::vector<triangleBlock> indexBlocks;
     std::vector<uint> tempIndexBuffer;
+
+    uint vertexReuse;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive(CEREAL_NVP(verts));
+        archive(CEREAL_NVP(tempIndexBuffer));
+    }
 };
+CEREAL_CLASS_VERSION(tileTriangleBlock, 100);
+
+
 
 class lodTriangleMesh {
 public:
     void create(uint _lod);
     void clearRemapping(uint _size);
+    void remapMaterials(uint* _map);
     void prepForMesh(aiAABB _aabb);
+    void pushMaterialName(std::string _name);
     void insertTriangle(const uint material, const uint F[3], const aiVector3D* _verts);
     void logStats();
+    void save(const std::string _path);
+    void load(const std::string _path);
+    
+
 private:
     uint xMin, xMax, yMin, yMax;
     uint lod;
     uint grid;
     float tileSize;
+    float bufferSize;
+    
+public:
+    std::vector<tileTriangleBlock> tiles;
+    std::vector<std::string> materialNames;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive(CEREAL_NVP(lod));
+        archive(CEREAL_NVP(materialNames));
+        archive(CEREAL_NVP(tiles));
+    }
+};
+CEREAL_CLASS_VERSION(lodTriangleMesh, 100);
+
+
+
+class lodTriangleMesh_LoadCombiner {
+public:
+    void create(uint _lod);
+    void addMesh(std::string _path, lodTriangleMesh &mesh);
+
+private:
     std::vector<tileTriangleBlock> tiles;
 };
-
 
 
 class terrafectorEditorMaterial;
@@ -86,7 +141,8 @@ public:
     materialCache();
 	virtual ~materialCache() { ; }
 
-	uint find_insert_material(const std::filesystem::path _path);
+	uint find_insert_material(const std::string _path, const std::string _name);
+    uint find_insert_material(const std::filesystem::path _path);
 	uint find_insert_texture(const std::filesystem::path _path, bool isSRGB);
 
 	void setTextures(ShaderVar& var);
@@ -106,6 +162,7 @@ public:
 	Texture::SharedPtr getDisplayTexture();
 
     Buffer::SharedPtr sb_Terrafector_Materials = nullptr;
+    std::string rootMaterialPath = "X:/resources/terrafectors_and_road_materials/roads/";
 };
 
 
@@ -283,7 +340,6 @@ public:
 		}
 	} _constData;		// 464 bytes for now
 
-	
 
 	// the runtime section
 	// it makes no sense splitting this for an editor, just confuses the code - write with cereal - have a converter to protobuffers, and redo this code in EVO
@@ -313,6 +369,8 @@ public:
 	std::string path;
 	std::vector<terrafectorElement> children;
 
+    bool isMeshCached(const std::string _path);
+    void splitAndCacheMesh(const std::string _path);
 	terrafectorElement &find_insert(const std::string _name, const tfTypes _type= tf_heading, const std::string _path="");
 	void renderGui(Gui* _pGui, float tab = 0);
 	void render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars);
@@ -330,6 +388,8 @@ public:
 	bool visible = true;
 	bool bExpanded = false;
     bool bakeOnly = false;
+
+    static lodTriangleMesh_LoadCombiner meshLoadCombiner;
 }; 
 
 

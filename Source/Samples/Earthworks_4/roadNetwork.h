@@ -45,7 +45,7 @@ public:
     void quickSave();
     void exportBinary();
     void exportBridges();
-    void exportRoads();
+    void exportRoads(int _numSplits);
 
     void TEMP_pushAllMaterial();
 
