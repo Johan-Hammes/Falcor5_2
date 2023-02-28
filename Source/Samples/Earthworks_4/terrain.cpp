@@ -30,6 +30,8 @@
 #include <imgui_internal.h>
 #include <random>
 #include "Utils/UI/TextRenderer.h"
+#include "assimp/Exporter.hpp"
+using namespace Assimp;
 
 #pragma optimize("", off)
 
@@ -64,9 +66,48 @@ void _terrainSettings::renderGui(Gui* _gui)
         ImGui::DragFloat("##size", &size, 1, 1000, 200000, "%5.0f m ");
 
         ImGui::NewLine();
-        ImGui::Button("Save");
-        ImGui::SameLine();
-        ImGui::Button("Save as");
+        sprintf_s(buf, maxSize, dirRoot.c_str());
+        ImGui::SetNextItemWidth(600);
+        if (ImGui::InputText("root", buf, maxSize))
+        {
+            dirRoot = buf;
+        }
+
+        sprintf_s(buf, maxSize, dirExport.c_str());
+        ImGui::SetNextItemWidth(600);
+        if (ImGui::InputText("export(EVO)", buf, maxSize))
+        {
+            dirExport = buf;
+        }
+
+        sprintf_s(buf, maxSize, dirGis.c_str());
+        ImGui::SetNextItemWidth(600);
+        if (ImGui::InputText("gis", buf, maxSize))
+        {
+            dirGis = buf;
+        }
+
+        sprintf_s(buf, maxSize, dirResource.c_str());
+        ImGui::SetNextItemWidth(600);
+        if (ImGui::InputText("resource", buf, maxSize))
+        {
+            dirResource = buf;
+        }
+
+        ImGui::NewLine();
+
+        ImGui::NewLine();
+        if (ImGui::Button("Save"))
+        {
+            std::filesystem::path path;
+            FileDialogFilterVec filters = { {"terrainSettings.json"} };
+            if (saveFileDialog(filters, path))
+            {
+                std::ofstream os(path);
+                cereal::JSONOutputArchive archive(os);
+                serialize(archive, 100);
+            }
+        }
     }
     ImGui::PopFont();
 }
@@ -129,6 +170,12 @@ terrainManager::terrainManager()
         cereal::XMLInputArchive archive(is);
         archive(CEREAL_NVP(lastfile));
     }
+
+    std::ifstream isT(lastfile.terrain);
+    if (isT.good()) {
+        cereal::JSONInputArchive archive(isT);
+        settings.serialize(archive, 100);
+    }
 }
 
 
@@ -161,7 +208,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     {
         split.debug_texture = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::RGBA8Unorm, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
-        split.bicubic_upsample_texture = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
+        //split.bicubic_upsample_texture = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
         split.normals_texture = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R11G11B10Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
         split.vertex_A_texture = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, nullptr, Resource::BindFlags::ShaderResource | Falcor::Resource::BindFlags::UnorderedAccess);
         split.vertex_B_texture = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, nullptr, Resource::BindFlags::ShaderResource | Falcor::Resource::BindFlags::UnorderedAccess);
@@ -224,9 +271,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         desc.setColorTarget(7u, ResourceFormat::RGBA8Unorm, true);		// ecotopes
         split.tileFbo = Fbo::create2D(tile_numPixels, tile_numPixels, desc, 1, 8);
         split.bakeFbo = Fbo::create2D(split.bakeSize, split.bakeSize, desc, 1, 8);
+        bake.copy_texture = Texture::create2D(split.bakeSize, split.bakeSize, Falcor::ResourceFormat::R32Float, 1, 1, nullptr, Resource::BindFlags::None);
 
         compressed_Normals_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R11G11B10Float, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);	  // Now an array	  at 1024 tiles its 256 Mb , Fair bit but do-ablwe
-        compressed_Albedo_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::BC6HU16, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+        //compressed_Albedo_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::BC6HU16, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+        compressed_Albedo_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R11G11B10Float, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
         compressed_PBR_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::BC6HU16, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
         height_Array = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::R32Float, numTiles, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);	  // Now an array	  1024 tiles is 64 MB - really nice and small
 
@@ -250,6 +299,18 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainShader.load("Samples/Earthworks_4/hlsl/render_Tiles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
         terrainShader.Vars()->setBuffer("tiles", split.buffer_tiles);
         terrainShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_terrain);
+
+        terrainShader.Vars()->setTexture("gAlbedoArray", compressed_Albedo_Array);
+        terrainShader.Vars()->setTexture("gPBRArray", compressed_PBR_Array);
+        terrainShader.Vars()->setTexture("gNormArray", compressed_Normals_Array);
+        terrainShader.Vars()->setSampler("gSmpAniso", sampler_ClampAnisotropic);
+        terrainShader.Vars()->setBuffer("VB", split.buffer_terrain);
+
+        terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gis_overlay.strenght;
+        terrainShader.Vars()["PerFrameCB"]["redStrength"] = gis_overlay.redStrength;
+        terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
+        terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
+
 
         compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
@@ -299,9 +360,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         // bicubic
         split.compute_tileBicubic.load("Samples/Earthworks_4/hlsl/compute_tileBicubic.hlsl");
         split.compute_tileBicubic.Vars()->setSampler("linearSampler", sampler_Clamp);
-        split.compute_tileBicubic.Vars()->setTexture("gOutput", split.bicubic_upsample_texture);
+        split.compute_tileBicubic.Vars()->setTexture("gOutput", split.tileFbo->getColorTexture(0));
         split.compute_tileBicubic.Vars()->setTexture("gDebug", split.debug_texture);
-        split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.tileFbo->getColorTexture(0));
+        //split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.tileFbo->getColorTexture(0));
 
         // ecotopes
         split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/compute_tileEcotopes.hlsl");
@@ -364,28 +425,28 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
     terrafectors.loadPath(settings.dirRoot + "/terrafectors/");
+    mRoadNetwork.rootPath = settings.dirRoot + "/";
 }
 
 
 void terrainManager::init_TopdownRender()
 {
-    split.tileCamera = Camera::create();
 
     terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024); // FIXME hardcoded
     split.shader_spline3D.load("Samples/Earthworks_4/hlsl/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
     //split.shader_spline3D.Program()->getReflector()
-    //split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     //split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
-    //split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+    split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 
 
     // mesh terrafector shader
- //   split.shader_meshTerrafector.load("Samples/Earthworks_4/hlsl/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
-  //  split.shader_meshTerrafector.Vars()->setSampler("SMP", sampler_Trilinear);
-  //  split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
-  //  split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
-    //mpSplineShaderTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+    split.shader_meshTerrafector.load("Samples/Earthworks_4/hlsl/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_meshTerrafector.Vars()->setSampler("gSmpLinear", sampler_Trilinear);
+    //split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
+    split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+    split.shader_meshTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 
     DepthStencilState::Desc depthDesc;
     depthDesc.setDepthEnabled(true);
@@ -549,6 +610,16 @@ void terrainManager::onShutdown()
 }
 
 
+std::string blockFromPositionB(glm::vec3 _pos)
+{
+    uint y = (uint)floor((_pos.z + 20000) / 2500.0f);
+    uint x = (uint)floor((_pos.x + 20000) / 2500.0f);
+    std::string answer = char(65 + x) + std::to_string(y);
+    return answer;
+}
+
+
+
 void terrainManager::onGuiRender(Gui* _gui)
 {
     if (requestPopupSettings) {
@@ -595,7 +666,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
             //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
 
-            /*if (ImGui::Checkbox("show baked", &bSplineAsTerrafector)) { reset(true); }
+            if (ImGui::Checkbox("show baked", &bSplineAsTerrafector)) { reset(true); }
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("'b'");
             ImGui::Checkbox("show road icons", &showRoadOverlay);
@@ -603,17 +674,27 @@ void terrainManager::onGuiRender(Gui* _gui)
                 ImGui::SetTooltip("'n'");
             ImGui::Checkbox("show road splines", &showRoadSpline);
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("'m'");*/
+                ImGui::SetTooltip("'m'");
 
             ImGui::NewLine();
 
             auto& style = ImGui::GetStyle();
             style.ButtonTextAlign = ImVec2(0.0, 0.5);
-            ImGui::DragFloat("overlay", &gis_overlay.strenght, 0.01f, 0, 1, "%1.2f strength");
+            if (ImGui::DragFloat("overlay", &gis_overlay.strenght, 0.01f, 0, 1, "%1.2f strength")) {
+                terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gis_overlay.strenght;
+            }
 
-            ImGui::DragFloat("redStrength", &gis_overlay.redStrength, 0.01f, 0, 1);
-            ImGui::DragFloat("redScale", &gis_overlay.redScale, 0.01f, 0, 100);
-            ImGui::DragFloat("redOffset", &gis_overlay.redOffset, 0.01f, 0, 1);
+            if (ImGui::DragFloat("redStrength", &gis_overlay.redStrength, 0.01f, 0, 1)) {
+                terrainShader.Vars()["PerFrameCB"]["redStrength"] = gis_overlay.redStrength;
+            }
+            if (ImGui::DragFloat("redScale", &gis_overlay.redScale, 0.01f, 0, 100)) {
+                terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
+            }
+            if (ImGui::DragFloat("redOffset", &gis_overlay.redOffset, 0.01f, 0, 1)) {
+                terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
+            }
+
+
 
             ImGui::Separator();
             float W = ImGui::GetWindowWidth() - 5;
@@ -621,13 +702,17 @@ void terrainManager::onGuiRender(Gui* _gui)
             if (ImGui::Button("roads -> fbx", ImVec2(W, 0))) { mRoadNetwork.exportRoads(bake.roadMaxSplits); }
 
             if (ImGui::Button("bridges -> fbx", ImVec2(W, 0))) { mRoadNetwork.exportBridges(); }
+            ImGui::DragInt("lod-MIN", &exportLodMin, 1, 0, 20);
+            ImGui::DragInt("lod-MAX", &exportLodMax, 1, 0, 20);
+            if (exportLodMax < exportLodMin) exportLodMax = exportLodMin;
+            if (ImGui::Button("scene -> fbx", ImVec2(W, 0))) { sceneToMax();}
 
-            
-            if (ImGui::Button("Export roads", ImVec2(W, 0))) { mRoadNetwork.exportBinary(); }
-            
+
+            if (ImGui::Button("roads -> EVO", ImVec2(W, 0))) { mRoadNetwork.exportBinary(); }
+            if (ImGui::Button("terrafectors -> EVO", ImVec2(W, 0))) {}
+
             ImGui::DragFloat("jp2 quality", &bake.quality, 0.0001f, 0.0001f, 0.01f, "%3.5f");
-            //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
-            //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
+            if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake_start(); }
             break;
 
         }
@@ -651,7 +736,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         }
         tfPanel.release();
     }
-        break;
+    break;
     case 3:
         if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
         {
@@ -689,7 +774,10 @@ void terrainManager::onGuiRender(Gui* _gui)
     if (!ImGui::IsAnyWindowHovered())
     {
         char TTTEXT[1024];
-        sprintf(TTTEXT, "%d (%3.1f, %3.1f, %3.1f)\n", split.feedback.tum_idx, split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z);
+        uint idx = split.feedback.tum_idx;
+        sprintf(TTTEXT, "[%d] - %d %d %d\n(%3.1f, %3.1f, %3.1f)\n%s\n", idx, m_tiles[idx].lod, m_tiles[idx].y, m_tiles[idx].x,
+            split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
+            blockFromPositionB(split.feedback.tum_Position).c_str());
         //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
         ImGui::SetTooltip(TTTEXT);
     }
@@ -841,6 +929,10 @@ void terrainManager::gisReload(glm::vec3 _position)
         gis_overlay.texture = Texture::createFromFile(path, true, true, Resource::BindFlags::ShaderResource);
 
         gis_overlay.box = glm::vec4(-350 - (settings.size / 2.0f) + x * 2500, -350 - (settings.size / 2.0f) + z * 2500, 3200, 3200);    // fixme this sort of asumes 40 x 40 km
+
+        terrainShader.Vars()->setTexture("gGISAlbedo", gis_overlay.texture);
+        terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)gis_overlay.show;
+        terrainShader.Vars()["PerFrameCB"]["gisBox"] = gis_overlay.box;
     }
 }
 
@@ -898,6 +990,14 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::m
 
 bool terrainManager::update(RenderContext* _renderContext)
 {
+    FALCOR_PROFILE("update");
+
+    if (bake.inProgress)
+    {
+        bake.renderContext = _renderContext;
+        bake_frame();
+    }
+
     bool dirty = false;
 
     updateDynamicRoad(false);
@@ -1107,6 +1207,54 @@ void terrainManager::splitOne(RenderContext* _renderContext)
                 }
                 return;
             }
+            
+        }
+    }
+
+    
+    {
+        FALCOR_PROFILE("split");
+        {
+            FALCOR_PROFILE("cs_tile_SplitMerge");
+        }
+        {
+            FALCOR_PROFILE("extract_all");
+            {
+                FALCOR_PROFILE("bicubic");
+            }
+            {
+                FALCOR_PROFILE("renderTopdown");
+            }
+            {
+                FALCOR_PROFILE("compute");
+                {
+                    FALCOR_PROFILE("copy_VERT");
+                }
+                {
+                    FALCOR_PROFILE("compress_copy_Albedo");
+                }
+                {
+                    FALCOR_PROFILE("normals");
+                }
+                {
+                    FALCOR_PROFILE("MIP_heights");
+                }
+                {
+                    FALCOR_PROFILE("copy_PBR");
+                }
+                {
+                    FALCOR_PROFILE("verticies");
+                }
+                {
+                    FALCOR_PROFILE("copy normals");
+                }
+                {
+                    FALCOR_PROFILE("jumpflood");
+                }
+                {
+                    FALCOR_PROFILE("delaunay");
+                }
+            }
         }
     }
 }
@@ -1121,7 +1269,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
     {
         // why is it nessesary to clear before bicubic
-        _renderContext->clearFbo(split.tileFbo.get(), glm::vec4(0.2f, 0.9f, 0.2f, 1.0f), 1.0f, 0, FboAttachmentType::All);
+        //_renderContext->clearFbo(split.tileFbo.get(), glm::vec4(0.2f, 0.2f, 0.2f, 1.0f), 1.0f, 0, FboAttachmentType::All);
     }
 
 
@@ -1163,9 +1311,11 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         {
             // compress and copy colour data
             FALCOR_PROFILE("compress_copy_Albedo");
-            split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(1));
-            split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
-            _renderContext->copySubresource(compressed_Albedo_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
+            //split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(1));
+            //split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
+            //_renderContext->copySubresource(compressed_Albedo_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
+
+            _renderContext->copySubresource(compressed_Albedo_Array.get(), _tile->index, split.tileFbo->getColorTexture(1).get(), 0);
         }
 
         {
@@ -1276,60 +1426,81 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     float s = _pTile->size / 2.0f;
     float x = _pTile->origin.x + s;
     float z = _pTile->origin.z + s;
-    rmcv::mat4 view, proj;
-    view[0] = glm::vec4(1, 0, 0, 0);
-    view[1] = glm::vec4(0, 0, 1, 0);
-    view[2] = glm::vec4(0, -1, 0, 0);
-    view[3] = glm::vec4(-x, z, 0, 1);
+    glm::mat4 V, P, VP;
+    V[0] = glm::vec4(1, 0, 0, 0);
+    V[1] = glm::vec4(0, 0, 1, 0);
+    V[2] = glm::vec4(0, -1, 0, 0);
+    V[3] = glm::vec4(-x, z, 0, 1);
 
     s *= 256.0f / 248.0f;
+    P = glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f);
 
-    if (_pTile->lod == 6 && _pTile->y == 41 && _pTile->x == 33)
-    {
-        bool bCM = true;
+    //viewproj = view * proj;
+    VP = P * V;    //??? order
+
+    rmcv::mat4 view, proj, viewproj;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            view[j][i] = V[j][i];
+            proj[j][i] = P[j][i];
+            viewproj[j][i] = VP[j][i];
+        }
     }
-    split.tileCamera->setViewMatrix(view);
 
-    proj = rmcv::toRMCV(glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f));
-    split.tileCamera->setProjectionMatrix(proj);
-    split.tileCamera->getData();
 
-    //terrafectors.render(_renderContext, split.tileCamera, mpTileGraphicsState, mpTileTopdownVars);
+    if (_pTile->lod >= 4)
+    {
+        quadtree_tile* P4 = _pTile;
+        while (P4->lod > 4) P4 = P4->parent;
+        uint lod4Index = P4->y * 16 + P4->x;
+        gpuTileTerrafector* tile = terrafectorElement::meshLoadCombiner.getTile(lod4Index);
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+            split.shader_meshTerrafector.State()->setRasterizerState(split.rasterstateSplines);
+            split.shader_meshTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
+            split.shader_meshTerrafector.State()->setDepthStencilState(split.depthstateAll);
+
+            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+
+            auto& block = split.shader_meshTerrafector.Vars()->getParameterBlock("gmyTextures");
+            ShaderVar& var = block->findMember("T");        // FIXME pre get
+            terrafectorEditorMaterial::static_materials.setTextures(var);
+
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            /*  we can likely get this faster by splitting finer, triangle count still hurting us on most splits
+                */
+        }
+    }
 
     //??? should probably be in the roadnetwork code, but look at the optimize step first
     if (splineAsTerrafector)           // Now render the roadNetwork
     {
-        //auto& block = split.shader_splineTerrafector.Vars()->getParameterBlock("gmyTextures");
-        //ShaderVar& var = block->findMember("T");
-        //terrafectorEditorMaterial::static_materials.setTextures(var);
 
-
+        split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
         split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
-
-        split.shader_splineTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
-
-        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["view"] = view;
-        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["proj"] = proj;
-        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["viewproj"] = proj * view;
-        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["numSubdiv"] = split.numSubdiv;
-        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["bHidden"] = 0;
-        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["dLeft"] = 0.0f;
-        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["dRight"] = 0.0f;
-        //split.shader_splineTerrafector.Vars()["gConstantBuffer"]["colour"] = float4(0.01, 0.01, 0.01, 0.5);
-
-        // Visible ********************************************************************************
         split.shader_splineTerrafector.State()->setDepthStencilState(split.depthstateAll);
-
         split.shader_splineTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
+
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+
+        auto& block = split.shader_splineTerrafector.Vars()->getParameterBlock("gmyTextures");
+        ShaderVar& var = block->findMember("T");        // FIXME pre get
+        terrafectorEditorMaterial::static_materials.setTextures(var);
+
         split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData);
         split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
-        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, split.numSubdiv * 6, splines.numIndex);
+        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
     }
+    
 }
 
 
 
-void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState)
+void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport)
 {
     //gisReload(_camera->getPosition());
 
@@ -1349,44 +1520,11 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     {
         FALCOR_PROFILE("terrainManager");
 
-        _graphicsState->setFbo(_fbo);
-
-        terrainShader.State() = _graphicsState;
+        //terrainShader.State() = _graphicsState;
         terrainShader.State()->setFbo(_fbo);
-
-        terrainShader.Vars()->setTexture("gAlbedoArray", compressed_Albedo_Array);
-        terrainShader.Vars()->setTexture("gPBRArray", compressed_PBR_Array);
-        terrainShader.Vars()->setTexture("gNormArray", compressed_Normals_Array);
-        terrainShader.Vars()->setTexture("gGISAlbedo", gis_overlay.texture);
-
-        terrainShader.Vars()->setSampler("gSmpAniso", sampler_ClampAnisotropic);
-
-        terrainShader.Vars()->setBuffer("VB", split.buffer_terrain);
-
-        terrainShader.Vars()["gConstantBuffer"]["view"] = view;
-        terrainShader.Vars()["gConstantBuffer"]["proj"] = proj;
+        terrainShader.State()->setViewport(0, _viewport, true);
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
-
-
-        terrainShader.Vars()["PerFrameCB"]["gisOverlayStrength"] = gis_overlay.strenght;
-        terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)gis_overlay.show;
-        terrainShader.Vars()["PerFrameCB"]["gisBox"] = gis_overlay.box;
-
-        terrainShader.Vars()["PerFrameCB"]["redStrength"] = gis_overlay.redStrength;
-        terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
-        terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
-
-        /*
-        terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
-        */
-        /*
-        terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", nearInscatter);
-        terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", nearOutscatter);
-        terrainShader.Vars()->setTexture("gAtmosphereInscatter", farInscatter);
-        terrainShader.Vars()->setTexture("gAtmosphereOutscatter", farOutscatter);
-        */
-
         terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
     }
 
@@ -1398,9 +1536,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         split.shader_spline3D.State()->setRasterizerState(split.rasterstateSplines);
         split.shader_spline3D.State()->setBlendState(split.blendstateSplines);
         split.shader_spline3D.State()->setDepthStencilState(split.depthstateAll);
+        split.shader_spline3D.State()->setViewport(0, _viewport, true);
 
-        split.shader_spline3D.Vars()["gConstantBuffer"]["view"] = view;
-        split.shader_spline3D.Vars()["gConstantBuffer"]["proj"] = proj;
+        //split.shader_spline3D.Vars()["gConstantBuffer"]["view"] = view;
+        //split.shader_spline3D.Vars()["gConstantBuffer"]["proj"] = proj;
         split.shader_spline3D.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
 
         split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
@@ -1426,7 +1565,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     {
         FALCOR_PROFILE("sprites");
         if (showRoadOverlay) {
-            mSpriteRenderer.onRender(_camera, _renderContext, _fbo, nullptr);
+            mSpriteRenderer.onRender(_camera, _renderContext, _fbo, _viewport, nullptr);
         }
 
     }
@@ -1492,6 +1631,490 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
 
+void terrainManager::bake_start()
+{
+    char name[256];
+    sprintf(name, "%s//bake//EVO//tiles.txt", settings.dirRoot.c_str());
+    bake.txt_file = fopen(name, "w");
+    bake.tileInfoForBinaryExport.clear();
+    bake.inProgress = true;
+
+    elevationMap oneTile;
+    uint total = (uint)elevationTileHashmap.size();
+    std::map<uint32_t, heightMap>::iterator itt;
+
+    for (itt = elevationTileHashmap.begin(); itt != elevationTileHashmap.end(); itt++)
+    {
+
+        if (itt->second.lod < 3) {
+            oneTile.lod = itt->second.lod;
+            oneTile.y = itt->second.y;
+            oneTile.x = itt->second.x;
+            oneTile.origin = itt->second.origin;
+            oneTile.tileSize = itt->second.size;
+            oneTile.heightOffset = itt->second.hgt_offset;
+            oneTile.heightScale = itt->second.hgt_scale;
+
+            bake.tileInfoForBinaryExport.push_back(oneTile);
+            fprintf(bake.txt_file, "%d %d %d %d %f %f, size %f, (%f, %f)\n", oneTile.lod, oneTile.y, oneTile.x, split.bakeSize, oneTile.heightOffset, oneTile.heightScale, oneTile.tileSize, oneTile.origin.x, oneTile.origin.y);
+        }
+    }
+
+    bake.tileHash.clear();
+
+    for (uint lod = 4; lod < 16; lod++) {
+        uint size = 1 << lod;
+        unsigned char value;
+
+        sprintf(name, "%s//bake//lod%d.raw", settings.dirRoot.c_str(), lod);
+        FILE* tilemap = fopen(name, "rb");
+        if (tilemap) {
+            for (uint y = 0; y < size; y++) {
+                for (uint x = 0; x < size; x++) {
+                    fread(&value, 1, 1, tilemap);
+                    if (value == 255) {
+                        bake.tileHash.push_back(getHashFromTileCoords(lod, y, x));
+                    }
+                }
+            }
+
+            fclose(tilemap);
+        }
+    }
+    bake.itterator = bake.tileHash.begin();
+}
+
+
+
+void terrainManager::bake_frame()
+{
+    if (bake.inProgress)
+    {
+        uint32_t hash = *bake.itterator;
+        uint32_t lod = hash >> 28;
+        bake_Setup(0.0f, lod, (hash >> 14) & 0x3FFF, hash & 0x3FFF, bake.renderContext);
+
+        bake.itterator++;
+        if (bake.itterator == bake.tileHash.end()) {
+            bake.inProgress = false;
+            fclose(bake.txt_file);
+
+            // the end. Now save tileInfoForBinaryExport
+            char name[256];
+            sprintf(name, "%s//bake//EVO//tiles.list", settings.dirRoot.c_str());
+            FILE* info_file = fopen(name, "wb");
+            if (info_file) {
+                fwrite(&bake.tileInfoForBinaryExport[0], sizeof(elevationMap), bake.tileInfoForBinaryExport.size(), info_file);
+                fclose(info_file);
+            }
+
+            sprintf(name, "attrib -r \"%s\\Elevations\\*.*\"", settings.dirExport.c_str());
+            system(name);
+            sprintf(name, "copy /Y \"%s\\bake\\EVO\\*.*\" \"%s\\Elevations\\\"", settings.dirRoot.c_str(), settings.dirExport.c_str());
+            system(name);
+        }
+    }
+}
+
+
+
+
+void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, RenderContext* _renderContext)
+{
+    uint32_t hashParent = 0;
+    uint32_t hashLod = _lod;
+    uint32_t hashY = _y;
+    uint32_t hashX = _x;
+    std::map<uint32_t, heightMap>::iterator it_Bicubic;
+
+    hashParent = getHashFromTileCoords(hashLod, hashY, hashX);
+    it_Bicubic = elevationTileHashmap.find(hashParent);
+    while (it_Bicubic == elevationTileHashmap.end())
+    {
+        hashLod -= 1;
+        hashY = hashY >> 1;
+        hashX = hashX >> 1;
+        hashParent = getHashFromTileCoords(hashLod, hashY, hashX);
+        it_Bicubic = elevationTileHashmap.find(hashParent);
+    }
+
+    if (it_Bicubic != elevationTileHashmap.end())
+    {
+        if (hashParent > 0)			// now search for it and cache it
+        {
+            textureCacheElement map;
+
+            if (!elevationCache.get(hashParent, map))
+            {
+                std::array<unsigned short, 1048576> data;
+
+                ojph::codestream codestream;
+                ojph::j2c_infile j2c_file;
+                j2c_file.open(elevationTileHashmap[hashParent].filename.c_str());
+                codestream.enable_resilience();
+                codestream.set_planar(false);
+                codestream.read_headers(&j2c_file);
+                codestream.create();
+                int next_comp;
+
+                for (int i = 0; i < 1024; ++i)
+                {
+                    ojph::line_buf* line = codestream.pull(next_comp);
+                    int32_t* dp = line->i32;
+                    for (int j = 0; j < 1024; j++) {
+                        int16_t val = (int16_t)*dp++;
+                        data[i * 1024 + j] = val;
+                    }
+                }
+                codestream.close();
+
+                map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::R16Unorm, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
+                elevationCache.set(hashParent, map);
+            }
+
+            split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
+        }
+
+        const uint32_t cs_w = split.bakeSize / tile_cs_ThreadSize;
+
+        const float size = (40000.0F / (1 << _lod));
+        const float outerSize = size * tile_numPixels / tile_InnerPixels;
+        const float pixelSize = outerSize / split.bakeSize;
+        const float2 origin = float2(-20000, -20000) + float2(_x * size, _y * size) - float2(pixelSize * 4 * 4, pixelSize * 4 * 4);
+
+        {
+            const glm::vec4 clearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            _renderContext->clearFbo(split.bakeFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+        }
+
+        {
+            textureCacheElement map;
+            if (!elevationCache.get(hashParent, map)) {
+                split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
+            }
+
+            heightMap& elevationMap = elevationTileHashmap[hashParent];
+
+            // FIXME this is ghorrible 
+            // cs_tile_Bicubic takes the inner tile coordinates, and compensates for 4 pixerls internall
+            // so if we compendate for 12 here the other 4 is in teh shader
+            const float2 originBC = float2(-20000, -20000) + float2(_x * size, _y * size) - float2(pixelSize * 4 * 3, pixelSize * 4 * 3);
+            float2 bicubicOffset = (originBC - elevationMap.origin) / elevationMap.size;
+            float S = pixelSize / elevationMap.size;
+            float2 bicubicSize = float2(S, S);
+
+            split.compute_tileBicubic.Vars()["gConstants"]["offset"] = bicubicOffset;
+            split.compute_tileBicubic.Vars()["gConstants"]["size"] = bicubicSize;
+            split.compute_tileBicubic.Vars()["gConstants"]["hgt_offset"] = elevationMap.hgt_offset;
+            split.compute_tileBicubic.Vars()["gConstants"]["hgt_scale"] = elevationMap.hgt_scale;
+            
+
+            split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.bakeFbo->getColorTexture(0));
+
+            split.compute_tileBicubic.dispatch(_renderContext, cs_w, cs_w);
+
+            split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.tileFbo->getColorTexture(0));
+        }
+
+        bake_RenderTopdown(_size, _lod, _y, _x, _renderContext);
+
+        // FIXME MAY HAVE TO ECOTOPE SHADER in future
+
+        _renderContext->flush(true);
+
+        char outName[512];
+
+
+        _renderContext->resourceBarrier(split.bakeFbo->getColorTexture(0).get(), Resource::State::CopySource);
+        uint32_t subresource = bake.copy_texture->getSubresourceIndex(0, 0);
+        std::vector<glm::uint8> textureData = gpDevice->getRenderContext()->readTextureSubresource(split.bakeFbo->getColorTexture(0).get(), 0);
+        float* pF = (float*)textureData.data();
+        uint ret_size = (uint)textureData.size();
+        float A = pF[0];
+        float B = pF[1000];
+        float C = pF[10000];
+        float D = pF[30000];
+        bool bCM = true;
+
+
+
+        // find minmax
+        float max = 0;
+        float min = 100000000;
+        for (int y = 0; y < split.bakeSize * split.bakeSize; y++) {
+            if (pF[y] < min) min = pF[y];
+            if (pF[y] > max) max = pF[y];
+        }
+
+        min -= 0.5f;
+        float range = max - min + 0.5f;
+
+        fprintf(bake.txt_file, "%d %d %d %d %f %f %f, size %f, (%f, %f)\n", _lod, _y, _x, split.bakeSize, min, max, range, outerSize, origin.x, origin.y);
+
+        elevationMap oneTile;
+        oneTile.lod = _lod;
+        oneTile.y = _y;
+        oneTile.x = _x;
+        oneTile.origin = origin;
+        oneTile.tileSize = outerSize;
+        oneTile.heightOffset = min;
+        oneTile.heightScale = range;
+
+        bake.tileInfoForBinaryExport.push_back(oneTile);
+
+        // Now output JP2
+        {
+            //// FIXME load from settings file CEREAL
+            sprintf(outName, "%s//bake//EVO//hgt_%d_%d_%d.jp2", settings.dirRoot.c_str(), _lod, _y, _x);
+            ojph::codestream codestream;
+            ojph::j2c_outfile j2c_file;
+            j2c_file.open(outName);
+
+            {
+                // set up
+                ojph::param_siz siz = codestream.access_siz();
+                siz.set_image_extent(ojph::point(split.bakeSize, split.bakeSize));
+                siz.set_num_components(1);
+                siz.set_component(0, ojph::point(1, 1), 16, false);		//??? unsure about the subsampling point()
+                siz.set_image_offset(ojph::point(0, 0));
+                siz.set_tile_size(ojph::size(split.bakeSize, split.bakeSize));
+                siz.set_tile_offset(ojph::point(0, 0));
+
+                ojph::param_cod cod = codestream.access_cod();
+                cod.set_num_decomposition(5);
+                cod.set_block_dims(64, 64);
+                //if (num_precints != -1)
+                //	cod.set_precinct_size(num_precints, precinct_size);
+                cod.set_progression_order("RPCL");
+                cod.set_color_transform(false);
+                cod.set_reversible(false);
+                codestream.access_qcd().set_irrev_quant(bake.quality);
+
+
+                {
+                    codestream.write_headers(&j2c_file);
+
+                    int next_comp;
+                    ojph::line_buf* cur_line = codestream.exchange(NULL, next_comp);
+
+                    for (uint i = 0; i < split.bakeSize; ++i)
+                    {
+
+                        int32_t* dp = cur_line->i32;
+                        for (uint j = 0; j < split.bakeSize; j++) {
+                            float fVal = pF[i * 1024 + j];
+                            int32_t shortVal = (unsigned short)((fVal - min) / range * 65536.0f);
+                            *dp++ = shortVal;
+                        }
+                        cur_line = codestream.exchange(cur_line, next_comp);
+                    }
+                }
+
+            }
+            codestream.flush();
+            codestream.close();
+        }
+    }
+
+}
+
+
+
+
+void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x, RenderContext* _renderContext)
+{
+    float terrainSize = 40000.0f;
+    uint gridSize = (uint)pow(2, _lod);
+    float tileSize = terrainSize / gridSize;
+    float tileOuterSize = tileSize * 256.0f / 248.0f;
+
+    // set up the camera -----------------------
+    float s = tileOuterSize / 2.0f;
+    float x = (_x + 0.5f) * tileSize - (terrainSize / 2.0f);
+    float z = (_y + 0.5f) * tileSize - (terrainSize / 2.0f);
+    glm::mat4 V, P, VP;
+    V[0] = glm::vec4(1, 0, 0, 0);
+    V[1] = glm::vec4(0, 0, 1, 0);
+    V[2] = glm::vec4(0, -1, 0, 0);
+    V[3] = glm::vec4(-x, z, 0, 1);
+
+    s *= 256.0f / 248.0f;
+    P = glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f);
+
+    //viewproj = view * proj;
+    VP = P * V;    //??? order
+
+    rmcv::mat4 view, proj, viewproj;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            view[j][i] = V[j][i];
+            proj[j][i] = P[j][i];
+            viewproj[j][i] = VP[j][i];
+        }
+    }
+
+
+    if (_lod >= 4)
+    {
+        uint lod4Index = (_y >> (_lod - 4) * 16) + (_x >> (_lod - 4));
+        gpuTileTerrafector* tile = terrafectorElement::meshLoadCombiner.getTile(lod4Index);
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+            split.shader_meshTerrafector.State()->setRasterizerState(split.rasterstateSplines);
+            split.shader_meshTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
+            split.shader_meshTerrafector.State()->setDepthStencilState(split.depthstateAll);
+
+            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["view"] = view;
+            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["proj"] = proj;
+            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+
+            split.shader_meshTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+
+            auto& block = split.shader_meshTerrafector.Vars()->getParameterBlock("gmyTextures");
+            ShaderVar& var = block->findMember("T");        // FIXME pre get
+            terrafectorEditorMaterial::static_materials.setTextures(var);
+
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+        }
+    }
+
+    //??? should probably be in the roadnetwork code, but look at the optimize step first
+    //if (splineAsTerrafector)           // Now render the roadNetwork
+    {
+
+        split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
+        split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
+        split.shader_splineTerrafector.State()->setDepthStencilState(split.depthstateAll);
+        split.shader_splineTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
+
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+
+        auto& block = split.shader_splineTerrafector.Vars()->getParameterBlock("gmyTextures");
+        ShaderVar& var = block->findMember("T");        // FIXME pre get
+        terrafectorEditorMaterial::static_materials.setTextures(var);
+
+        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData);
+        split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
+        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
+    }
+
+}
+
+
+
+void terrainManager::sceneToMax()
+{
+
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"obj"} };
+    if (saveFileDialog(filters, path))
+    {
+
+        char filename[1024];
+        uint numMeshes = 0;
+        for (auto& tile : m_used)
+        {
+            bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr && (tile->lod >= exportLodMin) && (tile->lod <= exportLodMax);
+            if (surface)
+            {
+                numMeshes++;
+                //sprintf(filename, "F:/_sceneTest/albedo_%d.jpg", tile->index);
+                //compressed_Albedo_Array->captureToFile(0, tile->index, filename, Bitmap::FileFormat::JpegFile, Bitmap::ExportFlags::None);
+            }
+        }
+
+        aiScene* scene = new aiScene;
+        scene->mRootNode = new aiNode();
+
+        scene->mMaterials = new aiMaterial * [numMeshes];
+        scene->mNumMaterials = numMeshes;
+
+        scene->mMeshes = new aiMesh * [numMeshes];
+        scene->mRootNode->mMeshes = new unsigned int[numMeshes];
+        for (int i = 0; i < numMeshes; i++)
+        {
+            scene->mMeshes[i] = nullptr;
+            scene->mRootNode->mMeshes[i] = i;
+        }
+        scene->mNumMeshes = numMeshes;
+        scene->mRootNode->mNumMeshes = numMeshes;
+
+
+        uint meshCount = 0;
+        for (auto& tile : m_used)
+        {
+            bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr && (tile->lod >= exportLodMin) && (tile->lod <= exportLodMax);
+            if (surface)
+            {
+                scene->mMaterials[meshCount] = new aiMaterial();
+                scene->mMeshes[meshCount] = new aiMesh();
+                scene->mMeshes[meshCount]->mMaterialIndex = meshCount;
+                auto pMesh = scene->mMeshes[meshCount];
+
+                pMesh->mFaces = new aiFace[255 * 255];
+                pMesh->mNumFaces = 255 * 255;
+                pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
+
+                for (uint j = 0; j < 255; j++)
+                {
+                    for (uint i = 0; i < 255; i++)
+                    {
+                        aiFace& face = pMesh->mFaces[j * 255 + i];
+
+                        face.mIndices = new unsigned int[4];
+                        face.mNumIndices = 4;
+
+                        face.mIndices[0] = (j * 256) + (i);
+                        face.mIndices[1] = (j * 256) + (i + 1);
+                        face.mIndices[2] = (j * 256) + 256 + (i + 1);
+                        face.mIndices[3] = (j * 256) + 256 + (i);
+                    }
+                }
+
+                pMesh->mVertices = new aiVector3D[256 * 256];
+                pMesh->mNumVertices = 256 * 256;
+
+                std::vector<glm::uint8> textureData = gpDevice->getRenderContext()->readTextureSubresource(height_Array.get(), tile->index);
+                float* pF = (float*)textureData.data();
+                uint ret_size = (uint)textureData.size();
+
+                for (uint y = 0; y < 256; y++)
+                {
+                    for (uint x = 0; x < 256; x++)
+                    {
+                        uint index = y * 256 + x;
+                        pMesh->mVertices[index] = aiVector3D(tile->origin.x + x * tile->size / 248.0f, pF[index], tile->origin.z + y * tile->size / 248.0f);
+                    }
+                }
+                /*
+                sprintf(filename, "F:/_sceneTest/hgt_%d.raw", tile->index);
+                FILE* file = fopen(filename, "wb");
+                if (file) {
+                    fwrite(pF, sizeof(float), tile_numPixels * tile_numPixels, file);
+                    fclose(file);
+                }
+                */
+
+                meshCount++;
+            }
+        }
+
+
+        Exporter exp;
+        exp.Export(scene, "obj", path.string());
+    }
+
+
+    //sprintf(filename, "F:/_sceneTest/test.obj");
+    //exp.Export(scene, "obj", filename);
+}
+
+
+
 void terrainManager::updateDynamicRoad(bool _bezierChanged) {
     // active road ----------------------------------------------------------------------------------------------------------------
     splineTest.bSegment = false;
@@ -1538,7 +2161,7 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
         mRoadNetwork.currentRoad->testAgainstPoint(&splineTest);
 
         // mouse to spline markers ---------------------------------------------------------------------------------------
-        
+
         if (splineTest.bVertex) {
             mSpriteRenderer.pushMarker(splineTest.returnPos, 4, 3.0f);
         }
@@ -1570,13 +2193,13 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
         }
 
         mSpriteRenderer.loadDynamic();
-        
+
     }
 
 
 
 
-    
+
 
     if (mRoadNetwork.currentIntersection)
     {
@@ -1716,7 +2339,7 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
 
         mSpriteRenderer.loadDynamic();
     }
-    
+
 }
 
 
@@ -1772,6 +2395,9 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                 {
                     switch (keyEvent.key)
                     {
+                    case Input::Key::R:
+                        terrafectors.loadPath(settings.dirRoot + "/terrafectors/");
+                        break;
                     case Input::Key::C:		// copy
                         if (splineTest.bVertex) {
                             mRoadNetwork.copyVertex(splineTest.index);
@@ -1964,105 +2590,108 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 }
 
 
-bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera)
+bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera)
 {
     bool bEdit = onMouseEvent_Roads(mouseEvent, _screenSize, _camera);
 
     if (!bEdit)
     {
-        glm::vec2 pos = mouseEvent.pos;
-        pos.y = 1.0 - pos.y;
-        glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
-        glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
-        mouseDirection = glm::normalize(F - N);
-        screenSize = _screenSize;
-        mousePosition = _camera->getPosition();
-        mouseCoord = mouseEvent.pos * _screenSize;
-
-
-
-        switch (mouseEvent.type)
+        glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
+        if (pos.x > 0 && pos.x < 1 && pos.y > 0 && pos.y < 1)
         {
-        case MouseEvent::Type::Move:
-        {
-            //if (bRightButton)  // PAN
-            if (ImGui::IsMouseDown(1))
-            {
-                glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
-                glm::vec3 deltaPos = newPos - _camera->getPosition();
-
-                glm::vec3 newTarget = _camera->getTarget() + deltaPos;
-                _camera->setPosition(newPos);
-                _camera->setTarget(newTarget);
-                hasChanged = true;
-            }
-
-            // orbit
-            if (ImGui::IsMouseDown(2))
-            {
-                glm::vec3 D = _camera->getTarget() - _camera->getPosition();
-                glm::vec3 U = glm::vec3(0, 1, 0);
-                glm::vec3 R = glm::normalize(glm::cross(U, D));
-                glm::vec2 diff = pos - mousePositionOld;
-                glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
-
-                glm::vec3 Dnorm = glm::normalize(D);
-                if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
-                if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
-
-                glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
-                mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
-                glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
-
-                _camera->setPosition(mouse.orbit - mouse.toGround);
-                _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
-                hasChanged = true;
-            }
-            mousePositionOld = pos;
-        }
-        break;
-        case MouseEvent::Type::Wheel:
-        {
-            if (mouse.hit)
-            {
-                float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
-                mouse.toGround *= scale;
-                glm::vec3 newPos = mouse.terrain - mouse.toGround;
-                glm::vec3 deltaPos = newPos - _camera->getPosition();
-                glm::vec3 newTarget = _camera->getTarget() + deltaPos;
-
-                _camera->setPosition(newPos);
-                _camera->setTarget(newTarget);
-                hasChanged = true;
-            }
-        }
-        break;
-        case MouseEvent::Type::ButtonDown:
-        {
-            if (mouseEvent.button == Input::MouseButton::Middle)
-            {
-                mouse.orbitRadius = glm::length(mouse.toGround);
-            }
-        }
-        break;
-        case MouseEvent::Type::ButtonUp:
-        {
-        }
-        break;
-        }
-
-
-        // rebuild from new camera
-        {
+            pos.y = 1.0 - pos.y;
             glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
             glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
             mouseDirection = glm::normalize(F - N);
             screenSize = _screenSize;
             mousePosition = _camera->getPosition();
             mouseCoord = mouseEvent.pos * _screenSize;
-        }
 
-        return false;
+
+
+            switch (mouseEvent.type)
+            {
+            case MouseEvent::Type::Move:
+            {
+                //if (bRightButton)  // PAN
+                if (ImGui::IsMouseDown(1))
+                {
+                    glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
+                    glm::vec3 deltaPos = newPos - _camera->getPosition();
+
+                    glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+                    _camera->setPosition(newPos);
+                    _camera->setTarget(newTarget);
+                    hasChanged = true;
+                }
+
+                // orbit
+                if (ImGui::IsMouseDown(2))
+                {
+                    glm::vec3 D = _camera->getTarget() - _camera->getPosition();
+                    glm::vec3 U = glm::vec3(0, 1, 0);
+                    glm::vec3 R = glm::normalize(glm::cross(U, D));
+                    glm::vec2 diff = pos - mousePositionOld;
+                    glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
+
+                    glm::vec3 Dnorm = glm::normalize(D);
+                    if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
+                    if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
+
+                    glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
+                    mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
+                    glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
+
+                    _camera->setPosition(mouse.orbit - mouse.toGround);
+                    _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
+                    hasChanged = true;
+                }
+                mousePositionOld = pos;
+            }
+            break;
+            case MouseEvent::Type::Wheel:
+            {
+                if (mouse.hit)
+                {
+                    float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
+                    mouse.toGround *= scale;
+                    glm::vec3 newPos = mouse.terrain - mouse.toGround;
+                    glm::vec3 deltaPos = newPos - _camera->getPosition();
+                    glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+
+                    _camera->setPosition(newPos);
+                    _camera->setTarget(newTarget);
+                    hasChanged = true;
+                }
+            }
+            break;
+            case MouseEvent::Type::ButtonDown:
+            {
+                if (mouseEvent.button == Input::MouseButton::Middle)
+                {
+                    mouse.orbitRadius = glm::length(mouse.toGround);
+                }
+            }
+            break;
+            case MouseEvent::Type::ButtonUp:
+            {
+            }
+            break;
+            }
+
+
+            // rebuild from new camera
+            {
+                glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+                glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+                mouseDirection = glm::normalize(F - N);
+                screenSize = _screenSize;
+                mousePosition = _camera->getPosition();
+                mouseCoord = mouseEvent.pos * _screenSize;
+            }
+
+            return false;
+        }
     }
     return true;
 }

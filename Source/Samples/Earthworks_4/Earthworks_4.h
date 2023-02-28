@@ -48,10 +48,12 @@ public:
 private:
     void guiStyle();
 
-    GraphicsState::Viewport viewport3d;
-    float2                              screenSize;
+    GraphicsState::Viewport     viewport3d;
+    float2                      screenSize;
+    float2                      screenMouseScale;
+    float2                      screenMouseOffset;
     Fbo::SharedPtr		        hdrFbo;
-    Texture::SharedPtr	    hdrHalfCopy;
+    Texture::SharedPtr	        hdrHalfCopy;
 
     GraphicsState::SharedPtr    graphicsState;
     //ToneMapper::SharedPtr		toneMapper;

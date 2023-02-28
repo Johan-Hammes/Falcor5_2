@@ -1,6 +1,6 @@
 #pragma once
 
-#define tile_cs_ThreadSize 16
+#define tile_cs_ThreadSize 8
 #define tile_cs_ThreadSize_Generate 8
 
 #define tile_numPixels 256

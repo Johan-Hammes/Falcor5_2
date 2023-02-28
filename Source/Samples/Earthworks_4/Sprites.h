@@ -36,7 +36,7 @@ public:
 
 	_spriteVertex_packed pack(_spriteVertex v, bool cache);
 	void onLoad();
-	void onRender(Camera::SharedPtr camera, RenderContext* _renderContext, Fbo::SharedPtr fbo, Texture::SharedPtr	mcubeWorld);
+	void onRender(Camera::SharedPtr camera, RenderContext* _renderContext, Fbo::SharedPtr fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr	mcubeWorld);
 
 	void loadBlob();
 	void loadSV(_spriteVertex *pSV, glm::vec3 pos, glm::vec3 up, float width, UCHAR u, UCHAR v, CHAR du, UCHAR dv, float AO, float shadow, bool bFreeRotate);

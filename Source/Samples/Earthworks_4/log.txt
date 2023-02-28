@@ -1,0 +1,46 @@
+
+
+terrafectorSystem::loadPath(X:/resources/terrains/eifel/terrafectors/)
+###################################################################
+  BAKE_ONLY
+  base
+  landuse
+  add mesh - X:/resources/terrains/eifel/terrafectors/base/landuse/buildings.obj
+    add Material[0] - DefaultMaterial.terrafectorMaterial
+      TexturesCom_Pavement_CobblestoneStreet2_3x3_4K_albedo.png
+    add Material[1] - building_placements_main.terrafectorMaterial
+      Concrete_Base10_2x2_ao.png
+  add mesh - X:/resources/terrains/eifel/terrafectors/base/landuse/landuses.obj
+    materialCache - found (DefaultMaterial.terrafectorMaterial)
+    add Material[2] - landuse_barren.terrafectorMaterial
+    add Material[3] - landuse_cemetery.terrafectorMaterial
+    add Material[4] - landuse_farmland0.terrafectorMaterial
+    add Material[5] - landuse_farmland1.terrafectorMaterial
+    add Material[6] - landuse_farmland2.terrafectorMaterial
+    add Material[7] - landuse_footpath.terrafectorMaterial
+    add Material[8] - landuse_garden.terrafectorMaterial
+    add Material[9] - landuse_grassland.terrafectorMaterial
+    add Material[10] - landuse_hardwood.terrafectorMaterial
+    add Material[11] - landuse_industrial.terrafectorMaterial
+    add Material[12] - landuse_infrastructure.terrafectorMaterial
+    add Material[13] - landuse_mixedwood.terrafectorMaterial
+    add Material[14] - landuse_moor.terrafectorMaterial
+    add Material[15] - landuse_none.terrafectorMaterial
+    add Material[16] - landuse_orchard.terrafectorMaterial
+    add Material[17] - landuse_quarry.terrafectorMaterial
+    add Material[18] - landuse_recreational.terrafectorMaterial
+    add Material[19] - landuse_residential.terrafectorMaterial
+    add Material[20] - landuse_softwood.terrafectorMaterial
+    add Material[21] - landuse_transport.terrafectorMaterial
+    add Material[22] - landuse_wasteland.terrafectorMaterial
+    add Material[23] - landuse_water.terrafectorMaterial
+  tracks
+  global_terrafectors
+  add mesh - X:/resources/terrains/eifel/terrafectors/base/tracks/global_terrafectors/terrafector_for_meshes.fbx
+    add Material[24] - gradient_alpha.terrafectorMaterial
+  add mesh - X:/resources/terrains/eifel/terrafectors/base/tracks/global_terrafectors/terrafector_park_nords.fbx
+    materialCache - found (gradient_alpha.terrafectorMaterial)
+  add mesh - X:/resources/terrains/eifel/terrafectors/base/tracks/global_terrafectors/tunnel_old_entrance.fbx
+    materialCache - found (gradient_alpha.terrafectorMaterial)
+  roads
+  top

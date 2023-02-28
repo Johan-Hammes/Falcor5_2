@@ -228,8 +228,8 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	
 	//mat.AO = PBR.b;
 	
-	//mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
-    mat.diff.rgb = 0.5;
+	mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
+   // mat.diff.rgb = 0.5;
     //float3 light = saturate(   dot(Attr.N_mesh, float3(0.5, 0.9, 0.0)) * float3(2.02, 1.53, 1.05)   + float3(0.07, 0.1, 0.2)     );
     float3 light = float3(0.04, 0.08, 0.15) + saturate(dot(Attr.N_mesh, normalize(float3(0.5, 0.2, 0.0))));
 	

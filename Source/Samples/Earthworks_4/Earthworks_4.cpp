@@ -120,6 +120,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     RasterizerState::Desc rsDesc;
     rsDesc.setCullMode(RasterizerState::CullMode::None);
     graphicsState->setRasterizerState( RasterizerState::create(rsDesc) );
+    //graphicsState->setViewport(0, GraphicsState::Viewport(0, 0, 1000, 1000, 0.f, 1.f), true);
 
     camera = Camera::create();
     camera->setDepthRange(0.5f, 40000.0f);
@@ -164,7 +165,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
     graphicsState->setFbo(pTargetFbo);
 
-    terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState);
+    terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState, viewport3d);
 
     Texture::SharedPtr tex = terrafectorEditorMaterial::static_materials.getDisplayTexture();
     if (!tex) {
@@ -219,7 +220,7 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 bool Earthworks_4::onMouseEvent(const MouseEvent& _mouseEvent)
 {
     slowTimer = 10;
-    terrain.onMouseEvent(_mouseEvent, screenSize, camera);
+    terrain.onMouseEvent(_mouseEvent, screenSize, screenMouseScale, screenMouseOffset, camera);
     return false;
 }
 
@@ -229,10 +230,19 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
 {
     auto monitorDescs = MonitorInfo::getMonitorDescs();
     screenSize = monitorDescs[0].resolution;
-    viewport3d.width = screenSize.x / (float)_width;
-    viewport3d.height = screenSize.y / (float)_height;
+    viewport3d.originX = 0;
+    viewport3d.originY = 0;
+    viewport3d.minDepth = 0;
+    viewport3d.maxDepth = 1;
+    viewport3d.width = screenSize.x;
+    viewport3d.height = screenSize.y;
 
     camera->setAspectRatio(screenSize.x / screenSize.y);
+
+    screenMouseScale.x = _width / screenSize.x;
+    screenMouseScale.y = _height / screenSize.y;
+    screenMouseOffset.x = 0;
+    screenMouseOffset.y = 0;
 
     Fbo::Desc desc;
     desc.setDepthStencilTarget(ResourceFormat::D24UnormS8);
@@ -256,7 +266,7 @@ void Earthworks_4::guiStyle()
 #define DARKLIME(v) ImVec4(0.12f, 0.15f, 0.03f, v);
 
     auto& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
@@ -284,6 +294,7 @@ int main(int argc, char** argv)
     config.windowDesc.title = "Earthworks 4";
     config.windowDesc.resizableWindow = true;
     config.windowDesc.mode = Window::WindowMode::Fullscreen;
+    //config.windowDesc.mode = Window::WindowMode::AllScreens;
     config.windowDesc.width = 1260;
     config.windowDesc.height = 1140;
     config.windowDesc.monitor = 0;

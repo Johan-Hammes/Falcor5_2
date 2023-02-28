@@ -46,3 +46,9 @@ void pixelShader::drawIndexedInstanced(RenderContext* _renderContext, uint32_t _
     //vars->setBuffer("gConstantBuffer", constantBuffer);
     _renderContext->drawIndexedInstanced(state.get(), vars.get(), _index, _instance, 0, 0, 0);
 }
+
+
+void pixelShader::drawInstanced(RenderContext* _renderContext, uint32_t _vcount, uint32_t _instance)
+{
+    _renderContext->drawInstanced(state.get(), vars.get(), _vcount, _instance, 0, 0);
+}

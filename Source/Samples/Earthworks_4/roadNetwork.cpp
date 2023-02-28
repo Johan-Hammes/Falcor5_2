@@ -456,7 +456,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     auto& style = ImGui::GetStyle();
     ImGuiStyle oldStyle = style;
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
+    //style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
@@ -501,7 +501,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     }
 
 
-    for(uint i= selectFrom; i<= selectTo; i++)
+    for (uint i = selectFrom; i <= selectTo; i++)
     {
         // camber
 
@@ -1205,7 +1205,13 @@ void roadNetwork::exportBinary() {
     }
 }
 
-
+std::string blockFromPosition(glm::vec3 _pos)
+{
+    uint y = (uint)floor((_pos.z + 20000) / 2500.0f);
+    uint x = (uint)floor((_pos.x + 20000) / 2500.0f);
+    std::string answer = char(65 + x) + std::to_string(y);
+    return answer;
+}
 
 void roadNetwork::exportBridges() {
 
@@ -1236,73 +1242,43 @@ void roadNetwork::exportBridges() {
 
     pMesh->mFaces = new aiFace[63];
     pMesh->mNumFaces = 63;
-    pMesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
+    pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
 
     for (uint i = 0; i < 63; i++) {
         aiFace& face = pMesh->mFaces[i];
 
         face.mIndices = new unsigned int[4];
-        face.mNumIndices = 3;
+        face.mNumIndices = 4;
 
         face.mIndices[0] = i * 2 + 0;
         face.mIndices[1] = i * 2 + 1;
         face.mIndices[2] = i * 2 + 3;
-        //face.mIndices[3] = i * 2 + 2;
+        face.mIndices[3] = i * 2 + 2;
     }
 
 
     char listfilename[256];
-    sprintf(listfilename, "%s//bridges//bridgelist.txt", rootPath.c_str());
+    sprintf(listfilename, "%s_export//bridges//bridgelist.txt", rootPath.c_str());
     FILE* listfile = fopen(listfilename, "w");
     if (listfile)
     {
-        for (auto& road : roadSectionsList) {
+        for (auto& road : roadSectionsList)
+        {
             int cnt = 0;
-            for (auto& pnt : road.points) {
-                if (pnt.isBridge) {
+            for (auto& pnt : road.points)
+            {
+                if (pnt.isBridge)
+                {
+                    glm::vec3 origin = (pnt.bezier[left].pos + road.points[cnt + 1].bezier[left].pos + pnt.bezier[right].pos + road.points[cnt + 1].bezier[right].pos) * 0.25f;
+                    fprintf(listfile, "%5.4f, %5.4f, %5.4f, %s\n", origin.x, origin.y, origin.z, pnt.bridgeName.c_str());
+
                     char filename[256];
-                    sprintf(filename, "%s//bridges//bridge_%s.x", rootPath.c_str(), pnt.bridgeName.c_str());
+                    sprintf(filename, "%s_export//bridges//bridge_%s_%s.obj", rootPath.c_str(), blockFromPosition(origin).c_str(), pnt.bridgeName.c_str());
                     if (pnt.bridgeName.length() == 0) {
-                        sprintf(filename, "%s//bridges//please name me %d.x", rootPath.c_str(), cnt);
+                        sprintf(filename, "%s_export//bridges//%splease name me %d.dae", rootPath.c_str(), blockFromPosition(origin).c_str(), cnt);
                     }
-                    FILE* file = fopen(filename, "w");
-                    if (file) {
-                        fprintf(file, "xof 0303txt 0032\n");
-                        fprintf(file, "\n");
-                        fprintf(file, "Frame Root {\n");
-                        fprintf(file, "FrameTransformMatrix { 100.0, 0.0, 0.0, 0.0,    0.0, 100.0, 0.0, 0.0,   0.0, 0.0, 100.0, 0.0,   0.0, 0.0, 0.0, 1.0;;  }\n");
-                        fprintf(file, "\n");
 
-
-                        glm::vec4 bezier[2][4];
-                        bezier[0][0] = glm::vec4(pnt.bezier[left].pos, 0);
-                        bezier[0][1] = glm::vec4(pnt.bezier[left].forward(), 0);
-                        bezier[0][2] = glm::vec4(road.points[cnt + 1].bezier[left].backward(), 0);
-                        bezier[0][3] = glm::vec4(road.points[cnt + 1].bezier[left].pos, 0);
-
-                        bezier[1][0] = glm::vec4(pnt.bezier[right].pos, 0);
-                        bezier[1][1] = glm::vec4(pnt.bezier[right].forward(), 0);
-                        bezier[1][2] = glm::vec4(road.points[cnt + 1].bezier[right].backward(), 0);
-                        bezier[1][3] = glm::vec4(road.points[cnt + 1].bezier[right].pos, 0);
-
-                        glm::vec3 origin = (bezier[0][0] + bezier[0][3] + bezier[1][0] + bezier[1][3]) * 0.25f;
-                        fprintf(file, "# origin %f, %f, %f\n", origin.x, origin.y, origin.z);
-                        fprintf(file, "# origin- MAX %f, %f, %f\n", origin.x, -origin.z, origin.y);
-
-                        fprintf(listfile, "%5.4f, %5.4f, %5.4f, %s\n", origin.x, origin.y, origin.z, pnt.bridgeName.c_str());
-
-                        // NOW lod6 tile to use with
-                        float tileSize = 40000.0f / pow(2.0f, 6.0f);
-                        uint x = (uint)floor((origin.x + 20000) / tileSize);
-                        uint y = (uint)floor((origin.z + 20000) / tileSize);
-                        fprintf(file, "# tile lod 6, y - %d, x - %d, size - %f, origin(x, z) %f %f\n", y, x, tileSize / 248.0f * 256.0f, x * tileSize - (tileSize / 248.0f * 4.0f) - 20000, y * tileSize - (tileSize / 248.0f * 4.0f) - 20000);
-                        fprintf(file, "# tile MAX, size middle - %f, origin(x, y) %f, %f, 0.0\n", tileSize / 248.0f * 256.0f, x * tileSize + (tileSize / 2.0f) - 20000, (-1) * (y * tileSize + (tileSize / 2.0f) - 20000));
-
-
-
-                        fprintf(file, "Mesh{\n");
-                        fprintf(file, "128;\n");
-
+                    {
                         for (int y = 0; y < 64; y++) {
                             float t = (float)y / 63.0f;
                             bezierPoint* pntThis = &pnt.bezier[left];
@@ -1313,27 +1289,13 @@ void roadNetwork::exportBridges() {
                             pntNext = &road.points[cnt + 1].bezier[right];
                             glm::vec3 B = cubic_Casteljau(t, pntThis, pntNext);// -origin; absolute coordinates
 
-                            fprintf(file, "%f; %f; %f;,\n", A.x, A.y, A.z);
-                            fprintf(file, "%f; %f; %f;,\n", B.x, B.y, B.z);
-
                             pMesh->mVertices[y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
                             pMesh->mVertices[y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
                         }
-
-                        fprintf(file, "\n");
-                        fprintf(file, "63;\n");
-                        for (int i = 0; i < 63; i++) {
-                            uint start = i * 2;
-                            fprintf(file, "4;%d, %d, %d, %d;,\n", start, start + 1, start + 3, start + 2);
-                        }
-                        fprintf(file, "}\n");
-                        fprintf(file, "\n");
-
-                        fprintf(file, "}\n");
-                        fprintf(file, "\n");
-
-                        fclose(file);
                     }
+                    Exporter exp;
+                    //exp.Export(scene, "fbx", filename);
+                    exp.Export(scene, "obj", filename);
                 }
                 cnt++;
             }
@@ -1341,17 +1303,26 @@ void roadNetwork::exportBridges() {
 
         fclose(listfile);
     }
+}
 
 
-    Exporter exp;
-    exp.Export(scene, "collada", "f:/test_bridges.dae");
-    exp.Export(scene, "fbx", "f://test_bridges.fbx");
-    exp.Export(scene, "obj", "f://test_bridges.obj");
+void roadNetwork::exportRoads(int _numSplits)
+{
+    for (uint y = 0; y < 16; y++)
+    {
+        for (uint x = 0; x < 16; x++)
+        {
+            std::string answer = char(65 + x) + std::to_string(y);
+            glm::vec3 center = glm::vec3(x*2500 - 20000 + (2500/2), 0, y * 2500 - 20000 + (2500 / 2));
+            exportRoads(_numSplits, center, 1500.f, answer);
+        }
+    }
 }
 
 
 
-void roadNetwork::exportRoads(int _numSplits)
+
+void roadNetwork::exportRoads(int _numSplits, glm::vec3 _center, float _size, std::string _blockName)
 {
     int numRoad = (int)roadSectionsList.size();
 
@@ -1374,6 +1345,7 @@ void roadNetwork::exportRoads(int _numSplits)
     scene->mNumMeshes = numRoad;
     scene->mRootNode->mNumMeshes = numRoad;
 
+    bool anyRoads = false;
 
     int cnt = 0;
     for (auto& road : roadSectionsList)
@@ -1383,12 +1355,24 @@ void roadNetwork::exportRoads(int _numSplits)
         auto pMesh = scene->mMeshes[cnt];
         uint numBez = (uint)road.points.size() - 1;
 
-        if (road.points.size() > 2)
+        // determine intersect
+        bool aabb = false;
+        for (auto& p : road.points)
         {
+            glm::vec3 test = glm::abs(p.anchor - _center);
+            if (test.x < _size && test.z < _size)
+            {
+                aabb = true;
+            }
+        }
+
+        if (aabb && (road.points.size() > 2))
+        {
+            anyRoads = true;
 
             {
-                pMesh->mFaces = new aiFace[(_numSplits-1)* numBez];
-                pMesh->mNumFaces = (_numSplits-1) * numBez;
+                pMesh->mFaces = new aiFace[(_numSplits - 1) * numBez];
+                pMesh->mNumFaces = (_numSplits - 1) * numBez;
                 pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
 
                 for (uint j = 0; j < numBez; j++)
@@ -1430,8 +1414,16 @@ void roadNetwork::exportRoads(int _numSplits)
                         pntNext = &road.points[ZZ + 1].bezier[right];
                         glm::vec3 B = cubic_Casteljau(t, pntThis, pntNext);// -origin; absolute coordinates
 
-                        pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
-                        pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
+                        if (pnt.isBridge || pnt.isAIonly)
+                        {
+                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(0, 0, 0);
+                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(0, 0, 0);
+                        }
+                        else
+                        {
+                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
+                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
+                        }
                     }
                 }
             }
@@ -1445,17 +1437,24 @@ void roadNetwork::exportRoads(int _numSplits)
         cnt++;
     }
 
-
+    if (anyRoads)
+    {
+        char filename[256];
+        sprintf(filename, "%s//_export//roads//roads_%s.fbx", rootPath.c_str(), _blockName.c_str());
+        Exporter exp;
+        exp.Export(scene, "fbx", filename);
+        sprintf(filename, "%s//_export//roads//roads_%s.obj", rootPath.c_str(), _blockName.c_str());
+        exp.Export(scene, "obj", filename);
+    }
+    /*
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"fbx"} };
     if (saveFileDialog(filters, path))
     {
         Exporter exp;
-        //exp.Export(scene, "collada", "f:/test_roads.dae");
         exp.Export(scene, "fbx", path.string().c_str());
-        //exp.Export(scene, "obj", "f://test_roads.obj");		
     }
-    
+    */
 }
 
 

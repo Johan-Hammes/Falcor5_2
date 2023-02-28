@@ -1,63 +1,19 @@
-//#include "render_Common.hlsli"
 #include "materials.hlsli"
 
-/*
-#define LocalRootSignature  "RootFlags(LOCAL_ROOT_SIGNATURE),"  \
-    "DescriptorTable("                  \
-    "CBV(n0, numDescriptors = 1),"  \
-    "UAV(u0, numDescriptors = 3),"  \
-    "SRV(t0, space = 2, numDescriptors = unbounded, offset = 0)"
-
-[rootsignature(LocalRootSignature)]
-
-*/
-//Texture2D<float4> bindless_textures[] : register(t0, space1);
-
-//DescriptorTable(CBV(b0), UAV(u0, numDescriptors = 3), SRV(t0, numDescriptors = unbounded))
-/*
-DescriptorTable(
-    SRV(t0, space = 0, numDescriptors = unbounded, offset = 0),
-    SRV(t0, space = 1, numDescriptors = unbounded, offset = 0),
-    SRV(t0, space = 2, numDescriptors = unbounded, offset = 0)
-    visibility = SHADER_VISIBLITY_ALL)
-
-Texture2D textures2d[8192] : register(t0, space0);
-Texture3D textures3d[8192] : register(t0, space1);
-TextureCube texturesCube[8192] : register(t0, space2);
-*/
-
-//Texture2D textures[48];		//    switch: /enable_unbounded_descriptor_tables    D3DCOMPILE_ENABLE_UNBOUNDED_DESCRIPTOR_TABLES
-//Texture2D test;
 SamplerState  SMP : register(s0);
 StructuredBuffer<TF_material> materials;
 StructuredBuffer<cubicDouble> splineData;
 StructuredBuffer<bezierLayer> indexData;
-//Texture2D bindlessTextures2D[] : register(space0);
-
-//Texture2D t_BindlessTextures[] : register(t0, space2);
-
-//Texture2D textures[10] : register(t0);
-//Texture2D bindlesstextures[4096] : register(t0, space0);
 
 struct myTextures
 {
     Texture2D<float4> T[4096];
 };
 ParameterBlock<myTextures> gmyTextures;
-//StructuredBuffer<myTextures> textureData;
 
 cbuffer gConstantBuffer : register(b0)
 {
-    float4x4 view;
-	float4x4 proj;
 	float4x4 viewproj;
-	
-	int bHidden;
-	int numSubdiv;
-	float dLeft;
-	float dRight;
-	
-	float4 colour;
 };
 
 
@@ -119,17 +75,17 @@ inline float4 cubic_Casteljau(float t, float4 P0, float4 P1, float4 P2, float4 P
 }
 
 
-#define outsideLine 	(segment.A >> 31) & 0x1
-#define insideLine 		(segment.A >> 30) & 0x1
+#define outsideLine 	(indexData[ iId ].A >> 31) & 0x1
+#define insideLine 		(indexData[ iId ].A >> 30) & 0x1
 
-#define isStartOverlap 	(segment.B >> 31) & 0x1
-#define isEndOverlap 	(segment.B >> 30) & 0x1
-#define isQuad 			(segment.B >> 29) & 0x1
+#define isStartOverlap 	(indexData[ iId ].B >> 31) & 0x1
+#define isEndOverlap 	(indexData[ iId ].B >> 30) & 0x1
+#define isQuad 			(indexData[ iId ].B >> 29) & 0x1
 #define isOverlap		(isStartOverlap) || (isEndOverlap)
 
 // 12 bits left 4096 materials
-#define materialFlag  	(segment.A >> 17) & 0x7ff		
-#define index  			segment.A & 0x1ffff
+#define materialFlag  	(indexData[ iId ].A >> 17) & 0x7ff		
+#define index  			indexData[ iId ].A & 0x1ffff
 
 
 
@@ -137,52 +93,29 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     splineVSOut output;
 	
-	//float t = (vId>>1)/(float)numSubdiv;
-    float t = (vId >> 1) / 64.0;
-	float3 pos, tangent;
-
-
-	// unpack --------------------------------------------------------------------------
-	const bezierLayer segment = indexData[ iId ];
-
-	const uint flags = segment.A >> 29;
-
-
-	const float w0 = ((segment.B >> 14)& 0x3fff) * 0.002f - 16.0f;			// -32 .. 33.536m in mm resolution
-	const float w1 = (segment.B & 0x3fff) * 0.002f - 16.0f;
-	
-	const cubicDouble s0 = splineData[index];
-	
 	float4 points[2];
+    float t = (vId >> 1) / 64.0;
+    const cubicDouble s0 = splineData[index];
 	points[0] = cubic_Casteljau(t, s0.data[0][0], s0.data[0][1], s0.data[0][2], s0.data[0][3]);
 	points[1] = cubic_Casteljau(t, s0.data[1][0], s0.data[1][1], s0.data[1][2], s0.data[1][3]);
-	
+
 	float3 perpendicular = normalize(points[1].xyz - points[0].xyz);
 
-	float3 position = float3(0,0,0);;
-	
 	if (vId & 0x1 ) {			// outside
-		position = points[outsideLine].xyz + w1 * perpendicular;
+        const float w1 = (indexData[iId].B & 0x3fff) * 0.002f - 16.0f;
+        output.posW = points[outsideLine].xyz + w1 * perpendicular;
 	} else {					// inside
-		position = points[insideLine].xyz + w0 * perpendicular;
+        const float w0 = ((indexData[iId].B >> 14) & 0x3fff) * 0.002f - 16.0f;			// -32 .. 33.536m in mm resolution
+        output.posW = points[insideLine].xyz + w0 * perpendicular;
 	}
 	
 	output.texCoords = float3(vId & 0x1, points[outsideLine].w, t );
-	
-	// we can pack somethign else to interpolate in the w coordinate of the outside
-	//output.texCoords = float2( vId & 0x1, pos_center.w );
-	
-	output.pos =  mul( float4(position, 1), viewproj);
-	output.posW = position;
-	output.flags.x = bHidden;
+	output.pos =  mul( float4(output.posW, 1), viewproj);
 	output.flags.y = materialFlag;
-	output.colour = colour;
-	
+    output.colour = 1;
 	
 	return output;
 }
-
-
 
 
 
@@ -218,6 +151,7 @@ float shevrons(float2 UV)
     return 0;
 }
 
+
 float4 dots(float2 UV)
 {
     if (frac(UV.y * 5) < 0.25) return float4(1, 1, 1, 1);
@@ -229,13 +163,17 @@ float4 dots(float2 UV)
 
 
 
-float4 psMain(splineVSOut vIn)  : SV_TARGET0
+float4 psMain(splineVSOut vIn) : SV_TARGET0
 {
 	float4 colour = vIn.colour;
 	uint material = vIn.flags.y;
 
 
 
+    if (material > 2040) {
+        // Curvature
+        return 0;
+    }
 	
 	// EDITING MATERIALS
 	
@@ -337,7 +275,7 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 	}
 	else
 	{ 
-		alpha = 0.5;
+		alpha = 0.0;
 	}
 	
     
@@ -345,7 +283,7 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 
     //colour.rgb = gmyTextures.T[5].Sample(SMP, uv).rgb;
 
-	colour.rgb *= 0.8f;
+	//colour.rgb *= 0.8f;
     colour.a = alpha;
 
 	return colour;
@@ -354,9 +292,6 @@ float4 psMain(splineVSOut vIn)  : SV_TARGET0
 
 
 
-	
-	//material = 0;
-	//if (vIn.flags.y > 5.5) material = 11;
 	
 	switch(material){
 		case 0:

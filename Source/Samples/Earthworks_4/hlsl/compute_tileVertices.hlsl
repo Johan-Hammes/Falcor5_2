@@ -48,7 +48,7 @@ void main(uint2 coord : SV_DispatchThreadId)
 			float2 uv = (Vcrd + 1.0) / 128.0f;
 			float mip = 2-lod;
 	
-			if (abs( gInHgt.SampleLevel(linearSampler, uv, mip) - gInHgt.SampleLevel(linearSampler, uv, mip+1) ) > pixSize/10) 
+			if (abs( gInHgt.SampleLevel(linearSampler, uv, mip) - gInHgt.SampleLevel(linearSampler, uv, mip+1) ) > pixSize/5) 
 			{
 			
 				// test just pull to the edge

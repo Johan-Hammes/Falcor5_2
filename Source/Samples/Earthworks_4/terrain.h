@@ -147,18 +147,28 @@ struct _terrainSettings
         _archive(CEREAL_NVP(name));
         _archive(CEREAL_NVP(projection));
         _archive(CEREAL_NVP(size));
-        if (_version >= 101)
-        {
-            _archive(CEREAL_NVP(dirRoot));
-            _archive(CEREAL_NVP(dirExport));
-            _archive(CEREAL_NVP(dirGis));
-            _archive(CEREAL_NVP(dirResource));
-        }
+        _archive(CEREAL_NVP(dirRoot));
+        _archive(CEREAL_NVP(dirExport));
+        _archive(CEREAL_NVP(dirGis));
+        _archive(CEREAL_NVP(dirResource));
     }
 
     void renderGui(Gui* _gui);
 };
-CEREAL_CLASS_VERSION(_terrainSettings, 101);
+CEREAL_CLASS_VERSION(_terrainSettings, 100);
+
+
+
+// FOR binary export of tiles
+struct elevationMap {
+    float heightOffset;
+    float heightScale;
+    float2 origin;
+    float tileSize;
+    uint lod;
+    uint y;
+    uint x;
+};
 
 
 
@@ -241,9 +251,9 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiMenubar(Gui* pGui);
-    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState);
+    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
-    bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
+    bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera);
     bool onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
     void onHotReload(HotReloadFlags reloaded);
 
@@ -271,6 +281,14 @@ private:
 
     uint gisHash(glm::vec3 _position);
     void gisReload(glm::vec3 _position);
+
+    void bake_start();
+    void bake_frame();
+    void bake_Setup(float _size, uint lod, uint y, uint x, RenderContext* _renderContext);
+    void bake_RenderTopdown(float _size, uint lod, uint y, uint x, RenderContext* _renderContext);
+    void sceneToMax();
+    int exportLodMin = 10;
+    int exportLodMax = 10;
 
     void updateDynamicRoad(bool _bezierChanged);
 
@@ -344,7 +362,6 @@ private:
         uint                bakeSize = 1024;
         Fbo::SharedPtr		tileFbo;
         Fbo::SharedPtr		bakeFbo;
-        Camera::SharedPtr	tileCamera;
 
         Texture::SharedPtr	noise_u16;
 
@@ -388,19 +405,18 @@ private:
         Buffer::SharedPtr       buffer_terrain;
 
         Texture::SharedPtr      debug_texture;
-        Texture::SharedPtr      bicubic_upsample_texture;
+        //Texture::SharedPtr      bicubic_upsample_texture;
         Texture::SharedPtr      normals_texture;
         Texture::SharedPtr      vertex_A_texture;
         Texture::SharedPtr      vertex_B_texture;
-        Texture::SharedPtr      vertex_clear;		        // 0 for fast clear
-        Texture::SharedPtr      vertex_preload;	            // a pre allocated 1/8 verts
+        Texture::SharedPtr      vertex_clear;		                // 0 for fast clear
+        Texture::SharedPtr      vertex_preload;	                    // a pre allocated 1/8 verts
 
         Texture::SharedPtr	    rootElevation;
 
-        int                     numSubdiv = 64;
         pixelShader             shader_spline3D;
         pixelShader             shader_splineTerrafector;
-        pixelShader             shader_meshTerrafector;    // these two should merge
+        pixelShader             shader_meshTerrafector;             // these two should merge
         DepthStencilState::SharedPtr    depthstateCloser;
         DepthStencilState::SharedPtr    depthstateFuther;
         DepthStencilState::SharedPtr    depthstateAll;
@@ -433,6 +449,11 @@ private:
         float quality = 0.0002f;
         int roadMaxSplits = 16;
         FILE* txt_file = nullptr;
+        bool inProgress = false;
+        std::vector<elevationMap> tileInfoForBinaryExport;
+        std::vector<uint32_t>::iterator itterator;
+        RenderContext* renderContext;
+        Texture::SharedPtr	  copy_texture = nullptr;
     }bake;
 
     struct

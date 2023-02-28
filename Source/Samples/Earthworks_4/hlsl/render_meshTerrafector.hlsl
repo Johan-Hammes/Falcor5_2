@@ -1,81 +1,74 @@
-#include "terrainCommon.hlsli"
+//#include "terrainCommon.hlsli"
+#include "render_Common.hlsli"
+#include "materials.hlsli"
 
 
+struct  triVertex {
+    float3      pos;
+    float       alpha;      // might have to be full float4 colour   but look at float16
+
+    float2      uv;         // might have to add second UV
+    uint        material;
+    float       buffer;         // now 32
+};
 
 
-MainVsOut vsMain(VS_IN vIn)
+//SamplerState  SMP : register(s0);
+StructuredBuffer<TF_material> materials;
+StructuredBuffer<triVertex> vertexData;
+StructuredBuffer<uint> indexData;
+
+
+struct myTextures
 {
-    MainVsOut vsOut;
-    vsOut.vsData = defaultVS(vIn);
-    vsOut.shadowsDepthC = mul(float4(vsOut.vsData.posW, 1) , camVpAtLastCsmUpdate).z;
+    Texture2D<float4> T[4096];
+};
+ParameterBlock<myTextures> gmyTextures;
+
+
+
+
+
+cbuffer gConstantBuffer : register(b0)
+{
+    float4x4 view;
+    float4x4 proj;
+    float4x4 viewproj;
+};
+
+
+
+struct splineVSOut
+{
+    float4 pos : SV_POSITION;
+    float3 posW : POSITION;
+    float3 texCoords : TEXCOORD;
+    nointerpolation uint4 flags : TEXCOORD1;
+    float4 colour : COLOR;
+};
+
+
+
+splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
+{
+    splineVSOut vsOut;
+
+    uint idx = (iId * 128 * 3) + vId;
+    //uint idx = vId;
+    triVertex V = vertexData[indexData[idx]];
+    //triVertex V = vertexData[vId];
+
+    vsOut.pos = mul(float4(V.pos, 1), viewproj);
+    vsOut.posW = V.pos;
+    vsOut.flags.y = V.material;
+    vsOut.colour = V.alpha;
+    vsOut.texCoords = float3(V.uv, 0);
+
     return vsOut;
 }
 
 
 
-
-
-
-
-
-
-__import ShaderCommon;
-__import Shading;
-__import DefaultVS;
-__import Effects.CascadedShadowMap;
-#include "terrainCommon.hlsli"
-
-
-Texture2D<float> gTexDisplacement;
-Texture2D<float> gTexDisplacementDetail;
-Texture2D gTexAlbedo;
-Texture2D gTexAlbedoDetail;
-Texture2D gTexPBR;
-Texture2D gTexPBRDetail;
-Texture2D gTexEcotope;
-Texture2D gTexAlpha;	// alpha
-
-
-
-
-cbuffer gTopdownConstants
-{
-	int heightVertex;	// 0 or 1 really
-	float heightScale;
-	float heightDetailScale;
-	float detailTextureSize;
-	
-	float uvScale0;
-	float uvScale1;
-	int rubbering;
-	float heightBias;
-	
-	float heightDetailBias;
-	float useAlphaVertex;
-	float useAlphaTexture;
-	float useAlphaWorldTexture;
-	
-	float objAlphaScale;
-	float objAlphaOffset;
-	float worldAlphaScale;
-	float worldAlphaOffset;
-
-	float heightPermanence;
-	float colourPermanence;
-	float ecotopePermanence;
-	float detailColourBlend;	
-	
-	float scaleAlbedo;
-	float scaleFresnel;
-	float scaleRougness;
-	float scaleAO;
-
-	float4x4 ecotopeTextureMap[4];
-};
-
-
-
-SamplerState  SMP;
 
 
 struct PS_OUTPUT
@@ -91,71 +84,100 @@ struct PS_OUTPUT
 };
 
 
-PS_OUTPUT psMain(MainVsOut vOut) : SV_TARGET
+PS_OUTPUT psMain(splineVSOut vIn) : SV_TARGET
 {
+    
 	PS_OUTPUT output = (PS_OUTPUT)0;
-	
-	
-	// UV's
-	float2 UV_0 = vOut.vsData.texC * uvScale0;
-	float2 UV_1 = vOut.vsData.texC * uvScale1;									// FIXME BUG - must be second UV
-	float2 UV_world = vOut.vsData.posW.xz / detailTextureSize;				  	// some degree of bias could help resolve sampling errors far from the origin
-	
-	
-	// Alpha
-	const float vertexAlpha = vOut.vsData.colorV.r;
-	float alpha =  lerp(1, smoothstep(0, 1, vertexAlpha), useAlphaVertex);
-	
-	if (useAlphaTexture > 0) {
-		const float objAlpha = saturate( gTexAlpha.Sample(SMP, UV_0).r * objAlphaScale + objAlphaOffset );
-		alpha *= lerp(1, objAlpha, useAlphaTexture);
-	}
-	
-	if (useAlphaWorldTexture > 0) {
-		const float worldAlpha = saturate( gTexAlpha.Sample(SMP, UV_world).r * worldAlphaScale + worldAlphaOffset  );
-		alpha *= lerp(1, worldAlpha, useAlphaWorldTexture);
-	}
-	
-	
-	// Elevation
-	output.Elevation.r = heightVertex * vOut.vsData.posW.y;
-	//output.Elevation.r += heightScale * (gTexDisplacement.Sample(SMP, vOut.vsData.texC) - heightBias);
-	//output.Elevation.r += heightDetailScale * (gTexDisplacementDetail.Sample(SMP, UV_world) - heightDetailBias);
-	output.Elevation.a = alpha;  	
 
-	output.Elevation.r = heightVertex * vOut.vsData.posW.y;	
-	output.Elevation.r += heightScale * (gTexDisplacement.Sample(SMP, vOut.vsData.texC) - heightBias);
-	output.Elevation.r += heightDetailScale * (gTexDisplacementDetail.Sample(SMP, UV_world) - heightDetailBias);
-	output.Elevation.a = alpha;  
-		
-	// albedo and pbr
-	// FIXME ADD Detail texure ??? PBR blend
-	float3 A = lerp(gTexAlbedo.Sample(SMP, vOut.vsData.texC).rgb, 0.5, saturate(detailColourBlend));
-	float3 B = lerp(gTexAlbedoDetail.Sample(SMP, UV_world).rgb, 0.5, saturate(-detailColourBlend));
-    output.Albedo.rgb = clamp(0.04, 0.95,  A*B*scaleAlbedo*2 );		// 0.04, 0.95 charcoal to fresh snow
-	output.Albedo.a = alpha;
-	
-	
-	output.Elevation.a = 0;
-	output.Albedo = float4(0.0, 0.03, 0, 0.7);
-	
-	A = lerp(gTexPBR.Sample(SMP, vOut.vsData.texC).rgb, 0.5, saturate(detailColourBlend));
-	B = lerp(gTexPBRDetail.Sample(SMP, UV_world).rgb, 0.5, saturate(-detailColourBlend));
-	output.PBR.rgb = saturate( A*B*float3(scaleFresnel, scaleRougness, scaleAO)*2 );
-	output.PBR.a = alpha;
-	
-	// alpha
-	output.Alpha=float4(heightPermanence * alpha, colourPermanence * alpha, ecotopePermanence * alpha, 1);
-	
-	// ecotopes
-	// FIXME MUST GO to 1.0 is not in use this is a negative setup - multiplies down to zero to remove ??? or is it an inverse setup ??? TEST
-	float4 ect = gTexEcotope.Sample(SMP, vOut.vsData.texC);
-	output.Ecotope1=mul(ect, ecotopeTextureMap[0]);
-	output.Ecotope2=mul(ect, ecotopeTextureMap[1]);
-	output.Ecotope3=mul(ect, ecotopeTextureMap[2]);
-	output.Ecotope4=mul(ect, ecotopeTextureMap[3]);
-	
-	
-	return output;
+    // get the materials
+    uint material = vIn.flags.y;
+    TF_material MAT = materials[material];
+
+    // uv's
+    float2 uv = vIn.texCoords.xy * MAT.uvScale;
+    float2 uvWorld = vIn.posW.xz / MAT.worldSize;
+
+
+    // alpha
+    float alpha = 1;
+    if (MAT.useAlpha)
+    {
+        float2 alpha_uv = uv;
+        if (MAT.baseAlphaClampU)
+        {
+            alpha_uv = vIn.texCoords.xy * MAT.uvScaleClampAlpha;
+            alpha_uv.x = clamp(alpha_uv.x, 0.05, 1.0);
+        }
+        float alphaBase = gmyTextures.T[MAT.baseAlphaTexture].Sample(gSmpLinear, alpha_uv).r;
+        if (MAT.baseAlphaClampU && alpha_uv.x > 0.95)
+        {
+            alphaBase = 1;
+        }
+        float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(gSmpLinear, uvWorld).r;
+
+        alpha = lerp(1, smoothstep(0, 1, vIn.colour.r), MAT.vertexAlphaScale);
+        alpha *= lerp(1, saturate((alphaBase + MAT.baseAlphaBrightness) * MAT.baseAlphaContrast), MAT.baseAlphaScale);
+        alpha *= lerp(1, saturate((alphaDetail + MAT.detailAlphaBrightness) * MAT.detailAlphaContrast), MAT.detailAlphaScale);
+    }
+
+
+    // Elevation
+    output.Elevation = 0;
+    if (MAT.useElevation)
+    {
+        if (MAT.useVertexY)
+        {
+            output.Elevation.r = vIn.posW.y;
+        }
+        output.Elevation.r += MAT.YOffset;
+        output.Elevation.r += (gmyTextures.T[MAT.baseElevationTexture].Sample(gSmpLinear, uv).r - MAT.baseElevationOffset) * MAT.baseElevationScale;
+        output.Elevation.r += (gmyTextures.T[MAT.detailElevationTexture].Sample(gSmpLinear, uvWorld).r - MAT.detailElevationOffset) * MAT.detailElevationScale;
+
+        output.Elevation.r *= alpha;
+
+        if (MAT.useAbsoluteElevation > 0.5) {
+            output.Elevation.a = alpha;
+        }
+        else {
+            output.Elevation.a = 0;  // since that causes OneMinusSrcAlpha to 1
+        }
+
+    }
+
+
+
+
+
+    if (MAT.useColour)
+    {
+        float3 albedo = gmyTextures.T[MAT.baseAlbedoTexture].Sample(gSmpLinear, uv).rgb;
+        float3 albedoDetail = gmyTextures.T[MAT.detailAlbedoTexture].Sample(gSmpLinear, uvWorld).rgb;
+
+        float3 A = lerp(albedo, 0.5, saturate(MAT.albedoBlend));
+        float3 B = lerp(albedoDetail, 0.5, saturate(-MAT.albedoBlend));
+
+        output.Albedo.rgb = clamp(0.04, 0.9, A * B * 4 * MAT.albedoScale);		// 0.04, 0.9 charcoal to fresh snow
+        output.Albedo.a = alpha;
+
+
+        float baseRoughness = gmyTextures.T[MAT.baseRoughnessTexture].Sample(gSmpLinear, uv).r;
+        float detailRoughness = gmyTextures.T[MAT.detailRoughnessTexture].Sample(gSmpLinear, uvWorld).r;
+
+        float rA = lerp(baseRoughness, 0.5, saturate(MAT.roughnessBlend));
+        float rB = lerp(detailRoughness, 0.5, saturate(-MAT.roughnessBlend));
+
+        output.PBR.rgb = saturate(pow(rA * rB * 2, MAT.roughnessScale));
+        output.PBR.a = alpha;
+    }
+
+
+    output.Alpha = float4(1, 1, 1, 1);
+
+    output.Ecotope1 = float4(0, 0, 0, alpha);
+    output.Ecotope2 = float4(0, 0, 0, alpha);
+    output.Ecotope3 = float4(0, 0, 0, alpha);
+    output.Ecotope4 = float4(0, 0, 0, alpha);
+
+    return output;
 }
 

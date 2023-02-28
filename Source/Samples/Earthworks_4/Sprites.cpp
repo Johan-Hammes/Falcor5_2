@@ -121,7 +121,7 @@ void spriteRender::onLoad()
 	plantShaderPlants.Vars()->setSampler("gSampler", mpSampTrilinear);
 }
 
-void spriteRender::onRender(Camera::SharedPtr _camera, RenderContext* _renderContext, Fbo::SharedPtr _fbo, Texture::SharedPtr mcubeWorld)
+void spriteRender::onRender(Camera::SharedPtr _camera, RenderContext* _renderContext, Fbo::SharedPtr _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr mcubeWorld)
 {
     glm::mat4 V = toGLM(_camera->getViewMatrix());
     glm::mat4 P = toGLM(_camera->getProjMatrix());
@@ -144,6 +144,8 @@ void spriteRender::onRender(Camera::SharedPtr _camera, RenderContext* _renderCon
 	//plantShaderPlants.getVars()->setTexture("gCube", mcubeWorld);
 	plantShaderPlants.Vars()->setBuffer("VB", mpSB_static);
 	plantShaderPlants.renderIndirect(_renderContext, mpIndirectArgs_static);
+
+    plantShaderPlants.State()->setViewport(0, _viewport, true);
 	
 	
 	

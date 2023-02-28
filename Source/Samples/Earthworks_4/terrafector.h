@@ -41,8 +41,11 @@ using namespace Falcor;
 class  triVertex {
 public:
     glm::float3 pos;
-    glm::float2 uv;
+    float       alpha;      // might have to be full float4 colour   but look at float16
+
+    glm::float2 uv;         // might have to add second UV
     uint        material;
+    float       buffer;         // now 32
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
@@ -50,6 +53,7 @@ public:
         archive_float3(pos);
         archive_float2(uv);
         archive(CEREAL_NVP(material));
+        archive(CEREAL_NVP(alpha));
     }
 };
 CEREAL_CLASS_VERSION(triVertex, 100);
@@ -67,7 +71,7 @@ public:
     void clear();
     void clearRemapping(uint _size);
     void remapMaterials(uint* _map);
-    void insertTriangle(const uint material, const uint F[3], const aiVector3D *_verts);
+    void insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh);
 private:
 public:
     std::vector<triVertex> verts;
@@ -95,7 +99,7 @@ public:
     void remapMaterials(uint* _map);
     void prepForMesh(aiAABB _aabb);
     void pushMaterialName(std::string _name);
-    void insertTriangle(const uint material, const uint F[3], const aiVector3D* _verts);
+    int insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh);
     void logStats();
     void save(const std::string _path);
     void load(const std::string _path);
@@ -124,13 +128,33 @@ CEREAL_CLASS_VERSION(lodTriangleMesh, 100);
 
 
 
+struct gpuTileTerrafector
+{
+    uint numVerts = 0;
+    uint numTriangles = 0;
+    uint numBlocks = 0;
+    Buffer::SharedPtr vertex = nullptr;
+    Buffer::SharedPtr index = nullptr;
+};
+
+
+
 class lodTriangleMesh_LoadCombiner {
 public:
     void create(uint _lod);
     void addMesh(std::string _path, lodTriangleMesh &mesh);
+    void loadToGPU();
+    gpuTileTerrafector* getTile(uint _index) {
+        if (_index < gpuTiles.size()) {
+            return &gpuTiles[_index];
+        }
+        return nullptr;
+    }
 
 private:
+    uint lod, grid;
     std::vector<tileTriangleBlock> tiles;
+    std::vector <gpuTileTerrafector> gpuTiles;
 };
 
 

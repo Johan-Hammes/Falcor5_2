@@ -89,22 +89,30 @@ void tileTriangleBlock::remapMaterials(uint* _map)
 
 
 
-void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], const aiVector3D *_verts)
+void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh)
 {
     for (int i = 0; i < 3; i++)
     {
         if (remapping[_F[i]] < 0) {
             remapping[_F[i]] = verts.size();
             triVertex V;
-            V.pos.x = _verts[_F[i]].x; // SWAP zy - NOT GOOD
-            V.pos.y = _verts[_F[i]].z;
-            V.pos.z = _verts[_F[i]].y;
-            /*if (M->HasTextureCoords(0))
+            V.pos.x = _mesh->mVertices[_F[i]].x; // SWAP zy - NOT GOOD
+            V.pos.y = _mesh->mVertices[_F[i]].z;
+            V.pos.z = _mesh->mVertices[_F[i]].y * (-1.0f);
+
+            if (_mesh->HasTextureCoords(0))
             {
-                V[k].uv.x = M->mTextureCoords[0][F.mIndices[k]].x;
-                V[k].uv.y = M->mTextureCoords[0][F.mIndices[k]].y;
-            }*/
+                V.uv.x = _mesh->mTextureCoords[0][_F[i]].x;
+                V.uv.y = _mesh->mTextureCoords[0][_F[i]].y;
+            }
+
             V.material = _material;
+
+            
+            V.alpha = 1;
+            if (_mesh->HasVertexColors(0)) {
+                V.alpha = _mesh->mColors[0][_F[i]].r;
+            }
 
             verts.push_back(V);
         }
@@ -169,9 +177,10 @@ void lodTriangleMesh::pushMaterialName(std::string _name)
 
 
 
-void lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], const aiVector3D *_verts)
+int lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh)
 {
     float left, right, top, bottom;
+    int count = 0;
 
     for (int y = yMin; y < yMax; y++)
     {
@@ -191,19 +200,20 @@ void lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], con
 
             for (int j = 0; j < 3; j++)     // vertex
             {
-                flags[0] &= (_verts[_F[j]].x < left);
-                flags[1] &= (_verts[_F[j]].x > right);
-                flags[2] &= (_verts[_F[j]].y < bottom);
-                flags[3] &= (_verts[_F[j]].y > top);
+                flags[0] &= (_mesh->mVertices[_F[j]].x < left);
+                flags[1] &= (_mesh->mVertices[_F[j]].x > right);
+                flags[2] &= (-_mesh->mVertices[_F[j]].y < bottom);
+                flags[3] &= (-_mesh->mVertices[_F[j]].y > top);
             }
 
             if (!(flags[0] || flags[1] || flags[2] || flags[3]))
             {
-               tiles[y * grid + x].insertTriangle(_material, _F, _verts);
+               tiles[y * grid + x].insertTriangle(_material, _F, _mesh);
+               count++;
             }
         }
     }
-
+    return count;
 }
 
 
@@ -252,17 +262,31 @@ void lodTriangleMesh_LoadCombiner::addMesh(std::string _path, lodTriangleMesh& _
     // Fix material in place
     _mesh.remapMaterials(materialRemap);
 
+    float3 V[3];
     // Append
     for (uint i = 0; i < tiles.size(); i++)
     {
-        tiles[i].verts.insert(tiles[i].verts.end(), _mesh.tiles[i].verts.begin(), _mesh.tiles[i].verts.end());
-        tiles[i].verts.insert(tiles[i].verts.end(), _mesh.tiles[i].verts.begin(), _mesh.tiles[i].verts.end());
-
         uint startIndex = tiles[i].verts.size();
-        for (uint j = 0; j < _mesh.tiles[i].tempIndexBuffer.size(); j++)
+        uint startBuffer = tiles[i].tempIndexBuffer.size();
+
+        tiles[i].verts.insert(tiles[i].verts.end(), _mesh.tiles[i].verts.begin(), _mesh.tiles[i].verts.end());
+        tiles[i].tempIndexBuffer.insert(tiles[i].tempIndexBuffer.end(), _mesh.tiles[i].tempIndexBuffer.begin(), _mesh.tiles[i].tempIndexBuffer.end());
+        
+        for (uint j = startBuffer; j < tiles[i].tempIndexBuffer.size(); j++)
         {
-            tiles[i].tempIndexBuffer.push_back(_mesh.tiles[i].tempIndexBuffer[j] + startIndex);
+            tiles[i].tempIndexBuffer[j] +=  startIndex;
+            /*
+            uint index = j % 3;
+            uint IDX = tiles[i].tempIndexBuffer.back();
+            V[j] = tiles[i].verts[IDX].pos;
+            if (index == 2)
+            {
+                float circumferance = glm::length(V[1] - V[0]) + glm::length(V[2] - V[1]) + glm::length(V[0] - V[2]);
+                bool bCM = true;
+            }
+            */
         }
+
     }
 }
 
@@ -270,8 +294,57 @@ void lodTriangleMesh_LoadCombiner::addMesh(std::string _path, lodTriangleMesh& _
 
 void lodTriangleMesh_LoadCombiner::create(uint _lod)
 {
-    uint grid = (uint)pow(2, _lod);
+    tiles.clear();
+    gpuTiles.clear();
+
+    lod = _lod;
+    grid = (uint)pow(2, _lod);
     tiles.resize(grid * grid);
+    void loadToGPU();
+}
+
+
+
+void lodTriangleMesh_LoadCombiner::loadToGPU()
+{
+    gpuTiles.clear();
+    gpuTileTerrafector tfTile;
+
+    for (auto& tile : tiles)
+    {
+        tfTile.numVerts = tile.verts.size();
+        tfTile.numTriangles = tile.tempIndexBuffer.size();          // this is actualy indicis
+        tfTile.numBlocks = (uint)ceil((float)tfTile.numTriangles / (128.0f * 3.0f));
+
+        // buffer indicis
+        tile.tempIndexBuffer.resize(tfTile.numBlocks * 128 * 3);
+        for (uint i = tfTile.numTriangles; i < tfTile.numBlocks * 128 * 3; i++)
+        {
+            tile.tempIndexBuffer[i] = 0;
+        }
+
+        if (tfTile.numBlocks > 0)
+        {
+            tfTile.vertex = Buffer::createStructured(
+                sizeof(triVertex),
+                tfTile.numVerts,
+                Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess,
+                Buffer::CpuAccess::None,
+                tile.verts.data());
+
+            tfTile.index = Buffer::createStructured(
+                sizeof(unsigned int),
+                tfTile.numBlocks * 128 * 3,
+                Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess,
+                Buffer::CpuAccess::None,
+                tile.tempIndexBuffer.data());
+        }
+
+        gpuTiles.push_back(tfTile);
+    }
+
+    // now release all CPU memory
+    tiles.clear();
 }
 
 
@@ -465,7 +538,7 @@ void materialCache::renderGui(Gui* mpGui)
             }
             if (ImGui::IsItemHovered())
             {
-                ImGui::SetTooltip("%d  :  %s", i, materialVector[i].fullPath.c_str());
+                ImGui::SetTooltip("%d  :  %s", i, materialVector[i].fullPath.string().c_str());
             }
         }
     }
@@ -569,17 +642,20 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
         triVertex V[3];
         for (uint i = 0; i < scene->mNumMeshes; i++)
         {
-            lodder.materialNames.push_back(scene->mMaterials[i]->GetName().C_Str());
-
+            
             aiMesh* M = scene->mMeshes[i];
-            scene->mMaterials[i]->GetName().C_Str();
+
+            lodder.materialNames.push_back(scene->mMaterials[M->mMaterialIndex]->GetName().C_Str());
             lodder.clearRemapping(M->mNumVertices);
             lodder.prepForMesh(M->mAABB);
+
+            int tricount = 0;
             for (uint j = 0; j < M->mNumFaces; j++)
             {
                 aiFace F = M->mFaces[j];
-                lodder.insertTriangle(i, F.mIndices, M->mVertices);     // fixme right material index
+                tricount += lodder.insertTriangle(i, F.mIndices, M);     // fixme right material index
             }
+            fprintf(terrafectorSystem::_logfile, "added %d triangles\n", tricount);
         }
 
         lodder.save(_path + ".lod4Cache");
@@ -911,12 +987,14 @@ void terrafectorEditorMaterial::eXport() {
 void terrafectorEditorMaterial::loadTexture(int idx)
 {
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"dds"}, {"png"}, {"jpg"} };
+    FileDialogFilterVec filters = { {"dds"}, {"png"}, {"jpg"}, {"tga"}};
     if (openFileDialog(filters, path))
     {
-        if (path.string().find(rootFolder) == 0) {
-            std::string relative = path.string().substr(rootFolder.length());
-            textureIndex[idx] = terrafectorEditorMaterial::static_materials.find_insert_texture(path, tfSRGB[idx]);
+        std::string P = path.string();
+        replaceAll(P, "\\", "/");
+        if (P.find(rootFolder) == 0) {
+            std::string relative = P.substr(rootFolder.length());
+            textureIndex[idx] = terrafectorEditorMaterial::static_materials.find_insert_texture(P, tfSRGB[idx]);
             textureNames[idx] =  path.filename().string();
             texturePaths[idx] = relative;
         }
@@ -945,7 +1023,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
     auto& style = ImGui::GetStyle();
     ImGuiStyle oldStyle = style;
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
+    //style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
@@ -962,10 +1040,10 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-        if (isModified)
-        {
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.5f, 0.0f, 0.9f);
-        }
+//        if (isModified)
+ //       {
+ //           style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.5f, 0.0f, 0.9f);
+  //      }
         char txt[256];
         sprintf(txt, "%s", displayName.c_str());
         if (ImGui::InputText("##name", txt, 256))
@@ -1440,14 +1518,17 @@ void terrafectorSystem::renderGui(Gui* mpGui)
 
 void terrafectorSystem::loadPath(std::string _path)
 {
-    fprintf(terrafectorSystem::_logfile, "\n\nterrafectorSystem::loadPath()\n", _path.c_str());
+    fprintf(terrafectorSystem::_logfile, "\n\nterrafectorSystem::loadPath(%s)\n", _path.c_str());
     fprintf(terrafectorSystem::_logfile, "###################################################################\n");
     logTab = 0;
 
     terrafectorElement::meshLoadCombiner.create(4);
     lod_4_mesh.create(4);
     root.loadPath(_path);
-//    lod_4_mesh.logStats();
+    fprintf(terrafectorSystem::_logfile, "\n\n");
+
+    terrafectorElement::meshLoadCombiner.loadToGPU();   // this also releases CPU memory
+    terrafectorEditorMaterial::static_materials.rebuildAll();
 }
 
 
