@@ -9,7 +9,7 @@
 #define MAX_LIGHTS_PER_TILE 64
 #define MAX_LIGHTS_PER_TILE_ARRAY 32
 
-
+//#define COMPUTE_DEBUG_OUTPUT
 
 struct t_DrawArguments
 {
@@ -162,7 +162,7 @@ struct gpuTile
 	uint numQuads;			// compute
 	uint numPlants;			// compute
 	uint numTriangles;		// compute
-	uint numLights;			// compute
+	uint numVerticis;			// compute
 };
 
 	

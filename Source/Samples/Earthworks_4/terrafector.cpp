@@ -1527,8 +1527,22 @@ void terrafectorSystem::loadPath(std::string _path)
     root.loadPath(_path);
     fprintf(terrafectorSystem::_logfile, "\n\n");
 
+
+
+    
+    
+
+
     terrafectorElement::meshLoadCombiner.loadToGPU();   // this also releases CPU memory
     terrafectorEditorMaterial::static_materials.rebuildAll();
+
+    fprintf(terrafectorSystem::_logfile, "\n\nlod_4_mesh terrafectorElement::meshLoadCombiner\n");
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
+            fprintf(terrafectorSystem::_logfile, "%6d", terrafectorElement::meshLoadCombiner.getTile(y * 16 + x)->numVerts);
+        }
+        fprintf(terrafectorSystem::_logfile, "\n");
+    }
 }
 
 

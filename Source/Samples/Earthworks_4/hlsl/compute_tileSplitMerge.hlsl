@@ -33,7 +33,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		tiles[ child[i].index ].numPlants = 0;
 		tiles[ child[i].index ].numQuads = 0;
 		tiles[ child[i].index ].numTriangles = 0;
-		tiles[ child[i].index ].numLights = 0;
+		tiles[ child[i].index ].numVerticis = 0;
 	}
 }
 

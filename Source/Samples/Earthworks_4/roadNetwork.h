@@ -92,7 +92,7 @@ public:
     static ODE_bezier odeBezier;	// for the physics lookup, so this can build it, save and load binary etc
     static std::vector<cubicDouble>	staticBezierData;
     static std::vector<bezierLayer>	staticIndexData;
-    //static std::vector<bezierLayer>	staticIndexDataSolid;
+    static std::vector<bezierLayer>	staticIndexData_BakeOnly;
     uint debugNumBezier;
     uint debugNumIndex;
 

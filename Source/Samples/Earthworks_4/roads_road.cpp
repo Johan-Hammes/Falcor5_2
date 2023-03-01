@@ -13,8 +13,7 @@
 #include "assimp/Exporter.hpp"
 
 
-#pragma optimize("", off)
-
+//#pragma optimize("", off)
 
 
 
@@ -159,7 +158,7 @@ void roadSection::setAIOnly(bool AI)
 
 
 
-void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, uint _from, uint _to, bool _stylized, bool _showMaterials)
+void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, std::vector<bezierLayer>& _index_BAKE, uint _from, uint _to, bool _stylized, bool _showMaterials)
 {
     uint numSegments = (uint)points.size();
     if (numSegments < 2) return;				// Return if zero segments
@@ -220,8 +219,8 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             bool isBridge = points[i].isBridge;
 
             if (!_stylized) {
-                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].right_Geom_Idx[0], 0, 0, isBridge, isBridge));
-                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].right_Geom_Idx[1], 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].right_Geom_Idx[0], 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].right_Geom_Idx[1], 0, 0, isBridge, isBridge));
             }
 
             // verge
@@ -382,8 +381,8 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             bool isBridge = points[i].isBridge;
 
             if (!_stylized) {
-                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].left_Geom_Idx[0], 0, 0, isBridge, isBridge));
-                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].left_Geom_Idx[1], 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].left_Geom_Idx[0], 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].left_Geom_Idx[1], 0, 0, isBridge, isBridge));
             }
 
             // verge

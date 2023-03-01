@@ -16,6 +16,7 @@ ParameterBlock<myTextures> gmyTextures;
 cbuffer gConstantBuffer : register(b0)
 {
     float4x4 viewproj;
+    uint startOffset;
 };
 
 
@@ -67,17 +68,17 @@ inline float4 cubic_Casteljau(float t, float4 P0, float4 P1, float4 P2, float4 P
 }
 
 
-#define outsideLine 	(indexData[ iId ].A >> 31) & 0x1
-#define insideLine 		(indexData[ iId ].A >> 30) & 0x1
+#define outsideLine 	(indexData[ iId + startOffset ].A >> 31) & 0x1
+#define insideLine 		(indexData[ iId + startOffset ].A >> 30) & 0x1
 
-#define isStartOverlap 	(indexData[ iId ].B >> 31) & 0x1
-#define isEndOverlap 	(indexData[ iId ].B >> 30) & 0x1
-#define isQuad 			(indexData[ iId ].B >> 29) & 0x1
+#define isStartOverlap 	(indexData[ iId + startOffset ].B >> 31) & 0x1
+#define isEndOverlap 	(indexData[ iId + startOffset ].B >> 30) & 0x1
+#define isQuad 			(indexData[ iId + startOffset ].B >> 29) & 0x1
 #define isOverlap		(isStartOverlap) || (isEndOverlap)
 
 // 12 bits left 4096 materials
-#define materialFlag  	(indexData[ iId ].A >> 17) & 0x7ff		
-#define index  			indexData[ iId ].A & 0x1ffff
+#define materialFlag  	(indexData[ iId + startOffset ].A >> 17) & 0x7ff		
+#define index  			indexData[ iId + startOffset ].A & 0x1ffff
 
 
 
@@ -107,11 +108,11 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     }
 
     if (vId & 0x1) {			// outside
-        const float w1 = (indexData[iId].B & 0x3fff) * 0.002f - 16.0f;
+        const float w1 = (indexData[iId + startOffset].B & 0x3fff) * 0.002f - 16.0f;
         output.posW = points[outsideLine].xyz + w1 * perpendicular;
     }
     else {					// inside
-        const float w0 = ((indexData[iId].B >> 14) & 0x3fff) * 0.002f - 16.0f;			// -32 .. 33.536m in mm resolution
+        const float w0 = ((indexData[iId + startOffset].B >> 14) & 0x3fff) * 0.002f - 16.0f;			// -32 .. 33.536m in mm resolution
         output.posW = points[insideLine].xyz + w0 * perpendicular;
     }
 

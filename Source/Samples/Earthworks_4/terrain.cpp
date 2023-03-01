@@ -485,6 +485,8 @@ void terrainManager::init_TopdownRender()
 
     splines.bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxBezier);
     splines.indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex);
+    splines.indexDataBakeOnly = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex);
+    splines.indexData_LOD4 = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex * 2); //*2 for safety
 
     splines.dynamic_bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxDynamicBezier);
     splines.dynamic_indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxDynamicIndex);
@@ -544,7 +546,7 @@ void terrainManager::reset(bool _fullReset)
             split.cpuTiles[i].numQuads = 0;
             split.cpuTiles[i].numPlants = 0;
             split.cpuTiles[i].numTriangles = 0;
-            split.cpuTiles[i].numLights = 0;
+            split.cpuTiles[i].numVerticis = 0;
         }
         split.buffer_tiles->setBlob(&split.cpuTiles, 0, m_tiles.size() * sizeof(gpuTile));
         // lets hope for now the upload is now automatic
@@ -665,6 +667,9 @@ void terrainManager::onGuiRender(Gui* _gui)
 
             //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
             //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
+
+            if (ImGui::Button("bezier -> lod4")) { bezierRoadstoLOD(4); }
+            
 
             if (ImGui::Checkbox("show baked", &bSplineAsTerrafector)) { reset(true); }
             if (ImGui::IsItemHovered())
@@ -1012,6 +1017,12 @@ bool terrainManager::update(RenderContext* _renderContext)
             splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
             mRoadNetwork.isDirty = false;
         }
+        splines.numStaticSplinesBakeOnlyIndex = __min((int)roadNetwork::staticIndexData_BakeOnly.size(), splines.maxIndex);
+        if (splines.numStaticSplinesBakeOnlyIndex > 0)
+        {
+            splines.indexDataBakeOnly->setBlob(roadNetwork::staticIndexData_BakeOnly.data(), 0, splines.numStaticSplinesBakeOnlyIndex * sizeof(bezierLayer));
+            mRoadNetwork.isDirty = false;
+        }
     }
 
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
@@ -1061,21 +1072,26 @@ bool terrainManager::update(RenderContext* _renderContext)
         auto pCB = split.compute_tileBuildLookup.Vars()->getParameterBlock("gConstants");
         pCB->setBlob(frustumFlags, 0, 2048 * sizeof(unsigned int));	// FIXME number of tiles
         uint cnt = (numTiles + 31) >> 5;
+
+        {
+            // readback of tile centers
+            _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
+            const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
+            std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
+            split.buffer_tileCenter_readback.get()->unmap();
+            for (int i = 0; i < m_tiles.size(); i++)
+            {
+                m_tiles[i].origin.y = split.tileCenters[i].x;
+                m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
+            }
+        }
+
         split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
     if (dirty)
     {
-        // readback of tile centers
-        _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
-        const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
-        std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
-        split.buffer_tileCenter_readback.get()->unmap();
-        for (int i = 0; i < m_tiles.size(); i++)
-        {
-            m_tiles[i].origin.y = split.tileCenters[i].x;
-            m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
-        }
+        
     }
 
     if (hasChanged) {
@@ -1327,16 +1343,11 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         {
             // for verts. Do this early to avoid stalls
             FALCOR_PROFILE("MIP_heights");
-            split.tileFbo->getColorTexture(0)->generateMips(_renderContext);
+            //split.tileFbo->getColorTexture(0)->generateMips(_renderContext);
             //cs_tile_ElevationMipmap.dispatch(pRenderContext, w / 4, h / 4); 			// Ek aanvaar die werk en is vinniger 0.057 -> 0.027   maar syncronization issues hier wat ek in A gaan oplos
         }
 
-        {
-            FALCOR_PROFILE("copy_PBR");
-            split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(2));
-            split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
-            _renderContext->copySubresource(compressed_PBR_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
-        }
+       
 
         {
             FALCOR_PROFILE("verticies");
@@ -1399,9 +1410,17 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
                 if (step < 1) step = 1;
             }
 
-            split.compute_tileJumpFlood.Vars()->setTexture("gInVerts", NULL);
-            split.compute_tileJumpFlood.Vars()->setTexture("gOutVerts", NULL);
+            //split.compute_tileJumpFlood.Vars()->setTexture("gInVerts", NULL);
+            //split.compute_tileJumpFlood.Vars()->setTexture("gOutVerts", NULL);
         }
+
+        {
+            FALCOR_PROFILE("copy_PBR");
+            split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(2));
+            split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
+            _renderContext->copySubresource(compressed_PBR_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
+        }
+
 
         {
             FALCOR_PROFILE("delaunay");
@@ -1448,6 +1467,9 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     }
 
 
+    
+
+
     if (_pTile->lod >= 4)
     {
         quadtree_tile* P4 = _pTile;
@@ -1475,25 +1497,35 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         }
     }
 
-    //??? should probably be in the roadnetwork code, but look at the optimize step first
-    if (splineAsTerrafector)           // Now render the roadNetwork
+    if (bSplineAsTerrafector)           // Now render the roadNetwork
     {
-
         split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
         split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
         split.shader_splineTerrafector.State()->setDepthStencilState(split.depthstateAll);
         split.shader_splineTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
 
         split.shader_splineTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["startOffset"] = 0;
         split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 
         auto& block = split.shader_splineTerrafector.Vars()->getParameterBlock("gmyTextures");
         ShaderVar& var = block->findMember("T");        // FIXME pre get
         terrafectorEditorMaterial::static_materials.setTextures(var);
 
-        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData);
+        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexDataBakeOnly);
         split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
-        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
+        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesBakeOnlyIndex);
+    }
+
+
+    //??? should probably be in the roadnetwork code, but look at the optimize step first
+    if (bSplineAsTerrafector && _pTile->lod >= 5)           // Now render the roadNetwork
+    {
+        quadtree_tile* P5 = _pTile;
+        while (P5->lod > 5) P5 = P5->parent;
+        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["startOffset"] = splines.startOffset_LOD5[P5->y][P5->x];
+        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData_LOD4);
+        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numIndex_LOD5[P5->y][P5->x]);
     }
     
 }
@@ -1613,7 +1645,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
-        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels, 60 + tile_numPixels);
+        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels*2, 60 + tile_numPixels*2);
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
 
@@ -2940,3 +2972,54 @@ void terrainManager::onHotReload(HotReloadFlags reloaded)
 {}
 
 
+
+bool testBezier(cubicDouble& _bez, glm::vec3 _pos, float _size)
+{
+    return false;
+}
+
+
+
+void terrainManager::bezierRoadstoLOD(uint _lod)
+{
+    std::vector<bezierLayer> lod4[32][32];
+
+    fprintf(terrafectorSystem::_logfile, "\n\n\nbezierRoadstoLOD\n");
+
+    for (uint i = 0; i < splines.numStaticSplinesIndex; i++)
+    {
+        uint bez = roadNetwork::staticIndexData[i].A & 0x1ffff;
+        cubicDouble &BEZ = roadNetwork::staticBezierData[bez];
+        float xMin = __min(__min(BEZ.data[0][0].x, BEZ.data[0][3].x), __min(BEZ.data[1][0].x, BEZ.data[1][3].x)) - 40;      // 39 is the buffer size for lod4
+        float xMax = __max(__max(BEZ.data[0][0].x, BEZ.data[0][3].x), __max(BEZ.data[1][0].x, BEZ.data[1][3].x)) + 40;
+        float yMin = __min(__min(BEZ.data[0][0].z, BEZ.data[0][3].z), __min(BEZ.data[1][0].z, BEZ.data[1][3].z)) - 40;
+        float yMax = __max(__max(BEZ.data[0][0].z, BEZ.data[0][3].z), __max(BEZ.data[1][0].z, BEZ.data[1][3].z)) + 40;
+
+        uint gMinX = (uint)floor((xMin + 20000.0f) / 1250.0f);
+        uint gMaxX = (uint)ceil((xMax + 20000.0f) / 1250.0f);
+        uint gMinY = (uint)floor((yMin + 20000.0f) / 1250.0f);
+        uint gMaxY = (uint)ceil((yMax + 20000.0f) / 1250.0f);
+
+        for (int y = gMinY; y < gMaxY; y++) {
+            for (int x = gMinX; x < gMaxX; x++)
+            {
+                lod4[y][x].push_back(roadNetwork::staticIndexData[i]);
+            }
+        }
+    }
+
+    uint start = 0;
+    for (int y = 0; y < 32; y++) {
+        for (int x = 0; x < 32; x++) {
+            int size = lod4[y][x].size();
+            splines.indexData_LOD4->setBlob(lod4[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+            splines.startOffset_LOD5[y][x] = start;
+            splines.numIndex_LOD5[y][x] = size;
+            start += size;
+            fprintf(terrafectorSystem::_logfile, "%6d", size);
+        }
+        fprintf(terrafectorSystem::_logfile, "\n");
+    }
+    fprintf(terrafectorSystem::_logfile, "\nTotal beziers %d from %d\n", start, splines.numStaticSplinesIndex);
+    fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
+}

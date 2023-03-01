@@ -46,7 +46,6 @@ target_sources(Earthworks_4 PRIVATE
 	hlsl/compute_tileClear.hlsl
 	hlsl/compute_tileDelaunay.hlsl
 	hlsl/compute_tileEcotopes.hlsl
-	hlsl/compute_tileElevationMipmap.hlsl
 	hlsl/compute_tileGenerate.hlsl
 	hlsl/compute_tileJumpFlood.hlsl
 	hlsl/compute_tileNormals.hlsl

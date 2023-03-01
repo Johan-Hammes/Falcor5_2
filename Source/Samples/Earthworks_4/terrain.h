@@ -292,13 +292,19 @@ private:
 
     void updateDynamicRoad(bool _bezierChanged);
 
+    void bezierRoadstoLOD(uint _lod);
+
     uint                        numTiles = 1024;
     std::vector<quadtree_tile>	m_tiles;
     std::list<quadtree_tile*>	m_free;
     std::list<quadtree_tile*>	m_used;
     unsigned int frustumFlags[2048];
     bool fullResetDoNotRender = false;
+#ifdef COMPUTE_DEBUG_OUTPUT
+    bool debug = true;
+#else
     bool debug = false;
+#endif
 
     std::array<terrainCamera, CameraType_MAX> cameraViews;
     float3 cameraOrigin;
@@ -317,7 +323,6 @@ private:
 
     bool requestPopupSettings = false;
     bool requestPopupDebug = false;
-    bool splineAsTerrafector = false;
 
     glm::vec3 mouseDirection;
     glm::vec3 mousePosition;
@@ -431,8 +436,13 @@ private:
         uint32_t maxIndex = 524288;             // *4 seems enough, 2022 at *1.7 for Nurburg
         uint32_t numStaticSplines = 0;
         uint32_t numStaticSplinesIndex = 0;
+        uint32_t numStaticSplinesBakeOnlyIndex = 0;
         Buffer::SharedPtr bezierData;
         Buffer::SharedPtr indexData;
+        Buffer::SharedPtr indexDataBakeOnly;
+        Buffer::SharedPtr indexData_LOD4;
+        uint startOffset_LOD5[32][32];
+        uint numIndex_LOD5[32][32];
 
         uint32_t maxDynamicBezier = 4096;            // 17 bits packed - likely to change soon
         uint32_t maxDynamicIndex = 16384;             // *4 seems enough, 2022 at *1.7 for Nurburg

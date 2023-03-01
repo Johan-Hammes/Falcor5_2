@@ -8,7 +8,7 @@
 #define tile_InnerPixels 248
 #define tile_toBorder 256.0f/248.0f
 
-#define numVertPerTile  32768
+#define numVertPerTile  6096
 
 // 16384 allows for a plant every 2x2 pixels, and roughly 128 Mb (16384 X 8 byte struct. 1024 tiles)
 #define numQuadsPerTile  16384

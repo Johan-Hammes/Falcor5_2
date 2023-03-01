@@ -110,7 +110,7 @@ public:
     roadSection() { ; }
     virtual ~roadSection() { ; }
 
-    void convertToGPU_Realistic(std::vector<cubicDouble> &_bezier, std::vector<bezierLayer> &_index, uint _from = 99999, uint _to = 88888, bool _stylized = false, bool _showMaterials = true);
+    void convertToGPU_Realistic(std::vector<cubicDouble> &_bezier, std::vector<bezierLayer> &_index, std::vector<bezierLayer>& _index_BAKE, uint _from = 99999, uint _to = 88888, bool _stylized = false, bool _showMaterials = true);
     void clearSelection();
     void selectAll();
     void newSelection(int index);

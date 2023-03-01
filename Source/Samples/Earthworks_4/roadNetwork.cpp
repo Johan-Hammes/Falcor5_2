@@ -21,6 +21,8 @@ extern glm::vec3 del_cubic_Casteljau(float t0, float t1, bezierPoint* A, bezierP
 ODE_bezier roadNetwork::odeBezier;	// for the physics lookup, so this can build it, save and load binary etc
 std::vector<cubicDouble>	roadNetwork::staticBezierData;
 std::vector<bezierLayer>	roadNetwork::staticIndexData;
+std::vector<bezierLayer>	roadNetwork::staticIndexData_BakeOnly;
+
 
 
 roadNetwork::roadNetwork()
@@ -1661,10 +1663,11 @@ void roadNetwork::updateDynamicRoad()
         odeBezier.clear();
         roadNetwork::staticBezierData.clear();
         roadNetwork::staticIndexData.clear();
+        roadNetwork::staticIndexData_BakeOnly.clear();
 
         if (currentRoad) {
             //currentRoad->convertToGPU_Stylized(&bezierCount, false, selectFrom, selectTo);
-            currentRoad->convertToGPU_Realistic(staticBezierData, staticIndexData, selectFrom, selectTo, true, showMaterials);
+            currentRoad->convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly, selectFrom, selectTo, true, showMaterials);
 
         }
 
@@ -1672,7 +1675,7 @@ void roadNetwork::updateDynamicRoad()
             for (int i = 0; i < currentIntersection->roadLinks.size(); i++) {
                 currentIntersection->roadLinks[i].roadPtr = &roadSectionsList.at(currentIntersection->roadLinks[i].roadGUID);
                 //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Stylized(&bezierCount);
-                currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, 0, 0, true, false);
+                currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly, 0, 0, true, false);
             }
             currentIntersection->convertToGPU(staticBezierData, staticIndexData, &bezierCount);
         }
@@ -1690,10 +1693,10 @@ void roadNetwork::updateAllRoads(bool _forExport)
     odeBezier.clear();
     roadNetwork::staticBezierData.clear();
     roadNetwork::staticIndexData.clear();
-    //roadNetwork::staticIndexDataSolid.clear();
+    roadNetwork::staticIndexData_BakeOnly.clear();
 
     for (auto& roadSection : roadSectionsList) {
-        roadSection.convertToGPU_Realistic(staticBezierData, staticIndexData);
+        roadSection.convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly);
     }
 
     //	for (auto &intersection : intersectionList) {

@@ -44,7 +44,7 @@ namespace Falcor
         // With sigma = 0.98, then after 100 frames, a given value's contribution is down to ~1.7% of
         // the running average, which seems to provide a reasonable trade-off of temporal smoothing
         // versus setting in to a new value when something has changed.
-        const float kSigma = 0.98f;
+        const float kSigma = 0.90f;
 
         // Size of the event history. The event history is keeping track of event times to allow
         // for computing statistics (min, max, mean, stddev) over the recent history.

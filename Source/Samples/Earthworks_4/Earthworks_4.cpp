@@ -292,7 +292,7 @@ int main(int argc, char** argv)
 
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
-    config.windowDesc.resizableWindow = true;
+    config.windowDesc.resizableWindow = false;
     config.windowDesc.mode = Window::WindowMode::Fullscreen;
     //config.windowDesc.mode = Window::WindowMode::AllScreens;
     config.windowDesc.width = 1260;
