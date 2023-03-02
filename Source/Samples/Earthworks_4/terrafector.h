@@ -95,14 +95,12 @@ CEREAL_CLASS_VERSION(tileTriangleBlock, 100);
 class lodTriangleMesh {
 public:
     void create(uint _lod);
-    void clearRemapping(uint _size);
     void remapMaterials(uint* _map);
-    void prepForMesh(aiAABB _aabb);
-    void pushMaterialName(std::string _name);
+    void prepForMesh(aiAABB _aabb, uint _size, std::string _name);
     int insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh);
     void logStats();
     void save(const std::string _path);
-    void load(const std::string _path);
+    bool load(const std::string _path);
     
 
 private:
@@ -250,14 +248,14 @@ public:
 
 
 	enum tfMaterialTypes { tfmat_standard, tfmat_rubber, tfmat_puddle, tfmat_legacyRubber };
-
+/*
 	struct {
-		float	reflectance;
-		float	microFiber;
-		float	microShadow;
-		float	lightWrap;
+		float	reflectance = 0;
+		float	microFiber = 0;
+		float	microShadow = 0;
+		float	lightWrap = 0;
 	} _materialFixedData;
-
+    */
 
 	struct {
 		int	materialType = 0;
@@ -397,7 +395,6 @@ public:
     void splitAndCacheMesh(const std::string _path);
 	terrafectorElement &find_insert(const std::string _name, const tfTypes _type= tf_heading, const std::string _path="");
 	void renderGui(Gui* _pGui, float tab = 0);
-	void render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars);
 
     void loadPath(std::string _path);
 
@@ -413,7 +410,7 @@ public:
 	bool bExpanded = false;
     bool bakeOnly = false;
 
-    static lodTriangleMesh_LoadCombiner meshLoadCombiner;
+    
 }; 
 
 
@@ -432,21 +429,21 @@ public:
 	void serialize(Archive & archive) {	/*archive(groups); */}
 
 	void renderGui(Gui* mpGui);
-	void render(RenderContext::SharedPtr _pRenderContext, Camera::SharedPtr _pCamera, GraphicsState::SharedPtr _pState, GraphicsVars::SharedPtr _pVars);
-
-    void loadPath(std::string _path);
-
+    void loadPath(std::string _path, bool _rebuild = false);
 
 public:
 
 	static bool needsRefresh;
 	//static ecotopeSystem *pEcotopes;
-	static GraphicsProgram::SharedPtr		topdownProgramForBlends;
 	static FILE *_logfile;
-
-
 	terrafectorElement root = terrafectorElement(tf_heading, "root");
 
-    static lodTriangleMesh     lod_4_mesh;
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD2;       // will only be used if flagged by artists - large ecotopes only - roughly 40 -> 20 meter pixels this is the far horizon
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD4;       // 10m pixel 2.5km tile
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD6;       // 2.5m pixel 600m tile
+
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD4_bakeLow;       // all baking will happen at lod4 level
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD4_bakeHigh;
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD4_overlay;
 };
 

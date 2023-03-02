@@ -424,7 +424,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mSpriteRenderer.onLoad();
 
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
-    terrafectors.loadPath(settings.dirRoot + "/terrafectors/");
+    terrafectors.loadPath(settings.dirRoot + "/terrafectors/", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 }
 
@@ -698,6 +698,11 @@ void terrainManager::onGuiRender(Gui* _gui)
             if (ImGui::DragFloat("redOffset", &gis_overlay.redOffset, 0.01f, 0, 1)) {
                 terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
             }
+
+            if (ImGui::DragFloat("overlay Strength", &gis_overlay.terrafectorOverlayStrength, 0.01f, 0, 1)) {
+                reset(true);
+            }
+            
 
 
 
@@ -1284,8 +1289,8 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
 
     {
-        // why is it nessesary to clear before bicubic
-        //_renderContext->clearFbo(split.tileFbo.get(), glm::vec4(0.2f, 0.2f, 0.2f, 1.0f), 1.0f, 0, FboAttachmentType::All);
+        // Not nessesary but nice where we lack data for now
+        _renderContext->clearFbo(split.tileFbo.get(), glm::vec4(0.3f, 0.3f, 0.3f, 1.0f), 1.0f, 0, FboAttachmentType::All);
     }
 
 
@@ -1467,33 +1472,30 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     }
 
 
-    
+    {
+        split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+        split.shader_meshTerrafector.State()->setRasterizerState(split.rasterstateSplines);
+        split.shader_meshTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
+        split.shader_meshTerrafector.State()->setDepthStencilState(split.depthstateAll);
+
+        split.shader_meshTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = 1.0f;
+
+        auto& block = split.shader_meshTerrafector.Vars()->getParameterBlock("gmyTextures");
+        ShaderVar& var = block->findMember("T");        // FIXME pre get
+        terrafectorEditorMaterial::static_materials.setTextures(var);
+    }
 
 
+    // Mesh bake low
     if (_pTile->lod >= 4)
     {
-        quadtree_tile* P4 = _pTile;
-        while (P4->lod > 4) P4 = P4->parent;
-        uint lod4Index = P4->y * 16 + P4->x;
-        gpuTileTerrafector* tile = terrafectorElement::meshLoadCombiner.getTile(lod4Index);
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeLow.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
         if (tile && tile->numBlocks > 0);
         {
-            split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
-            split.shader_meshTerrafector.State()->setRasterizerState(split.rasterstateSplines);
-            split.shader_meshTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
-            split.shader_meshTerrafector.State()->setDepthStencilState(split.depthstateAll);
-
-            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-
-            auto& block = split.shader_meshTerrafector.Vars()->getParameterBlock("gmyTextures");
-            ShaderVar& var = block->findMember("T");        // FIXME pre get
-            terrafectorEditorMaterial::static_materials.setTextures(var);
-
             split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
             split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
             split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
-            /*  we can likely get this faster by splitting finer, triangle count still hurting us on most splits
-                */
         }
     }
 
@@ -1515,6 +1517,68 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexDataBakeOnly);
         split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
         split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesBakeOnlyIndex);
+    }
+
+    if (_pTile->lod >= 4)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeHigh.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+        }
+    }
+
+    
+
+    
+
+    
+    if (_pTile->lod >= 6)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+        }
+    }
+    else if (_pTile->lod >= 4)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+        }
+    }
+    else if (_pTile->lod >= 2)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD2.getTile((_pTile->y >> (_pTile->lod - 2)) * 4 + (_pTile->x >> (_pTile->lod - 2)));
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+        }
+    }
+
+
+    // OVER:AY ######################################################
+    if (gis_overlay.terrafectorOverlayStrength > 0)
+    if (_pTile->lod >= 4)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_overlay.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+        if (tile && tile->numBlocks > 0);
+        {
+            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = gis_overlay.terrafectorOverlayStrength;
+            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+        }
     }
 
 
@@ -1989,7 +2053,7 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
     if (_lod >= 4)
     {
         uint lod4Index = (_y >> (_lod - 4) * 16) + (_x >> (_lod - 4));
-        gpuTileTerrafector* tile = terrafectorElement::meshLoadCombiner.getTile(lod4Index);
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4.getTile(lod4Index);
         if (tile && tile->numBlocks > 0);
         {
             split.shader_meshTerrafector.State()->setFbo(split.tileFbo);

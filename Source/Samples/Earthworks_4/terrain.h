@@ -358,9 +358,11 @@ private:
         bool show = true;
         float strenght = 1.0f;
 
-        float redStrength = 1.0f;
+        float redStrength = 0.3f;
         float redScale = 5.0f;
         float redOffset = 0.05f;
+
+        float terrafectorOverlayStrength = 0.1f;
     }gis_overlay;
 
     struct {

@@ -31,9 +31,8 @@ ParameterBlock<myTextures> gmyTextures;
 
 cbuffer gConstantBuffer : register(b0)
 {
-    float4x4 view;
-    float4x4 proj;
     float4x4 viewproj;
+    float overlayAlpha;
 };
 
 
@@ -99,7 +98,7 @@ PS_OUTPUT psMain(splineVSOut vIn) : SV_TARGET
 
 
     // alpha
-    float alpha = 1;
+    float alpha = overlayAlpha;
     if (MAT.useAlpha)
     {
         float2 alpha_uv = uv;
@@ -115,7 +114,7 @@ PS_OUTPUT psMain(splineVSOut vIn) : SV_TARGET
         }
         float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(gSmpLinear, uvWorld).r;
 
-        alpha = lerp(1, smoothstep(0, 1, vIn.colour.r), MAT.vertexAlphaScale);
+        alpha *= lerp(1, smoothstep(0, 1, vIn.colour.r), MAT.vertexAlphaScale);
         alpha *= lerp(1, saturate((alphaBase + MAT.baseAlphaBrightness) * MAT.baseAlphaContrast), MAT.baseAlphaScale);
         alpha *= lerp(1, saturate((alphaDetail + MAT.detailAlphaBrightness) * MAT.detailAlphaContrast), MAT.detailAlphaScale);
     }

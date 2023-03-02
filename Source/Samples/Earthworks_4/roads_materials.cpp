@@ -38,9 +38,9 @@ uint roadMaterialCache::find_insert_material(const std::string _path)
         {
             if (materialVector[i].relativePath.compare(relative) == 0)
             {
-                fprintf(terrafectorSystem::_logfile, "	ROAD MATERIAL CACHE - found %s \n", _path.substr(_path.find_last_of("\\/") + 1, _path.size()).c_str());
-                fprintf(terrafectorSystem::_logfile, "		%d layers\n", (int)materialVector[i].layers.size());
-                fflush(terrafectorSystem::_logfile);
+                //fprintf(terrafectorSystem::_logfile, "	ROAD MATERIAL CACHE - found %s \n", _path.substr(_path.find_last_of("\\/") + 1, _path.size()).c_str());
+                //fprintf(terrafectorSystem::_logfile, "		%d layers\n", (int)materialVector[i].layers.size());
+                //fflush(terrafectorSystem::_logfile);
 
                 // try to load the thumbnail
                 if (!materialVector[i].thumbnail) {
