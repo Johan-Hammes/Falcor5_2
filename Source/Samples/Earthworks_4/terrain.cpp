@@ -487,6 +487,8 @@ void terrainManager::init_TopdownRender()
     splines.indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex);
     splines.indexDataBakeOnly = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex);
     splines.indexData_LOD4 = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex * 2); //*2 for safety
+    splines.indexData_LOD6 = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex * 2); //*2 for safety
+    splines.indexData_LOD8 = Buffer::createStructured(sizeof(bezierLayer), splines.maxIndex * 2); //*2 for safety   // 8Mb for now 1M points 8bytes per bez
 
     splines.dynamic_bezierData = Buffer::createStructured(sizeof(cubicDouble), splines.maxDynamicBezier);
     splines.dynamic_indexData = Buffer::createStructured(sizeof(bezierLayer), splines.maxDynamicIndex);
@@ -702,6 +704,10 @@ void terrainManager::onGuiRender(Gui* _gui)
             if (ImGui::DragFloat("overlay Strength", &gis_overlay.terrafectorOverlayStrength, 0.01f, 0, 1)) {
                 reset(true);
             }
+            ImGui::Checkbox("bakeBakeOnlyData", &gis_overlay.bakeBakeOnlyData);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Disabeling this will produce a WRONG result\nIt is only here for speed testing as it mimics EVO pipeline");
+            
             
 
 
@@ -1077,26 +1083,21 @@ bool terrainManager::update(RenderContext* _renderContext)
         auto pCB = split.compute_tileBuildLookup.Vars()->getParameterBlock("gConstants");
         pCB->setBlob(frustumFlags, 0, 2048 * sizeof(unsigned int));	// FIXME number of tiles
         uint cnt = (numTiles + 31) >> 5;
-
-        {
-            // readback of tile centers
-            _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
-            const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
-            std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
-            split.buffer_tileCenter_readback.get()->unmap();
-            for (int i = 0; i < m_tiles.size(); i++)
-            {
-                m_tiles[i].origin.y = split.tileCenters[i].x;
-                m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
-            }
-        }
-
         split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
     }
 
     if (dirty)
     {
-        
+        // readback of tile centers
+        _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
+        const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
+        std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
+        split.buffer_tileCenter_readback.get()->unmap();
+        for (int i = 0; i < m_tiles.size(); i++)
+        {
+            m_tiles[i].origin.y = split.tileCenters[i].x;
+            m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
+        }
     }
 
     if (hasChanged) {
@@ -1486,19 +1487,6 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         terrafectorEditorMaterial::static_materials.setTextures(var);
     }
 
-
-    // Mesh bake low
-    if (_pTile->lod >= 4)
-    {
-        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeLow.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-        if (tile && tile->numBlocks > 0);
-        {
-            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
-        }
-    }
-
     if (bSplineAsTerrafector)           // Now render the roadNetwork
     {
         split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
@@ -1514,22 +1502,42 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         ShaderVar& var = block->findMember("T");        // FIXME pre get
         terrafectorEditorMaterial::static_materials.setTextures(var);
 
-        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexDataBakeOnly);
         split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
-        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesBakeOnlyIndex);
     }
 
-    if (_pTile->lod >= 4)
+    
+    // Mesh bake low
+    if (gis_overlay.bakeBakeOnlyData)
     {
-        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeHigh.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-        if (tile && tile->numBlocks > 0);
+        if (_pTile->lod >= 4)
         {
-            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeLow.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+            if (tile && tile->numBlocks > 0);
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
+        }
+
+        if (bSplineAsTerrafector)           // Now render the roadNetwork
+        {
+            split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexDataBakeOnly);
+            split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesBakeOnlyIndex);
+        }
+
+        if (_pTile->lod >= 4)
+        {
+            gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeHigh.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+            if (tile && tile->numBlocks > 0);
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
         }
     }
-
+    
     
 
     
@@ -1583,13 +1591,32 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
     //??? should probably be in the roadnetwork code, but look at the optimize step first
-    if (bSplineAsTerrafector && _pTile->lod >= 5)           // Now render the roadNetwork
+    if (bSplineAsTerrafector)           // Now render the roadNetwork
     {
-        quadtree_tile* P5 = _pTile;
-        while (P5->lod > 5) P5 = P5->parent;
-        split.shader_splineTerrafector.Vars()["gConstantBuffer"]["startOffset"] = splines.startOffset_LOD5[P5->y][P5->x];
-        split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData_LOD4);
-        split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numIndex_LOD5[P5->y][P5->x]);
+        if (_pTile->lod >= 8)
+        {
+            quadtree_tile* P8 = _pTile;
+            while (P8->lod > 8) P8 = P8->parent;
+            split.shader_splineTerrafector.Vars()["gConstantBuffer"]["startOffset"] = splines.startOffset_LOD8[P8->y][P8->x];
+            split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData_LOD8);
+            split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numIndex_LOD8[P8->y][P8->x]);
+        }
+        else if (_pTile->lod >= 6)
+        {
+            quadtree_tile* P6 = _pTile;
+            while (P6->lod > 6) P6 = P6->parent;
+            split.shader_splineTerrafector.Vars()["gConstantBuffer"]["startOffset"] = splines.startOffset_LOD6[P6->y][P6->x];
+            split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData_LOD6);
+            split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numIndex_LOD6[P6->y][P6->x]);
+        }
+        else if (_pTile->lod >= 4)
+        {
+            quadtree_tile* P4 = _pTile;
+            while (P4->lod > 4) P4 = P4->parent;
+            split.shader_splineTerrafector.Vars()["gConstantBuffer"]["startOffset"] = splines.startOffset_LOD4[P4->y][P4->x];
+            split.shader_splineTerrafector.Vars()->setBuffer("indexData", splines.indexData_LOD4);
+            split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numIndex_LOD4[P4->y][P4->x]);
+        }
     }
     
 }
@@ -3046,44 +3073,127 @@ bool testBezier(cubicDouble& _bez, glm::vec3 _pos, float _size)
 
 void terrainManager::bezierRoadstoLOD(uint _lod)
 {
-    std::vector<bezierLayer> lod4[32][32];
+#define outsideLine 	(roadNetwork::staticIndexData[i].A >> 31) & 0x1
+#define insideLine 		(roadNetwork::staticIndexData[i].A >> 30) & 0x1
+#define index  			roadNetwork::staticIndexData[i].A & 0x1ffff
+
+    //std::vector<bezierLayer> lod4[16][16];
+    //std::vector<bezierLayer> lod6[64][64];
+    //std::vector<bezierLayer> lod8[256][256];
 
     fprintf(terrafectorSystem::_logfile, "\n\n\nbezierRoadstoLOD\n");
 
     for (uint i = 0; i < splines.numStaticSplinesIndex; i++)
     {
-        uint bez = roadNetwork::staticIndexData[i].A & 0x1ffff;
-        cubicDouble &BEZ = roadNetwork::staticBezierData[bez];
-        float xMin = __min(__min(BEZ.data[0][0].x, BEZ.data[0][3].x), __min(BEZ.data[1][0].x, BEZ.data[1][3].x)) - 40;      // 39 is the buffer size for lod4
-        float xMax = __max(__max(BEZ.data[0][0].x, BEZ.data[0][3].x), __max(BEZ.data[1][0].x, BEZ.data[1][3].x)) + 40;
-        float yMin = __min(__min(BEZ.data[0][0].z, BEZ.data[0][3].z), __min(BEZ.data[1][0].z, BEZ.data[1][3].z)) - 40;
-        float yMax = __max(__max(BEZ.data[0][0].z, BEZ.data[0][3].z), __max(BEZ.data[1][0].z, BEZ.data[1][3].z)) + 40;
+        cubicDouble &BEZ = roadNetwork::staticBezierData[index];
 
-        uint gMinX = (uint)floor((xMin + 20000.0f) / 1250.0f);
-        uint gMaxX = (uint)ceil((xMax + 20000.0f) / 1250.0f);
-        uint gMinY = (uint)floor((yMin + 20000.0f) / 1250.0f);
-        uint gMaxY = (uint)ceil((yMax + 20000.0f) / 1250.0f);
+        float3 perpStart = glm::normalize(BEZ.data[1][0] - BEZ.data[0][0]);
+        float3 perpEnd = glm::normalize(BEZ.data[1][3] - BEZ.data[0][3]);
 
-        for (int y = gMinY; y < gMaxY; y++) {
-            for (int x = gMinX; x < gMaxX; x++)
+        float w0 = ((roadNetwork::staticIndexData[i].B >> 14) & 0x3fff) * 0.002f - 16.0f;			// -32 .. 33.536m in mm resolution
+        float w1 = (roadNetwork::staticIndexData[i].B & 0x3fff) * 0.002f - 16.0f;
+
+        float3 startInside = float3(BEZ.data[insideLine][0]) + w0 * perpStart;
+        float3 startOutside = float3(BEZ.data[outsideLine][0]) + w1 * perpStart;
+        float3 endInside = float3(BEZ.data[insideLine][3]) + w0 * perpStart;
+        float3 endOutside = float3(BEZ.data[outsideLine][3]) + w1 * perpStart;
+
+        float splineWidth = __max( glm::length(startOutside - startInside), glm::length(endOutside - endInside));
+
+        for (int lod = 4; lod <= 8; lod+=2)
+        {
+            float scale = 1.0f / pow(2, lod);
+            float tileSize = 40000 * scale;
+            float pixelSize = tileSize / 248.0f;
+            float borderSize = (pixelSize * 4.0f) + splineWidth;    // add splineWidth to compensate for curve
+            //??? How to boos tarmac since left right that one is double
+            // boost lod4 a little since I dont k ow trarmact yert
+            if (lod == 4) splineWidth *= 2.0f;
+            if ((lod==8) || splineWidth > pixelSize)
             {
-                lod4[y][x].push_back(roadNetwork::staticIndexData[i]);
+                float xMin = __min(__min(BEZ.data[0][0].x, BEZ.data[0][3].x), __min(BEZ.data[1][0].x, BEZ.data[1][3].x)) - 80;      // 39 is the buffer size for lod4
+                float xMax = __max(__max(BEZ.data[0][0].x, BEZ.data[0][3].x), __max(BEZ.data[1][0].x, BEZ.data[1][3].x)) + 80;
+                float yMin = __min(__min(BEZ.data[0][0].z, BEZ.data[0][3].z), __min(BEZ.data[1][0].z, BEZ.data[1][3].z)) - 80;
+                float yMax = __max(__max(BEZ.data[0][0].z, BEZ.data[0][3].z), __max(BEZ.data[1][0].z, BEZ.data[1][3].z)) + 80;
+
+                uint gMinX = (uint)floor((xMin - borderSize + 20000.0f) / tileSize);
+                uint gMaxX = (uint)ceil((xMax + borderSize + 20000.0f) / tileSize);
+                uint gMinY = (uint)floor((yMin - borderSize + 20000.0f) / tileSize);
+                uint gMaxY = (uint)ceil((yMax + borderSize + 20000.0f) / tileSize);
+
+                for (int y = gMinY; y < gMaxY; y++) {
+                    for (int x = gMinX; x < gMaxX; x++)
+                    {
+                        switch(lod)
+                        {
+                        case 4: splines.lod4[y][x].push_back(roadNetwork::staticIndexData[i]); break;
+                        case 6: splines.lod6[y][x].push_back(roadNetwork::staticIndexData[i]); break;
+                        case 8: splines.lod8[y][x].push_back(roadNetwork::staticIndexData[i]); break;
+                        }
+                        
+                    }
+                }
             }
         }
     }
 
     uint start = 0;
-    for (int y = 0; y < 32; y++) {
-        for (int x = 0; x < 32; x++) {
-            int size = lod4[y][x].size();
-            splines.indexData_LOD4->setBlob(lod4[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
-            splines.startOffset_LOD5[y][x] = start;
-            splines.numIndex_LOD5[y][x] = size;
+    uint largest = 0;
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
+            int size = splines.lod4[y][x].size();
+            if (size > 0)
+            {
+                largest = __max(largest, size);
+                splines.indexData_LOD4->setBlob(splines.lod4[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+            }
+            splines.startOffset_LOD4[y][x] = start;
+            splines.numIndex_LOD4[y][x] = size;
             start += size;
             fprintf(terrafectorSystem::_logfile, "%6d", size);
         }
         fprintf(terrafectorSystem::_logfile, "\n");
     }
-    fprintf(terrafectorSystem::_logfile, "\nTotal beziers %d from %d\n", start, splines.numStaticSplinesIndex);
+    fprintf(terrafectorSystem::_logfile, "\nLOD 4. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
+    fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
+
+
+
+    start = 0;
+    largest = 0;
+    for (int y = 0; y < 64; y++) {
+        for (int x = 0; x < 64; x++) {
+            int size = splines.lod6[y][x].size();
+            if (size > 0)
+            {
+                largest = __max(largest, size);
+                splines.indexData_LOD6->setBlob(splines.lod6[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+            }
+            splines.startOffset_LOD6[y][x] = start;
+            splines.numIndex_LOD6[y][x] = size;
+            start += size;
+        }
+    }
+    fprintf(terrafectorSystem::_logfile, "\nLOD 6. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
+    fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
+
+
+
+    start = 0;
+    largest = 0;
+    for (int y = 0; y < 256; y++) {
+        for (int x = 0; x < 256; x++) {
+            int size = splines.lod8[y][x].size();
+            if (size > 0)
+            {
+                largest = __max(largest, size);
+                splines.indexData_LOD8->setBlob(splines.lod8[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+            }
+            splines.startOffset_LOD8[y][x] = start;
+            splines.numIndex_LOD8[y][x] = size;
+            start += size;
+        }
+    }
+    fprintf(terrafectorSystem::_logfile, "\nLOD 8. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
     fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
 }

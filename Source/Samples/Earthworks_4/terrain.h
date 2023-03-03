@@ -363,6 +363,7 @@ private:
         float redOffset = 0.05f;
 
         float terrafectorOverlayStrength = 0.1f;
+        bool bakeBakeOnlyData = true;
     }gis_overlay;
 
     struct {
@@ -443,8 +444,17 @@ private:
         Buffer::SharedPtr indexData;
         Buffer::SharedPtr indexDataBakeOnly;
         Buffer::SharedPtr indexData_LOD4;
-        uint startOffset_LOD5[32][32];
-        uint numIndex_LOD5[32][32];
+        Buffer::SharedPtr indexData_LOD6;
+        Buffer::SharedPtr indexData_LOD8;
+        uint startOffset_LOD4[16][16];
+        uint numIndex_LOD4[16][16];
+        uint startOffset_LOD6[64][64];
+        uint numIndex_LOD6[64][64];
+        uint startOffset_LOD8[256][256];
+        uint numIndex_LOD8[256][256];
+        std::vector<bezierLayer> lod4[16][16];
+        std::vector<bezierLayer> lod6[64][64];
+        std::vector<bezierLayer> lod8[256][256];
 
         uint32_t maxDynamicBezier = 4096;            // 17 bits packed - likely to change soon
         uint32_t maxDynamicIndex = 16384;             // *4 seems enough, 2022 at *1.7 for Nurburg

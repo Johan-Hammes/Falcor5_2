@@ -719,6 +719,14 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
             }
         }
 
+        for (auto& matName : lodder_4.materialNames)
+        {
+            subMesh S;
+            S.materialName = matName;
+            S.index = terrafectorEditorMaterial::static_materials.find_insert_material(P.parent_path().string() + "/", matName);
+            materials.push_back(S);
+        }
+
     }
 }
 
@@ -795,6 +803,14 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
                     terrafectorSystem::loadCombine_LOD4.addMesh(P.parent_path().string() + "/", lodder4);
                 }
             }
+
+            for (auto& matName : lodder4.materialNames)
+            {
+                subMesh S;
+                S.materialName = matName;
+                S.index = terrafectorEditorMaterial::static_materials.find_insert_material(P.parent_path().string() + "/", matName);
+                me.materials.push_back(S);
+            }
         }
 
     }
@@ -806,8 +822,7 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
 
 void terrafectorElement::renderGui(Gui* _pGui, float tab)
 {
-
-
+    auto& style = ImGui::GetStyle();
     float y = ImGui::GetCursorPosY();
 
     if (bExpanded) {
@@ -832,6 +847,7 @@ void terrafectorElement::renderGui(Gui* _pGui, float tab)
     ImGui::SameLine(tab);
     switch (type) {
     case tf_heading:
+        style.Colors[ImGuiCol_Text] = ImVec4(1.f, 1.f, 1.f, 1.f);
         ImGui::PushFont(_pGui->getFont("roboto_20"));
         // fime unique name add counter
         // if not expanded show number fo children
@@ -841,11 +857,13 @@ void terrafectorElement::renderGui(Gui* _pGui, float tab)
         ImGui::PopFont();
         break;
     case tf_fbx:
+        style.Colors[ImGuiCol_Text] = ImVec4(1.f, 0.5f, 0.2f, 0.7f);
         if (ImGui::Selectable(name.c_str())) {
             bExpanded = !bExpanded;
         }
         if (bExpanded)
         {
+            style.Colors[ImGuiCol_Text] = ImVec4(0.1f, 0.7f, 0.4f, 0.7f);
             //static uint CNT = 0;
             //ImGui::PushID(CNT);
             for (uint i = 0; i < materials.size(); i++)
@@ -1520,7 +1538,9 @@ void terrafectorSystem::renderGui(Gui* mpGui)
     style.Colors[ImGuiCol_Button] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.0f, 0.7f, 0.9f, 0.7f);
 
+    ImVec4 oldText = style.Colors[ImGuiCol_Text];
     root.renderGui(mpGui);
+    style.Colors[ImGuiCol_Text] = oldText;
 
     // Materials
     ImGui::NewLine();
