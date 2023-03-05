@@ -34,7 +34,8 @@ void main(uint2 coord : SV_DispatchThreadId)
 		tileCenters[tileIdx].min = centerHeight;
 		tiles[tileIdx].origin.y = centerHeight - (tiles[tileIdx].scale_1024 * 2048);	// Its corner origin rather than middle
 	}
-	
+
+   
 
 	float pixSize = constants.x;
 	float scale = constants.y;
@@ -47,6 +48,11 @@ void main(uint2 coord : SV_DispatchThreadId)
 		int mask = 0x3 >> lod;
 		int2 Vcrd = coord + mask;
 
+        if (gOutVerts[Vcrd] > 0)
+        {
+            uint2 dCrd = Vcrd * 2 + 1;
+            gDebug[dCrd] = float4(1, 1, 1, 1);
+        }
 
 		if (!any(coord & mask) && Vcrd.x < 127 && Vcrd.y < 127) {
 			float2 uv = (Vcrd + 1.0) / 128.0f;
@@ -82,13 +88,13 @@ void main(uint2 coord : SV_DispatchThreadId)
 #if defined(COMPUTE_DEBUG_OUTPUT)
                     uint2 dCrd = Vcrd * 2 + 1;
                     if (lod == 0) {
-                        gDebug[dCrd] = float4(0, 0.6, 1, 1);
+                        //gDebug[dCrd] = float4(0, 0.6, 1, 1);
                     }
                     if (lod == 1) {
-                        gDebug[dCrd] = float4(0, 1, 0.0, 1);
+                        //gDebug[dCrd] = float4(0, 1, 0.0, 1);
                     }
                     if (lod == 2) {
-                        gDebug[dCrd] = float4(1, 0.2, 0.0, 1);
+                        //gDebug[dCrd] = float4(1, 0.2, 0.0, 1);
                     }
 #endif
                 }

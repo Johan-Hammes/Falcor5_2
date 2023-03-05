@@ -1067,7 +1067,7 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     splitOne(_renderContext);
 
-    if (dirty)
+    //if (dirty)
     {
         testForSurfaceMain();
         for (auto& tile : m_used)
@@ -1398,7 +1398,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         {
             FALCOR_PROFILE("jumpflood");
 
-            uint step = 2;
+            uint step = 4;
             for (int j = 0; j < 4; j++) {
                 split.compute_tileJumpFlood.Vars()["gConstants"]["step"] = step;
                 if (j & 0x1) {
@@ -1736,7 +1736,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
-        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels*2, 60 + tile_numPixels*2);
+        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels, 60 + tile_numPixels);
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
 
