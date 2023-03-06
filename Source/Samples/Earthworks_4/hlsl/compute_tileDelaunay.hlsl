@@ -20,8 +20,6 @@ cbuffer gConstants
 	uint tile_Index;
 };
 
-// wow. this has almost Zero effect on the gaps - we may have an extraction problem, solve that first
-// Also possible to sample mip level that the vert was generated on - not sure how easy
 float height(int2 coord)
 {
 	//return gInHgt[ coord +1 ].r;
@@ -43,18 +41,18 @@ void addTriangles(uint A, uint B, uint C, uint D)
 		VB[offset + (idx * 3) + 0].idx = A;
 		VB[offset + (idx * 3) + 1].idx = B;
 		VB[offset + (idx * 3) + 2].idx = C;
-		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(A) );	// good argument to use rg8 format instaead
-		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(B) );
-		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) );
+		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(A) * 2 );	// good argument to use rg8 format instaead
+		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(B) * 2);
+		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) * 2);
 
 
 		idx ++;
 		VB[offset + (idx * 3) + 0].idx = B;
 		VB[offset + (idx * 3) + 1].idx = D;
 		VB[offset + (idx * 3) + 2].idx = C;
-		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(B) );
-		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(D) );
-		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) );
+		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(B) * 2);
+		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(D) * 2);
+		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) * 2);
 	}
 	
 	if (flag == 7 || flag == 11) 
@@ -64,9 +62,9 @@ void addTriangles(uint A, uint B, uint C, uint D)
 		VB[offset + (idx * 3) + 0].idx = B;
 		VB[offset + (idx * 3) + 1].idx = D;
 		VB[offset + (idx * 3) + 2].idx = C;
-		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(B) );
-		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(D) );
-		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) );
+		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(B) * 2);
+		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(D) * 2);
+		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) * 2);
 	}
 
 	if (flag == 13 || flag == 14) 
@@ -76,9 +74,9 @@ void addTriangles(uint A, uint B, uint C, uint D)
 		VB[offset + (idx * 3) + 0].idx = A;
 		VB[offset + (idx * 3) + 1].idx = B;
 		VB[offset + (idx * 3) + 2].idx = C;
-		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(A) );
-		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(B) );
-		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) );
+		VB[offset + (idx * 3) + 0].hgt = height( unpack_tile_pos(A) * 2);
+		VB[offset + (idx * 3) + 1].hgt = height( unpack_tile_pos(B) * 2);
+		VB[offset + (idx * 3) + 2].hgt = height( unpack_tile_pos(C) * 2);
 	}
 	
 }

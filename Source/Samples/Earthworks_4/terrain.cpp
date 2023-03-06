@@ -220,6 +220,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.vertex_clear = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, vertexData.data(), Resource::BindFlags::ShaderResource);
 
         // This is the preload for the square pattern
+        /*
         std::array<glm::uint16, 17> pattern = { 0, 7, 15, 23, 31, 39, 47, 55, 63, 71, 79, 87, 95, 103, 111, 119, 126 };
         for (int y = 0; y <= 16; y++)
         {
@@ -234,6 +235,32 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
                 unsigned int packValue = ((mX + 1) << 9) + ((mY + 1) << 1);
                 vertexData[index] = packValue;
             }
+        }
+        */
+
+        // kante
+        for (uint i = 1; i < 128; i+=2)
+        {
+            vertexData[(1<<7) + i] = (1 << 7) + i;
+            vertexData[(127 << 7) + i] = (127<<7) + i;
+            vertexData[(i << 7) + 1] = (i<<7) + 1;
+            vertexData[(i << 7) + 127] = (i << 7) + 127;
+        }
+
+        for (uint y = 9; y < 128; y+=8)
+        {
+            for (uint x = 9; x < 128; x+=8)
+            {
+                vertexData[(y << 7) + x] = (y << 7) + x;
+            }
+        }
+
+        for (uint i = 5; i < 128; i += 4)
+        {
+            vertexData[(5<<7) + i] = (5 << 7) + i;
+            vertexData[(125 << 7) + i] = (125 << 7) + i;
+            vertexData[(i << 7) + 5] = (i << 7) + 5;
+            vertexData[(i << 7) + 125] = (i << 7) + 125;
         }
         split.vertex_preload = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, vertexData.data(), Resource::BindFlags::ShaderResource);
     }
@@ -391,7 +418,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         // delaunay
         split.compute_tileDelaunay.load("Samples/Earthworks_4/hlsl/compute_tileDelaunay.hlsl");
         split.compute_tileDelaunay.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
-        split.compute_tileDelaunay.Vars()->setTexture("gInVerts", split.vertex_A_texture);
+        split.compute_tileDelaunay.Vars()->setTexture("gInVerts", split.vertex_B_texture);
         split.compute_tileDelaunay.Vars()->setBuffer("VB", split.buffer_terrain);
         split.compute_tileDelaunay.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileDelaunay.Vars()->setBuffer("tileDrawargsArray", split.drawArgs_tiles);
@@ -1067,7 +1094,7 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     splitOne(_renderContext);
 
-    //if (dirty)
+    if (dirty)
     {
         testForSurfaceMain();
         for (auto& tile : m_used)
@@ -1259,12 +1286,6 @@ void terrainManager::splitOne(RenderContext* _renderContext)
                     FALCOR_PROFILE("normals");
                 }
                 {
-                    FALCOR_PROFILE("MIP_heights");
-                }
-                {
-                    FALCOR_PROFILE("copy_PBR");
-                }
-                {
                     FALCOR_PROFILE("verticies");
                 }
                 {
@@ -1272,6 +1293,9 @@ void terrainManager::splitOne(RenderContext* _renderContext)
                 }
                 {
                     FALCOR_PROFILE("jumpflood");
+                }
+                {
+                    FALCOR_PROFILE("copy_PBR");
                 }
                 {
                     FALCOR_PROFILE("delaunay");
@@ -1347,18 +1371,9 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         }
 
         {
-            // for verts. Do this early to avoid stalls
-            FALCOR_PROFILE("MIP_heights");
-            //split.tileFbo->getColorTexture(0)->generateMips(_renderContext);
-            //cs_tile_ElevationMipmap.dispatch(pRenderContext, w / 4, h / 4); 			// Ek aanvaar die werk en is vinniger 0.057 -> 0.027   maar syncronization issues hier wat ek in A gaan oplos
-        }
-
-       
-
-        {
             FALCOR_PROFILE("verticies");
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
-            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize, 1, 2, _tile->index);
+            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize, 0, 0, _tile->index);
             split.compute_tileVerticis.dispatch(_renderContext, cs_w / 2, cs_w / 2);
         }
 
@@ -1399,7 +1414,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             FALCOR_PROFILE("jumpflood");
 
             uint step = 4;
-            for (int j = 0; j < 4; j++) {
+            for (int j = 0; j < 3; j++) {
                 split.compute_tileJumpFlood.Vars()["gConstants"]["step"] = step;
                 if (j & 0x1) {
                     split.compute_tileJumpFlood.Vars()->setTexture("gInVerts", split.vertex_B_texture);
@@ -1736,7 +1751,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
-        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels, 60 + tile_numPixels);
+        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels*2, 60 + tile_numPixels*2);
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
 

@@ -9,5 +9,5 @@ uint pack_tile_pos(uint2 crd)
 
 int2 unpack_tile_pos(uint V)
 {
-	return int2(V>>8&0xff, V&0xff);
+	return int2(V & 0x7f, (V>>7)&0x7f);
 }

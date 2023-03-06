@@ -42,6 +42,6 @@ void main(uint2 crd : SV_DispatchThreadId)
 	float3 shade = saturate(dot(n, normalize(float3(0.71, 0.2, 0.71 )))) * 0.1;
 	//gOutput[crd] = float4(shade,1 );
 #if defined(COMPUTE_DEBUG_OUTPUT)
-    gOutput[crd] = float4(n * 0.5 + 0.5, 1) * 0.03;
+    gOutput[crd] = float4(n * 0.5 + 0.5, 1) * 0.2 - float4(0, 0.2, 0, 1);
 #endif
 }

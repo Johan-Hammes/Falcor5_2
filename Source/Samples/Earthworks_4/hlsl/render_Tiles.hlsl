@@ -88,9 +88,10 @@ uint tileIDX = tileLookup[ iId >> 6 ].tile &0xffff;
 	{
 		uint newID = tileLookup[ iId >> 6 ].offset + (blockID * 3) + vId;
 		Terrain_vertex V = VB[ newID ];
+
+        float x = (V.idx & 0x7f) * 2;
+		float y = ((V.idx >> 7) & 0x7f) * 2;
 		
-		float x = (V.idx >> 8) & 0xff;
-		float y = V.idx & 0xff;
 		
 		float4 position = float4(0, 0, 0, 1);
 		position.xz = tiles[tileIDX].origin.xz + float2( x-tile_BorderPixels, y-tile_BorderPixels ) * tiles[tileIDX].scale_1024 * 4.0f * tile_toBorder;
@@ -99,7 +100,7 @@ uint tileIDX = tileLookup[ iId >> 6 ].tile &0xffff;
 		output.worldPos = position.xyz;
 		output.eye = position.xyz - eye;
 		output.pos =  mul( position, viewproj);
-		output.texCoords = float3( ((x - 0.0)/tile_numPixels) , ((y - 0.0)/tile_numPixels) , tileIDX);
+		output.texCoords = float3( x / tile_numPixels, y / tile_numPixels, tileIDX);
 	}
 	else
 	{
