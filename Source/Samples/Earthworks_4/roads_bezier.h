@@ -225,7 +225,7 @@ enum bezier_edge { center, outside };
 struct bezierLayer
 {
     bezierLayer() { ; }
-    bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, uint bezierIndex, float w0, float w1, bool startSeg = false, bool endSeg = false);
+    bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, uint bezierIndex, bool _left, float w0, float w1, bool startSeg = false, bool endSeg = false);
     uint A;			// flags, material, index [2][14][16]			combine with rootindex in constant buffer
     uint B;			// w0, w1 [4][14][14]
 };

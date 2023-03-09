@@ -356,13 +356,14 @@ private:
         uint hash = 0;
         glm::vec4 box;
         bool show = true;
-        float strenght = 1.0f;
+        float strenght = 0.3f;
 
-        float redStrength = 0.3f;
+        float redStrength = 0.0f;
         float redScale = 5.0f;
         float redOffset = 0.05f;
 
         float terrafectorOverlayStrength = 0.1f;
+        float splineOverlayStrength = 1.f;
         bool bakeBakeOnlyData = true;
     }gis_overlay;
 

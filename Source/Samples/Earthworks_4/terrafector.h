@@ -205,6 +205,8 @@ public:
 	void eXport();
 	void reloadTextures();
 	void loadTexture(int idx);
+    void loadSubMaterial(int idx);
+    void clearSubMaterial(int idx);
 
 	bool renderGUI(Gui *mpGui);
 
@@ -220,6 +222,8 @@ public:
 		archive(CEREAL_NVP(texturePaths));
 		archive(CEREAL_NVP(textureNames));
 
+        archive(CEREAL_NVP(submaterialPaths));
+
 		// structured buffer data - although texture pointers are incomplete
 		archive(CEREAL_NVP(_constData));
 		_constData.useAbsoluteElevation = useAbsoluteElevation;
@@ -234,6 +238,7 @@ public:
 	std::string			  displayName = "Not set!";			
     std::filesystem::path 			  fullPath;			// for quick save
 	bool				isModified = false;
+    std::array<std::string, 8>	  submaterialPaths = { "", "", "", "", "", "", "", "" };
 
 	bool			useAbsoluteElevation = true;	// deprecated
 
@@ -264,7 +269,7 @@ public:
 
 		float2  uvScaleClampAlpha = { 1.0f, 1.0f };
 		uint	debugAlpha = 0;
-		float	buf_____06;
+		float	uvRotation = 0.0f;
 
 		float	useAlpha = 1;				// bool
 		float	vertexAlphaScale = 0.0f;
@@ -303,7 +308,7 @@ public:
 		uint	detailAlbedoTexture;
 
 		float3	albedoScale = {0.5f, 0.5f, 0.5f};
-		float	buf_____04;
+		float	uvWorldRotation = 0.0f;
 
 		uint	baseRoughnessTexture;
 		float	roughnessBlend;
@@ -323,6 +328,8 @@ public:
 		float	cullC = 0;
 		uint	ecotopeTexture;
 
+        std::array<uint, 8>	subMaterials = {0, 0, 0, 0, 0, 0, 0, 0};
+
 		std::array<float4, 15>	ecotopeMasks;
 
 		template<class Archive>
@@ -332,17 +339,14 @@ public:
 			archive(CEREAL_NVP(materialType));
 			archive(CEREAL_NVP(uvScale.x), CEREAL_NVP(uvScale.y));
 			archive(CEREAL_NVP(worldSize));
+            archive(CEREAL_NVP(uvRotation));
+            archive(CEREAL_NVP(uvWorldRotation));
 
-			//if (version >= 101) {
-				archive(CEREAL_NVP(uvScaleClampAlpha.x), CEREAL_NVP(uvScaleClampAlpha.y));
-			//}
+			archive(CEREAL_NVP(uvScaleClampAlpha.x), CEREAL_NVP(uvScaleClampAlpha.y));
 
 			archive(CEREAL_NVP(useAlpha), CEREAL_NVP(vertexAlphaScale), CEREAL_NVP(baseAlphaScale), CEREAL_NVP(detailAlphaScale));
 			archive(CEREAL_NVP(baseAlphaTexture), CEREAL_NVP(baseAlphaBrightness), CEREAL_NVP(baseAlphaContrast), CEREAL_NVP(baseAlphaClampU));
 			archive(CEREAL_NVP(detailAlphaTexture), CEREAL_NVP(detailAlphaBrightness), CEREAL_NVP(detailAlphaContrast));
-			//if (version >= 102) {
-			//	archive(CEREAL_NVP(useAbsoluteElevation));
-			//}
 			archive(CEREAL_NVP(useElevation), CEREAL_NVP(useVertexY), CEREAL_NVP(YOffset), CEREAL_NVP(baseElevationTexture));
 			archive(CEREAL_NVP(baseElevationScale), CEREAL_NVP(baseElevationOffset), CEREAL_NVP(detailElevationTexture), CEREAL_NVP(detailElevationScale));
 			archive(CEREAL_NVP(detailElevationOffset));
@@ -353,6 +357,9 @@ public:
 			archive(CEREAL_NVP(porosity));
 			archive(CEREAL_NVP(useEcotopes), CEREAL_NVP(permanenceElevation), CEREAL_NVP(permanenceColour), CEREAL_NVP(permanenceEcotopes));
 			archive(CEREAL_NVP(cullA), CEREAL_NVP(cullB), CEREAL_NVP(cullC), CEREAL_NVP(ecotopeTexture));
+
+            archive(CEREAL_NVP(subMaterials));
+
 			for (int i = 0; i < 15; i++) {
 				archive(CEREAL_NVP(ecotopeMasks[i].x), CEREAL_NVP(ecotopeMasks[i].y), CEREAL_NVP(ecotopeMasks[i].z), CEREAL_NVP(ecotopeMasks[i].w));
 			}
@@ -374,7 +381,7 @@ public:
 	BlendState::SharedPtr		blendstate;
 	//Buffer::SharedPtr	constantBuffer;  FIXME ADD BACK
 };
-//CEREAL_CLASS_VERSION(terrafectorEditorMaterial, 102);
+CEREAL_CLASS_VERSION(terrafectorEditorMaterial, 101);
 
 
 

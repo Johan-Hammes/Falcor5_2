@@ -169,13 +169,15 @@ terrainManager::terrainManager()
     if (is.good()) {
         cereal::XMLInputArchive archive(is);
         archive(CEREAL_NVP(lastfile));
-    }
 
+        mRoadNetwork.lastUsedFilename = lastfile.road;
+    }
+    /*
     std::ifstream isT(lastfile.terrain);
     if (isT.good()) {
         cereal::JSONInputArchive archive(isT);
         settings.serialize(archive, 100);
-    }
+    }*/
 }
 
 
@@ -185,6 +187,7 @@ terrainManager::~terrainManager()
     std::ofstream os("lastFile.xml");
     if (os.good()) {
         cereal::XMLOutputArchive archive(os);
+        lastfile.road = mRoadNetwork.lastUsedFilename.string();
         archive(CEREAL_NVP(lastfile));
     }
 }
@@ -459,9 +462,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 void terrainManager::init_TopdownRender()
 {
 
-    terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024); // FIXME hardcoded
+    terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 2048); // FIXME hardcoded
     split.shader_spline3D.load("Samples/Earthworks_4/hlsl/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+    split.shader_spline3D.Vars()->setSampler("SMP", sampler_Trilinear);
     //split.shader_spline3D.Program()->getReflector()
     split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     //split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
@@ -731,6 +735,8 @@ void terrainManager::onGuiRender(Gui* _gui)
             if (ImGui::DragFloat("overlay Strength", &gis_overlay.terrafectorOverlayStrength, 0.01f, 0, 1)) {
                 reset(true);
             }
+            if (ImGui::DragFloat("roads alpha", &gis_overlay.splineOverlayStrength, 0.01f, 0, 1));
+
             ImGui::Checkbox("bakeBakeOnlyData", &gis_overlay.bakeBakeOnlyData);
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Disabeling this will produce a WRONG result\nIt is only here for speed testing as it mimics EVO pipeline");
@@ -769,11 +775,11 @@ void terrainManager::onGuiRender(Gui* _gui)
     case 1: break;
     case 2:
     {
-        Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
+        Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 }, Gui::WindowFlags::AllowMove);
         {
             ImGui::PushFont(_gui->getFont("roboto_20"));
             if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
-                reset(false);
+                reset(true);
             }
             ImGui::PopFont();
         }
@@ -818,11 +824,18 @@ void terrainManager::onGuiRender(Gui* _gui)
     {
         char TTTEXT[1024];
         uint idx = split.feedback.tum_idx;
-        sprintf(TTTEXT, "[%d] - %d %d %d\n(%3.1f, %3.1f, %3.1f)\n%s\n", idx, m_tiles[idx].lod, m_tiles[idx].y, m_tiles[idx].x,
+        sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlod %d\n", blockFromPositionB(split.feedback.tum_Position).c_str(),
             split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
-            blockFromPositionB(split.feedback.tum_Position).c_str());
+            m_tiles[idx].lod
+            );
         //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
+        auto& style = ImGui::GetStyle();
+        style.Colors[ImGuiCol_Text] = ImVec4(0.50f, 0.5, 0.5, 1.f);
+        style.Colors[ImGuiCol_PopupBg] = ImVec4(0.00f, 0.f, 0.f, 0.8f);
+        
+        ImGui::PushFont(_gui->getFont("roboto_26"));
         ImGui::SetTooltip(TTTEXT);
+        ImGui::PopFont();
     }
 }
 
@@ -1372,8 +1385,13 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
         {
             FALCOR_PROFILE("verticies");
+            float scale = 1.0f;
+            if (_tile->lod == 13)  scale = 1.2f;
+            if (_tile->lod == 14)  scale = 1.5f;
+            if (_tile->lod == 15)  scale = 2.0f;
+            if (_tile->lod >= 16)  scale = 3.2f;
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
-            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize, 0, 0, _tile->index);
+            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize*scale, 0, 0, _tile->index);
             split.compute_tileVerticis.dispatch(_renderContext, cs_w / 2, cs_w / 2);
         }
 
@@ -1679,6 +1697,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         //split.shader_spline3D.Vars()["gConstantBuffer"]["view"] = view;
         //split.shader_spline3D.Vars()["gConstantBuffer"]["proj"] = proj;
         split.shader_spline3D.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        split.shader_spline3D.Vars()["gConstantBuffer"]["alpha"] = gis_overlay.splineOverlayStrength;
 
         split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 

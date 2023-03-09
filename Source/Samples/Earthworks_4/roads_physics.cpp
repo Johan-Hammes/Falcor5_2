@@ -14,7 +14,7 @@ extern glm::vec3 del_cubic_Casteljau(float t0, float t1, bezierPoint* A, bezierP
 /*  bezierLayer
     FIXME this may well flip stuf but mte to double bezier first then fix
     --------------------------------------------------------------------------------------------------------------------*/
-bezierLayer::bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, uint bezierIndex, float w0, float w1, bool startSeg, bool endSeg)
+bezierLayer::bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, uint bezierIndex, bool _left, float w0, float w1, bool startSeg, bool endSeg)
 {
     if (bezierIndex == 0) {
         bool bCM = true;
@@ -38,6 +38,7 @@ bezierLayer::bezierLayer(bezier_edge inner, bezier_edge outer, uint _material, u
 
     if (startSeg)	B += 1 << 31;
     if (endSeg)		B += 1 << 30;
+    if (_left)      B += 1 << 28;
 }
 
 

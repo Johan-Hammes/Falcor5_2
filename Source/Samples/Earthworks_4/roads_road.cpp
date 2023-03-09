@@ -152,6 +152,13 @@ void roadSection::setAIOnly(bool AI)
 
 
 
+#define MATERIAL_EDIT_SELECT 2040
+#define MATERIAL_EDIT_GREEN 2041
+#define MATERIAL_EDIT_BLUE 2042
+#define MATERIAL_EDIT_WHITEDOT 2043
+#define MATERIAL_EDIT_REDDOT 2044
+
+
 #define MATERIAL_BLEND 2045
 #define MATERIAL_SOLID 2046
 #define MATERIAL_CURVATURE 2047
@@ -219,8 +226,8 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             bool isBridge = points[i].isBridge;
 
             if (!_stylized) {
-                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].right_Geom_Idx[0], 0, 0, isBridge, isBridge));
-                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].right_Geom_Idx[1], 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].right_Geom_Idx[0], false, 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].right_Geom_Idx[1], false, 0, 0, isBridge, isBridge));
             }
 
             // verge
@@ -229,7 +236,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -240,7 +247,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                     if ((int)points[i].right_Geom_Idx[layer.bezierIndex] < GUID)
                     {
                         bool bCM = true;
@@ -254,7 +261,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -264,7 +271,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Geom_Idx[layer.bezierIndex], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -294,7 +301,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
                         for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                         {
                             // FIXME I think sides should be fixed here
-                            _index.push_back(bezierLayer(side, side, layer.materialIndex, points[i].right_Lane_Idx[laneToDisplay], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                            _index.push_back(bezierLayer(side, side, layer.materialIndex, points[i].right_Lane_Idx[laneToDisplay], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                         }
                     }
                 }
@@ -319,7 +326,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
                     {
                         for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                         {
-                            _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Lane_Idx[laneNr], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                            _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Lane_Idx[laneNr], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                         }
                     }
                 }
@@ -381,8 +388,8 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             bool isBridge = points[i].isBridge;
 
             if (!_stylized) {
-                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].left_Geom_Idx[0], 0, 0, isBridge, isBridge));
-                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].left_Geom_Idx[1], 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_SOLID, points[i].left_Geom_Idx[0], true, 0, 0, isBridge, isBridge));
+                _index_BAKE.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_BLEND, points[i].left_Geom_Idx[1], true, 0, 0, isBridge, isBridge));
             }
 
             // verge
@@ -391,7 +398,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], true, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -402,7 +409,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], true, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -412,7 +419,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -422,7 +429,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             {
                 for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                 {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
 
@@ -451,7 +458,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
                         for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                         {
                             // FIXME I think sides should be fixed here
-                            _index.push_back(bezierLayer(side, side, layer.materialIndex, points[i].left_Lane_Idx[laneToDisplay], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                            _index.push_back(bezierLayer(side, side, layer.materialIndex, points[i].left_Lane_Idx[laneToDisplay], true, layer.offsetA, layer.offsetB, isBridge, isBridge));
                         }
                     }
                 }
@@ -476,7 +483,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
                     {
                         for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                         {
-                            _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Lane_Idx[laneNr], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                            _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Lane_Idx[laneNr], true, layer.offsetA, layer.offsetB, isBridge, isBridge));
                         }
                     }
                 }
@@ -492,15 +499,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
         for (uint i = 0; i < numSegments; i++)
         {
             bool isBridge = points[i].isBridge;
-
-            material = __min(maxMaterial, points[i].matCenter[0]);
-            if (material >= 0)
-            {
-                for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
-                {
-                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], layer.offsetA, layer.offsetB, isBridge, isBridge));
-                }
-            }
+           
 
             // inner shoulder 
             if (rightLaneInUse[innerShoulder])
@@ -510,7 +509,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
                 {
                     for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                     {
-                        _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Lane_Idx[innerShoulder], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                        _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].right_Lane_Idx[innerShoulder], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                     }
                 }
             }
@@ -521,8 +520,18 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
                 {
                     for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
                     {
-                        _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Lane_Idx[innerShoulder], layer.offsetA, layer.offsetB, isBridge, isBridge));
+                        _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Lane_Idx[innerShoulder], false, layer.offsetA, layer.offsetB, isBridge, isBridge));
                     }
+                }
+            }
+
+            material = __min(maxMaterial, points[i].matCenter[0]);
+            uint materialStripes = __min(maxMaterial, points[i].matCenter[1]);
+            if (material >= 0 && (materialStripes >= 0))
+            {
+                for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
+                {
+                    _index.push_back(bezierLayer((bezier_edge)layer.sideA, (bezier_edge)layer.sideB, layer.materialIndex, points[i].left_Geom_Idx[layer.bezierIndex], true, layer.offsetA, layer.offsetB, isBridge, isBridge));
                 }
             }
         }
@@ -533,8 +542,8 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             for (uint i = 0; i < numSegments; i++)
             {
                 bool isBridge = points[i].isBridge;
-                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_CURVATURE, points[i].right_Geom_Idx[0], 0, 0, isBridge, isBridge));
-                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_CURVATURE, points[i].left_Geom_Idx[0], 0, 0, isBridge, isBridge));
+                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_CURVATURE, points[i].right_Geom_Idx[0], false, 0, 0, isBridge, isBridge));
+                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_CURVATURE, points[i].left_Geom_Idx[0], true, 0, 0, isBridge, isBridge));
             }
         }
 
@@ -548,34 +557,34 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
             // SELECTION
             if (i >= _from && i < _to)
             {
-                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 999, points[i].right_Geom_Idx[0], 1.0f, 2.0f));
-                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 999, points[i].left_Geom_Idx[0], 1.0f, 2.0f));
+                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_SELECT, points[i].right_Geom_Idx[0], false, 1.0f, 2.0f));
+                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_SELECT, points[i].left_Geom_Idx[0], false, 1.0f, 2.0f));
             }
 
             // middle
             uint feedback = points[i].right_Geom_Idx[0];
-            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 800, points[i].right_Geom_Idx[0], -0.05f, 0.05f));
+            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], false, -0.05f, 0.05f));
             // edge
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 800, points[i].right_Geom_Idx[0], -0.05f, 0.05f));
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 800, points[i].left_Geom_Idx[0], -0.05f, 0.05f));
+            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], false, -0.05f, 0.05f));
+            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].left_Geom_Idx[0], true, -0.05f, 0.05f));
             // sidewalk
             float sideR = points[i].lanesRight[side].laneWidth;
             float sideL = points[i].lanesLeft[side].laneWidth;
-            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 801, points[i].right_Geom_Idx[1], sideR - 0.1f, sideR + 0.1f));
-            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 801, points[i].left_Geom_Idx[1], sideL - 0.1f, sideL + 0.1f));
+            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, points[i].right_Geom_Idx[1], false, sideR - 0.1f, sideR + 0.1f));
+            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, points[i].left_Geom_Idx[1], true, sideL - 0.1f, sideL + 0.1f));
             // faredge
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 801, points[i].right_Geom_Idx[1], -0.1f, 0.1f));
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 801, points[i].left_Geom_Idx[1], -0.1f, 0.1f));
+            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, points[i].right_Geom_Idx[1], false, -0.1f, 0.1f));
+            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, points[i].left_Geom_Idx[1], true, -0.1f, 0.1f));
 
             for (int laneNr = innerTurn; laneNr <= outerTurn; laneNr++)
             {
                 if (rightLaneInUse[laneNr])
                 {
-                    _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, 803, points[i].right_Lane_Idx[laneNr], 0, 0));
+                    _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_BLUE, points[i].right_Lane_Idx[laneNr], false, 0, 0));
                 }
                 if (leftLaneInUse[laneNr])
                 {
-                    _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, 802, points[i].left_Lane_Idx[laneNr], 0, 0));
+                    _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_GREEN, points[i].left_Lane_Idx[laneNr], true, 0, 0));
                 }
             }
         }

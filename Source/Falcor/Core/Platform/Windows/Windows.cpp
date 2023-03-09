@@ -424,6 +424,7 @@ namespace Falcor
         pDialog->SetOptions(options | FOS_FORCEFILESYSTEM);
         pDialog->SetFileTypes((uint32_t)fs.size(), fs.data());
         pDialog->SetDefaultExtension(fs.data()->pszSpec);
+        //somethign like thispDialog->SetFolder(path.string().c_str());
 
         if (pDialog->Show(nullptr) == S_OK)
         {

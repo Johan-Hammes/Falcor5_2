@@ -35,8 +35,14 @@ uint logTab;
 materialCache terrafectorEditorMaterial::static_materials;
 
 
+
 //"##1" is BAD
-#define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
+#define TOOLTIP(x)  if (ImGui::IsItemHovered()) {auto& style = ImGui::GetStyle(); \
+                                style.Colors[ImGuiCol_Text] = ImVec4(0.50f, 0.5, 0.5, 1.f); \
+                                style.Colors[ImGuiCol_PopupBg] = ImVec4(0.00f, 0.f, 0.f, 0.9f);  \
+                                ImGui::PushFont(_gui->getFont("roboto_26")); \
+                                ImGui::SetTooltip(x); \
+                                ImGui::PopFont();}
 
 #define TEST(x)		if( x ) {changed = true;}
 #define TEXTURE(idx, tooltip)	ImGui::PushID(9999 + idx); \
@@ -56,6 +62,24 @@ materialCache terrafectorEditorMaterial::static_materials;
 								} \
 								ImGui::PopItemWidth(); \
 								ImGui::PopID();
+
+
+#define SUBMATERIAL(idx, tooltip)	ImGui::PushID(59999 + idx); \
+								ImGui::PushItemWidth(columnWidth - 30); \
+								{ \
+									style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.09f, 0.04f, 0.9f); \
+									if (ImGui::Button(submaterialPaths[idx].c_str(), ImVec2(columnWidth - 30, 0))) { loadSubMaterial(idx); changed = true;} \
+									TOOLTIP( submaterialPaths[idx].c_str() ); \
+									ImGui::SameLine(); \
+									if (ImGui::Button("X")) { \
+										clearSubMaterial(idx); \
+									} \
+									style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f); \
+								} \
+								ImGui::PopItemWidth(); \
+								ImGui::PopID();
+
+
 
 #define HEADER(txt)		 ImGui::PushFont(_gui->getFont("roboto_26")); \
 						ImGui::Text(txt); \
@@ -431,11 +455,12 @@ uint materialCache::find_insert_material(const std::filesystem::path _path)
     fprintf(terrafectorSystem::_logfile, "add Material[%d] - %s\n", (int)materialVector.size(), _path.filename().string().c_str());
     fflush(terrafectorSystem::_logfile);
 
+    uint materialIndex = (uint)materialVector.size();
     materialVector.emplace_back();
     materialVector.back().import(_path);
 
     logTab--;
-    return (uint)(materialVector.size() - 1);
+    return materialIndex;
 }
 
 
@@ -555,6 +580,20 @@ void materialCache::renderGui(Gui* mpGui)
             }
             else {
                 sprintf(text, "%s##%d", materialVector[i].displayName.c_str(), i);
+            }
+
+            style.Colors[ImGuiCol_Text] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
+            if (materialVector[i]._constData.materialType == 1)
+            {
+                style.Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 0.0f, 0.7f);
+            }
+            if (materialVector[i]._constData.materialType == 2)
+            {
+                style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 1.0f, 1.0f, 0.7f);
+            }
+            if (materialVector[i]._constData.materialType == 3)
+            {
+                style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 0.5f, 0.0f, 0.7f);
             }
 
 
@@ -685,7 +724,7 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
             lodder_6.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str());
             for (uint j = 0; j < M->mNumFaces; j++)
             {
-                if (!bakeOnlyOverlay && useLOD2)    num2 +=lodder_2.insertTriangle(i, M->mFaces[j].mIndices, M);
+                if (!bakeOnlyOverlay && useLOD2)    num2 += lodder_2.insertTriangle(i, M->mFaces[j].mIndices, M);
                 num4 += lodder_4.insertTriangle(i, M->mFaces[j].mIndices, M);
                 if (!bakeOnlyOverlay) num6 += lodder_6.insertTriangle(i, M->mFaces[j].mIndices, M);
             }
@@ -987,6 +1026,30 @@ void terrafectorEditorMaterial::reloadTextures()
             textureNames[idx] = texturePaths[idx].substr(texturePaths[idx].find_last_of("\\/") + 1);
         }
     }
+
+    // misuse for sub materials
+    
+    for (uint idx=0; idx<8; idx++)
+    {
+        if (_constData.materialType == 1)
+        {
+            if (submaterialPaths[idx].size())
+            {
+                uint mat = terrafectorEditorMaterial::static_materials.find_insert_material(rootFolder + submaterialPaths[idx]);
+                _constData.subMaterials[idx] &= 0xffff0000;
+                _constData.subMaterials[idx] += mat;
+            }
+            else
+            {
+                _constData.subMaterials[idx] = 0;
+            }
+        }
+        else
+        {
+            _constData.subMaterials[idx] = 0;
+        }
+    }
+    
 }
 
 
@@ -997,12 +1060,6 @@ void terrafectorEditorMaterial::eXport(std::filesystem::path _path) {
         serialize(archive);
         isModified = false;
     }
-    /*
-    {
-        std::ifstream is(_path);
-        cereal::JSONInputArchive archiveIn(is);
-        serialize(archiveIn);
-    }*/
 }
 
 void terrafectorEditorMaterial::eXport() {
@@ -1036,6 +1093,32 @@ void terrafectorEditorMaterial::loadTexture(int idx)
 
 
 
+void terrafectorEditorMaterial::loadSubMaterial(int idx)
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"terrafectorMaterial"} };
+    if (openFileDialog(filters, path))
+    {
+        std::string P = path.string();
+        replaceAll(P, "\\", "/");
+        if (P.find(rootFolder) == 0) {
+            std::string relative = P.substr(rootFolder.length());
+            submaterialPaths[idx] = relative;
+
+            uint mat = terrafectorEditorMaterial::static_materials.find_insert_material(rootFolder + relative);
+            _constData.subMaterials[idx] = 0x00ff0000 + mat;
+            rebuildConstantbuffer();
+        }
+    }
+}
+
+
+void terrafectorEditorMaterial::clearSubMaterial(int idx)
+{
+    submaterialPaths[idx] = "";
+    _constData.subMaterials[idx] = 0;
+    rebuildConstantbuffer();
+}
 
 
 
@@ -1043,7 +1126,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 {
     bool changed = false;
 
-    float columnWidth = ImGui::GetWindowWidth() / 3 - 10;
+    float columnWidth = ImGui::GetWindowWidth() / 3 - 20;
 
 
 #define HI(v)   ImVec4(0.502f, 0.075f, 0.256f, v)
@@ -1064,17 +1147,13 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
     style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
 
-    style.FrameRounding = 6.0f;
+    style.FrameRounding = 4.0f;
 
 
 
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-        //        if (isModified)
-         //       {
-         //           style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.5f, 0.0f, 0.9f);
-          //      }
         char txt[256];
         sprintf(txt, "%s", displayName.c_str());
         if (ImGui::InputText("##name", txt, 256))
@@ -1105,7 +1184,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
         ImGui::PushItemWidth(columnWidth);
         {
-            if (ImGui::Combo("##mattype", &_constData.materialType, "terrafector material\0rubber\0puddle\0uv1 - legacy rubber\0")) { ; }
+            if (ImGui::Combo("##mattype", &_constData.materialType, "material\0multi - material\0rubber\0puddle\0")) { ; }
         }
         ImGui::PopItemWidth();
 
@@ -1129,22 +1208,43 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
     ImGui::Columns(3);
     {
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.0f, 0.7f);
-        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 170));
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.1f, 0.5f);
+        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 260));
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
         {
-            HEADER("uv scale");
+            HEADER("uv");
             {
-                changed |= ImGui::DragFloat2("uv", &_constData.uvScale.x, 0.1f, -10.0f, 10.0f);
+                changed |= ImGui::DragFloat2("scale", &_constData.uvScale.x, 0.1f, -10.0f, 10.0f);
                 TOOLTIP("base uv scale");
 
-                changed |= ImGui::DragFloat("detail", &_constData.worldSize, 0.1f, 1.0f, 32.0f, "%2.2f m");
+                float R = _constData.uvRotation * 57.2958f;
+
+                if (ImGui::DragFloat("rotation", &R, 1.f, 0.0f, 360.f, "%3.1f"))
+                {
+                    changed |= true;
+                    _constData.uvRotation = R / 57.2958f;
+                }
+                TOOLTIP("radians : 1.57079632679489 = 90 degrees");
+
+                ImGui::NewLine();
+
+                changed |= ImGui::DragFloat("world size", &_constData.worldSize, 0.1f, 1.0f, 32.0f, "%2.2f m");
                 TOOLTIP("detail texture world size");
 
-                FLOAT_BOOL("clamp u alpha", _constData.baseAlphaClampU);
+                R = _constData.uvWorldRotation * 57.2958f;
+                if (ImGui::DragFloat("world rotation", &R, 1.f, 0.0f, 360.f, "%3.1f"))
+                {
+                    changed |= true;
+                    _constData.uvWorldRotation = R / 57.2958f;
+                }
+                TOOLTIP("radians : 1.57079632679489 = 90 degrees");
+
+                ImGui::NewLine();
+
+                FLOAT_BOOL("bezier - soft edges", _constData.baseAlphaClampU);
                 TOOLTIP("clamp u for edge masks");
                 if (_constData.baseAlphaClampU) {
-                    changed |= ImGui::DragFloat2("uv_clamped", &_constData.uvScaleClampAlpha.x, 0.1f, -10.0f, 10.0f);
+                    changed |= ImGui::DragFloat2("uv_clamped", &_constData.uvScaleClampAlpha.x, 0.01f, 0.0f, 1.0f);
                     TOOLTIP("alpha clamp uv scale\nThis is ONLY applied to the base alpha texture when it is also clamped in U");
                 }
             }
@@ -1155,19 +1255,22 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
         ImGui::NewLine();
         style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.05f, 0.01f, 0.01f, 0.7f);
-        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 410));
+        style.Colors[ImGuiCol_BorderShadow] = ImVec4(1.0f, 0.5f, 0.5f, 0.7f);
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.03f, 0.03f, 0.03f, 0.7f);
+        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 320));
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
         {
             HEADER_BOOL("alpha", "##useAlpha", _constData.useAlpha);
             if (_constData.useAlpha)
             {
+                ImGui::SameLine(200);
                 FLOAT_BOOL("debug", _constData.debugAlpha);
                 ImGui::Text("vertex colour (red)");
                 changed |= ImGui::SliderFloat("##vertexalpha", &_constData.vertexAlphaScale, 0, 1, "%.2f");
                 TOOLTIP("vertex alpha influence - packed in red");
 
-                ImGui::NewLine();
+                //ImGui::NewLine();
+                float Y0 = ImGui::GetCursorPosY();
                 ImGui::Text("base texture");
                 changed |= ImGui::SliderFloat("##texturealpha", &_constData.baseAlphaScale, 0, 1, "%.2f");
                 TOOLTIP("texture alpha influence");
@@ -1177,7 +1280,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
                     ImGui::PushItemWidth(columnWidth / 2 - 10);
                     {
-                        changed |= ImGui::DragFloat("##brightnessAlpha", &_constData.baseAlphaBrightness, 0.05f, -1, 1);
+                        changed |= ImGui::DragFloat("##brightnessAlpha", &_constData.baseAlphaBrightness, 0.01f, -1, 1);
                         TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
                         ImGui::SameLine();
                         changed |= ImGui::DragFloat("##constrastAlpha", &_constData.baseAlphaContrast, 0.1f, 0.1f, 5);
@@ -1187,13 +1290,9 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                     }
                     ImGui::PopItemWidth();
                 }
-                else {
-                    ImGui::NewLine();
-                    ImGui::NewLine();
-                    ImGui::NewLine();
-                }
+                
 
-                ImGui::NewLine();
+                ImGui::SetCursorPosY(Y0 + 110);
                 ImGui::Text("detail texture");
                 changed |= ImGui::SliderFloat("##detailalpha", &_constData.detailAlphaScale, 0, 1, "%.2f");
                 TOOLTIP("detail texture influence");
@@ -1212,50 +1311,88 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                     ImGui::PopItemWidth();
 
                 }
-                else
-                {
-                    ImGui::NewLine();
-                    ImGui::NewLine();
-                }
-
-            }
-            else
-            {
-                for (uint i = 0; i < 14; i++) {
-                    ImGui::NewLine();
-                }
             }
         }
         ImGui::EndChildFrame();
 
+        //if (_constData.materialType == 0)
+        {
+            ImGui::NewLine();
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.02f, 0.07f, 0.7f);
+            ImGui::BeginChildFrame(1234561, ImVec2(columnWidth, 220));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            {
+                HEADER("physics");
+                ImGui::Text("dry grip value");
+                ImGui::Text("wet grip value");
+                ImGui::Text("what else");
+            }
+            ImGui::EndChildFrame();
+        }
+        
+    }
+
+
+    ImGui::NextColumn();
+    {
+        if (_constData.materialType == 1)
+        {
+            char name[256];
+            HEADER("Sub materials");
+            for (uint i = 0; i < 8; i++)
+            {
+                
+                SUBMATERIAL(i, "");
+
+                sprintf(name, "alpha##%d", i);
+                int alpha = ((_constData.subMaterials[i] >> 16) & 0xff);
+                if (ImGui::SliderInt(name, &alpha, 0, 255))
+                {
+                    _constData.subMaterials[i] &= 0xff00ffff;
+                    _constData.subMaterials[i] += alpha << 16;
+                    changed |= true;
+                    rebuildConstantbuffer();
+                }
+
+                sprintf(name, "control##%d", i);
+                int ctrl = ((_constData.subMaterials[i] >> 24) & 0xff);
+                if (ImGui::SliderInt(name, &ctrl, 0, 5))
+                {
+                    _constData.subMaterials[i] &= 0x00ffffff;
+                    _constData.subMaterials[i] += ctrl << 24;
+                    changed |= true;
+                    rebuildConstantbuffer();
+                }
+                ImGui::NewLine();
+            }
+            
+        }
 
 
         if (_constData.materialType == 0)
         {
-            ImGui::NewLine();
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.1f, 0.04f, 0.0f, 0.7f);
-            ImGui::BeginChildFrame(123451, ImVec2(columnWidth, 380));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.1f, 0.03f, 0.03f, 0.7f);
+            ImGui::BeginChildFrame(123451, ImVec2(columnWidth, 280));
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
 
                 HEADER_BOOL("elevation", "##useElevation", _constData.useElevation);
                 if (_constData.useElevation)
                 {
-                    changed |= ImGui::Checkbox("absolute height", &useAbsoluteElevation);
+                    changed |= ImGui::Checkbox("absolute", &useAbsoluteElevation);
                     _constData.useAbsoluteElevation = useAbsoluteElevation;
-                    //ImGui::Text("%f", _constData.useAbsoluteElevation);
-                    //ImGui::SliderFloat("shit", &_constData.useAbsoluteElevation, 0, 100);
                     TOOLTIP("is true, use absolute height and blend with terrain\notherwise offset is relative i.e. raise or lower the existing ground");
+                    ImGui::SameLine(columnWidth / 2);
 
-                    FLOAT_BOOL("use vertex.y", _constData.useVertexY);
+                    FLOAT_BOOL("vertex.y", _constData.useVertexY);
                     TOOLTIP("add the vertex heights in the mesh");
 
-                    ImGui::NewLine();
+                    //ImGui::NewLine();
 
                     changed |= ImGui::DragFloat("y offset", &_constData.YOffset, 0.1f, -10, 10, "%.3f m");
                     TOOLTIP("offset to shift the mesh up or down");
 
-                    ImGui::NewLine();
+                    //ImGui::NewLine();
 
                     TEXTURE(baseElevation, "");
                     changed |= ImGui::DragFloat("base scale ##elevation", &_constData.baseElevationScale, 0.001f, 0, 1, "%.3f m");
@@ -1263,7 +1400,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                     changed |= ImGui::DragFloat("base offset ##elevation", &_constData.baseElevationOffset, 0.1f, 0, 1, "%.2f");
                     TOOLTIP("texture value that represents zero");
 
-                    ImGui::NewLine();
+                    //ImGui::NewLine();
 
                     TEXTURE(detailElevation, "");
                     changed |= ImGui::DragFloat("detail scale ##elevation", &_constData.detailElevationScale, 0.001f, 0, 1, "%.3f m");
@@ -1275,42 +1412,15 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                     if (textureIndex[detailElevation] == -1) _constData.detailElevationScale = 0;
 
                 }
-                else
-                {
-                    for (uint i = 0; i < 7; i++) {
-                        ImGui::NewLine();
-                    }
-                }
-
-
-
             }
             ImGui::EndChildFrame();
-
-
-
-
         }
-    }
 
-
-    ImGui::NextColumn();
-    {
         if (_constData.materialType == 0)
         {
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.04f, 0.1f, 0.7f);
-            ImGui::BeginChildFrame(123452, ImVec2(columnWidth, 70));
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-            {
-                HEADER("material");
-                changed |= ImGui::Combo("##material index", &_constData.standardMaterialType, "tarmac\0soil\0grass\0");
-                TOOLTIP("material index\n It sets reflectance, microFiber, microShadow and lightWrap to fixed values");
-            }
-            ImGui::EndChildFrame();
-
             ImGui::NewLine();
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.14f, 0.1f, 0.7f);
-            ImGui::BeginChildFrame(123453, ImVec2(columnWidth, 600));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.06f, 0.1f, 0.01f, 0.7f);
+            ImGui::BeginChildFrame(123453, ImVec2(columnWidth, 540));
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
                 HEADER_BOOL("albedo & pbr", "####useAlbedo", _constData.useColour);
@@ -1332,6 +1442,8 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
 
                     ImGui::NewLine();
+                    changed |= ImGui::Combo("##material index", &_constData.standardMaterialType, "tarmac\0soil\0grass\0");
+                    TOOLTIP("material index\n It sets reflectance, microFiber, microShadow and lightWrap to fixed values");
                     ImGui::NewLine();
                     HEADER("roughness");
 
@@ -1350,30 +1462,16 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
 
                     ImGui::NewLine();
-                    ImGui::NewLine();
                     HEADER("porosity");
                     changed |= ImGui::SliderFloat("porosity", &_constData.porosity, 0, 1);
 
-
                     ImGui::NewLine();
-                    ImGui::NewLine();
-                    HEADER("ao");
-                    ImGui::Text("Not sure if it is needed");
+                    ImGui::Text("not doing ao at the moment, will try real time");
                 }
             }
             ImGui::EndChildFrame();
 
-            ImGui::NewLine();
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.04f, 0.1f, 0.7f);
-            ImGui::BeginChildFrame(1234561, ImVec2(columnWidth, 220));
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-            {
-                HEADER("physics");
-                ImGui::Text("dry grip value");
-                ImGui::Text("wet grip value");
-                ImGui::Text("what else");
-            }
-            ImGui::EndChildFrame();
+            
         }
     }
 
@@ -1382,8 +1480,8 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
     {
         if (_constData.materialType == 0)
         {
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.06f, 0.06f, 0.06f, 0.7f);
-            ImGui::BeginChildFrame(123454, ImVec2(columnWidth, 860));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.03f, 0.03f, 0.03f, 0.7f);
+            ImGui::BeginChildFrame(123454, ImVec2(columnWidth, 850));
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
                 HEADER_BOOL("ecotopes", "##useEcotopes", _constData.useEcotopes);
@@ -1394,13 +1492,13 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                 TOOLTIP("what controls the final colour");
                 changed |= ImGui::SliderFloat("ecotopes", &_constData.permanenceEcotopes, 0, 1, "ecotope   :   terrafector");
                 TOOLTIP("what controls the final ecotopes");
-                ImGui::NewLine();
+                //ImGui::NewLine();
 
 
-                changed |= ImGui::SliderFloat("cull grass", &_constData.cullA, 0, 1);
-                changed |= ImGui::SliderFloat("cull bushes", &_constData.cullB, 0, 1);
-                changed |= ImGui::SliderFloat("cull trees", &_constData.cullC, 0, 1);
-                ImGui::NewLine();
+                changed |= ImGui::SliderFloat3("cull", &_constData.cullA, 0, 1);
+                //changed |= ImGui::SliderFloat("cull bushes", &_constData.cullB, 0, 1);
+                //changed |= ImGui::SliderFloat("cull trees", &_constData.cullC, 0, 1);
+                //ImGui::NewLine();
                 ImGui::NewLine();
 
                 if (_constData.useEcotopes)
@@ -1411,13 +1509,14 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
                     ImGui::NewLine();
 
-                    /*
+                    
                     for (uint i = 0; i < 15; i++)
                     {
-                        if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
-                            changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
-                        }
-                        else {
+                       // if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
+                       //     changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
+                        //}
+                        //else
+                        {
                             char ect_name[256];
                             sprintf(ect_name, "ecotope %d", i);
                             changed |= ImGui::ColorEdit4(ect_name, &_constData.ecotopeMasks[i][0], true);
@@ -1426,7 +1525,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
                         if (i % 3 == 2) ImGui::NewLine();
 
                     }
-                    */
+                    
                 }
             }
             ImGui::EndChildFrame();

@@ -25,7 +25,7 @@ struct splineVSOut
     float4 pos : SV_POSITION;
 	float3 posW : POSITION;
     float3 texCoords : TEXCOORD;
-	nointerpolation uint4 flags : TEXCOORD1;
+	uint4 flags : TEXCOORD1;
 	float4 colour : COLOR;
 };
 
@@ -70,15 +70,14 @@ inline float4 cubic_Casteljau(float t, float4 P0, float4 P1, float4 P2, float4 P
 
 #define outsideLine 	(indexData[ iId + startOffset ].A >> 31) & 0x1
 #define insideLine 		(indexData[ iId + startOffset ].A >> 30) & 0x1
+#define materialFlag  	(indexData[ iId + startOffset ].A >> 17) & 0x7ff		    // 11 bits left 2048 materials
+#define index  			indexData[ iId + startOffset ].A & 0x1ffff
 
 #define isStartOverlap 	(indexData[ iId + startOffset ].B >> 31) & 0x1
 #define isEndOverlap 	(indexData[ iId + startOffset ].B >> 30) & 0x1
 #define isQuad 			(indexData[ iId + startOffset ].B >> 29) & 0x1
+#define isFlipped 		(indexData[ iId + startOffset ].B >> 28) & 0x1
 #define isOverlap		(isStartOverlap) || (isEndOverlap)
-
-// 12 bits left 4096 materials
-#define materialFlag  	(indexData[ iId + startOffset ].A >> 17) & 0x7ff		
-#define index  			indexData[ iId + startOffset ].A & 0x1ffff
 
 
 
@@ -116,10 +115,11 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.posW = points[insideLine].xyz + w0 * perpendicular;
     }
 
-    output.texCoords = float3(vId & 0x1, points[outsideLine].w, t);
+    output.texCoords = float3(1 - (vId & 0x1), points[outsideLine].w, t);
+    if (isFlipped) output.texCoords.x *= -1;
     output.pos = mul(float4(output.posW, 1), viewproj);
     output.flags.y = materialFlag;
-    output.colour.r = output.texCoords.x;
+    output.colour.r = 1- abs(output.texCoords.x);
     output.colour.a = overlapAlpha;
 
     return output;
@@ -152,15 +152,19 @@ PS_OUTPUT psMain(splineVSOut vIn)  : SV_TARGET
 {
 	PS_OUTPUT output = (PS_OUTPUT)0;
 
+
+
     // get the materials
     uint material = vIn.flags.y;
-    TF_material MAT = materials[material];
+    TF_material MAT =  materials[material];
+
+
 	
 	// couple of fixed materials
 	if(material == 2045) 				// vertex colour blend - verge etc
 	{
 		output.Elevation.a = vIn.colour.a * smoothstep(0, 1, vIn.colour.r);
-		output.Elevation.r = vIn.posW.y * output.Elevation.a;
+		output.Elevation.r = vIn.posW.y * output.Elevation.a ;
 		return output;
 	}
 	
@@ -173,43 +177,67 @@ PS_OUTPUT psMain(splineVSOut vIn)  : SV_TARGET
 	
 	if(material == 2047)				// curvature
 	{
-		//output.Elevation.a = 0;
-		//output.Elevation.r = 0.1 * cos((1 - vIn.texCoords.x) * 1.57079632679);
+		output.Elevation.a = 0;
+		output.Elevation.r = 0.1 * cos((abs(vIn.texCoords.x)) * 1.57079632679);
 		return output;
 	}
 	
 
-		
+    
 	
 	
 	// uv's
-	float2 uv = vIn.texCoords.xy * MAT.uvScale;
-	float2 uvWorld = vIn.posW.xz / MAT.worldSize;
+    float2x2 rotate;
+    sincos(MAT.uvRotation, rotate[0][1], rotate[0][0]);
+    rotate[1][0] = -rotate[0][1];
+    rotate[1][1] = rotate[0][0];
+    float2 uv = mul(rotate, vIn.texCoords.xy * MAT.uvScale);
+
+    sincos(MAT.uvWorldRotation, rotate[0][0], rotate[0][1]);
+    rotate[1][0] = -rotate[0][1];
+    rotate[1][1] = rotate[0][0];
+    float2 uvWorld = mul(rotate, vIn.posW.xz / MAT.worldSize);
 	
 	
-	// alpha
-	float alpha = vIn.colour.a;
-	if (MAT.useAlpha)
-	{
-		float2 alpha_uv = uv;
-		if (MAT.baseAlphaClampU)
-		{
-			alpha_uv = vIn.texCoords.xy * MAT.uvScaleClampAlpha;
-			alpha_uv.x = clamp(alpha_uv.x, 0.05, 1.0);
-		}
-		float alphaBase = gmyTextures.T[MAT.baseAlphaTexture].Sample(SMP, alpha_uv).r;
-		if (MAT.baseAlphaClampU && alpha_uv.x > 0.95)
-		{
-			alphaBase = 1;
-		}
-		float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(SMP, uvWorld).r;
-		
-		alpha *= lerp(1,  smoothstep(0, 1, vIn.colour.r), MAT.vertexAlphaScale);
-		alpha *=  lerp(1, saturate((alphaBase + MAT.baseAlphaBrightness) * MAT.baseAlphaContrast ), MAT.baseAlphaScale);
-		alpha *=  lerp(1, saturate((alphaDetail + MAT.detailAlphaBrightness) * MAT.detailAlphaContrast  ), MAT.detailAlphaScale);
-	}
+    // alpha
+    float alpha = vIn.colour.a;
+    if (MAT.useAlpha)
+    {
+        if (MAT.baseAlphaClampU)
+        {
+            float sideAlpha = smoothstep(0, MAT.uvScaleClampAlpha.x, abs(vIn.texCoords.x)) * (1 - smoothstep(MAT.uvScaleClampAlpha.y, 1, abs(vIn.texCoords.x)));
+
+
+            //sideAlpha += range * (alphaDetail-0.5);
+
+            if (MAT.baseAlphaScale > 0.05)
+            {
+                float2 uvAlpha = vIn.texCoords.xy * MAT.uvScale;    // without rotate
+                uvAlpha.x = clamp(sideAlpha, 0.1, 0.9);
+                float alphaBase = gmyTextures.T[MAT.baseAlphaTexture].Sample(SMP, uvAlpha).r;
+                //if (uvAlpha.x > 0.89)  alphaBase = 1;
+
+                sideAlpha = lerp(1, saturate((alphaBase + MAT.baseAlphaBrightness) * MAT.baseAlphaContrast), MAT.baseAlphaScale);
+            }
+
+            //float range = min(1 - sideAlpha, sideAlpha);
+            float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(SMP, uvWorld).r;
+            alpha *= lerp(1, saturate((sideAlpha + alphaDetail + MAT.detailAlphaBrightness) * MAT.detailAlphaContrast), MAT.detailAlphaScale);
+
+            alpha *= sideAlpha;
+        }
+        else
+        {
+            float alphaBase = gmyTextures.T[MAT.baseAlphaTexture].Sample(SMP, uv).r;
+            float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(SMP, uvWorld).r;
+
+            alpha *= lerp(1, smoothstep(0, 1, vIn.colour.r), MAT.vertexAlphaScale);
+            alpha *= lerp(1, saturate((alphaBase + MAT.baseAlphaBrightness) * MAT.baseAlphaContrast), MAT.baseAlphaScale);
+            alpha *= lerp(1, saturate((alphaDetail + MAT.detailAlphaBrightness) * MAT.detailAlphaContrast), MAT.detailAlphaScale);
+        }
+    }
 	
-	
+    
 	// Elevation
 	output.Elevation = 0;
 	if (MAT.useElevation)
@@ -258,7 +286,11 @@ PS_OUTPUT psMain(splineVSOut vIn)  : SV_TARGET
 		output.PBR.rgb = saturate( pow(rA * rB * 2, MAT.roughnessScale) );
 		output.PBR.a = alpha;
 	}
-	
+
+    if (MAT.debugAlpha)
+    {
+        output.Albedo = float4(1, 0, 0, alpha);
+    }
 
 	
 	output.Alpha=float4(1, 1, 1, 1);

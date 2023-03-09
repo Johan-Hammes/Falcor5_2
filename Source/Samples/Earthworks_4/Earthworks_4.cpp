@@ -159,7 +159,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     bool changed = terrain.update(_renderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
-    const float4 clearColor(0.02f, 0.03f, 0.05f, 1);
+    const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
     _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
@@ -288,13 +288,21 @@ void Earthworks_4::guiStyle()
 
 int main(int argc, char** argv)
 {
+    bool allScreens = false;
+    for (int i = 0; i < argc; i++)
+    {
+        if (std::string(argv[i]).find("-allscreens") != std::string::npos) allScreens = true;
+    }
+
     Earthworks_4::UniquePtr pRenderer = std::make_unique<Earthworks_4>();
 
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
     config.windowDesc.resizableWindow = false;
     config.windowDesc.mode = Window::WindowMode::Fullscreen;
-    //config.windowDesc.mode = Window::WindowMode::AllScreens;
+    if (allScreens) {
+        config.windowDesc.mode = Window::WindowMode::AllScreens;
+    }
     config.windowDesc.width = 1260;
     config.windowDesc.height = 1140;
     config.windowDesc.monitor = 0;

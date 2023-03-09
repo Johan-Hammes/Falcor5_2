@@ -125,6 +125,7 @@ void intersection::updateCorner(float3 pos, float3 normal, int idx, int flags)
 
 void intersection::convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, uint* totalBezierCount, bool _forExport)
 {
+    /*
     uint size = (uint)lanesTarmac.size() / 3;
     if (size == 0) return;
 
@@ -147,6 +148,7 @@ void intersection::convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<b
         _bezier.push_back(lanesTarmac[i * 3 + 2]);
         (*totalBezierCount)++;
     }
+    */
 }
 
 
