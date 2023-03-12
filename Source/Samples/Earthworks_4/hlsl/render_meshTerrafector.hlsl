@@ -1,5 +1,7 @@
 //#include "terrainCommon.hlsli"
 #include "render_Common.hlsli"
+
+#define CALLEDFROMHLSL
 #include "materials.hlsli"
 
 
@@ -70,113 +72,108 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 
 
-struct PS_OUTPUT
+
+
+
+
+
+
+PS_OUTPUT_Terrafector fixedMaterials(const uint material, const float2 uv, const float4 color, const uint4 flags, const float height)
 {
-    float4 Elevation: SV_Target0;
-    float4 Albedo: SV_Target1;
-	float4 PBR: SV_Target2;
-	float4 Alpha: SV_Target3;
-	float4 Ecotope1: SV_Target4;
-	float4 Ecotope2: SV_Target5;
-	float4 Ecotope3: SV_Target6;
-	float4 Ecotope4: SV_Target7;
-};
+    PS_OUTPUT_Terrafector output = (PS_OUTPUT_Terrafector)0;
 
-
-PS_OUTPUT psMain(splineVSOut vIn) : SV_TARGET
-{
-    
-	PS_OUTPUT output = (PS_OUTPUT)0;
-
-    // get the materials
-    uint material = vIn.flags.y;
-    TF_material MAT = materials[material];
-
-    // uv's
-    float2 uv = vIn.texCoords.xy * MAT.uvScale;
-    float2 uvWorld = vIn.posW.xz / MAT.worldSize;
-
-
-    // alpha
-    float alpha = overlayAlpha;
-    if (MAT.useAlpha)
+    switch (material)
     {
-        float2 alpha_uv = uv;
-        if (MAT.baseAlphaClampU)
-        {
-            alpha_uv = vIn.texCoords.xy * MAT.uvScaleClampAlpha;
-            alpha_uv.x = clamp(alpha_uv.x, 0.05, 1.0);
-        }
-        float alphaBase = gmyTextures.T[MAT.baseAlphaTexture].Sample(gSmpLinear, alpha_uv).r;
-        if (MAT.baseAlphaClampU && alpha_uv.x > 0.95)
-        {
-            alphaBase = 1;
-        }
-        float alphaDetail = gmyTextures.T[MAT.detailAlphaTexture].Sample(gSmpLinear, uvWorld).r;
-
-        alpha *= lerp(1, smoothstep(0, 1, vIn.colour.r), MAT.vertexAlphaScale);
-        alpha *= lerp(1, saturate((alphaBase + MAT.baseAlphaBrightness) * MAT.baseAlphaContrast), MAT.baseAlphaScale);
-        alpha *= lerp(1, saturate((alphaDetail + MAT.detailAlphaBrightness) * MAT.detailAlphaContrast), MAT.detailAlphaScale);
-    }
-
-
-    // Elevation
-    output.Elevation = 0;
-    if (MAT.useElevation)
+    case MATERIAL_BLEND:
     {
-        if (MAT.useVertexY)
-        {
-            output.Elevation.r = vIn.posW.y;
-        }
-        output.Elevation.r += MAT.YOffset;
-        output.Elevation.r += (gmyTextures.T[MAT.baseElevationTexture].Sample(gSmpLinear, uv).r - MAT.baseElevationOffset) * MAT.baseElevationScale;
-        output.Elevation.r += (gmyTextures.T[MAT.detailElevationTexture].Sample(gSmpLinear, uvWorld).r - MAT.detailElevationOffset) * MAT.detailElevationScale;
-
-        output.Elevation.r *= alpha;
-
-        if (MAT.useAbsoluteElevation > 0.5) {
-            output.Elevation.a = alpha;
-        }
-        else {
-            output.Elevation.a = 0;  // since that causes OneMinusSrcAlpha to 1
-        }
-
+        output.Elevation.a = color.a * smoothstep(0, 1, color.r);
+        output.Elevation.r = height * output.Elevation.a;
+        return output;
     }
-
-
-
-
-
-    if (MAT.useColour)
+    break;
+    case MATERIAL_SOLID:
     {
-        float3 albedo = gmyTextures.T[MAT.baseAlbedoTexture].Sample(gSmpLinear, uv).rgb;
-        float3 albedoDetail = gmyTextures.T[MAT.detailAlbedoTexture].Sample(gSmpLinear, uvWorld).rgb;
-
-        float3 A = lerp(albedo, 0.5, saturate(MAT.albedoBlend));
-        float3 B = lerp(albedoDetail, 0.5, saturate(-MAT.albedoBlend));
-
-        output.Albedo.rgb = clamp(0.04, 0.9, A * B * 4 * MAT.albedoScale);		// 0.04, 0.9 charcoal to fresh snow
-        output.Albedo.a = alpha;
-
-
-        float baseRoughness = gmyTextures.T[MAT.baseRoughnessTexture].Sample(gSmpLinear, uv).r;
-        float detailRoughness = gmyTextures.T[MAT.detailRoughnessTexture].Sample(gSmpLinear, uvWorld).r;
-
-        float rA = lerp(baseRoughness, 0.5, saturate(MAT.roughnessBlend));
-        float rB = lerp(detailRoughness, 0.5, saturate(-MAT.roughnessBlend));
-
-        output.PBR.rgb = saturate(pow(rA * rB * 2, MAT.roughnessScale));
-        output.PBR.a = alpha;
+        output.Elevation.a = color.a;
+        output.Elevation.r = color.a * height;
+        return output;
     }
-
-
-    output.Alpha = float4(1, 1, 1, 1);
-
-    output.Ecotope1 = float4(0, 0, 0, alpha);
-    output.Ecotope2 = float4(0, 0, 0, alpha);
-    output.Ecotope3 = float4(0, 0, 0, alpha);
-    output.Ecotope4 = float4(0, 0, 0, alpha);
+    break;
+    case MATERIAL_CURVATURE:
+    {
+        output.Elevation.a = 0;
+        output.Elevation.r = 0.1 * cos((abs(uv.x)) * 1.57079632679);
+        return output;
+    }
+    break;
+    }
 
     return output;
 }
+
+
+
+
+
+
+
+PS_OUTPUT_Terrafector psMain(splineVSOut vIn) : SV_TARGET
+{
+    PS_OUTPUT_Terrafector output = (PS_OUTPUT_Terrafector)0;
+    uint material = vIn.flags.y;
+    TF_material MAT = materials[material];
+
+    if (material > 2030) {
+        return fixedMaterials(material, vIn.texCoords.xz, vIn.colour, vIn.flags, vIn.posW.y);
+    }
+
+
+
+    _uv uv;
+    solveUV(MAT, vIn.posW.xz, vIn.texCoords.xy, uv);
+    float alpha = solveAlpha(MAT, uv, vIn.colour.r) * vIn.colour.a * overlayAlpha;
+
+
+
+    if (MAT.materialType == MATERIAL_TYPE_STANDARD)
+    {
+        solveElevationColour(output, MAT, uv, alpha, vIn.posW.y);
+        return output;
+    }
+
+    if (MAT.materialType == MATERIAL_TYPE_MULTILAYER)
+    {
+        for (uint i = 0; i < 8; i++)
+        {
+            uint subMat = MAT.subMaterials[i] & 0xffff;
+            float alphaSubA = ((MAT.subMaterials[i] >> 16) & 0xff) / 255.0f;
+            if (subMat > 0)
+            {
+                _uv uvSub;
+                solveUV(materials[subMat], vIn.posW.xz, vIn.texCoords.xy, uvSub);
+                float alphaSub = alphaSubA * alpha * solveAlpha(materials[subMat], uvSub, 1);
+
+                PS_OUTPUT_Terrafector subOutput = (PS_OUTPUT_Terrafector)0;
+                solveElevationColour(subOutput, materials[subMat], uvSub, alphaSub, vIn.posW.y);
+
+                // blend
+                output.Elevation = lerp(output.Elevation, subOutput.Elevation, subOutput.Elevation.a);
+                output.Albedo = lerp(output.Albedo, float4(subOutput.Albedo.rgb, 1), subOutput.Albedo.a);
+                output.PBR = lerp(output.PBR, subOutput.PBR, subOutput.PBR.a);
+                output.Alpha = lerp(output.Alpha, subOutput.Alpha, subOutput.Alpha.a);
+                output.Ecotope1 = lerp(output.Ecotope1, subOutput.Ecotope1, subOutput.Ecotope1.a);
+                output.Ecotope2 = lerp(output.Ecotope2, subOutput.Ecotope2, subOutput.Ecotope2.a);
+                output.Ecotope3 = lerp(output.Ecotope3, subOutput.Ecotope3, subOutput.Ecotope3.a);
+                output.Ecotope4 = lerp(output.Ecotope4, subOutput.Ecotope4, subOutput.Ecotope4.a);
+
+
+            }
+        }
+        return output;
+    }
+
+
+
+    return output;
+}
+
 

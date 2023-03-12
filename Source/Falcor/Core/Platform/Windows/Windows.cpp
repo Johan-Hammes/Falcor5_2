@@ -425,6 +425,16 @@ namespace Falcor
         pDialog->SetFileTypes((uint32_t)fs.size(), fs.data());
         pDialog->SetDefaultExtension(fs.data()->pszSpec);
         //somethign like thispDialog->SetFolder(path.string().c_str());
+        /*
+        HRESULT hr;
+        IShellItem* shellItem;
+		hr = _SHCreateItemFromParsingName (UTF8StringHelper (path), 0, IID_PPV_ARG (IShellItem, &shellItem));
+		if (SUCCEEDED (hr))
+		{
+            pDialog->SetFolder (shellItem);
+			shellItem->Release ();
+		}
+        */
 
         if (pDialog->Show(nullptr) == S_OK)
         {

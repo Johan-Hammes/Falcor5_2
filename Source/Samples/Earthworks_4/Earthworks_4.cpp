@@ -282,6 +282,8 @@ void Earthworks_4::guiStyle()
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.f, 0.f, 0.f, 0.8f);
 
     style.FrameRounding = 4.0f;
+
+    style.ScrollbarSize = 10;
 }
 
 

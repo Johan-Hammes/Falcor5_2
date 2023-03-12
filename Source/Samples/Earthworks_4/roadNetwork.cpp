@@ -10,7 +10,7 @@ using namespace Assimp;
 #pragma optimize( "", off )
 
 
-static bool showMaterials = false;
+bool roadNetwork::showMaterials;
 Texture::SharedPtr roadNetwork::displayThumbnail;
 extern void cubic_Casteljau_Full(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3, glm::vec3& pos, glm::vec3& vel, glm::vec3& acc);
 extern glm::vec3 cubic_Casteljau(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3);
@@ -178,6 +178,18 @@ void roadNetwork::loadRoadMaterial(uint _side, uint _slot)
         {
             currentRoad->points[i].setMaterialIndex(_side, _slot, idx);
         }
+
+        terrafectorEditorMaterial::static_materials.rebuildAll();
+    }
+}
+
+
+
+void roadNetwork::dragdropRoadMaterial(uint _side, uint _slot, uint _index)
+{
+    for (int i = selectFrom; i < selectTo; i++)
+    {
+        currentRoad->points[i].setMaterialIndex(_side, _slot, _index);
     }
 }
 
@@ -204,8 +216,7 @@ const std::string roadNetwork::getMaterialName(uint _side, uint _slot)
 {
     int idx = currentRoad->points[selectFrom].getMaterialIndex(_side, _slot);
     if (idx >= 0 && idx < roadMaterialCache::getInstance().materialVector.size()) {
-        return std::to_string(idx) + roadMaterialCache::getInstance().materialVector.at(idx).displayName;
-        //return std::to_string(idx);
+        return roadMaterialCache::getInstance().materialVector.at(idx).displayName;
     }
     return "";
 }
@@ -247,6 +258,19 @@ const Texture::SharedPtr roadNetwork::getMaterialTexture(uint _side, uint _slot)
 												ImGui::PopID(); \
 										} \
 
+
+#define DRAGDROP(side, slot)        {  \
+                                        if (ImGui::BeginDragDropTarget())  \
+                                        {  \
+                                            auto dragDropPayload = ImGui::AcceptDragDropPayload("ROADMATERIAL");  \
+                                            if(dragDropPayload && dragDropPayload->IsDataType("ROADMATERIAL") && (dragDropPayload->Data != nullptr))  \
+                                            {  \
+                                                dragdropRoadMaterial(side, slot, *(uint*)dragDropPayload->Data);  \
+                                            }  \
+                                            ImGui::EndDragDropTarget();  \
+                                        }  \
+                                    }  \
+
 #define DISPLAY_MATERIAL(side, slot, tooltip)	{ \
 										bool same = true; \
 										int mat =  getRoadMaterial(side, slot, selectFrom); \
@@ -267,6 +291,7 @@ const Texture::SharedPtr roadNetwork::getMaterialTexture(uint _side, uint _slot)
 										 \
 										 ImGui::PushID(9999 + side * 1000 + slot); \
 												if (ImGui::Button(mat_name.c_str(), ImVec2(190, 0))) { if (selectTo > selectFrom) loadRoadMaterial(side, slot); } \
+                                                DRAGDROP(side, slot) \
 												TOOLTIP( tooltip ); \
 												if (same && ImGui::IsItemHovered()) { roadNetwork::displayThumbnail = getMaterialTexture(side, slot); } \
 												ImGui::SameLine(); \
@@ -502,7 +527,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         selectTo = (int)_road->points.size() - 1;
     }
 
-
+    /*
     for (uint i = selectFrom; i <= selectTo; i++)
     {
         // camber
@@ -534,7 +559,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         ImGui::Text("Camber - fixed");
         break;
     }
-
+    */
 
 
 
@@ -566,7 +591,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         ImGui::PopItemWidth();
 
 
-        ImGui::PushFont(_gui->getFont("roboto_32"));
+        ImGui::PushFont(_gui->getFont("roboto_26"));
         {
 
             ImGui::PushItemWidth(90);
@@ -585,23 +610,14 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 
 
-
-
-
-
-
-
-
-
     ImGui::Checkbox("show materials", &showMaterials);
+    TOOLTIP("space - toggle");
 
 
 
 
 
-
-
-    ImGui::PushFont(_gui->getFont("roboto_32"));
+    ImGui::PushFont(_gui->getFont("roboto_26"));
     {
         ImGui::SetCursorPosX(30);
         ImGui::Text("geometry");
@@ -705,44 +721,44 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     ImGui::SetCursorPos(ImVec2(240, tempY));
     ImGui::BeginChildFrame(101, ImVec2(220, 260), 0);
     {
-        DISPLAY_MATERIAL(0, splinePoint::verge, "VERGE \nLine between the outermost lane and the shoulder.");
-        DISPLAY_MATERIAL(0, splinePoint::sidewalk, "SIDEWALK \nLine between the outermost lane and the shoulder.");
-        DISPLAY_MATERIAL(0, splinePoint::gutter, "GUTTER \nLine between the outermost lane and the shoulder.");
+        DISPLAY_MATERIAL(0, splinePoint::verge, "VERGE \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::sidewalk, "SIDEWALK \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::gutter, "GUTTER \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
         ImGui::SetCursorPosY(lineY * 5);
-        DISPLAY_MATERIAL(0, splinePoint::tarmac, "ROAD SURFACE \nLine between the outermost lane and the shoulder.");
+        DISPLAY_MATERIAL(0, splinePoint::tarmac, "ROAD SURFACE \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
     }
     ImGui::EndChildFrame();
 
     ImGui::SetCursorPos(ImVec2(480, tempY));
-    ImGui::BeginChildFrame(102, ImVec2(220, 260), 0);
+    ImGui::BeginChildFrame(102, ImVec2(220, 280), 0);
     {
         ImGui::SetCursorPosY(lineY * 2);
 
 
-        DISPLAY_MATERIAL(0, splinePoint::shoulder, "SHOULDER \nLine between the outermost lane and the shoulder.");
-        DISPLAY_MATERIAL(0, splinePoint::outerTurn, "OUTER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the outside of the lane next to it.");
+        DISPLAY_MATERIAL(0, splinePoint::shoulder, "SHOULDER \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::outerTurn, "OUTER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the outside of the lane next to it.\n make sure something is selected before loading");
         ImGui::NewLine();
-        DISPLAY_MATERIAL(0, splinePoint::lane2, "LANE 2 \nOutside line to the next lane if there is one. \nOnly applies to lane 3 it it exists.");
-        DISPLAY_MATERIAL(0, splinePoint::lane1, "LANE 1 \nOutside line to the next lane if there is one. \nOnly applies to lane 2 or 3 if they exist.");
-        DISPLAY_MATERIAL(0, splinePoint::innerTurn, "INNER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the inside of the lane next to it.");
-        DISPLAY_MATERIAL(0, splinePoint::innerShoulder, "INNER SHOULDER \nLine between a triffic island and the first lane.");
+        DISPLAY_MATERIAL(0, splinePoint::lane2, "LANE 2 \nOutside line to the next lane if there is one. \nOnly applies to lane 3 it it exists.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::lane1, "LANE 1 \nOutside line to the next lane if there is one. \nOnly applies to lane 2 or 3 if they exist.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::innerTurn, "INNER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the inside of the lane next to it.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::innerShoulder, "INNER SHOULDER \nLine between a triffic island and the first lane.\n make sure something is selected before loading");
     }
     ImGui::EndChildFrame();
 
     ImGui::SetCursorPos(ImVec2(720, tempY));
-    ImGui::BeginChildFrame(103, ImVec2(220, 260), 0);
+    ImGui::BeginChildFrame(103, ImVec2(220, 280), 0);
     {
         ImGui::SetCursorPosY(lineY * 3);
-        DISPLAY_MATERIAL(0, splinePoint::rubberOuter, "OUTER TURN 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(0, splinePoint::rubberLane3, "LANE 3 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(0, splinePoint::rubberLane2, "LANE 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(0, splinePoint::rubberLane1, "LANE 1 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(0, splinePoint::rubberInner, "INNER TURN \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
+        DISPLAY_MATERIAL(0, splinePoint::rubberOuter, "OUTER TURN 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::rubberLane3, "LANE 3 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::rubberLane2, "LANE 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::rubberLane1, "LANE 1 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(0, splinePoint::rubberInner, "INNER TURN \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
     }
     ImGui::EndChildFrame();
 
 
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20);
     {
         ImGui::SetCursorPosX(480);
         DISPLAY_MATERIAL(1, 0, "CENTERLINE");
@@ -788,36 +804,36 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     {
 
         ImGui::SetCursorPosY(lineY * 3);
-        DISPLAY_MATERIAL(2, splinePoint::tarmac, "ROAD SURFACE \nLine between the outermost lane and the shoulder.");
+        DISPLAY_MATERIAL(2, splinePoint::tarmac, "ROAD SURFACE \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
         ImGui::SetCursorPosY(lineY * 6);
-        DISPLAY_MATERIAL(2, splinePoint::gutter, "GUTTER \nLine between the outermost lane and the shoulder.");
-        DISPLAY_MATERIAL(2, splinePoint::sidewalk, "SIDEWALK \nLine between the outermost lane and the shoulder.");
-        DISPLAY_MATERIAL(2, splinePoint::verge, "VERGE \nLine between the outermost lane and the shoulder.");
+        DISPLAY_MATERIAL(2, splinePoint::gutter, "GUTTER \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::sidewalk, "SIDEWALK \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::verge, "VERGE \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
     }
     ImGui::EndChildFrame();
 
     ImGui::SetCursorPos(ImVec2(480, tempY));
-    ImGui::BeginChildFrame(202, ImVec2(220, 260), 0);
+    ImGui::BeginChildFrame(202, ImVec2(220, 280), 0);
     {
-        DISPLAY_MATERIAL(2, splinePoint::innerShoulder, "INNER SHOULDER \nLine between a traffic island and the first lane.");
-        DISPLAY_MATERIAL(2, splinePoint::innerTurn, "INNER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the inside of the lane next to it.");
-        DISPLAY_MATERIAL(2, splinePoint::lane1, "LANE 1 \nOutside line to the next lane if there is one. \nOnly applies to lane 2 or 3 if they exist.");
-        DISPLAY_MATERIAL(2, splinePoint::lane2, "LANE 2 \nOutside line to the next lane if there is one. \nOnly applies to lane 3 it it exists.");
+        DISPLAY_MATERIAL(2, splinePoint::innerShoulder, "INNER SHOULDER \nLine between a traffic island and the first lane.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::innerTurn, "INNER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the inside of the lane next to it.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::lane1, "LANE 1 \nOutside line to the next lane if there is one. \nOnly applies to lane 2 or 3 if they exist.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::lane2, "LANE 2 \nOutside line to the next lane if there is one. \nOnly applies to lane 3 it it exists.\n make sure something is selected before loading");
         ImGui::NewLine();
-        DISPLAY_MATERIAL(2, splinePoint::outerTurn, "OUTER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the outside of the lane next to it.");
-        DISPLAY_MATERIAL(2, splinePoint::shoulder, "SHOULDER \nLine between the outermost lane and the shoulder.");
+        DISPLAY_MATERIAL(2, splinePoint::outerTurn, "OUTER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the outside of the lane next to it.\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::shoulder, "SHOULDER \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
     }
     ImGui::EndChildFrame();
 
     ImGui::SetCursorPos(ImVec2(720, tempY));
-    ImGui::BeginChildFrame(203, ImVec2(220, 260), 0);
+    ImGui::BeginChildFrame(203, ImVec2(220, 280), 0);
     {
         ImGui::SetCursorPosY(lineY * 1);
-        DISPLAY_MATERIAL(2, splinePoint::rubberInner, "INNER TURN \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(2, splinePoint::rubberLane1, "LANE 1 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(2, splinePoint::rubberLane2, "LANE 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(2, splinePoint::rubberLane3, "LANE 3 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
-        DISPLAY_MATERIAL(2, splinePoint::rubberOuter, "OUTER TURN 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane");
+        DISPLAY_MATERIAL(2, splinePoint::rubberInner, "INNER TURN \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::rubberLane1, "LANE 1 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::rubberLane2, "LANE 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::rubberLane3, "LANE 3 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
+        DISPLAY_MATERIAL(2, splinePoint::rubberOuter, "OUTER TURN 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
 
     }
     ImGui::EndChildFrame();
@@ -1315,7 +1331,7 @@ void roadNetwork::exportRoads(int _numSplits)
         for (uint x = 0; x < 16; x++)
         {
             std::string answer = char(65 + x) + std::to_string(y);
-            glm::vec3 center = glm::vec3(x*2500 - 20000 + (2500/2), 0, y * 2500 - 20000 + (2500 / 2));
+            glm::vec3 center = glm::vec3(x * 2500 - 20000 + (2500 / 2), 0, y * 2500 - 20000 + (2500 / 2));
             exportRoads(_numSplits, center, 1500.f, answer);
         }
     }

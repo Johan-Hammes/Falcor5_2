@@ -465,7 +465,7 @@ void terrainManager::init_TopdownRender()
     terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 2048); // FIXME hardcoded
     split.shader_spline3D.load("Samples/Earthworks_4/hlsl/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
-    split.shader_spline3D.Vars()->setSampler("SMP", sampler_Trilinear);
+    split.shader_spline3D.Vars()->setSampler("gSmpLinear", sampler_Trilinear);
     //split.shader_spline3D.Program()->getReflector()
     split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     //split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
@@ -691,12 +691,13 @@ void terrainManager::onGuiRender(Gui* _gui)
         case 0: break;
         case 1: break;
         case 2:
-            terrafectors.renderGui(_gui);
+            //terrafectors.renderGui(_gui);
             ImGui::NewLine();
-            roadMaterialCache::getInstance().renderGui(_gui);
+            //roadMaterialCache::getInstance().renderGui(_gui);
             break;
         case 3:
             mRoadNetwork.renderGUI(_gui);
+            
 
             //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
             //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
@@ -751,10 +752,10 @@ void terrainManager::onGuiRender(Gui* _gui)
             if (ImGui::Button("roads -> fbx", ImVec2(W, 0))) { mRoadNetwork.exportRoads(bake.roadMaxSplits); }
 
             if (ImGui::Button("bridges -> fbx", ImVec2(W, 0))) { mRoadNetwork.exportBridges(); }
-            ImGui::DragInt("lod-MIN", &exportLodMin, 1, 0, 20);
-            ImGui::DragInt("lod-MAX", &exportLodMax, 1, 0, 20);
+            ImGui::DragInt2("lod", &exportLodMin, 1, 0, 20);
+            //ImGui::DragInt("lod-MAX", &exportLodMax, 1, 0, 20);
             if (exportLodMax < exportLodMin) exportLodMax = exportLodMin;
-            if (ImGui::Button("scene -> fbx", ImVec2(W, 0))) { sceneToMax();}
+            if (ImGui::Button("grab frame to fbx", ImVec2(W, 0))) { sceneToMax();}
 
 
             if (ImGui::Button("roads -> EVO", ImVec2(W, 0))) { mRoadNetwork.exportBinary(); }
@@ -775,7 +776,7 @@ void terrainManager::onGuiRender(Gui* _gui)
     case 1: break;
     case 2:
     {
-        Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 }, Gui::WindowFlags::AllowMove);
+        Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
         {
             ImGui::PushFont(_gui->getFont("roboto_20"));
             if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
@@ -787,9 +788,42 @@ void terrainManager::onGuiRender(Gui* _gui)
     }
     break;
     case 3:
+        Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
+        {
+            ImGui::PushFont(_gui->getFont("roboto_20"));
+            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
+                reset(true);
+            }
+            ImGui::PopFont();
+        }
+        tfPanel.release();
+
+        Gui::Window materialPanel(_gui, "Browser##materialPanel", { 900, 900 }, { 100, 100 });
+        {
+            static int DISPLAY = 0;
+            ImGui::PushFont(_gui->getFont("roboto_26"));
+            ImGui::Combo("##material index", &DISPLAY, "Materials\0Road materials\0Terrafectors\0");
+            ImGui::PopFont();
+
+            switch (DISPLAY)
+            {
+            case 0:
+                terrafectorEditorMaterial::static_materials.renderGui(_gui, materialPanel);
+                break;
+            case 1:
+                roadMaterialCache::getInstance().renderGui(_gui, materialPanel);
+                break;
+            case 2:
+                terrafectors.renderGui(_gui, materialPanel);
+                break;
+            }
+        }
+        materialPanel.release();
+        
+
         if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
         {
-            Gui::Window roadPanel(_gui, "##roadPanel", { 200, 200 }, { 100, 100 });
+            Gui::Window roadPanel(_gui, "Road##roadPanel", { 200, 200 }, { 100, 100 });
             {
                 ImGui::PushFont(_gui->getFont("roboto_20"));
                 static bool fullWidth = false;
@@ -822,20 +856,36 @@ void terrainManager::onGuiRender(Gui* _gui)
 
     if (!ImGui::IsAnyWindowHovered())
     {
-        char TTTEXT[1024];
-        uint idx = split.feedback.tum_idx;
-        sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlod %d\n", blockFromPositionB(split.feedback.tum_Position).c_str(),
-            split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
-            m_tiles[idx].lod
+        if (splineTest.bVertex)
+        {
+            std::stringstream tooltip;
+
+            tooltip << "camber   " << (int)(mRoadNetwork.currentRoad->points[splineTest.index].camber * 57.2958f) << "º     <-   ->\n";
+            tooltip << "T   " << mRoadNetwork.currentRoad->points[splineTest.index].T << "      <-   ->\n";
+            tooltip << "C   " << mRoadNetwork.currentRoad->points[splineTest.index].C << "      <-   ->\n";
+            tooltip << "B   " << mRoadNetwork.currentRoad->points[splineTest.index].B << "      ctrl + left mouse + drag\n";
+
+            ImGui::PushFont(_gui->getFont("roboto_26"));
+            ImGui::SetTooltip(tooltip.str().c_str());
+            ImGui::PopFont();
+        }
+        else
+        {
+            char TTTEXT[1024];
+            uint idx = split.feedback.tum_idx;
+            sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlod %d\n", blockFromPositionB(split.feedback.tum_Position).c_str(),
+                split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
+                m_tiles[idx].lod
             );
-        //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
-        auto& style = ImGui::GetStyle();
-        style.Colors[ImGuiCol_Text] = ImVec4(0.50f, 0.5, 0.5, 1.f);
-        style.Colors[ImGuiCol_PopupBg] = ImVec4(0.00f, 0.f, 0.f, 0.8f);
-        
-        ImGui::PushFont(_gui->getFont("roboto_26"));
-        ImGui::SetTooltip(TTTEXT);
-        ImGui::PopFont();
+            //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
+            auto& style = ImGui::GetStyle();
+            style.Colors[ImGuiCol_Text] = ImVec4(0.50f, 0.5, 0.5, 1.f);
+            style.Colors[ImGuiCol_PopupBg] = ImVec4(0.00f, 0.f, 0.f, 0.8f);
+
+            ImGui::PushFont(_gui->getFont("roboto_26"));
+            ImGui::SetTooltip(TTTEXT);
+            ImGui::PopFont();
+        }
     }
 }
 
@@ -1074,6 +1124,8 @@ bool terrainManager::update(RenderContext* _renderContext)
             splines.indexDataBakeOnly->setBlob(roadNetwork::staticIndexData_BakeOnly.data(), 0, splines.numStaticSplinesBakeOnlyIndex * sizeof(bezierLayer));
             mRoadNetwork.isDirty = false;
         }
+
+        //bezierRoadstoLOD(4);
     }
 
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
@@ -2167,7 +2219,7 @@ void terrainManager::sceneToMax()
 {
 
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"obj"} };
+    FileDialogFilterVec filters = { {"fbx"} };
     if (saveFileDialog(filters, path))
     {
 
@@ -2176,6 +2228,7 @@ void terrainManager::sceneToMax()
         for (auto& tile : m_used)
         {
             bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr && (tile->lod >= exportLodMin) && (tile->lod <= exportLodMax);
+            surface = surface || (tile->lod == exportLodMax);   // add all top level
             if (surface)
             {
                 numMeshes++;
@@ -2205,6 +2258,7 @@ void terrainManager::sceneToMax()
         for (auto& tile : m_used)
         {
             bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr && (tile->lod >= exportLodMin) && (tile->lod <= exportLodMax);
+            surface = surface || (tile->lod == exportLodMax);   // add all top level
             if (surface)
             {
                 scene->mMaterials[meshCount] = new aiMaterial();
@@ -2225,10 +2279,10 @@ void terrainManager::sceneToMax()
                         face.mIndices = new unsigned int[4];
                         face.mNumIndices = 4;
 
-                        face.mIndices[0] = (j * 256) + (i);
-                        face.mIndices[1] = (j * 256) + (i + 1);
-                        face.mIndices[2] = (j * 256) + 256 + (i + 1);
-                        face.mIndices[3] = (j * 256) + 256 + (i);
+                        face.mIndices[0] = (j * 256) + (i + 1);
+                        face.mIndices[1] = (j * 256) + (i);
+                        face.mIndices[2] = (j * 256) + 256 + (i);
+                        face.mIndices[3] = (j * 256) + 256 + (i + 1);
                     }
                 }
 
@@ -2262,7 +2316,7 @@ void terrainManager::sceneToMax()
 
 
         Exporter exp;
-        exp.Export(scene, "obj", path.string());
+        exp.Export(scene, "fbx", path.string());
     }
 
 
@@ -2583,7 +2637,13 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                         if (mRoadNetwork.currentIntersection) mRoadNetwork.deleteCurrentIntersection();
                         if (mRoadNetwork.currentRoad) mRoadNetwork.deleteCurrentRoad();
                         break;
+                    case Input::Key::Space:
+                        if (mRoadNetwork.currentRoad) mRoadNetwork.showMaterials = !mRoadNetwork.showMaterials;
+
+                        break;
                     }
+               
+                
                 }
 
                 mRoadNetwork.updateAllRoads();

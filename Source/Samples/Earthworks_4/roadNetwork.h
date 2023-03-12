@@ -146,6 +146,7 @@ public:
 
     //static roadMaterialCache roadMatCache;
     void loadRoadMaterial(uint _side, uint _slot);
+    void dragdropRoadMaterial(uint _side, uint _slot, uint _index);
     void clearRoadMaterial(uint _side, uint _slot);
     uint getRoadMaterial(uint _side, uint _slot, uint _index);
     int selectFrom;
@@ -155,6 +156,7 @@ public:
     const std::string getMaterialPath(uint _side, uint _slot);
     const Texture::SharedPtr getMaterialTexture(uint _side, uint _slot);
     static Texture::SharedPtr displayThumbnail;
+    static bool showMaterials;
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const version)

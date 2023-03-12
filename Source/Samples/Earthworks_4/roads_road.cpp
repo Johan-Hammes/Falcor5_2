@@ -551,7 +551,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
 
 
     // stylized
-    if (_stylized) {
+    if (!_showMaterials && _stylized) {
         for (uint i = 0; i < numSegments; i++)
         {
             // SELECTION

@@ -177,7 +177,7 @@ public:
 	std::vector<Texture::SharedPtr>			textureVector;
 	float texMb = 0;
 
-	void renderGui(Gui *mpGui);
+	void renderGui(Gui *mpGui, Gui::Window& _window);
 	bool renderGuiSelect(Gui *mpGui);
 
 	int dispTexIndex = -1;
@@ -239,6 +239,7 @@ public:
     std::filesystem::path 			  fullPath;			// for quick save
 	bool				isModified = false;
     std::array<std::string, 8>	  submaterialPaths = { "", "", "", "", "", "", "", "" };
+    Texture::SharedPtr		thumbnail = nullptr;
 
 	bool			useAbsoluteElevation = true;	// deprecated
 
@@ -435,7 +436,7 @@ public:
 	template<class Archive>
 	void serialize(Archive & archive) {	/*archive(groups); */}
 
-	void renderGui(Gui* mpGui);
+	void renderGui(Gui* mpGui, Gui::Window& _window);
     void loadPath(std::string _path, bool _rebuild = false);
 
 public:

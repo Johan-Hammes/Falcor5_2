@@ -1,7 +1,11 @@
 #define CALLEDFROMHLSL
 #include "materials.hlsli"
 
-SamplerState  SMP : register(s0);
+SamplerState gSmpPoint : register(s0);
+SamplerState gSmpLinear : register(s1);
+SamplerState gSmpAniso : register(s2);
+SamplerState gSmpLinearClamp : register(s3);
+
 StructuredBuffer<TF_material> materials;
 StructuredBuffer<cubicDouble> splineData;
 StructuredBuffer<bezierLayer> indexData;
@@ -216,8 +220,8 @@ float4 solveColor(const TF_material _mat, const _uv uv, const float alpha)
 
     if (_mat.useColour)
     {
-        float3 albedo = gmyTextures.T[_mat.baseAlbedoTexture].Sample(SMP, uv.object).rgb;
-        float3 albedoDetail = gmyTextures.T[_mat.detailAlbedoTexture].Sample(SMP, uv.world).rgb;
+        float3 albedo = gmyTextures.T[_mat.baseAlbedoTexture].Sample(gSmpLinear, uv.object).rgb;
+        float3 albedoDetail = gmyTextures.T[_mat.detailAlbedoTexture].Sample(gSmpLinear, uv.world).rgb;
 
         float3 A = lerp(albedo, 0.5, saturate(_mat.albedoBlend));
         float3 B = lerp(albedoDetail, 0.5, saturate(-_mat.albedoBlend));

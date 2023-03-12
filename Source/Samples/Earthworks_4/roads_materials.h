@@ -59,6 +59,8 @@ CEREAL_CLASS_VERSION(roadMaterialGroup, 100);
 
 
 
+
+
 class roadMaterialCache
 {
 public:
@@ -75,16 +77,30 @@ public:
     void operator=(roadMaterialCache const&) = delete;
 
 public:
-    void renderGui(Gui* _gui);
-    uint find_insert_material(const std::string _path);
+    void renderGui(Gui* _gui, Gui::Window &_window);
+    uint find_insert_material(std::string _path);
     void reloadMaterials();
 
     std::vector<roadMaterialGroup>	materialVector;
+
+    void replaceAllrm(std::string& str, const std::string& from, const std::string& to) {
+        if (from.empty())
+            return;
+        size_t start_pos = 0;
+        while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+            str.replace(start_pos, from.length(), to);
+            start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+        }
+    }
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const version)
     {
         archive(CEREAL_NVP(materialVector));
+
+        for (auto& mat : materialVector) {
+            replaceAllrm(mat.relativePath, "\\", "/");
+        }
     }
 };
 CEREAL_CLASS_VERSION(roadMaterialCache, 100);

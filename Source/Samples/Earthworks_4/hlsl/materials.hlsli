@@ -136,21 +136,21 @@ float solveAlpha(const TF_material _mat, _uv uv, float _vertexAlpha)
             {
                 uv.side.xy *= _mat.uvScale;    // without rotate
                 uv.side.x = clamp(sideAlpha, 0.1, 0.9);
-                float alphaBase = gmyTextures.T[_mat.baseAlphaTexture].Sample(SMP, uv.side).r;
+                float alphaBase = gmyTextures.T[_mat.baseAlphaTexture].Sample(gSmpLinear, uv.side).r;
 
                 sideAlpha = lerp(1, saturate((alphaBase + _mat.baseAlphaBrightness) * _mat.baseAlphaContrast), _mat.baseAlphaScale);
             }
 
             //float range = min(1 - sideAlpha, sideAlpha);
-            float alphaDetail = gmyTextures.T[_mat.detailAlphaTexture].Sample(SMP, uv.world).r;
+            float alphaDetail = gmyTextures.T[_mat.detailAlphaTexture].Sample(gSmpLinear, uv.world).r;
             alpha *= lerp(1, saturate((sideAlpha + alphaDetail + _mat.detailAlphaBrightness) * _mat.detailAlphaContrast), _mat.detailAlphaScale);
 
             alpha *= sideAlpha;
         }
         else
         {
-            float alphaBase = gmyTextures.T[_mat.baseAlphaTexture].Sample(SMP, uv.object).r;
-            float alphaDetail = gmyTextures.T[_mat.detailAlphaTexture].Sample(SMP, uv.world).r;
+            float alphaBase = gmyTextures.T[_mat.baseAlphaTexture].Sample(gSmpLinear, uv.object).r;
+            float alphaDetail = gmyTextures.T[_mat.detailAlphaTexture].Sample(gSmpLinear, uv.world).r;
 
             alpha *= lerp(1, smoothstep(0, 1, _vertexAlpha), _mat.vertexAlphaScale);
             alpha *= lerp(1, saturate((alphaBase + _mat.baseAlphaBrightness) * _mat.baseAlphaContrast), _mat.baseAlphaScale);
@@ -160,6 +160,87 @@ float solveAlpha(const TF_material _mat, _uv uv, float _vertexAlpha)
 
     return alpha;
 }
+
+
+
+
+struct PS_OUTPUT_Terrafector
+{
+    float4 Elevation: SV_Target0;
+    float4 Albedo: SV_Target1;
+    float4 PBR: SV_Target2;
+    float4 Alpha: SV_Target3;
+    float4 Ecotope1: SV_Target4;
+    float4 Ecotope2: SV_Target5;
+    float4 Ecotope3: SV_Target6;
+    float4 Ecotope4: SV_Target7;
+};
+
+
+
+void solveElevationColour(inout PS_OUTPUT_Terrafector output, const TF_material MAT, const _uv uv, const float alpha, const float vertex_heigth)
+{
+    // Elevation
+    output.Elevation = 0;
+    if (MAT.useElevation)
+    {
+        if (MAT.useVertexY)
+        {
+            output.Elevation.r = vertex_heigth;
+        }
+        output.Elevation.r += MAT.YOffset;
+        output.Elevation.r += (gmyTextures.T[MAT.baseElevationTexture].Sample(gSmpLinear, uv.object).r - MAT.baseElevationOffset) * MAT.baseElevationScale;
+        output.Elevation.r += (gmyTextures.T[MAT.detailElevationTexture].Sample(gSmpLinear, uv.world).r - MAT.detailElevationOffset) * MAT.detailElevationScale;
+
+        output.Elevation.r *= alpha;
+
+        if (MAT.useAbsoluteElevation > 0.5) {
+            output.Elevation.a = alpha;
+        }
+        else {
+            output.Elevation.a = 0;  // since that causes OneMinusSrcAlpha to 1
+        }
+
+    }
+
+
+
+
+
+    if (MAT.useColour)
+    {
+        float3 albedo = gmyTextures.T[MAT.baseAlbedoTexture].Sample(gSmpLinear, uv.object).rgb;
+        float3 albedoDetail = gmyTextures.T[MAT.detailAlbedoTexture].Sample(gSmpLinear, uv.world).rgb;
+
+        float3 A = lerp(albedo, 0.5, saturate(MAT.albedoBlend));
+        float3 B = lerp(albedoDetail, 0.5, saturate(-MAT.albedoBlend));
+
+        output.Albedo.rgb = clamp(0.04, 0.9, A * B * 4 * MAT.albedoScale);		// 0.04, 0.9 charcoal to fresh snow
+        output.Albedo.a = alpha;
+
+
+        float baseRoughness = gmyTextures.T[MAT.baseRoughnessTexture].Sample(gSmpLinear, uv.object).r;
+        float detailRoughness = gmyTextures.T[MAT.detailRoughnessTexture].Sample(gSmpLinear, uv.world).r;
+
+        float rA = lerp(baseRoughness, 0.5, saturate(MAT.roughnessBlend));
+        float rB = lerp(detailRoughness, 0.5, saturate(-MAT.roughnessBlend));
+
+        output.PBR.rgb = saturate(pow(rA * rB * 2, MAT.roughnessScale));
+        output.PBR.a = alpha;
+    }
+
+
+
+    output.Alpha = float4(1, 1, 1, 1);
+
+    output.Ecotope1 = float4(0, 0, 0, alpha);
+    output.Ecotope2 = float4(0, 0, 0, alpha);
+    output.Ecotope3 = float4(0, 0, 0, alpha);
+    output.Ecotope4 = float4(0, 0, 0, alpha);
+
+}
+
+
 
 
 #endif
