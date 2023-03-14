@@ -556,6 +556,29 @@ void materialCache::rebuildAll()
 }
 
 
+
+void materialCache::renameMoveMaterial(std::filesystem::path currentPath)
+{
+    /*
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"terrafectorMaterial"} };
+    if (saveFileDialog(filters, path))
+    {
+        for (auto& material : materialVector)
+        {
+            if (material.fullPath.compare(currentPath) == 0)
+            {
+                material.fullPath = currentPath;
+            }
+        }
+
+        roadMaterialCache::getInstance()
+    }
+    */
+}
+
+
+
 void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
 {
     auto& style = ImGui::GetStyle();
@@ -589,7 +612,16 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
             uint x = cnt % numColumns;
             uint y = (int)floor(cnt / numColumns);
             ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
-            ImGui::Text(material.displayName.c_str());
+            ImGui::PushItemWidth(128);
+            int size = material.displayName.size() - 16;
+            if (size >= 0)
+            {
+                ImGui::Text((material.displayName.substr(0, __max(0, size)) + "...").c_str());
+            }
+            else
+            {
+                ImGui::Text(material.displayName.c_str());
+            }
             ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
             if (material.thumbnail) {
                 if (_window.imageButton("testImage", material.thumbnail, float2(128, 128)))
@@ -599,14 +631,18 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
             }
             else
             {
+                style.Colors[ImGuiCol_Button] = ImVec4(material._constData.albedoScale.x, material._constData.albedoScale.y, material._constData.albedoScale.z, 1.f);
                 if( ImGui::Button("##test", ImVec2(128, 128)))
                 {
                     selectedMaterial = cnt;
                 }
             }
+            style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f );
+
             if (ImGui::BeginPopupContextWindow())
             {
-                if (ImGui::Selectable("rename")) { ; }
+                if (ImGui::Selectable("rename / move")) {  }
+                //TOOLTIP()
 
                 ImGui::EndPopup();
             }

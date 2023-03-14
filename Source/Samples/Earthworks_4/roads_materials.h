@@ -45,7 +45,8 @@ struct roadMaterialGroup
     Texture::SharedPtr		thumbnail = nullptr;
 
     std::vector<roadMaterialLayer> layers;
-    void import(std::string _path);
+    bool import(std::string _path);
+    void save();
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const version)
@@ -78,8 +79,10 @@ public:
 
 public:
     void renderGui(Gui* _gui, Gui::Window &_window);
+    void renameMoveMaterial(roadMaterialGroup &_material);
     uint find_insert_material(std::string _path);
     void reloadMaterials();
+    std::string checkPath(std::string _root, std::string _file);
 
     std::vector<roadMaterialGroup>	materialVector;
 

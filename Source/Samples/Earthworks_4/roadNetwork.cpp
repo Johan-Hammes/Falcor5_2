@@ -265,11 +265,14 @@ const Texture::SharedPtr roadNetwork::getMaterialTexture(uint _side, uint _slot)
                                             auto dragDropPayload = ImGui::AcceptDragDropPayload("ROADMATERIAL");  \
                                             if(dragDropPayload && dragDropPayload->IsDataType("ROADMATERIAL") && (dragDropPayload->Data != nullptr))  \
                                             {  \
-                                                dragdropRoadMaterial(side, slot, *(uint*)dragDropPayload->Data);  \
+                                                dragdropRoadMaterial(side, slot, 5);  \
                                             }  \
                                             ImGui::EndDragDropTarget();  \
                                         }  \
                                     }  \
+
+
+
 
 #define DISPLAY_MATERIAL(side, slot, tooltip)	{ \
 										bool same = true; \

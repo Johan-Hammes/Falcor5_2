@@ -414,6 +414,7 @@ namespace Falcor
         std::vector<std::wstring> ext;
     };
 
+#include"shobjidl_core.h"
     template<typename DialogType>
     static bool fileDialogCommon(const FileDialogFilterVec& filters, std::filesystem::path& path, DWORD options, const CLSID clsid)
     {
@@ -424,17 +425,26 @@ namespace Falcor
         pDialog->SetOptions(options | FOS_FORCEFILESYSTEM);
         pDialog->SetFileTypes((uint32_t)fs.size(), fs.data());
         pDialog->SetDefaultExtension(fs.data()->pszSpec);
-        //somethign like thispDialog->SetFolder(path.string().c_str());
-        /*
-        HRESULT hr;
-        IShellItem* shellItem;
-		hr = _SHCreateItemFromParsingName (UTF8StringHelper (path), 0, IID_PPV_ARG (IShellItem, &shellItem));
-		if (SUCCEEDED (hr))
-		{
-            pDialog->SetFolder (shellItem);
-			shellItem->Release ();
-		}
-        */
+
+        if (path.string().size() > 0)
+        {
+            PIDLIST_ABSOLUTE pidl;
+            std::wstring wpath = path.wstring();
+            wpath = wpath.substr(0, wpath.find_last_of(L"/\\") + 1);
+            WCHAR pPath[256];
+            swprintf(pPath, 256, L"%s", wpath.c_str());
+            HRESULT hresult = SHParseDisplayName(pPath, 0, &pidl, SFGAO_FOLDER, 0);
+            if (SUCCEEDED(hresult))
+            {
+                IShellItem* psi;
+                hresult = ::SHCreateShellItem(NULL, NULL, pidl, &psi);
+                if (SUCCEEDED(hresult))
+                {
+                    pDialog->SetFolder(psi);
+                }
+                ILFree(pidl);
+            }
+        }
 
         if (pDialog->Show(nullptr) == S_OK)
         {

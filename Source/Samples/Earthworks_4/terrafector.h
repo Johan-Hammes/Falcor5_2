@@ -179,6 +179,7 @@ public:
 
 	void renderGui(Gui *mpGui, Gui::Window& _window);
 	bool renderGuiSelect(Gui *mpGui);
+    void renameMoveMaterial(std::filesystem::path currentPath);
 
 	int dispTexIndex = -1;
 	Texture::SharedPtr getDisplayTexture();

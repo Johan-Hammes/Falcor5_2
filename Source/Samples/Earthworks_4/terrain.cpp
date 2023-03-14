@@ -2219,7 +2219,7 @@ void terrainManager::sceneToMax()
 {
 
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"fbx"} };
+    FileDialogFilterVec filters = { {"fbx"}, {"obj"} };
     if (saveFileDialog(filters, path))
     {
 
@@ -2232,8 +2232,12 @@ void terrainManager::sceneToMax()
             if (surface)
             {
                 numMeshes++;
-                //sprintf(filename, "F:/_sceneTest/albedo_%d.jpg", tile->index);
+                //sprintf(filename, "%s/albedo_%d.jpg", path.root_directory().string().c_str(), tile->index);
                 //compressed_Albedo_Array->captureToFile(0, tile->index, filename, Bitmap::FileFormat::JpegFile, Bitmap::ExportFlags::None);
+
+                //std::vector<uint8_t> textureData;
+                //uint32_t subresource = compressed_Albedo_Array->getSubresourceIndex(tile->index, 0);
+                //textureData = pContext->readTextureSubresource(this, subresource);
             }
         }
 
@@ -2266,28 +2270,31 @@ void terrainManager::sceneToMax()
                 scene->mMeshes[meshCount]->mMaterialIndex = meshCount;
                 auto pMesh = scene->mMeshes[meshCount];
 
-                pMesh->mFaces = new aiFace[255 * 255];
-                pMesh->mNumFaces = 255 * 255;
+                pMesh->mFaces = new aiFace[248 * 248];
+                pMesh->mNumFaces = 248 * 248;
                 pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
 
-                for (uint j = 0; j < 255; j++)
+                for (uint j = 0; j < 248; j++)
                 {
-                    for (uint i = 0; i < 255; i++)
+                    for (uint i = 0; i < 248; i++)
                     {
-                        aiFace& face = pMesh->mFaces[j * 255 + i];
+                        aiFace& face = pMesh->mFaces[j * 248 + i];
 
                         face.mIndices = new unsigned int[4];
                         face.mNumIndices = 4;
 
-                        face.mIndices[0] = (j * 256) + (i + 1);
-                        face.mIndices[1] = (j * 256) + (i);
-                        face.mIndices[2] = (j * 256) + 256 + (i);
-                        face.mIndices[3] = (j * 256) + 256 + (i + 1);
+                        face.mIndices[0] = ((j+4) * 256) + (i + 4 + 1);
+                        face.mIndices[1] = ((j + 4) * 256) + (i + 4);
+                        face.mIndices[2] = ((j + 4) * 256) + 256 + (i + 4);
+                        face.mIndices[3] = ((j + 4) * 256) + 256 + (i + 4 + 1);
                     }
                 }
 
                 pMesh->mVertices = new aiVector3D[256 * 256];
                 pMesh->mNumVertices = 256 * 256;
+
+                //pMesh->mTextureCoords[0] = new aiVector3D[256 * 256];
+                //pMesh->mNumUVComponents[0] = 256 * 256;
 
                 std::vector<glm::uint8> textureData = gpDevice->getRenderContext()->readTextureSubresource(height_Array.get(), tile->index);
                 float* pF = (float*)textureData.data();
@@ -2299,6 +2306,7 @@ void terrainManager::sceneToMax()
                     {
                         uint index = y * 256 + x;
                         pMesh->mVertices[index] = aiVector3D(tile->origin.x + x * tile->size / 248.0f, pF[index], tile->origin.z + y * tile->size / 248.0f);
+                        //pMesh->mTextureCoords[0][index] = aiVector3D((float)x / 255.0f, (float)y / 255.0f, 0);
                     }
                 }
                 /*
@@ -2316,7 +2324,14 @@ void terrainManager::sceneToMax()
 
 
         Exporter exp;
-        exp.Export(scene, "fbx", path.string());
+        if (path.string().find("fbx") != std::string::npos)
+        {
+            exp.Export(scene, "fbx", path.string());
+        }
+        else if (path.string().find("obj") != std::string::npos)
+        {
+            exp.Export(scene, "obj", path.string());
+        }
     }
 
 

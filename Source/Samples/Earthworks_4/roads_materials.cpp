@@ -9,20 +9,28 @@
 
 /*  roadMaterialGroup
     --------------------------------------------------------------------------------------------------------------------*/
-void roadMaterialGroup::import(std::string _relativepath)
+bool roadMaterialGroup::import(std::string _relativepath)
 {
     std::ifstream is(terrafectorEditorMaterial::rootFolder + _relativepath);
     if (is.fail()) {
         displayName = "failed to load";
         relativePath = _relativepath;
+        return false;
     }
     else
     {
         cereal::JSONInputArchive archive(is);
         serialize(archive, 0);
-
         relativePath = _relativepath;
+        return true;
     }
+}
+
+void roadMaterialGroup::save()
+{
+    std::ofstream os(terrafectorEditorMaterial::rootFolder + relativePath);
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive, 0);
 }
 
 
@@ -64,8 +72,8 @@ uint roadMaterialCache::find_insert_material(std::string _path)
 
         // load all the terrafector Materials and set
         roadMaterialGroup& current = materialVector.back();
-        current.import(relative);
-        current.thumbnail = Texture::createFromFile(_path + ".jpg", false, true);
+        //current.import(relative);
+        //current.thumbnail = Texture::createFromFile(_path + ".jpg", false, true);
 
         fprintf(terrafectorSystem::_logfile, "		  roadMaterialCache (%s)  %d layers\n", _path.c_str(), (int)current.layers.size());
         fflush(terrafectorSystem::_logfile);
@@ -85,12 +93,51 @@ uint roadMaterialCache::find_insert_material(std::string _path)
 }
 
 
+std::string roadMaterialCache::checkPath(std::string _root, std::string _file)
+{
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(_root))
+    {
+        std::string newPath = entry.path().string();
+        replaceAllrm(newPath, "\\", "/");
+
+        if (!entry.is_directory() && (newPath.find(_file) != std::string::npos))
+        {
+            return newPath;
+        }
+    }
+    return "";
+}
+
+
+
 void roadMaterialCache::reloadMaterials()
 {
     for (auto& mat : materialVector)
     {
-        // reload from disk - account for changes
-        mat.import(mat.relativePath);
+        if (!std::filesystem::exists(terrafectorEditorMaterial::rootFolder + mat.relativePath))
+        {
+            std::string filename = mat.relativePath.substr(mat.relativePath.find_last_of("/\\") + 1);
+            std::string returnName = checkPath(terrafectorEditorMaterial::rootFolder + "roadMaterials/", filename);
+            if (returnName.find(terrafectorEditorMaterial::rootFolder) == 0)
+            {
+                std::string relative = returnName.substr(terrafectorEditorMaterial::rootFolder.length());
+                
+                fprintf(terrafectorSystem::_logfile, "	ROAD MATERIAL CACHE - FILE RELOCATE from  %s     to    %s\n", mat.relativePath.c_str(), relative.c_str());
+                fflush(terrafectorSystem::_logfile);
+
+                mat.relativePath = relative;
+                mat.save();
+            }
+        }
+        
+
+        if (!mat.import(mat.relativePath))
+        {
+            renameMoveMaterial(mat);
+        }
+        
+        
+
 
         roadMaterialCache::getInstance().find_insert_material(terrafectorEditorMaterial::rootFolder + mat.relativePath);
         for (auto& layer : mat.layers)
@@ -101,59 +148,110 @@ void roadMaterialCache::reloadMaterials()
 }
 
 
+void roadMaterialCache::renameMoveMaterial(roadMaterialGroup &_material)
+{
+
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"roadMaterial", _material.relativePath.c_str()}};
+    if (openFileDialog(filters, path))
+    {
+        std::string pathstring = path.string();
+        replaceAllrm(pathstring, "\\", "/");
+        if (pathstring.find(terrafectorEditorMaterial::rootFolder) == 0)
+        {
+            _material.relativePath = pathstring.substr(terrafectorEditorMaterial::rootFolder.length());
+            _material.import(_material.relativePath);
+            _material.thumbnail = Texture::createFromFile(pathstring + ".jpg", false, true);
+            _material.save();
+        }
+    }
+}
+
 
 void roadMaterialCache::renderGui(Gui* _gui, Gui::Window& _window)
 {
     float width = ImGui::GetWindowWidth();
     int numColumns = __max(2, (int)floor(width / 140));
 
-    ImGui::PushFont(_gui->getFont("roboto_32"));
-    ImGui::Text("Road materials", materialVector);
-    ImGui::PopFont();
+    
 
     int cnt = 0;
     ImVec2 rootPos = ImGui::GetCursorPos();
 
+
+    struct sortDisplay
+    {
+        bool operator < (const sortDisplay& str) const
+        {
+            return (name < str.name);
+        }
+        std::string name;
+        int index;
+    };
+    
+    std::vector<sortDisplay> displaySortMap;
+
+    sortDisplay S;
     for (auto& material : materialVector)
     {
+        S.name = material.relativePath;
+        S.index = cnt;
+        displaySortMap.push_back(S);
+        cnt++;
+    }
+    std::sort(displaySortMap.begin(), displaySortMap.end());
+    
+
+    std::string path = "";
+        
+    int subCount = 0;
+    for (cnt = 0; cnt < materialVector.size(); cnt ++)
+    {
+        std::string  thisPath = displaySortMap[cnt].name.substr(14, displaySortMap[cnt].name.find_last_of("\\/") - 14);
+        if (thisPath != path) {
+            ImGui::PushFont(_gui->getFont("roboto_32"));
+            ImGui::NewLine();
+            ImGui::Text(thisPath.c_str());
+            ImGui::PopFont();
+            path = thisPath;
+            subCount = 0;
+            rootPos = ImGui::GetCursorPos();
+        }
+        roadMaterialGroup& material = materialVector[displaySortMap[cnt].index];
         ImGui::PushID(777 + cnt);
 
-        uint x = cnt % numColumns;
-        uint y = (int)floor(cnt / numColumns);
+        uint x = subCount % numColumns;
+        uint y = (int)floor(subCount / numColumns);
         ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
-        ImGui::Text(material.displayName.c_str());
+
+
+        int size = material.displayName.size() - 16;
+        if (size >= 0)
+        {
+            ImGui::Text((material.displayName.substr(0, 16) + "...").c_str());
+        }
+        else
+        {
+            ImGui::Text(material.displayName.c_str());
+        }
+
         ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
         if (material.thumbnail) {
             if (_window.imageButton("testImage", material.thumbnail, float2(128, 128)))
             {
+                
             }
-            if (ImGui::IsItemHovered() && (ImGui::IsMouseClicked(0)))
+        }
+        else
+        {
+            if (ImGui::Button("##test", ImVec2(128, 128)))
             {
-                ImGui::SetWindowFocus();
-                bool b = ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID);
-                if (b)
-                {
-                    ImGui::SetDragDropPayload("ROADMATERIAL", &cnt, sizeof(int), ImGuiCond_Once);
-                    ImGui::EndDragDropSource();
-                }
+                //selectedMaterial = cnt;
             }
-            else
-            {
-                if (ImGui::Button("##test", ImVec2(128, 128)))
-                {
-                    //selectedMaterial = cnt;
-                }
-            }
-            if (ImGui::BeginPopupContextWindow())
-            {
-                if (ImGui::Selectable("Do Stuff Here")) { ; }
-                ImGui::EndPopup();
-            }
-            
         }
 
         ImGui::PopID();
-        cnt++;
+        subCount++;
     }
 
 }
