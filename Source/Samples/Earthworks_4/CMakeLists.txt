@@ -1,6 +1,6 @@
 add_falcor_executable(Earthworks_4)
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8388608")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:18388608")
 
 target_sources(Earthworks_4 PRIVATE
     Earthworks_4.cpp

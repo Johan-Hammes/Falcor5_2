@@ -79,7 +79,8 @@ public:
 
 public:
     void renderGui(Gui* _gui, Gui::Window &_window);
-    void renameMoveMaterial(roadMaterialGroup &_material);
+    void reFindMaterial(roadMaterialGroup &_material);
+    void renameMoveMaterial(roadMaterialGroup& _material);
     uint find_insert_material(std::string _path);
     void reloadMaterials();
     std::string checkPath(std::string _root, std::string _file);

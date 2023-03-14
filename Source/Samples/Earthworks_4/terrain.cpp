@@ -242,17 +242,17 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         */
 
         // kante
-        for (uint i = 1; i < 128; i+=2)
+        for (uint i = 1; i < 128; i += 2)
         {
-            vertexData[(1<<7) + i] = (1 << 7) + i;
-            vertexData[(127 << 7) + i] = (127<<7) + i;
-            vertexData[(i << 7) + 1] = (i<<7) + 1;
+            vertexData[(1 << 7) + i] = (1 << 7) + i;
+            vertexData[(127 << 7) + i] = (127 << 7) + i;
+            vertexData[(i << 7) + 1] = (i << 7) + 1;
             vertexData[(i << 7) + 127] = (i << 7) + 127;
         }
 
-        for (uint y = 9; y < 128; y+=8)
+        for (uint y = 9; y < 128; y += 8)
         {
-            for (uint x = 9; x < 128; x+=8)
+            for (uint x = 9; x < 128; x += 8)
             {
                 vertexData[(y << 7) + x] = (y << 7) + x;
             }
@@ -260,7 +260,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         for (uint i = 5; i < 128; i += 4)
         {
-            vertexData[(5<<7) + i] = (5 << 7) + i;
+            vertexData[(5 << 7) + i] = (5 << 7) + i;
             vertexData[(125 << 7) + i] = (125 << 7) + i;
             vertexData[(i << 7) + 5] = (i << 7) + 5;
             vertexData[(i << 7) + 125] = (i << 7) + 125;
@@ -697,13 +697,13 @@ void terrainManager::onGuiRender(Gui* _gui)
             break;
         case 3:
             mRoadNetwork.renderGUI(_gui);
-            
+
 
             //if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake(false); }
             //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
 
             if (ImGui::Button("bezier -> lod4")) { bezierRoadstoLOD(4); }
-            
+
 
             if (ImGui::Checkbox("show baked", &bSplineAsTerrafector)) { reset(true); }
             if (ImGui::IsItemHovered())
@@ -741,8 +741,8 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::Checkbox("bakeBakeOnlyData", &gis_overlay.bakeBakeOnlyData);
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Disabeling this will produce a WRONG result\nIt is only here for speed testing as it mimics EVO pipeline");
-            
-            
+
+
 
 
 
@@ -755,7 +755,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::DragInt2("lod", &exportLodMin, 1, 0, 20);
             //ImGui::DragInt("lod-MAX", &exportLodMax, 1, 0, 20);
             if (exportLodMax < exportLodMin) exportLodMax = exportLodMin;
-            if (ImGui::Button("grab frame to fbx", ImVec2(W, 0))) { sceneToMax();}
+            if (ImGui::Button("grab frame to fbx", ImVec2(W, 0))) { sceneToMax(); }
 
 
             if (ImGui::Button("roads -> EVO", ImVec2(W, 0))) { mRoadNetwork.exportBinary(); }
@@ -776,6 +776,7 @@ void terrainManager::onGuiRender(Gui* _gui)
     case 1: break;
     case 2:
     {
+        /*
         Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
         {
             ImGui::PushFont(_gui->getFont("roboto_20"));
@@ -785,72 +786,80 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::PopFont();
         }
         tfPanel.release();
+        */
     }
     break;
     case 3:
-        Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
-        {
-            ImGui::PushFont(_gui->getFont("roboto_20"));
-            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
-                reset(true);
-            }
-            ImGui::PopFont();
-        }
-        tfPanel.release();
 
-        Gui::Window materialPanel(_gui, "Browser##materialPanel", { 900, 900 }, { 100, 100 });
+        ImGui::PushFont(_gui->getFont("roboto_20"));
         {
-            static int DISPLAY = 0;
-            ImGui::PushFont(_gui->getFont("roboto_26"));
-            ImGui::Combo("##material index", &DISPLAY, "Materials\0Road materials\0Terrafectors\0");
-            ImGui::PopFont();
-
-            switch (DISPLAY)
+            Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
             {
-            case 0:
-                terrafectorEditorMaterial::static_materials.renderGui(_gui, materialPanel);
-                break;
-            case 1:
-                roadMaterialCache::getInstance().renderGui(_gui, materialPanel);
-                break;
-            case 2:
-                terrafectors.renderGui(_gui, materialPanel);
-                break;
-            }
-        }
-        materialPanel.release();
-        
 
-        if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
-        {
-            Gui::Window roadPanel(_gui, "Road##roadPanel", { 200, 200 }, { 100, 100 });
-            {
-                ImGui::PushFont(_gui->getFont("roboto_20"));
-                static bool fullWidth = false;
-                roadPanel.windowSize(220 + fullWidth * 730, 0);
-
-                if (mRoadNetwork.currentIntersection) {
-                    fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentIntersection);
-
-                    if (mRoadNetwork.currentRoad && (splineTest.bVertex || splineTest.bSegment)) {
-                        ImGui::SetCursorPosY(300);
-                        mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.intersectionSelectedRoad, splineTest.index);
-                    }
+                if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
+                    reset(true);
                 }
 
-                if (mRoadNetwork.currentRoad) {
-                    static uint _from = 0;
-                    static uint _to = 0;
-                    fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentRoad, splineTest.index);
-                    if ((_from != mRoadNetwork.selectFrom) || (_to != mRoadNetwork.selectTo)) {
-                        updateDynamicRoad(true);
-                    }
-                }
-
-                ImGui::PopFont();
             }
-            roadPanel.release();
+            tfPanel.release();
+
+            Gui::Window terrafectorMaterialPanel(_gui, "Terrafector materials", { 900, 900 }, { 100, 100 });
+            {
+                terrafectorEditorMaterial::static_materials.renderGui(_gui, terrafectorMaterialPanel);
+            }
+            terrafectorMaterialPanel.release();
+
+            Gui::Window roadMaterialPanel(_gui, "Road materials", { 900, 900 }, { 100, 100 });
+            {
+                roadMaterialCache::getInstance().renderGui(_gui, roadMaterialPanel);
+            }
+            roadMaterialPanel.release();
+
+            Gui::Window terrafectorPanel(_gui, "Terrafectors", { 900, 900 }, { 100, 100 });
+            {
+                terrafectors.renderGui(_gui, terrafectorPanel);
+            }
+            terrafectorPanel.release();
+
+            Gui::Window texturePanel(_gui, "Textures", { 900, 900 }, { 100, 100 });
+            {
+                //terrafectors.renderGui(_gui, terrafectorPanel);
+            }
+            texturePanel.release();
+
+
+            if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
+            {
+                Gui::Window roadPanel(_gui, "Road##roadPanel", { 200, 200 }, { 100, 100 });
+                {
+                    ImGui::PushFont(_gui->getFont("roboto_20"));
+                    static bool fullWidth = false;
+                    roadPanel.windowSize(220 + fullWidth * 730, 0);
+
+                    if (mRoadNetwork.currentIntersection) {
+                        fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentIntersection);
+
+                        if (mRoadNetwork.currentRoad && (splineTest.bVertex || splineTest.bSegment)) {
+                            ImGui::SetCursorPosY(300);
+                            mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.intersectionSelectedRoad, splineTest.index);
+                        }
+                    }
+
+                    if (mRoadNetwork.currentRoad) {
+                        static uint _from = 0;
+                        static uint _to = 0;
+                        fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentRoad, splineTest.index);
+                        if ((_from != mRoadNetwork.selectFrom) || (_to != mRoadNetwork.selectTo)) {
+                            updateDynamicRoad(true);
+                        }
+                    }
+
+                    ImGui::PopFont();
+                }
+                roadPanel.release();
+            }
         }
+        ImGui::PopFont();
         break;
     }
 
@@ -1321,11 +1330,11 @@ void terrainManager::splitOne(RenderContext* _renderContext)
                 }
                 return;
             }
-            
+
         }
     }
 
-    
+
     {
         FALCOR_PROFILE("split");
         {
@@ -1443,7 +1452,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             if (_tile->lod == 15)  scale = 2.0f;
             if (_tile->lod >= 16)  scale = 3.2f;
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
-            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize*scale, 0, 0, _tile->index);
+            split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize * scale, 0, 0, _tile->index);
             split.compute_tileVerticis.dispatch(_renderContext, cs_w / 2, cs_w / 2);
         }
 
@@ -1590,7 +1599,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         split.shader_splineTerrafector.Vars()->setBuffer("splineData", splines.bezierData);     // not created yet
     }
 
-    
+
     // Mesh bake low
     if (gis_overlay.bakeBakeOnlyData)
     {
@@ -1622,12 +1631,12 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
             }
         }
     }
-    
-    
 
-    
 
-    
+
+
+
+
     if (_pTile->lod >= 6)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
@@ -1662,17 +1671,17 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
     // OVER:AY ######################################################
     if (gis_overlay.terrafectorOverlayStrength > 0)
-    if (_pTile->lod >= 4)
-    {
-        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_overlay.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-        if (tile && tile->numBlocks > 0);
+        if (_pTile->lod >= 4)
         {
-            split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = gis_overlay.terrafectorOverlayStrength;
-            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_overlay.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+            if (tile && tile->numBlocks > 0);
+            {
+                split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = gis_overlay.terrafectorOverlayStrength;
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
         }
-    }
 
 
     //??? should probably be in the roadnetwork code, but look at the optimize step first
@@ -1703,7 +1712,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
             split.shader_splineTerrafector.drawIndexedInstanced(_renderContext, 64 * 6, splines.numIndex_LOD4[P4->y][P4->x]);
         }
     }
-    
+
 }
 
 
@@ -1822,7 +1831,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             _renderContext->blit(split.tileFbo->getColorTexture(i)->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
-        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels*2, 60 + tile_numPixels*2);
+        dstRect = glm::vec4(250 + 8 * 150, 60, 250 + 8 * 150 + tile_numPixels * 2, 60 + tile_numPixels * 2);
         _renderContext->blit(split.debug_texture->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
 
 
@@ -2016,7 +2025,7 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
             split.compute_tileBicubic.Vars()["gConstants"]["size"] = bicubicSize;
             split.compute_tileBicubic.Vars()["gConstants"]["hgt_offset"] = elevationMap.hgt_offset;
             split.compute_tileBicubic.Vars()["gConstants"]["hgt_scale"] = elevationMap.hgt_scale;
-            
+
 
             split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.bakeFbo->getColorTexture(0));
 
@@ -2283,7 +2292,7 @@ void terrainManager::sceneToMax()
                         face.mIndices = new unsigned int[4];
                         face.mNumIndices = 4;
 
-                        face.mIndices[0] = ((j+4) * 256) + (i + 4 + 1);
+                        face.mIndices[0] = ((j + 4) * 256) + (i + 4 + 1);
                         face.mIndices[1] = ((j + 4) * 256) + (i + 4);
                         face.mIndices[2] = ((j + 4) * 256) + 256 + (i + 4);
                         face.mIndices[3] = ((j + 4) * 256) + 256 + (i + 4 + 1);
@@ -2657,8 +2666,8 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
                         break;
                     }
-               
-                
+
+
                 }
 
                 mRoadNetwork.updateAllRoads();
@@ -3194,7 +3203,7 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
 
     for (uint i = 0; i < splines.numStaticSplinesIndex; i++)
     {
-        cubicDouble &BEZ = roadNetwork::staticBezierData[index];
+        cubicDouble& BEZ = roadNetwork::staticBezierData[index];
 
         float3 perpStart = glm::normalize(BEZ.data[1][0] - BEZ.data[0][0]);
         float3 perpEnd = glm::normalize(BEZ.data[1][3] - BEZ.data[0][3]);
@@ -3207,9 +3216,9 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
         float3 endInside = float3(BEZ.data[insideLine][3]) + w0 * perpStart;
         float3 endOutside = float3(BEZ.data[outsideLine][3]) + w1 * perpStart;
 
-        float splineWidth = __max( glm::length(startOutside - startInside), glm::length(endOutside - endInside));
+        float splineWidth = __max(glm::length(startOutside - startInside), glm::length(endOutside - endInside));
 
-        for (int lod = 4; lod <= 8; lod+=2)
+        for (int lod = 4; lod <= 8; lod += 2)
         {
             float scale = 1.0f / pow(2, lod);
             float tileSize = 40000 * scale;
@@ -3218,7 +3227,7 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
             //??? How to boos tarmac since left right that one is double
             // boost lod4 a little since I dont k ow trarmact yert
             if (lod == 4) splineWidth *= 2.0f;
-            if ((lod==8) || splineWidth > pixelSize)
+            if ((lod == 8) || splineWidth > pixelSize)
             {
                 float xMin = __min(__min(BEZ.data[0][0].x, BEZ.data[0][3].x), __min(BEZ.data[1][0].x, BEZ.data[1][3].x)) - 80;      // 39 is the buffer size for lod4
                 float xMax = __max(__max(BEZ.data[0][0].x, BEZ.data[0][3].x), __max(BEZ.data[1][0].x, BEZ.data[1][3].x)) + 80;
@@ -3233,13 +3242,13 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
                 for (int y = gMinY; y < gMaxY; y++) {
                     for (int x = gMinX; x < gMaxX; x++)
                     {
-                        switch(lod)
+                        switch (lod)
                         {
                         case 4: splines.lod4[y][x].push_back(roadNetwork::staticIndexData[i]); break;
                         case 6: splines.lod6[y][x].push_back(roadNetwork::staticIndexData[i]); break;
                         case 8: splines.lod8[y][x].push_back(roadNetwork::staticIndexData[i]); break;
                         }
-                        
+
                     }
                 }
             }

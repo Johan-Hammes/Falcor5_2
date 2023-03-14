@@ -483,16 +483,40 @@ uint materialCache::find_insert_texture(const std::filesystem::path _path, bool 
         }
     }
 
-    Texture::SharedPtr tex = Texture::createFromFile(_path, true, isSRGB);
+    /*
+    * std::string cmdExp = "explorer " + terrafectorEditorMaterial::rootFolder + material.relativePath;
+                cmdExp = cmdExp.substr(0, cmdExp.find_last_of("\\/") + 1);
+                replaceAllrm(cmdExp, "/", "\\");
+                system(cmdExp.c_str());
+    */
+    std::string ddsFilename = _path.string() + ".earthworks.dds";
+    if (!std::filesystem::exists(ddsFilename))
+    {
+        std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
+        std::string cmdExp = "X:\\resources\\Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + "X:\\resources\\Compressonator\\temp_mip.dds";
+        system(cmdExp.c_str());
+        if (isSRGB)
+        {
+            std::string cmdExp2 = "X:\\resources\\Compressonator\\CompressonatorCLI -fd BC6H  X:\\resources\\Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            system(cmdExp2.c_str());
+        }
+        else
+        {
+            std::string cmdExp2 = "X:\\resources\\Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 X:\\resources\\Compressonator\\temp_mip.dds " + ddsFilename + "\"";
+            system(cmdExp2.c_str());
+        }
+    }
+    Texture::SharedPtr tex = Texture::createFromFile(ddsFilename, true, isSRGB);
     if (tex)
     {
         tex->setSourcePath(_path);
         tex->setName(_path.filename().string());
         textureVector.emplace_back(tex);
 
-        float compression = 2.0f;
-        if (isSRGB) compression = 6.0f;
-        texMb += (float)(tex->getWidth() * tex->getHeight() * 4.0f) / 1024.0f / 1024.0f / compression * 1.333f;	// for 4:1 compression + MIPS
+        float compression = 4.0f;
+        if (isSRGB) compression = 4.0f;
+
+        texMb += (float)(tex->getWidth() * tex->getHeight() * 4.0f * 1.333f) / 1024.0f / 1024.0f / compression ;	// for 4:1 compression + MIPS
 
         for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
         fprintf(terrafectorSystem::_logfile, "%s\n", tex->getName().c_str());
@@ -557,7 +581,7 @@ void materialCache::rebuildAll()
 
 
 
-void materialCache::renameMoveMaterial(std::filesystem::path currentPath)
+void materialCache::reFindMaterial(std::filesystem::path currentPath)
 {
     /*
     std::filesystem::path path;
@@ -1154,7 +1178,7 @@ void terrafectorEditorMaterial::eXport() {
 void terrafectorEditorMaterial::loadTexture(int idx)
 {
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"dds"}, {"png"}, {"jpg"}, {"tga"} };
+    FileDialogFilterVec filters = { {"dds"}, {"png"}, {"jpg"}, {"tga"}, {"exr"} };
     if (openFileDialog(filters, path))
     {
         std::string P = path.string();
