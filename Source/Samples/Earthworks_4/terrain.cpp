@@ -454,7 +454,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mSpriteRenderer.onLoad();
 
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
-    terrafectors.loadPath(settings.dirRoot + "/terrafectors/", false);
+    terrafectors.loadPath(settings.dirRoot + "/terrafectors", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 }
 
@@ -611,7 +611,7 @@ void terrainManager::loadElevationHash()
             {
                 uint32_t hash = getHashFromTileCoords(map.lod, map.y, map.x);
 
-                fullpath = settings.dirRoot + filename;
+                fullpath = settings.dirRoot + "/" + filename;
                 if (map.lod == 0)
                 {
                     std::vector<unsigned short> data;
@@ -686,6 +686,9 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::PopItemWidth();
         ImGui::NewLine();
 
+        auto& style = ImGui::GetStyle();
+        style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
+
         switch (terrainMode)
         {
         case 0: break;
@@ -696,6 +699,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             //roadMaterialCache::getInstance().renderGui(_gui);
             break;
         case 3:
+            style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
             mRoadNetwork.renderGUI(_gui);
 
 
@@ -791,7 +795,8 @@ void terrainManager::onGuiRender(Gui* _gui)
     break;
     case 3:
 
-        ImGui::PushFont(_gui->getFont("roboto_20"));
+        //ImGui::PushFont(_gui->getFont("roboto_20"));
+        //_gui->setActiveFont("roboto_20");
         {
             Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
             {
@@ -823,6 +828,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
             Gui::Window texturePanel(_gui, "Textures", { 900, 900 }, { 100, 100 });
             {
+                terrafectorEditorMaterial::static_materials.renderGuiTextures(_gui, texturePanel);
                 //terrafectors.renderGui(_gui, terrafectorPanel);
             }
             texturePanel.release();
@@ -859,7 +865,7 @@ void terrainManager::onGuiRender(Gui* _gui)
                 roadPanel.release();
             }
         }
-        ImGui::PopFont();
+        //ImGui::PopFont();
         break;
     }
 
@@ -1134,7 +1140,7 @@ bool terrainManager::update(RenderContext* _renderContext)
             mRoadNetwork.isDirty = false;
         }
 
-        //bezierRoadstoLOD(4);
+        bezierRoadstoLOD(4);
     }
 
     split.compute_tileClear.dispatch(_renderContext, 1, 1);
@@ -1530,7 +1536,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             split.compute_tileDelaunay.Vars()["gConstants"]["tile_Index"] = _tile->index;
             split.compute_tileDelaunay.dispatch(_renderContext, cs_w / 2, cs_w / 2);
             //mpRenderContext->copyResource(mpDefaultFBO->getColorTexture(0).get(), mpVertsMap.get());
-            //mpVertsMap->captureToFile(0, 0, "e:\\voroinoi_verts.png");
+            //mpVertsMap->captureToFile(0, 0, "e:/voroinoi_verts.png");
         }
     }
 }
@@ -1606,11 +1612,14 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         if (_pTile->lod >= 4)
         {
             gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeLow.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-            if (tile && tile->numBlocks > 0);
+            if (tile)
             {
-                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+                if (tile->numBlocks > 0)
+                {
+                    split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                    split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                    split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+                }
             }
         }
 
@@ -1623,11 +1632,14 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         if (_pTile->lod >= 4)
         {
             gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_bakeHigh.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-            if (tile && tile->numBlocks > 0);
+            if (tile)
             {
-                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+                if (tile->numBlocks > 0)
+                {
+                    split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                    split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                    split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+                }
             }
         }
     }
@@ -1640,31 +1652,40 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     if (_pTile->lod >= 6)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
-        if (tile && tile->numBlocks > 0);
+        if (tile)
         {
-            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            if (tile->numBlocks > 0)
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
         }
     }
     else if (_pTile->lod >= 4)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-        if (tile && tile->numBlocks > 0);
+        if (tile)
         {
-            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            if (tile->numBlocks > 0)
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
         }
     }
     else if (_pTile->lod >= 2)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD2.getTile((_pTile->y >> (_pTile->lod - 2)) * 4 + (_pTile->x >> (_pTile->lod - 2)));
-        if (tile && tile->numBlocks > 0);
+        if (tile)
         {
-            split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-            split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-            split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            if (tile->numBlocks > 0)
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
         }
     }
 
@@ -1674,12 +1695,15 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         if (_pTile->lod >= 4)
         {
             gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_overlay.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
-            if (tile && tile->numBlocks > 0);
+            if (tile)
             {
-                split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = gis_overlay.terrafectorOverlayStrength;
-                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
-                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
-                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+                if (tile->numBlocks > 0)
+                {
+                    split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = gis_overlay.terrafectorOverlayStrength;
+                    split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                    split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                    split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+                }
             }
         }
 
@@ -1852,7 +1876,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 void terrainManager::bake_start()
 {
     char name[256];
-    sprintf(name, "%s//bake//EVO//tiles.txt", settings.dirRoot.c_str());
+    sprintf(name, "%s/bake/EVO/tiles.txt", settings.dirRoot.c_str());
     bake.txt_file = fopen(name, "w");
     bake.tileInfoForBinaryExport.clear();
     bake.inProgress = true;
@@ -1884,7 +1908,7 @@ void terrainManager::bake_start()
         uint size = 1 << lod;
         unsigned char value;
 
-        sprintf(name, "%s//bake//lod%d.raw", settings.dirRoot.c_str(), lod);
+        sprintf(name, "%s/bake/lod%d.raw", settings.dirRoot.c_str(), lod);
         FILE* tilemap = fopen(name, "rb");
         if (tilemap) {
             for (uint y = 0; y < size; y++) {
@@ -1919,16 +1943,16 @@ void terrainManager::bake_frame()
 
             // the end. Now save tileInfoForBinaryExport
             char name[256];
-            sprintf(name, "%s//bake//EVO//tiles.list", settings.dirRoot.c_str());
+            sprintf(name, "%s/bake/EVO/tiles.list", settings.dirRoot.c_str());
             FILE* info_file = fopen(name, "wb");
             if (info_file) {
                 fwrite(&bake.tileInfoForBinaryExport[0], sizeof(elevationMap), bake.tileInfoForBinaryExport.size(), info_file);
                 fclose(info_file);
             }
 
-            sprintf(name, "attrib -r \"%s\\Elevations\\*.*\"", settings.dirExport.c_str());
+            sprintf(name, "attrib -r \"%s/Elevations/*.*\"", settings.dirExport.c_str());
             system(name);
-            sprintf(name, "copy /Y \"%s\\bake\\EVO\\*.*\" \"%s\\Elevations\\\"", settings.dirRoot.c_str(), settings.dirExport.c_str());
+            sprintf(name, "copy /Y \"%s/bake/EVO/*.*\" \"%s/Elevations/\"", settings.dirRoot.c_str(), settings.dirExport.c_str());
             system(name);
         }
     }
@@ -2083,7 +2107,7 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
         // Now output JP2
         {
             //// FIXME load from settings file CEREAL
-            sprintf(outName, "%s//bake//EVO//hgt_%d_%d_%d.jp2", settings.dirRoot.c_str(), _lod, _y, _x);
+            sprintf(outName, "%sbake/EVO/hgt_%d_%d_%d.jp2", settings.dirRoot.c_str(), _lod, _y, _x);
             ojph::codestream codestream;
             ojph::j2c_outfile j2c_file;
             j2c_file.open(outName);
@@ -2407,7 +2431,7 @@ void terrainManager::updateDynamicRoad(bool _bezierChanged) {
         // show selection
         for (auto& point : mRoadNetwork.currentRoad->points)
         {
-            mSpriteRenderer.pushMarker(point.anchor, 2 - point.constraint, 0.5f);
+            mSpriteRenderer.pushMarker(point.anchor, 2 - point.constraint, 1.5f);
 
         }
 
@@ -2631,7 +2655,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                     switch (keyEvent.key)
                     {
                     case Input::Key::R:
-                        terrafectors.loadPath(settings.dirRoot + "/terrafectors/");
+                        terrafectors.loadPath(settings.dirRoot + "\\terrafectors");
                         break;
                     case Input::Key::C:		// copy
                         if (splineTest.bVertex) {
@@ -2687,7 +2711,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                             mRoadNetwork.currentRoad = nullptr;
                             mRoadNetwork.currentIntersection = nullptr;
                             mRoadNetwork.intersectionSelectedRoad = nullptr;
-                            //updateStaticRoad();
+                            mRoadNetwork.updateAllRoads();
                             updateDynamicRoad(true);
                         }
                     }
@@ -3198,6 +3222,22 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
     //std::vector<bezierLayer> lod4[16][16];
     //std::vector<bezierLayer> lod6[64][64];
     //std::vector<bezierLayer> lod8[256][256];
+    // clear
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
+            splines.lod4[y][x].clear();
+        }
+    }
+    for (int y = 0; y < 64; y++) {
+        for (int x = 0; x < 64; x++) {
+            splines.lod6[y][x].clear();
+        }
+    }
+    for (int y = 0; y < 256; y++) {
+        for (int x = 0; x < 256; x++) {
+            splines.lod8[y][x].clear();
+        }
+    }
 
     fprintf(terrafectorSystem::_logfile, "\n\n\nbezierRoadstoLOD\n");
 

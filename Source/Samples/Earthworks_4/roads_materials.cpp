@@ -133,6 +133,8 @@ void roadMaterialCache::reloadMaterials()
         }
 
 
+        fprintf(terrafectorSystem::_logfile, "	roadMaterialCache - load %s\n", mat.relativePath.c_str());
+        fflush(terrafectorSystem::_logfile);
         if (!mat.import(mat.relativePath))
         {
             reFindMaterial(mat);
@@ -173,7 +175,7 @@ void roadMaterialCache::reFindMaterial(roadMaterialGroup& _material)
 void roadMaterialCache::renameMoveMaterial(roadMaterialGroup& _material)
 {
     std::string windowspath = terrafectorEditorMaterial::rootFolder + _material.relativePath;     // to open in that directory
-    replaceAllrm(windowspath, "/", "\\");
+    //replaceAllrm(windowspath, "/", "\\");
     std::filesystem::path path = windowspath;
     
 

@@ -171,6 +171,7 @@ public:
 
 	void rebuildStructuredBuffer();
 	void rebuildAll();
+    //void resolveSubMaterials();
 
 	std::vector<terrafectorEditorMaterial>	materialVector;
 	int selectedMaterial = -1;
@@ -178,8 +179,10 @@ public:
 	float texMb = 0;
 
 	void renderGui(Gui *mpGui, Gui::Window& _window);
+    void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
 	bool renderGuiSelect(Gui *mpGui);
     void reFindMaterial(std::filesystem::path currentPath);
+    void renameMoveMaterial(terrafectorEditorMaterial& _material);
 
 	int dispTexIndex = -1;
 	Texture::SharedPtr getDisplayTexture();
@@ -202,6 +205,7 @@ public:
 
 	void import(std::filesystem::path _path, bool _replacePath = true);
 	void import(bool _replacePath = true);
+    void save();
 	void eXport(std::filesystem::path _path);
 	void eXport();
 	void reloadTextures();
@@ -375,7 +379,6 @@ public:
 	// the runtime section
 	// it makes no sense splitting this for an editor, just confuses the code - write with cereal - have a converter to protobuffers, and redo this code in EVO
 	// that way at least there is a path for the editing to migrate to EVO
-	void rebuildBlendstate();
 	void rebuildConstantbuffer();
 	void rebuildConstantbufferData();
 	//Texture::SharedPtr			pTexture[9];			// FIXME - these happen on a higer terrafector level - the just set an index here

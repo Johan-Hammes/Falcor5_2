@@ -551,40 +551,45 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
 
 
     // stylized
-    if (!_showMaterials && _stylized) {
+    if (_stylized) {
         for (uint i = 0; i < numSegments; i++)
         {
             // SELECTION
+
             if (i >= _from && i < _to)
             {
                 _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_SELECT, points[i].right_Geom_Idx[0], false, 1.0f, 2.0f));
                 _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_SELECT, points[i].left_Geom_Idx[0], false, 1.0f, 2.0f));
             }
 
-            // middle
-            uint feedback = points[i].right_Geom_Idx[0];
-            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], false, -0.05f, 0.05f));
-            // edge
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], false, -0.05f, 0.05f));
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].left_Geom_Idx[0], true, -0.05f, 0.05f));
-            // sidewalk
-            float sideR = points[i].lanesRight[side].laneWidth;
-            float sideL = points[i].lanesLeft[side].laneWidth;
-            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, points[i].right_Geom_Idx[1], false, sideR - 0.1f, sideR + 0.1f));
-            _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, points[i].left_Geom_Idx[1], true, sideL - 0.1f, sideL + 0.1f));
-            // faredge
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, points[i].right_Geom_Idx[1], false, -0.1f, 0.1f));
-            _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, points[i].left_Geom_Idx[1], true, -0.1f, 0.1f));
-
-            for (int laneNr = innerTurn; laneNr <= outerTurn; laneNr++)
+            if (!_showMaterials)
             {
-                if (rightLaneInUse[laneNr])
+
+                // middle
+                uint feedback = points[i].right_Geom_Idx[0];
+                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], false, -0.05f, 0.05f));
+                // edge
+                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], false, -0.05f, 0.05f));
+                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].left_Geom_Idx[0], true, -0.05f, 0.05f));
+                // sidewalk
+                float sideR = points[i].lanesRight[side].laneWidth;
+                float sideL = points[i].lanesLeft[side].laneWidth;
+                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, points[i].right_Geom_Idx[1], false, sideR - 0.1f, sideR + 0.1f));
+                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, points[i].left_Geom_Idx[1], true, sideL - 0.1f, sideL + 0.1f));
+                // faredge
+                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, points[i].right_Geom_Idx[1], false, -0.1f, 0.1f));
+                _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, points[i].left_Geom_Idx[1], true, -0.1f, 0.1f));
+
+                for (int laneNr = innerTurn; laneNr <= outerTurn; laneNr++)
                 {
-                    _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_BLUE, points[i].right_Lane_Idx[laneNr], false, 0, 0));
-                }
-                if (leftLaneInUse[laneNr])
-                {
-                    _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_GREEN, points[i].left_Lane_Idx[laneNr], true, 0, 0));
+                    if (rightLaneInUse[laneNr])
+                    {
+                        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_BLUE, points[i].right_Lane_Idx[laneNr], false, 0, 0));
+                    }
+                    if (leftLaneInUse[laneNr])
+                    {
+                        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_GREEN, points[i].left_Lane_Idx[laneNr], true, 0, 0));
+                    }
                 }
             }
         }

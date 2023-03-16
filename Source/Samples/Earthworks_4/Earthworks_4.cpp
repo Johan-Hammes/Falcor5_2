@@ -46,7 +46,7 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
         {
             ImGui::Text("camera");
             float focal = camera->getFocalLength();
-            if( ImGui::SliderFloat("focal length", &focal, 5, 100, "%.1fmm")) { camera->setFocalLength(focal); }
+            if (ImGui::SliderFloat("focal length", &focal, 5, 100, "%.1fmm")) { camera->setFocalLength(focal); }
             if (ImGui::MenuItem("reset")) {
                 camera->setDepthRange(0.5f, 40000.0f);
                 camera->setAspectRatio(1920.0f / 1080.0f);
@@ -69,7 +69,7 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
         }
 
         ImGui::SetCursorPos(ImVec2(screenSize.x - 100, 0));
-        ImGui::Text( "%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+        ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
 
         ImGui::SetCursorPos(ImVec2(screenSize.x - 15, 0));
         if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
@@ -90,7 +90,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
-       
+
         onGuiMenubar(_gui);
         terrain.onGuiRender(_gui);
 
@@ -110,16 +110,16 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 
     BlendState::Desc bsDesc;
     bsDesc.setRtBlend(0, true).setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::One, BlendState::BlendFunc::Zero);
-    graphicsState->setBlendState( BlendState::create(bsDesc) );
+    graphicsState->setBlendState(BlendState::create(bsDesc));
 
     DepthStencilState::Desc dsDesc;
     dsDesc.setDepthEnabled(true);
     dsDesc.setDepthWriteMask(true);
-    graphicsState->setDepthStencilState( DepthStencilState::create(dsDesc) );
-    
+    graphicsState->setDepthStencilState(DepthStencilState::create(dsDesc));
+
     RasterizerState::Desc rsDesc;
     rsDesc.setCullMode(RasterizerState::CullMode::None);
-    graphicsState->setRasterizerState( RasterizerState::create(rsDesc) );
+    graphicsState->setRasterizerState(RasterizerState::create(rsDesc));
     //graphicsState->setViewport(0, GraphicsState::Viewport(0, 0, 1000, 1000, 0.f, 1.f), true);
 
     camera = Camera::create();
@@ -138,7 +138,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
         camera->getData() = data;
         fclose(file);
     }
-    
+
     std::ifstream is("earthworks4_presets.xml");
     if (is.good()) {
         cereal::XMLInputArchive archive(is);
@@ -153,7 +153,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
     gpDevice->toggleVSync(refresh.vsync);
-    
+
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     bool changed = terrain.update(_renderContext);
@@ -263,16 +263,20 @@ void Earthworks_4::guiStyle()
 #define BG(v)   ImVec4(0.200f, 0.220f, 0.270f, v)
 #define TEXTG(v) ImVec4(0.860f, 0.930f, 0.890f, v)
 #define LIME(v) ImVec4(0.38f, 0.52f, 0.10f, v);
-#define DARKLIME(v) ImVec4(0.12f, 0.15f, 0.03f, v);
+#define DARKLIME(v) ImVec4(0.06f, 0.1f, 0.03f, v);
 
     auto& style = ImGui::GetStyle();
     style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
-    style.Colors[ImGuiCol_Button] = ImVec4(0.27f, 0.37f, 0.53f, 0.5f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
     style.Colors[ImGuiCol_ButtonHovered] = DARKLIME(1.f);
     style.Colors[ImGuiCol_HeaderHovered] = DARKLIME(1.f);
+
+    style.Colors[ImGuiCol_Tab] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
+    style.Colors[ImGuiCol_TabHovered] = DARKLIME(1.f);
+    style.Colors[ImGuiCol_TabActive] = DARKLIME(1.f);
 
     style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.0f);
     style.Colors[ImGuiCol_Border] = ImVec4(0.03f, 0.03f, 0.03f, 1.0f);
@@ -284,6 +288,7 @@ void Earthworks_4::guiStyle()
     style.FrameRounding = 4.0f;
 
     style.ScrollbarSize = 10;
+
 }
 
 

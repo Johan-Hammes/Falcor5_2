@@ -954,6 +954,9 @@ void roadNetwork::renderGUI(Gui* _gui)
     float W = ImGui::GetWindowWidth() / 2 - 15;
     auto& style = ImGui::GetStyle();
     style.ButtonTextAlign = ImVec2(0.0, 0.5);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
     if (ImGui::Button("Load", ImVec2(W, 0))) {
         load(101);
     }
