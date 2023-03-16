@@ -428,11 +428,17 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
     }
     else
     {
-        fullPath = rootMaterialPath + _name + ".terrafectorMaterial";
-        if (std::filesystem::exists(fullPath))
+        // Now we have to seacrh, but use the first one we find
+        std::filesystem::path rootpath = fullPath = terrafectorEditorMaterial::rootFolder + "/terrafectorMaterials";
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(fullPath))
         {
-            logTab--;
-            return find_insert_material(fullPath);
+            std::string newPath = entry.path().string();
+            replaceAll(newPath, "\\", "/");
+            if (newPath.find(_name) != std::string::npos)
+            {
+                logTab--;
+                return find_insert_material(newPath);
+            }
         }
     }
 
@@ -1888,6 +1894,7 @@ void terrafectorSystem::loadPath(std::string _path, bool _rebuild)
 
     terrafectorEditorMaterial::static_materials.rebuildAll();
 
+    /*
     fprintf(terrafectorSystem::_logfile, "\n\nmeshLoadCombiner\n");
     for (int y = 0; y < 16; y++) {
         for (int x = 0; x < 16; x++) {
@@ -1895,4 +1902,5 @@ void terrafectorSystem::loadPath(std::string _path, bool _rebuild)
         }
         fprintf(terrafectorSystem::_logfile, "\n");
     }
+    */
 }

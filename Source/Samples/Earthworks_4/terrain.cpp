@@ -3308,9 +3308,9 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
             splines.startOffset_LOD4[y][x] = start;
             splines.numIndex_LOD4[y][x] = size;
             start += size;
-            fprintf(terrafectorSystem::_logfile, "%6d", size);
+            //fprintf(terrafectorSystem::_logfile, "%6d", size);
         }
-        fprintf(terrafectorSystem::_logfile, "\n");
+        //fprintf(terrafectorSystem::_logfile, "\n");
     }
     fprintf(terrafectorSystem::_logfile, "\nLOD 4. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
     fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));

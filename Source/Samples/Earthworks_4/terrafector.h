@@ -188,7 +188,6 @@ public:
 	Texture::SharedPtr getDisplayTexture();
 
     Buffer::SharedPtr sb_Terrafector_Materials = nullptr;
-    std::string rootMaterialPath = "X:/resources/terrafectors_and_road_materials/roads/";
 };
 
 
