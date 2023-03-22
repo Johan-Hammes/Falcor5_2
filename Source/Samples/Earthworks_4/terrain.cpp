@@ -178,6 +178,8 @@ terrainManager::terrainManager()
         cereal::JSONInputArchive archive(isT);
         settings.serialize(archive, 100);
     }*/
+
+    terrafectorSystem::pEcotopes = &mEcosystem;
 }
 
 
@@ -396,6 +398,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         // ecotopes
         split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/compute_tileEcotopes.hlsl");
+        split.compute_tileEcotopes.Vars()->setSampler("linearSampler", sampler_Clamp);
 
         // normals
         split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/compute_tileNormals.hlsl");
@@ -454,7 +457,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mSpriteRenderer.onLoad();
 
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
-    terrafectors.loadPath(settings.dirRoot + "/terrafectors", false);
+    terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 }
 
@@ -655,6 +658,18 @@ std::string blockFromPositionB(glm::vec3 _pos)
 
 
 
+void replaceAllterrain(std::string& str, const std::string& from, const std::string& to) {
+    if (from.empty())
+        return;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
+
+
+
 void terrainManager::onGuiRender(Gui* _gui)
 {
     if (requestPopupSettings) {
@@ -692,7 +707,16 @@ void terrainManager::onGuiRender(Gui* _gui)
         switch (terrainMode)
         {
         case 0: break;
-        case 1: break;
+        case 1: 
+            mEcosystem.renderGUI(_gui);
+            if (ImGui::BeginPopupContextWindow(false))
+            {
+                if (ImGui::Selectable("New Ecotope")) { mEcosystem.addEcotope(); }
+                if (ImGui::Selectable("Load")) { mEcosystem.load(); }
+                if (ImGui::Selectable("Save")) { mEcosystem.save(); }
+                ImGui::EndPopup();
+            }
+            break;
         case 2:
             //terrafectors.renderGui(_gui);
             ImGui::NewLine();
@@ -762,8 +786,61 @@ void terrainManager::onGuiRender(Gui* _gui)
             if (ImGui::Button("grab frame to fbx", ImVec2(W, 0))) { sceneToMax(); }
 
 
-            if (ImGui::Button("roads -> EVO", ImVec2(W, 0))) { mRoadNetwork.exportBinary(); }
-            if (ImGui::Button("terrafectors -> EVO", ImVec2(W, 0))) {}
+            if (ImGui::Button("roads/materials -> EVO", ImVec2(W, 0))) {
+
+
+                //mRoadNetwork.exportBinary();
+                terrafectors.exportMaterialBinary(settings.dirRoot + "/bake", "C:/Kunos/acevo_content/content/" );
+
+
+                char command[512];
+                sprintf(command, "attrib -r %s/Terrafectors/TextureList.gpu", settings.dirExport.c_str());
+                std::string sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                system(sCmd.c_str());
+
+                sprintf(command, "%s/bake/TextureList.gpu %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                sCmd = "copy / Y " + sCmd;
+                system(sCmd.c_str());
+
+                sprintf(command, "attrib -r %s/Terrafectors/Materials.gpu", settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                system(sCmd.c_str());
+
+                sprintf(command, "%s/bake/Materials.gpu %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                sCmd = "copy / Y " + sCmd;
+                system(sCmd.c_str());
+
+                // terrafectors and roads as well, might become one file in future
+                sprintf(command, "attrib -r %s/Terrafectors/terrafector*", settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                system(sCmd.c_str());
+
+                sprintf(command, "%s/bake/terrafector* %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                sCmd = "copy / Y " + sCmd;
+                system(sCmd.c_str());
+
+
+                sprintf(command, "attrib -r %s/Terrafectors/roadbezier*", settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                system(sCmd.c_str());
+
+                sprintf(command, "%s/bake/roadbezier* %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sCmd = command;
+                replaceAllterrain(sCmd, "/", "\\");
+                sCmd = "copy / Y " + sCmd;
+                system(sCmd.c_str());
+            }
+
 
             ImGui::DragFloat("jp2 quality", &bake.quality, 0.0001f, 0.0001f, 0.01f, "%3.5f");
             if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake_start(); }
@@ -777,7 +854,15 @@ void terrainManager::onGuiRender(Gui* _gui)
     switch (terrainMode)
     {
     case 0: break;
-    case 1: break;
+    case 1: 
+    {
+        Gui::Window ecotopePanel(_gui, "Ecotope##tfPanel", { 900, 900 }, { 100, 100 });
+        {
+            mEcosystem.renderSelectedGUI(_gui);
+        }
+        ecotopePanel.release();
+    }
+    break;
     case 2:
     {
         /*
@@ -797,76 +882,76 @@ void terrainManager::onGuiRender(Gui* _gui)
 
         //ImGui::PushFont(_gui->getFont("roboto_20"));
         //_gui->setActiveFont("roboto_20");
+    {
+        Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
         {
-            Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
-            {
 
-                if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
-                    reset(true);
-                }
-
+            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
+                reset(true);
             }
-            tfPanel.release();
 
-            Gui::Window terrafectorMaterialPanel(_gui, "Terrafector materials", { 900, 900 }, { 100, 100 });
-            {
-                terrafectorEditorMaterial::static_materials.renderGui(_gui, terrafectorMaterialPanel);
-            }
-            terrafectorMaterialPanel.release();
-
-            Gui::Window roadMaterialPanel(_gui, "Road materials", { 900, 900 }, { 100, 100 });
-            {
-                roadMaterialCache::getInstance().renderGui(_gui, roadMaterialPanel);
-            }
-            roadMaterialPanel.release();
-
-            Gui::Window terrafectorPanel(_gui, "Terrafectors", { 900, 900 }, { 100, 100 });
-            {
-                terrafectors.renderGui(_gui, terrafectorPanel);
-            }
-            terrafectorPanel.release();
-
-            Gui::Window texturePanel(_gui, "Textures", { 900, 900 }, { 100, 100 });
-            {
-                terrafectorEditorMaterial::static_materials.renderGuiTextures(_gui, texturePanel);
-                //terrafectors.renderGui(_gui, terrafectorPanel);
-            }
-            texturePanel.release();
-
-
-            if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
-            {
-                Gui::Window roadPanel(_gui, "Road##roadPanel", { 200, 200 }, { 100, 100 });
-                {
-                    ImGui::PushFont(_gui->getFont("roboto_20"));
-                    static bool fullWidth = false;
-                    roadPanel.windowSize(220 + fullWidth * 730, 0);
-
-                    if (mRoadNetwork.currentIntersection) {
-                        fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentIntersection);
-
-                        if (mRoadNetwork.currentRoad && (splineTest.bVertex || splineTest.bSegment)) {
-                            ImGui::SetCursorPosY(300);
-                            mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.intersectionSelectedRoad, splineTest.index);
-                        }
-                    }
-
-                    if (mRoadNetwork.currentRoad) {
-                        static uint _from = 0;
-                        static uint _to = 0;
-                        fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentRoad, splineTest.index);
-                        if ((_from != mRoadNetwork.selectFrom) || (_to != mRoadNetwork.selectTo)) {
-                            updateDynamicRoad(true);
-                        }
-                    }
-
-                    ImGui::PopFont();
-                }
-                roadPanel.release();
-            }
         }
-        //ImGui::PopFont();
-        break;
+        tfPanel.release();
+
+        Gui::Window terrafectorMaterialPanel(_gui, "Terrafector materials", { 900, 900 }, { 100, 100 });
+        {
+            terrafectorEditorMaterial::static_materials.renderGui(_gui, terrafectorMaterialPanel);
+        }
+        terrafectorMaterialPanel.release();
+
+        Gui::Window roadMaterialPanel(_gui, "Road materials", { 900, 900 }, { 100, 100 });
+        {
+            roadMaterialCache::getInstance().renderGui(_gui, roadMaterialPanel);
+        }
+        roadMaterialPanel.release();
+
+        Gui::Window terrafectorPanel(_gui, "Terrafectors", { 900, 900 }, { 100, 100 });
+        {
+            terrafectors.renderGui(_gui, terrafectorPanel);
+        }
+        terrafectorPanel.release();
+
+        Gui::Window texturePanel(_gui, "Textures", { 900, 900 }, { 100, 100 });
+        {
+            terrafectorEditorMaterial::static_materials.renderGuiTextures(_gui, texturePanel);
+            //terrafectors.renderGui(_gui, terrafectorPanel);
+        }
+        texturePanel.release();
+
+
+        if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
+        {
+            Gui::Window roadPanel(_gui, "Road##roadPanel", { 200, 200 }, { 100, 100 });
+            {
+                ImGui::PushFont(_gui->getFont("roboto_20"));
+                static bool fullWidth = false;
+                roadPanel.windowSize(220 + fullWidth * 730, 0);
+
+                if (mRoadNetwork.currentIntersection) {
+                    fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentIntersection);
+
+                    if (mRoadNetwork.currentRoad && (splineTest.bVertex || splineTest.bSegment)) {
+                        ImGui::SetCursorPosY(300);
+                        mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.intersectionSelectedRoad, splineTest.index);
+                    }
+                }
+
+                if (mRoadNetwork.currentRoad) {
+                    static uint _from = 0;
+                    static uint _to = 0;
+                    fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentRoad, splineTest.index);
+                    if ((_from != mRoadNetwork.selectFrom) || (_to != mRoadNetwork.selectTo)) {
+                        updateDynamicRoad(true);
+                    }
+                }
+
+                ImGui::PopFont();
+            }
+            roadPanel.release();
+        }
+    }
+    //ImGui::PopFont();
+    break;
     }
 
     if (!ImGui::IsAnyWindowHovered())
@@ -2655,7 +2740,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                     switch (keyEvent.key)
                     {
                     case Input::Key::R:
-                        terrafectors.loadPath(settings.dirRoot + "\\terrafectors");
+                        terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake");
                         break;
                     case Input::Key::C:		// copy
                         if (splineTest.bVertex) {
@@ -3295,63 +3380,121 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
         }
     }
 
-    uint start = 0;
-    uint largest = 0;
-    for (int y = 0; y < 16; y++) {
-        for (int x = 0; x < 16; x++) {
-            int size = splines.lod4[y][x].size();
-            if (size > 0)
-            {
-                largest = __max(largest, size);
-                splines.indexData_LOD4->setBlob(splines.lod4[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+    FILE* file = fopen((settings.dirRoot + "/bake/roadbeziers_lod4.gpu").c_str(), "wb");
+    FILE* datafile = fopen((settings.dirRoot + "/bake/roadbeziers_lod4_data.gpu").c_str(), "wb");
+    if (file && datafile)
+    {
+        //uint lod = 4;
+        //fwrite(&lod, sizeof(uint), 1, file);
+
+        uint start = 0;
+        uint largest = 0;
+        for (int y = 0; y < 16; y++) {
+            for (int x = 0; x < 16; x++) {
+                int size = splines.lod4[y][x].size();
+                fwrite(&size, sizeof(uint), 1, file);
+                fwrite(&start, sizeof(uint), 1, file);
+
+                if (size > 0)
+                {
+                    largest = __max(largest, size);
+                    splines.indexData_LOD4->setBlob(splines.lod4[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+                    fwrite(splines.lod4[y][x].data(), sizeof(bezierLayer), size, datafile);
+                }
+                splines.startOffset_LOD4[y][x] = start;
+                splines.numIndex_LOD4[y][x] = size;
+                start += size;
+                //fprintf(terrafectorSystem::_logfile, "%6d", size);
             }
-            splines.startOffset_LOD4[y][x] = start;
-            splines.numIndex_LOD4[y][x] = size;
-            start += size;
-            //fprintf(terrafectorSystem::_logfile, "%6d", size);
+            //fprintf(terrafectorSystem::_logfile, "\n");
         }
-        //fprintf(terrafectorSystem::_logfile, "\n");
+        fclose(file);
+        fclose(datafile);
+
+        fprintf(terrafectorSystem::_logfile, "\nLOD 4. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
+        fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
     }
-    fprintf(terrafectorSystem::_logfile, "\nLOD 4. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
-    fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
+    
 
 
+    file = fopen((settings.dirRoot + "/bake/roadbeziers_lod6.gpu").c_str(), "wb");
+    datafile = fopen((settings.dirRoot + "/bake/roadbeziers_lod6_data.gpu").c_str(), "wb");
+    if (file && datafile)
+    {
+        //uint lod = 6;
+        //fwrite(&lod, sizeof(uint), 1, file);
 
-    start = 0;
-    largest = 0;
-    for (int y = 0; y < 64; y++) {
-        for (int x = 0; x < 64; x++) {
-            int size = splines.lod6[y][x].size();
-            if (size > 0)
-            {
-                largest = __max(largest, size);
-                splines.indexData_LOD6->setBlob(splines.lod6[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+        uint start = 0;
+        uint largest = 0;
+        for (int y = 0; y < 64; y++) {
+            for (int x = 0; x < 64; x++) {
+                int size = splines.lod6[y][x].size();
+                fwrite(&size, sizeof(uint), 1, file);
+                fwrite(&start, sizeof(uint), 1, file);
+
+
+                if (size > 0)
+                {
+                    largest = __max(largest, size);
+                    splines.indexData_LOD6->setBlob(splines.lod6[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+                    fwrite(splines.lod6[y][x].data(), sizeof(bezierLayer), size, datafile);
+                }
+                splines.startOffset_LOD6[y][x] = start;
+                splines.numIndex_LOD6[y][x] = size;
+                start += size;
             }
-            splines.startOffset_LOD6[y][x] = start;
-            splines.numIndex_LOD6[y][x] = size;
-            start += size;
         }
+        fclose(file);
+        fclose(datafile);
+
+        fprintf(terrafectorSystem::_logfile, "\nLOD 6. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
+        fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
     }
-    fprintf(terrafectorSystem::_logfile, "\nLOD 6. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
-    fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
+    
 
+    file = fopen((settings.dirRoot + "/bake/roadbeziers_lod8.gpu").c_str(), "wb");
+    datafile = fopen((settings.dirRoot + "/bake/roadbeziers_lod8_data.gpu").c_str(), "wb");
+    if (file && datafile)
+    {
+        //uint lod = 8;
+        //fwrite(&lod, sizeof(uint), 1, file);
 
+        uint start = 0;
+        uint largest = 0;
+        for (int y = 0; y < 256; y++) {
+            for (int x = 0; x < 256; x++) {
+                int size = splines.lod8[y][x].size();
+                fwrite(&size, sizeof(uint), 1, file);
+                fwrite(&start, sizeof(uint), 1, file);
 
-    start = 0;
-    largest = 0;
-    for (int y = 0; y < 256; y++) {
-        for (int x = 0; x < 256; x++) {
-            int size = splines.lod8[y][x].size();
-            if (size > 0)
-            {
-                largest = __max(largest, size);
-                splines.indexData_LOD8->setBlob(splines.lod8[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+                if (size > 0)
+                {
+                    largest = __max(largest, size);
+                    splines.indexData_LOD8->setBlob(splines.lod8[y][x].data(), start * sizeof(bezierLayer), size * sizeof(bezierLayer));
+                    fwrite(splines.lod8[y][x].data(), sizeof(bezierLayer), size, datafile);
+                }
+                splines.startOffset_LOD8[y][x] = start;
+                splines.numIndex_LOD8[y][x] = size;
+                start += size;
             }
-            splines.startOffset_LOD8[y][x] = start;
-            splines.numIndex_LOD8[y][x] = size;
-            start += size;
         }
+        fclose(file);
+        fclose(datafile);
+
+        fprintf(terrafectorSystem::_logfile, "\nLOD 8. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
+        fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
     }
-    fprintf(terrafectorSystem::_logfile, "\nLOD 8. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
-    fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
+
+
+
+
+
+    file = fopen((settings.dirRoot + "/bake/roadbeziers_bezier.gpu").c_str(), "wb");
+    if (file)
+    {
+        fwrite(roadNetwork::staticBezierData.data(), sizeof(cubicDouble), splines.numStaticSplines, file);
+        fclose(file);
+    }
+
+    
 }

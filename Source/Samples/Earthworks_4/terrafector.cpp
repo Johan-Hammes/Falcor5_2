@@ -27,7 +27,7 @@ lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeLow;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeHigh;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_overlay;
 
-//ecotopeSystem *terrafectorSystem::pEcotopes = nullptr;
+ecotopeSystem *terrafectorSystem::pEcotopes = nullptr;
 //GraphicsProgram::SharedPtr		terrafectorSystem::topdownProgramForBlends = nullptr;
 FILE* terrafectorSystem::_logfile;
 uint logTab;
@@ -350,13 +350,17 @@ void lodTriangleMesh_LoadCombiner::create(uint _lod)
     lod = _lod;
     grid = (uint)pow(2, _lod);
     tiles.resize(grid * grid);
-    void loadToGPU();
+    //void loadToGPU();
 }
 
 
 
-void lodTriangleMesh_LoadCombiner::loadToGPU()
+void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path)
 {
+
+
+    
+
     gpuTiles.clear();
     gpuTileTerrafector tfTile;
     int mostTri = 0;
@@ -369,6 +373,8 @@ void lodTriangleMesh_LoadCombiner::loadToGPU()
         tfTile.numTriangles = tile.tempIndexBuffer.size();          // this is actualy indicis
         tfTile.numBlocks = (uint)ceil((float)tfTile.numTriangles / (128.0f * 3.0f));
         mostTri = __max(mostTri, tfTile.numTriangles);
+
+
 
         // buffer indicis
         tile.tempIndexBuffer.resize(tfTile.numBlocks * 128 * 3);
@@ -397,8 +403,34 @@ void lodTriangleMesh_LoadCombiner::loadToGPU()
             indexData += sizeof(unsigned int) * tfTile.numBlocks * 128 * 3;
         }
 
+
+
         gpuTiles.push_back(tfTile);
     }
+
+
+
+    if (_path.size() > 0)
+    {
+        FILE* file = fopen(_path.c_str(), "wb");
+        if (file)
+        {
+            fwrite(&lod, sizeof(uint), 1, file);
+            for (uint i=0; i<tiles.size(); i++)
+            {
+                fwrite(&gpuTiles[i].numVerts, sizeof(uint), 1, file);
+                fwrite(&gpuTiles[i].numTriangles, sizeof(uint), 1, file);
+                fwrite(&gpuTiles[i].numBlocks, sizeof(uint), 1, file);
+                if (tfTile.numBlocks > 0)
+                {
+                    fwrite(tiles[i].verts.data(), sizeof(tfTile.numVerts), 1, file);
+                    fwrite(tiles[i].tempIndexBuffer.data(), sizeof(uint), gpuTiles[i].numBlocks * 128 * 3, file);
+                }
+            }
+            fclose(file);
+        }
+    }
+
 
     // now release all CPU memory
     tiles.clear();
@@ -406,6 +438,9 @@ void lodTriangleMesh_LoadCombiner::loadToGPU()
     fprintf(terrafectorSystem::_logfile, "  lod %d  %dx%d\n", lod, grid, grid);
     fprintf(terrafectorSystem::_logfile, "  block with most triangles has %d\n", mostTri / 3);
     fprintf(terrafectorSystem::_logfile, "  %d Mb VB   %d Mb IB\n\n", vertexData / 1024 / 1024, indexData / 1024 / 1024);
+
+
+
 }
 
 
@@ -490,7 +525,7 @@ uint materialCache::find_insert_material(const std::filesystem::path _path)
 }
 
 
-uint materialCache::find_insert_texture(const std::filesystem::path _path, bool isSRGB)
+int materialCache::find_insert_texture(const std::filesystem::path _path, bool isSRGB)
 {
     logTab++;
     for (uint i = 0; i < textureVector.size(); i++)
@@ -553,7 +588,7 @@ uint materialCache::find_insert_texture(const std::filesystem::path _path, bool 
         fflush(terrafectorSystem::_logfile);
 
         logTab--;
-        return 0;
+        return -1;
     }
 }
 
@@ -655,8 +690,8 @@ void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
 
         if (filepath.find(terrafectorEditorMaterial::rootFolder) == 0)
         {
-            
-            
+
+
             std::string relativeOldDoubleSlash = _material.fullPath.string().substr(terrafectorEditorMaterial::rootFolder.length());
             replaceAll(relativeOldDoubleSlash, "/", "//");
             std::string relativePath = filepath.substr(terrafectorEditorMaterial::rootFolder.length());
@@ -733,7 +768,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
     ImGuiStyle oldStyle = style;
     float width = ImGui::GetWindowWidth();
     int numColumns = __max(2, (int)floor(width / 140));
-    
+
     ImGui::PushItemWidth(128);
 
     if (ImGui::Button("rebuild")) {
@@ -767,7 +802,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
 
 
     {
-        
+
 
         std::string path = "";
 
@@ -826,7 +861,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                 if (ImGui::BeginPopupContextItem())
                 {
                     if (ImGui::Selectable("rename / move")) { renameMoveMaterial(material); }
-                    
+
                     if (ImGui::Selectable("Explorer")) {
                         std::string cmdExp = "explorer " + material.fullPath.string();  //
                         cmdExp = cmdExp.substr(0, cmdExp.find_last_of("\\/") + 1);
@@ -845,7 +880,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                     ImGui::LabelText("m1", "MULTI");
                 }
 
-                
+
             }
             ImGui::PopID();
             subCount++;
@@ -853,10 +888,21 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
     }
 
 
-    
+
 
     style = oldStyle;
 }
+
+
+
+void materialCache::doEvoTextureImportTest()
+{
+    for (uint i = 0; i < textureVector.size(); i++)
+    {
+
+    }
+}
+
 
 
 void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
@@ -870,7 +916,13 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
     char text[1024];
     ImGui::PushFont(mpGui->getFont("roboto_26"));
     ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
+    if (ImGui::Button("Text EVO status")) {
+        doEvoTextureImportTest();
+    }
     ImGui::PopFont();
+
+
+    ImGui::PushFont(mpGui->getFont("roboto_20"));
     {
         for (uint i = 0; i < textureVector.size(); i++)
         {
@@ -880,12 +932,7 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
             Texture* pT = textureVector[i].get();
             sprintf(text, "%s##%d", pT->getName().c_str(), i);
 
-            if (ImGui::Selectable(text))
-            {
-                // Do the overlay thinbgy
-                //std::string cmd = "explorer " + pT->getSourceFilename();
-                //system(cmd.c_str());
-            }
+            if (ImGui::Selectable(text))           {         }
 
             if (ImGui::IsItemHovered())
             {
@@ -897,16 +944,39 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
                 //}
             }
 
-            if (ImGui::BeginPopup(text)) {
+            //if (ImGui::BeginPopup(text)) {
+            if (ImGui::BeginPopupContextItem())
+            {
                 std::string cmdExp = "explorer " + pT->getSourcePath().string();
                 std::string cmdPs = "\"C:\\Program Files\\Adobe\\Adobe Photoshop 2022\\Photoshop.exe\" " + pT->getSourcePath().string();
                 if (ImGui::Selectable("Explorer")) { system(cmdExp.c_str()); }
                 if (ImGui::Selectable("Photoshop")) { system(cmdPs.c_str()); }
+                ImGui::Separator();
+
+                std::string texPath = pT->getSourcePath().string();
+                texPath = texPath.substr(terrafectorEditorMaterial::rootFolder.size());
+                int matCnt = 0;
+                for (auto material : materialVector)
+                {
+                    for (int j = 0; j < 9; j++)
+                    {
+                        if (material.textureNames[j].size() > 0)
+                        {
+                            if (texPath.find(material.textureNames[j]) != std::string::npos)
+                            {
+                                if (ImGui::Selectable(material.displayName.c_str())) { selectedMaterial = matCnt; }
+                            }
+                        }
+                    }
+                    matCnt++;
+                }
+
                 ImGui::EndPopup();
             }
 
         }
     }
+    ImGui::PopFont();
 
     style = oldStyle;
 }
@@ -1745,10 +1815,10 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
                     for (uint i = 0; i < 15; i++)
                     {
-                        // if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
-                        //     changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
-                         //}
-                         //else
+                        if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
+                             changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
+                        }
+                        else
                         {
                             char ect_name[256];
                             sprintf(ect_name, "ecotope %d", i);
@@ -1861,7 +1931,7 @@ void terrafectorSystem::renderGui(Gui* mpGui, Gui::Window& _window)
 }
 
 
-void terrafectorSystem::loadPath(std::string _path, bool _rebuild)
+void terrafectorSystem::loadPath(std::string _path, std::string _exportPath, bool _rebuild)
 {
     forceAllTerrfectorRebuild = _rebuild;
 
@@ -1880,17 +1950,18 @@ void terrafectorSystem::loadPath(std::string _path, bool _rebuild)
 
 
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD2.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD2.loadToGPU();   // this also releases CPU memory
+    terrafectorSystem::loadCombine_LOD2.loadToGPU(_exportPath + "/terrafector_lod2.gpu");   // this also releases CPU memory
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4.loadToGPU();   // this also releases CPU memory
+    terrafectorSystem::loadCombine_LOD4.loadToGPU(_exportPath + "/terrafector_lod4.gpu");   // this also releases CPU memory
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD6.loadToGPU();   // this also releases CPU memory
+    terrafectorSystem::loadCombine_LOD6.loadToGPU(_exportPath + "/terrafector_lod6.gpu");   // this also releases CPU memory
+
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeLow.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_bakeLow.loadToGPU();   // this also releases CPU memory
+    terrafectorSystem::loadCombine_LOD4_bakeLow.loadToGPU("");   // this also releases CPU memory
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeHigh.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_bakeHigh.loadToGPU();   // this also releases CPU memory
+    terrafectorSystem::loadCombine_LOD4_bakeHigh.loadToGPU("");   // this also releases CPU memory
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_overlay.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_overlay.loadToGPU();   // this also releases CPU memory
+    terrafectorSystem::loadCombine_LOD4_overlay.loadToGPU("");   // this also releases CPU memory
 
     terrafectorEditorMaterial::static_materials.rebuildAll();
 
@@ -1903,4 +1974,54 @@ void terrafectorSystem::loadPath(std::string _path, bool _rebuild)
         fprintf(terrafectorSystem::_logfile, "\n");
     }
     */
+}
+
+
+
+void terrafectorSystem::exportMaterialBinary(std::string _path, std::string _evoRoot)
+{
+    uint textureSize = (uint)terrafectorEditorMaterial::static_materials.textureVector.size();
+    uint matSize = (uint)terrafectorEditorMaterial::static_materials.materialVector.size();
+
+    std::string textureName = _path + "/TextureList.gpu";
+    FILE* file = fopen(textureName.c_str(), "wb");
+    if (file)
+    {
+        fwrite(&textureSize, 1, sizeof(uint), file);
+        fwrite(&matSize, 1, sizeof(uint), file);
+
+        char name[512];
+        for (uint i = 0; i < textureSize; i++) {
+            std::string path = terrafectorEditorMaterial::static_materials.textureVector[i]->getSourcePath().string();
+            path = path.substr(13, path.size());
+            path = path.substr(0, path.rfind("."));
+            path += ".texture";
+            memset(name, 0, 512);
+            sprintf(name, "%s", path.c_str());
+            fwrite(name, 1, 512, file);
+
+            // Now test if it exists in EVO
+            //C:/Kunos/acevo_content/content/
+            if (!std::filesystem::exists(_evoRoot + path))
+            {
+                fprintf(terrafectorSystem::_logfile, "EVO _ DOES NOT EXISTS %s\n", (_evoRoot + path).c_str());
+            }
+        }
+
+
+        fclose(file);
+    }
+
+
+
+    textureName = _path + "/Materials.gpu";
+    file = fopen(textureName.c_str(), "wb");
+    if (file)
+    {
+        for (uint i = 0; i < matSize; i++)
+        {
+            fwrite(&terrafectorEditorMaterial::static_materials.materialVector[i]._constData, 1, sizeof(TF_material), file);
+        }
+        fclose(file);
+    }
 }

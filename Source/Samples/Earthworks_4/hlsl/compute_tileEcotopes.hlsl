@@ -1,127 +1,187 @@
 
-Texture2D gInput;
-Texture2D gNoise;
-Texture2DArray gECTNoise;
-Texture2DArray gColours;
-RWTexture2D<float4> gOutput;
 
-RWTexture2D<float> gOuthgt;
-RWTexture2D<float4> gOutcolor;
-RWTexture2D<uint> gOutPlants;
-
+#include "terrainDefines.hlsli"
+#include "terrainFunctions.hlsli"
 
 SamplerState linearSampler;		// for noise adnd colours
 
 cbuffer gConstants
 {
-	float4 pixSize;			// 0	16		.x pixsize, .y numECT		
-	float4 ect[32][5];		// 16	2560
-	float2 plants[1024];	// 2576	8192
+    int numEcotopes;
+    int debug;
+    float pixelSize;
+    float padd;
+
+    float2 lowResOffset;
+    float lowResSize;
+    float padd_b;
+
+    int2 tileXY;
+    float2 padd2;
+
+    float4 ect[12][5];	  // 16		2560
+    float4 texScales[12]; // texture size, displacement scale, pixSize, 0
+    float2 plants[1024];  // 2576	8192
 };
 
-float myMOD(float x, float y)
-{
-	return x - y * floor(x / y);
-}
 
-float random(float2 p)
-{
-	const float2 r = float2( 23.1406926327792690, 2.6651441426902251);		// e^pi (Gelfond's constant)    ,    2^sqrt(2) (Gelfond–Schneider constant)
-	return frac(3 *  cos(myMOD(123456789., 1e-7 + 256. * dot(p, r))));		// *200 seems tor pruduce good white noise
-}
+Texture2D gHeight : register(u0);
+RWTexture2D<float3> gAlbedo : register(u1);
+
+Texture2D<float> gLowresHgt : register(t0);
+Texture2D<float3> gInPermanence : register(t1);
+Texture2D<float4> gInEct[4] : register(t2); //.. t5
+
+Texture2D<float4> gAlbedoAlpha[12] : register(t6);	  // these are dowbn to 12 so we can consider moving them closer togetehr again
+Texture2D<float> gDisplacement[12] : register(t18);
+Texture2D<float3> gPBR[12] : register(t30);
+Texture2D<float3> gECTNoise[12] : register(t42);
+
+
+
 
 
 [numthreads(16, 16, 1)]
-void main(uint3 groupId : SV_GroupID, uint3 groupThreadId : SV_GroupThreadId)
+void main(uint2 crd : SV_DispatchThreadId)
 {
-	uint2 crd = groupId.xy * 16 + groupThreadId.xy;
-	
-	float dx = gInput[crd + uint2(1, 0)].r - gInput[crd + uint2(-1, 0)].r;
-	float dy = gInput[crd + uint2(0, 1)].r - gInput[crd + uint2(0, -1)].r;
-	float3 a = float3(pixSize.r*2, dx, 0);
-	float3 b = float3(0, dy, pixSize.r*2);
-	float3 n = cross( a, b );
-	n = normalize( n );
-	float2 nA = normalize(n.xz);
 
-	float hgt = gInput[crd].r;
-	float rel = hgt - gInput[crd].g;
-	float water = hgt - gInput[crd].b;
-	float ectW[32];
-	float ectWsum = 0;
-	int numE = pixSize.g;
-	int i;
+    float3 permanence = gInPermanence[crd];
+    if (any(permanence)) {
 
-	for (i = 0; i < numE; i++)		// ecotope section --------------------------------------------------------
-	{
-		float W1 = 1.0 + ect[i][0].r *(pow(0.5, pow(abs((hgt - ect[i][0].g) / ect[i][0].b), ect[i][0].a)) - 1);			// height
-		float W2 = 1.0 + ect[i][1].r *(saturate((rel) / ect[i][1].g) - 1);												// relalat
-		float W3 = 1.0 + ect[i][1].b *(1.0 - saturate(abs(rel) / ect[i][1].a) - 1);										// relalat lack of
-		float W4 = 1.0 + ect[i][2].r *(1.0 - saturate((water) / ect[i][2].g) - 1);										// water table       .a is reserved fr numtrees
-		float W5 = 1.0 + ect[i][3].r *(dot(nA, float2(ect[i][3].g, ect[i][3].b))  *saturate((1 + n.y) * 20) - 1);		// aspect
-		float W6 = 1.0 + ect[i][4].r *(pow(0.5, pow(abs(((1 + n.y) - ect[i][4].g) / ect[i][4].b), ect[i][4].a)) - 1);	// slope
-		float Wsum = W1 * W2 * W3 * W4 * W5 * W6;
-		Wsum *= Wsum;
-		ectW[i] = Wsum;
-		ectWsum += Wsum;// ectW[i];
-	}
+        // calculate the normal
+        uint2 crd_clamped = clamp(crd, 1, tile_numPixels - 2);
+        float dx = gHeight[crd_clamped + int2(-1, 0)].r - gHeight[crd_clamped + int2(1, 0)].r;
+        float dy = gHeight[crd_clamped + int2(0, -1)].r - gHeight[crd_clamped + int2(0, 1)].r;
+        float3 n = normalize(float3(dx, 2.0 * pixelSize, dy));
+        float2 nA = n.xz;
 
-	for (i = 0; i < numE; i++)		// normalize W --------------------------------------------------------
-	{
-		ectW[i] /= ectWsum;
-		//uint3 crd3 = uint3(crd.x, crd.y, i);
-		//gOutecotope[crd3] = ectW[i];	// save it so we can do trees outside for now
-	}
+        float hgt = gHeight[crd].r;
+        float2 lowResUV = (crd - 4.0) * lowResSize + lowResOffset;
+        float rel = hgt - gLowresHgt.SampleLevel(linearSampler, lowResUV, 0);
 
-	float3 texSize;
-	gECTNoise.GetDimensions(texSize.x, texSize.y, texSize.z);
-	float hgt_1 = 0;
-	float hgt_2 = 0;
-	float4 col_new = 0;
-	float3 UV;
-	float3 UV2;
-	UV.xy = ((float2)crd + pixSize.zw) / texSize.xy * 512.0 / 496.0 * pixSize.r * 3.5 ;	// add offset position in here - will have to send in constant buffer
+        float weights[12];
+        float ectWsum = 0;
+        const float4 inEct1 = gInEct[0][crd];
+        const float4 inEct2 = gInEct[1][crd];
+        const float4 inEct3 = gInEct[2][crd];
+        const float4 inEct4 = gInEct[3][crd];
+        weights[0] = inEct1.r + 0.001;
+        weights[1] = inEct1.g + 0.001;
+        weights[2] = inEct1.b + 0.001;
 
-	//UV.xy *=10;
-	UV2.xy = UV.xy / 32;
-	for (i = 0; i < numE; i++)		// height NOISE --------------------------------------------------------
-	{
-		UV.z = i;
-		UV2.z = i;
-		hgt_1 += ectW[i] * (gECTNoise.SampleLevel(linearSampler, UV2, 0).r - 0.5) * 40;	// * scale + offset   bla bla, maybe float 16 data but still scale
-		hgt_2 += ectW[i] * (gECTNoise.SampleLevel(linearSampler, UV, 0).r - 0.5) *3;	// * scale + offset   bla bla, maybe float 16 data but still scale
-		col_new += ectW[i] * (gColours.SampleLevel(linearSampler, UV, 0));	// * scale + offset   bla bla, maybe float 16 data but still scale
-	}
+        weights[3] = inEct2.r + 0.001;
+        weights[4] = inEct2.g + 0.001;
+        weights[5] = inEct2.b + 0.001;
 
-	gOuthgt[crd] = hgt + hgt_1 + hgt_2;
-	gOutcolor[crd] = col_new;// .bgra;
+        weights[6] = inEct3.r + 0.001;
+        weights[7] = inEct3.g + 0.001;
+        weights[8] = inEct3.b + 0.001;
+
+        weights[9] = inEct4.r + 0.001;
+        weights[10] = inEct4.g + 0.001;
+        weights[11] = inEct4.b + 0.001;
 
 
 
-	// Plants  - to FUR map and beyond  -----------------------------------------------------------------------------------------------
-	float4 plantcolour = float4(0, 0, 1, 0.0);	// temp for display
-	int currentPlant = 0;
-	float noiseFloor = 0.01;		// dot start at zero, buf in rnd there
-	float rnd = gNoise[crd].r;		// random((float2(crd.x, crd.y)) / 21512); //gNoise[crd].r;
-	bool bP = false;
-	gOutPlants[crd] = 0;
-	for (i = 0; i < numE; i++)		
-	{
-		for (int pp = 0; pp < ect[i][2].a; pp++)
-		{
-			float chance = ectW[i] *  plants[currentPlant].x;
-			if ( !bP && (rnd > noiseFloor) && rnd < (chance + noiseFloor) )			// fixme calculate a sum to repace this iff with that returns 0 if false
-			{
-				//gOutcolor[crd] = plantcolour;
-				gOutPlants[crd] = currentPlant;		// FIXME ons misbruik hier 0 vir geen plante, dan moet ons altyd by 1 begin of so iets, dink daaroor
-				bP = true;
-			}
-			noiseFloor += chance;
-			currentPlant++;
-		}
-		plantcolour.g += 0.4;
-	}
+        int i;
 
 
+        float2 World = (tileXY + ((crd - 4.0f) / 248.0f)) * pixelSize * 248.0f;
 
+
+        float hgt_1 = 0;
+        float hgt_2 = 0;
+
+        if (permanence.b < 1.0) {
+
+            for (i = 0; i < numEcotopes; i++) // ecotope weights calculation -----------------------------------------------------------------------------------
+            {
+                float2 UV = World / texScales[i].x;
+                float2 UV2 = frac(World / 2048.0f);
+                float MIP = log2(pixelSize / 0.005f);
+
+                if (ect[i][0].r) { // height
+                    weights[i] *= 1.0 + ect[i][0].r * (pow(0.5, pow(abs((hgt - ect[i][0].g) / ect[i][0].b), ect[i][0].a)) - 1);
+                }
+
+                // We have temprarily lost concavity and Flatness,as the low res texture is not being set. This was in the move to jpeg2000 - needs terrainmanager code to just load and set that
+                // texture
+                /*
+                if (ect[i][1].r) { // concavity
+                    weights[i] *= 1.0 + ect[i][1].r * (saturate((rel) / ect[i][1].g) - 1);
+                }
+                if (ect[i][1].b) { // flatness
+                    weights[i] *= 1.0 + ect[i][1].b * (1.0 - saturate(abs(rel) / ect[i][1].a) - 1);
+                }
+                */
+
+                if (ect[i][3].r) { // aspect
+                    weights[i] *= 1.0 + ect[i][3].r * (dot(nA, float2(ect[i][3].g, ect[i][3].b)) - 1);
+                }
+
+                if (ect[i][4].r) { // slope
+                    weights[i] *= 1.0 + ect[i][4].r * (pow(0.5, pow(abs(((1 - n.y) - ect[i][4].g) / ect[i][4].b), ect[i][4].a)) - 1);
+                }
+
+                if (ect[i][2].r) { // large area noise texture
+                    float2 UV2 = UV;
+                    UV2.xy *= ect[i][2].g;
+                    float hgtTex = gAlbedoAlpha[i].SampleLevel(linearSampler, UV2, MIP - 6).a * 2.0; // FIXME mip-6 is ect[i][2].g dependent
+                    weights[i] *= 1.0 + ect[i][2].r * (saturate((hgtTex * ect[i][2].b) + ect[i][2].a) - 1);
+                    hgt_1 += ect[i][2].r * weights[i] * (hgtTex - 1.0) * 0.3;
+                }
+                if (ect[i][2].r) { // detail noise texture
+                    float hgtTex = gAlbedoAlpha[i].SampleLevel(linearSampler, UV, MIP).a;
+                    weights[i] *= hgtTex * 2;
+                }
+
+                // also scale by the weighs, and offset around 0.5
+
+                weights[i] *= weights[i]; // sqr to exagerate the result, play with this some more, the idea seems good
+                ectWsum += weights[i];
+            }
+        }
+        else {
+            for (i = 0; i < numEcotopes; i++) // ecotope weights calculation -----------------------------------------------------------------------------------
+            {
+                ectWsum += weights[i];
+            }
+        }
+
+        for (i = 0; i < numEcotopes; i++) // normalize the weights --------------------------------------------------------------------------------------
+        {
+            if ((debug - 1) == i) {
+                gAlbedo[crd] = float3(lerp(0.0, 1.0, saturate((weights[i] * 2) - 1)), lerp(1.0, 0.0, abs(0.5 - weights[i]) * 2), lerp(0.3, 0.0, saturate(weights[i] * 2)));
+            }
+            weights[i] /= ectWsum;
+        }
+
+
+        float3 col_new = 0;
+        for (i = 0; i < numEcotopes; i++)
+        {
+            float2 UV = World / texScales[i].x;
+            float MIP = log2(pixelSize / 0.005f);  // There is a BUG in here I assume with the 0.005
+
+            col_new += weights[i] * gAlbedoAlpha[i].SampleLevel(linearSampler, UV, MIP).rgb;
+            float hgtTex = gDisplacement[i].SampleLevel(linearSampler, UV, MIP).r;
+            hgt_2 += weights[i] * (hgtTex - 0.5) * texScales[i].g;
+        }
+
+        //float2 UV = World / texScales[0].x;
+        //col_new = gAlbedoAlpha[0].SampleLevel(linearSampler, UV, 0).rgb;
+
+        {
+            //			float2 UV = World / texScales[4].x;
+            //			float MIP = log2(pixelSize / 0.005f);
+            //			col_new = weights[4] * gAlbedoAlpha[4].SampleLevel(linearSampler, UV, MIP).rgb;
+        }
+
+        // write final colours
+        if (!debug) {
+            //gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
+            gAlbedo[crd] = lerp(gAlbedo[crd], col_new, permanence.g);
+            //gAlbedo[crd] = gInEct[1][crd].rgb;
+        }
+    }
 }

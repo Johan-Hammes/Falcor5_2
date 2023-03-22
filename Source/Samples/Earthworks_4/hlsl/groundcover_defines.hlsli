@@ -14,9 +14,9 @@
 struct t_DrawArguments
 {
 	uint vertexCountPerInstance;
-	uint instanceCount;
-	uint startVertexLocation;
-	uint startInstanceLocation;
+    uint instanceCount;
+    uint startVertexLocation;
+    uint startInstanceLocation;
 };
 
 

@@ -7,6 +7,8 @@ target_sources(Earthworks_4 PRIVATE
     Earthworks_4.h
     computeShader.cpp
     computeShader.h
+    ecotope.h
+    ecotope.cpp
     roads_AI.cpp
     roads_AI.h
     roads_bezier.cpp

@@ -21,7 +21,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-//#include "ecotope.h"
+#include "ecotope.h"
 
 
 
@@ -141,7 +141,7 @@ class lodTriangleMesh_LoadCombiner {
 public:
     void create(uint _lod);
     void addMesh(std::string _path, lodTriangleMesh &mesh);
-    void loadToGPU();
+    void loadToGPU(std::string _path);
     gpuTileTerrafector* getTile(uint _index) {
         if (_index < gpuTiles.size()) {
             return &gpuTiles[_index];
@@ -165,7 +165,7 @@ public:
 
 	uint find_insert_material(const std::string _path, const std::string _name);
     uint find_insert_material(const std::filesystem::path _path);
-	uint find_insert_texture(const std::filesystem::path _path, bool isSRGB);
+	int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
 
 	void setTextures(ShaderVar& var);
 
@@ -183,6 +183,7 @@ public:
 	bool renderGuiSelect(Gui *mpGui);
     void reFindMaterial(std::filesystem::path currentPath);
     void renameMoveMaterial(terrafectorEditorMaterial& _material);
+    void materialCache::doEvoTextureImportTest();
 
 	int dispTexIndex = -1;
 	Texture::SharedPtr getDisplayTexture();
@@ -440,12 +441,13 @@ public:
 	void serialize(Archive & archive) {	/*archive(groups); */}
 
 	void renderGui(Gui* mpGui, Gui::Window& _window);
-    void loadPath(std::string _path, bool _rebuild = false);
+    void loadPath(std::string _path, std::string _exportPath, bool _rebuild = false);
+    void exportMaterialBinary(std::string _path, std::string _evoRoot);
 
 public:
 
 	static bool needsRefresh;
-	//static ecotopeSystem *pEcotopes;
+	static ecotopeSystem *pEcotopes;
 	static FILE *_logfile;
 	terrafectorElement root = terrafectorElement(tf_heading, "root");
 

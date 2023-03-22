@@ -69,7 +69,7 @@ void main(int2 coord : SV_DispatchThreadId)
     debugInputGrid(coord);
 #endif
 
-    // FIXME move somehwre el;se it foes nto belong here
+    // FIXME move somehwre else it does not belong here
     if (coord.x == 0 && coord.y == 0) {
         uint tileIdx = constants.w;
         float centerHeight = gInHgt.SampleLevel(linearSampler, float2(0.5, 0.5), 0);

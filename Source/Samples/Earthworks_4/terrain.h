@@ -29,12 +29,13 @@
 #include "Falcor.h"
 #include "computeShader.h"
 #include "pixelShader.h"
-#include"hlsl/groundcover_defines.hlsli"
-#include"hlsl/terrainDefines.hlsli"
-#include"hlsl/gpuLights_defines.hlsli"
+//#include"hlsl/groundcover_defines.hlsli"
+//#include"hlsl/terrainDefines.hlsli"
+//#include"hlsl/gpuLights_defines.hlsli"
 #include"terrafector.h"
 #include "roadNetwork.h"
 #include "Sprites.h"
+#include "ecotope.h"
 
 #include "../../external/cereal-master/include/cereal/cereal.hpp"
 #include "../../external/cereal-master/include/cereal/archives/binary.hpp"
@@ -338,7 +339,7 @@ private:
     LRUCache<uint32_t, textureCacheElement> elevationCache;
 
     terrafectorSystem		terrafectors;
-    //ecotopeSystem			mEcosystem;
+    ecotopeSystem			mEcosystem;
     roadNetwork			    mRoadNetwork;
     splineTest			splineTest;
     spriteRender				mSpriteRenderer;

@@ -138,12 +138,9 @@ void main(uint dispatchId : SV_DispatchThreadId)
 				
 		
 				terrainLookup[numLookupBlocks].tile = t + (numTriangles <<16);		// packing - mocve to function					;-) I think tiles[t].index  = t
-				terrainLookup[numLookupBlocks].offset = t * numVertPerTile + (i * 64 * 3);	
+				terrainLookup[numLookupBlocks].offset = (t * numVertPerTile) + (i * 64 * 3);	
 			}
-            
 		}
-        
-	
 	}
 }
 
