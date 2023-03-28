@@ -4,9 +4,10 @@
 #include <process.h>
 #include "stdio.h"
 #include "windows.h"
-#include "Falcor.h"	
 
 
+
+#pragma optimize( "", off )
 
 
 
@@ -97,6 +98,9 @@ void allocateBuffers(int w, int h)
 	//vidMASK =  new unsigned char[w*h];
 
 	//memset( vidMASK, 1, m_width*m_height );
+
+    PointGrey_Camera::GetSingleton()->bufferSize = glm::vec2(m_width, m_height);
+    PointGrey_Camera::GetSingleton()->bufferData = BUFFER[0][0].data;
 }
 
 
@@ -270,6 +274,14 @@ void ProcessDots( int frameNumber )
 			dots();
 		//tD = timerBlur.end();
 
+
+            //PointGrey_Camera::GetSingleton()->dotQueue.empty();
+
+            for (int i = 0; i < okDOTS; i++)
+            {
+                PointGrey_Camera::GetSingleton()->dotQueue.push(v_dots[i]);
+            }
+
             /*
 		// Pust the data to scene
 		if( !pScene->bAccumulateDots )	pScene->numDots[m_CurrentCamera] = 0;	// we are in clear mode
@@ -355,6 +367,7 @@ void OnImageGrabbed(Image* pImage, const void* pCallbackData)
 
 	m_bBusyProcessing = true;
 	{
+
 		if( (m_width==0) &&  ((pImage->GetCols() != m_width)  || 	(pImage->GetRows() != m_height)))
 		{
 			allocateBuffers(pImage->GetCols(), pImage->GetRows());		
@@ -472,9 +485,44 @@ PointGrey_Camera::PointGrey_Camera()
 	for (int i=0; i<m_NumCameras; i++)
 	{
 		m_CamError = busMgr.GetCameraFromIndex( i, &m_Guid[i] );
-		m_CamError = m_VideoCamera[i].Connect( &m_Guid[i] );
-		m_bConnected = (m_CamError.GetType() == PGRERROR_OK);
+        
 		debug_SkippedFrames = 0;
+
+        CameraInfo pCameraInfo;
+        FlyCapture2::Error E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
+
+        FlyCapture2::Error E2 = m_VideoCamera[i].Connect();
+        m_bConnected = (E2.GetType() == PGRERROR_OK);
+
+        E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
+/*
+        FlyCapture2::VideoMode pVideoMode;
+        FlyCapture2::FrameRate pFrameRate;
+        Error E = m_VideoCamera[i].GetVideoModeAndFrameRate(&pVideoMode, &pFrameRate);
+
+        {
+            
+
+            Format7ImageSettings F7;
+            Format7Info Finfo;
+            bool support;
+            FlyCapture2::Error E5 = m_VideoCamera[i].GetFormat7Info(&Finfo, & support);
+
+            FlyCapture2::Error E6 = m_VideoCamera[i].SetVideoModeAndFrameRate(VIDEOMODE_FORMAT7, FRAMERATE_60);
+
+            FlyCapture2::VideoMode pVideoMode;
+            FlyCapture2::FrameRate pFrameRate;
+            Error E = m_VideoCamera[i].GetVideoModeAndFrameRate(&pVideoMode, &pFrameRate);
+            
+            F7.height = 480;
+            F7.mode = MODE_0;
+            F7.offsetX = 0;
+            F7.offsetY = 0;
+            F7.pixelFormat = PIXEL_FORMAT_MONO8;
+            F7.width = 752;
+            m_VideoCamera[i].SetFormat7Configuration(&F7, (unsigned int)3008);
+        }
+        */
 		if (i==0) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &A );
 		if (i==1) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &B );
 	}

@@ -1,7 +1,8 @@
 #pragma once
 
-
+#include "Falcor.h"	
 #include "windows.h"
+#include <queue>
 #include "FlyCapture/FlyCapture2.h"
 using namespace FlyCapture2;
 
@@ -63,6 +64,8 @@ public :
 	bool isConnected() { return m_bConnected; }
 
 	unsigned int getSerialNumber( int cam = 0 );
+
+
 	
 protected :
 	bool			m_bInit;
@@ -81,4 +84,8 @@ public:
 	unsigned int	A;
 	unsigned int	B;
 	bool			m_bSwapCameras;
+
+    std::queue<glm::vec4> dotQueue;
+    glm::vec2 bufferSize;
+    unsigned char* bufferData;
 };

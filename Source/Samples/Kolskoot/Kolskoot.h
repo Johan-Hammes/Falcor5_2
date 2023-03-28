@@ -35,11 +35,13 @@ class Kolskoot : public IRenderer
 {
 public:
     void onLoad(RenderContext* pRenderContext) override;
+    void onShutdown();
     void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo) override;
-    void onResizeSwapChain(uint32_t width, uint32_t height) override;
+    void onResizeSwapChain(uint32_t _width, uint32_t _height) override;
     bool onKeyEvent(const KeyboardEvent& keyEvent) override;
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
     void onGuiRender(Gui* pGui) override;
+    void onGuiMenubar(Gui* _gui);
 
 private:
     bool mUseTriLinearFiltering = true;
@@ -64,4 +66,19 @@ private:
     DepthStencilState::SharedPtr mpDepthTestDS = nullptr;
 
     std::string mModelString;
+
+    //PointGrey
+    PointGrey_Camera*   pointGreyCamera;
+    float pgGain = 0;
+    float pgGamma = 0;
+    Texture::SharedPtr	        pointGreyBuffer = nullptr;
+
+    GraphicsState::Viewport     viewport3d;
+    float2                      screenSize;
+    float2                      screenMouseScale;
+    float2                      screenMouseOffset;
+    Fbo::SharedPtr		        hdrFbo;
+    Texture::SharedPtr	        hdrHalfCopy;
+    GraphicsState::SharedPtr    graphicsState;
+    Falcor::Camera::SharedPtr	camera;
 };

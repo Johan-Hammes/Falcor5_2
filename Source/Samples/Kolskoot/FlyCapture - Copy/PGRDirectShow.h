@@ -1,16 +1,16 @@
 //=============================================================================
-// Copyright © 2017 FLIR Integrated Imaging Solutions, Inc. All Rights Reserved.
+// Copyright © 2008 Point Grey Research, Inc. All Rights Reserved.
 //
-// This software is the confidential and proprietary information of FLIR
-// Integrated Imaging Solutions, Inc. ("Confidential Information"). You
-// shall not disclose such Confidential Information and shall use it only in
+// This software is the confidential and proprietary information of Point
+// Grey Research, Inc. ("Confidential Information").  You shall not
+// disclose such Confidential Information and shall use it only in
 // accordance with the terms of the license agreement you entered into
-// with FLIR Integrated Imaging Solutions, Inc. (FLIR).
+// with PGR.
 //
-// FLIR MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY OF THE
-// SOFTWARE, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
+// PGR MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY OF THE
+// SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
 // IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-// PURPOSE, OR NON-INFRINGEMENT. FLIR SHALL NOT BE LIABLE FOR ANY DAMAGES
+// PURPOSE, OR NON-INFRINGEMENT. PGR SHALL NOT BE LIABLE FOR ANY DAMAGES
 // SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR DISTRIBUTING
 // THIS SOFTWARE OR ITS DERIVATIVES.
 //=============================================================================
@@ -37,8 +37,8 @@ const unsigned int MAX_LENGTH = 256;
 /** Information about a single DCAM format. */
 struct VideoModes
 {
-	FlyCapture2::VideoMode videoMode;
-	FlyCapture2::FrameRate	frameRate;
+    FlyCapture2::VideoMode videoMode;
+    FlyCapture2::FrameRate	frameRate;
 	unsigned int width;
 	unsigned int height;
 };
@@ -46,40 +46,18 @@ struct VideoModes
 /** DCAM formats supported by the camera as returned by GetAvailableFormats(). */
 struct DCAMFormats
 {
-	VideoModes videoModes[FlyCapture2::NUM_VIDEOMODES];
+    VideoModes videoModes[FlyCapture2::NUM_VIDEOMODES];
 	unsigned int numFormats;
 };
 
-/** DCAM formats supported by the camera */
-struct OutputFormatElement
-{
-	FlyCapture2::VideoMode videoMode;
-	FlyCapture2::FrameRate frameRate;
-	unsigned int width;
-	int height;
-	unsigned int bitCount;
-	DWORD compression;
-	GUID mediaSubType;
-	REFERENCE_TIME avgFrameTime;
-
-	// F7 related
-	unsigned int f7Mode;
-	unsigned int leftPos;
-	unsigned int topPos;
-	unsigned int packetSize;
-	FlyCapture2::PixelFormat f7PixelFormat;
-
-	std::vector<FlyCapture2::FrameRate> frameRates;
-};
-
 /** Supported output modes for source filter */
-const enum SupportedOutputColorModes
+const enum SupportedOutputColorModes 
 {
 	RGB32,
-		RGB24,
-		YUY2,
-		UYVY,
-		RAW
+	RGB24,
+	YUY2,
+	UYVY,
+	RAW
 };
 
 /** A camera list entry */
@@ -89,10 +67,10 @@ struct CameraListEntry
 	wchar_t model[MAX_LENGTH];
 };
 
-/**
- * This is the Interface that allows Users to get and set Properties on
- * the camera. You can query the PGRDirectShowSource Capture Filter for
- * IID_IFlyCaptureProperties and it will return a pointer to the
+/** 
+ * This is the Interface that allows Users to get and set Properties on 
+ * the camera. You can query the PGRDirectShowSource Capture Filter for 
+ * IID_IFlyCaptureProperties and it will return a pointer to the 
  * IFlyCaptureProperties interface.
  * The GUID is equivalent to {2BD99656-1552-4d98-B648-0DD0196D1649}.
  */
@@ -100,21 +78,21 @@ const IID IID_IFlyCaptureProperties = {0x2bd99656, 0x1552, 0x4d98, {0xb6,0x48,0x
 
 interface IFlyCaptureProperties : public IUnknown
 {
-	/**
-	 * @name DCAM Formats
-	 *
-	 * These functions deal with DCAM format selection.
-	 */
-	/*@{*/
+    /** 
+     * @name DCAM Formats
+     *
+     * These functions deal with DCAM format selection.
+     */
+    /*@{*/ 
 
-	/**
-	 * Get formats supported by the camera.
-	 *
-	 * @param pFormats DCAM formats supported by the camera.
-	 *
-	 * @return An HRESULT indicating the success or failure of the function.
-	 */
-	//STDMETHOD(GetAvailableFormats)(OutputFormats *pFormats) = 0;
+    /**
+     * Get formats supported by the camera.
+     *
+     * @param pFormats DCAM formats supported by the camera.
+     *
+     * @return An HRESULT indicating the success or failure of the function.
+     */
+    //STDMETHOD(GetAvailableFormats)(OutputFormats *pFormats) = 0;
 	STDMETHOD(GetAvailableFormats)(std::vector<struct OutputFormatElement> *pFormats) = 0;
 
 	STDMETHOD(GetOutputColorMode)(SupportedOutputColorModes* outputColorMode) = 0;
@@ -122,13 +100,13 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(GetColorAlgorithm)(FlyCapture2::ColorProcessingAlgorithm* colorAlgorithm) = 0;
 	STDMETHOD(SetColorAlgorithm)(FlyCapture2::ColorProcessingAlgorithm colorAlgorithm) = 0;
 
-	//	STDMETHOD(RebuildSupportedOutputFormatTable)() = 0;
+//	STDMETHOD(RebuildSupportedOutputFormatTable)() = 0;
 
 
 	/**
-	 * Returns the index of the format currently set. The index refers to
-	 * the index of the videoModes array in the DCAMFormats structure returned
-	 * by a call to GetAvailableFormats().
+     * Returns the index of the format currently set. The index refers to 
+     * the index of the videoModes array in the DCAMFormats structure returned
+     * by a call to GetAvailableFormats().
 	 *
 	 * @param pulFormat Index of currently set format.
 	 *
@@ -138,26 +116,26 @@ interface IFlyCaptureProperties : public IUnknown
 
 	///STDMETHOD(RebuildFormatTable)() = 0;
 
-	/**
-	 * Sets the index of the format to be used. The index refers to
-	 * the index of the videoModes array in the DCAMFormats structure returned
-	 * by a call to GetAvailableFormats().
-	 *
-	 * @param ulFormat index of the format to be set.
-	 *
-	 * @return An HRESULT error code indicating the success or failure of the function.
-	 */
-	STDMETHOD(SetImageFormat)(unsigned long ulFormat) = 0;
-	STDMETHOD(SetImageFormat)(unsigned long ulFormat, SupportedOutputColorModes outputColorMode) = 0;
+    /**
+     * Sets the index of the format to be used. The index refers to 
+     * the index of the videoModes array in the DCAMFormats structure returned
+     * by a call to GetAvailableFormats().
+     *
+     * @param ulFormat index of the format to be set.
+     *
+     * @return An HRESULT error code indicating the success or failure of the function.
+     */
+    STDMETHOD(SetImageFormat)(unsigned long ulFormat) = 0;	
+	STDMETHOD(SetImageFormat)(unsigned long ulFormat, SupportedOutputColorModes outputColorMode) = 0;	
 
-	/*@}*/
+	/*@}*/ 
 
-	/**
-	 * @name Register functions
-	 *
-	 * These functions deal with register manipulation on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Register functions
+     *
+     * These functions deal with register manipulation on the camera.
+     */
+    /*@{*/ 
 
 	/**
 	 * Read the specified register from the camera.
@@ -169,37 +147,37 @@ interface IFlyCaptureProperties : public IUnknown
 	 */
 	STDMETHOD(ReadRegister)(unsigned int offset, unsigned int* pValue) = 0;
 
-	/**
-	 * Write to the specified register on the camera.
-	 *
-	 * @param offset DCAM address to be written to.
-	 * @param value The value to be written.
-	 * @param broadcast Whether the action should be broadcast.
-	 *
-	 * @return An HRESULT error code indicating the success or failure of the function.
-	 */
-	STDMETHOD(WriteRegister)(unsigned int offset, unsigned int value, bool broadcast = false) = 0;
+    /**
+     * Write to the specified register on the camera.
+     *
+     * @param offset DCAM address to be written to.
+     * @param value The value to be written.
+     * @param broadcast Whether the action should be broadcast.
+     *
+     * @return An HRESULT error code indicating the success or failure of the function.
+     */
+    STDMETHOD(WriteRegister)(unsigned int offset, unsigned int value, bool broadcast = false) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Camera settings functions
-	 *
-	 * These functions deal with camera settings that affect the image,
-	 * such as gain, shutter speed etc. There are six functions for each
-	 * property. There are three functions each for relative and absolute
-	 * values.
-	 */
-	/*@{*/
+    /** 
+     * @name Camera settings functions
+     *
+     * These functions deal with camera settings that affect the image,
+     * such as gain, shutter speed etc. There are six functions for each
+     * property. There are three functions each for relative and absolute
+     * values.
+     */
+    /*@{*/ 
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Brightness functions
-	 *
-	 * These functions deal with brightness control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Brightness functions
+     *
+     * These functions deal with brightness control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetBrightness)(long* pBrightness, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetBrightness)(long brightness, bool isAutoEnabled = false) = 0;
@@ -208,14 +186,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsBrightness)(float brightness, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsBrightnessRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+	/*@}*/ 
 
-	/**
-	 * @name Exposure functions
-	 *
-	 * These functions deal with exposure control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Exposure functions
+     *
+     * These functions deal with exposure control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetExposure)(long* pExposure, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetExposure)(long exposure, bool isAutoEnabled = false) = 0;
@@ -224,15 +202,15 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsExposure)(float exposure, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsExposureRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Shutter functions
-	 *
-	 * These functions deal with shutter control on the camera.
-	 */
-	/*@{*/
-
+    /** 
+     * @name Shutter functions
+     *
+     * These functions deal with shutter control on the camera.
+     */
+    /*@{*/ 
+	
 	STDMETHOD(GetShutter)(long* pShutter, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetShutter)(long shutter, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetShutterRange)(long* pMin, long* pMax, bool* pIsAutoSupported = NULL) = 0;
@@ -240,15 +218,15 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsShutter)(float shutter, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsShutterRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Sharpness functions
-	 *
-	 * These functions deal with sharpness control on the camera.
-	 */
-	/*@{*/
-
+    /** 
+     * @name Sharpness functions
+     *
+     * These functions deal with sharpness control on the camera.
+     */
+    /*@{*/ 
+		
 	STDMETHOD(GetSharpness)(long* pSharpness, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetSharpness)(long sharpness, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetSharpnessRange)(long* pMin, long* pMax, bool* pIsAutoSupported = NULL) = 0;
@@ -256,14 +234,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsSharpness)(float lSharpness, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsSharpnessRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Gain functions
-	 *
-	 * These functions deal with gain control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Gain functions
+     *
+     * These functions deal with gain control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetGain)(long* pGain, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetGain)(long gain, bool isAutoEnabled = false) = 0;
@@ -272,14 +250,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsGain)(float lGain, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsGainRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+	/*@}*/ 
 
-	/**
-	 * @name Hue functions
-	 *
-	 * These functions deal with hue control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Hue functions
+     *
+     * These functions deal with hue control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetHue)(long* pHue, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetHue)(long hue, bool isAutoEnabled = false) = 0;
@@ -288,14 +266,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsHue)(float hue, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsHueRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Saturation functions
-	 *
-	 * These functions deal with saturation control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Saturation functions
+     *
+     * These functions deal with saturation control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetSaturation)(long* pSaturation,bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetSaturation)(long saturation, bool isAutoEnabled = false) = 0;
@@ -304,14 +282,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsSaturation)(float saturation, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsSaturationRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Gamma functions
-	 *
-	 * These functions deal with gamma control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Gamma functions
+     *
+     * These functions deal with gamma control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetGamma)(long* pGamma, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetGamma)(long gamma, bool isAutoEnabled = false) = 0;
@@ -320,14 +298,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsGamma)(float gamma, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsGammaRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Pan functions
-	 *
-	 * These functions deal with pan control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Pan functions
+     *
+     * These functions deal with pan control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetPan)(long* pPan, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetPan)(long pan, bool isAutoEnabled = false) = 0;
@@ -336,14 +314,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsPan)(float pan, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsPanRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Tilt functions
-	 *
-	 * These functions deal with tilt control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name Tilt functions
+     *
+     * These functions deal with tilt control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetTilt)(long* pTilt, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetTilt)(long tilt, bool isAutoEnabled = false) = 0;
@@ -352,27 +330,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsTilt)(float tilt, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsTiltRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+	/*@}*/ 
 
-	/**
-	 * @name Zoom functions
-	 *
-	 * These functions deal with zoom control on the camera.
-	 */
-	/*@{*/
-
-	STDMETHOD(GetZoom)(long* pPan, bool* pIsAutoEnabled = NULL) = 0;
-	STDMETHOD(SetZoom)(long pan, bool isAutoEnabled = false) = 0;
-	STDMETHOD(GetZoomRange)(long* pMin, long* pMax, bool* pIsAutoSupported = NULL) = 0;
-
-	/*@}*/
-
-	/**
-	 * @name FrameRate functions
-	 *
-	 * These functions deal with frame rate control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name FrameRate functions
+     *
+     * These functions deal with frame rate control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetFrameRate)(long* pFrameRate, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetFrameRate)(long FrameRate, bool isAutoEnabled = false) = 0;
@@ -381,14 +346,14 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsFrameRate)(float FrameRate, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsFrameRateRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name White balance functions
-	 *
-	 * These functions deal with white balance control on the camera.
-	 */
-	/*@{*/
+    /** 
+     * @name White balance functions
+     *
+     * These functions deal with white balance control on the camera.
+     */
+    /*@{*/ 
 
 	STDMETHOD(GetWhiteBalance)(long* plWhiteBalance, bool* pIsAutoEnabled = NULL) = 0;
 	STDMETHOD(SetWhiteBalance)(long lWhiteBalance, bool isAutoEnabled = false) = 0;
@@ -397,16 +362,16 @@ interface IFlyCaptureProperties : public IUnknown
 	STDMETHOD(SetAbsWhiteBalance)(float lWhiteBalance, bool isAutoEnabled = false) = 0;
 	STDMETHOD(GetAbsWhiteBalanceRange)(float* pMin, float* pMax, bool* pIsAutoSupported = NULL, const char** pUnits = NULL) = 0;
 
-	/*@}*/
+    /*@}*/ 
 
-	/*@}*/
+    /*@}*/ 
 
-	/**
-	 * @name Custom Image / Format7 functions
-	 *
-	 * These functions deal with custom image and Format7 image control.
-	 */
-	/*@{*/
+    /** 
+     * @name Custom Image / Format7 functions
+     *
+     * These functions deal with custom image and Format7 image control.
+     */
+    /*@{*/ 
 
 	/**
 	 * Get whether the image is vertically flipped.
@@ -456,78 +421,78 @@ interface IFlyCaptureProperties : public IUnknown
 	 * @return An HRESULT error code indicating the success or failure of the function.
 	 */
 	STDMETHOD(QueryCustomImage)(
-			unsigned int mode,
-			bool* pAvailable,
-			unsigned int* pMaxWidth,
-			unsigned int* pMaxHeight,
-			unsigned int* pPixelFormatsBitMask ) = 0;
+        unsigned int mode,
+        bool* pAvailable,
+        unsigned int* pMaxWidth,
+        unsigned int* pMaxHeight, 
+        unsigned int* pPixelFormatsBitMask ) = 0;
 
-/**
- * Get information for a particular custom image / Format7 mode.
- *
- * @param mode Mode to query.
- * @param pAvailable Whether mode is supported.
- * @param pMaxWidth Maximum width.
- * @param pMaxHeight Maximum height.
- * @param pPixFormats Pixel format bit mask.
- * @param pOffsetHStepSize Horizontal step size for the offset.
- * @param pOffsetVStepSize Vertical step size for the offset.
- * @param pImageHStepSize Horizontal step size for the image.
- * @param pImageVStepSize Vertical step size for the image.
- *
- * @return An HRESULT error code indicating the success or failure of the function.
- */
-STDMETHOD(QueryCustomImage)(
+    /**
+	 * Get information for a particular custom image / Format7 mode.
+	 *
+	 * @param mode Mode to query.
+	 * @param pAvailable Whether mode is supported.
+	 * @param pMaxWidth Maximum width.
+	 * @param pMaxHeight Maximum height.
+	 * @param pPixFormats Pixel format bit mask.
+	 * @param pOffsetHStepSize Horizontal step size for the offset. 
+	 * @param pOffsetVStepSize Vertical step size for the offset. 
+	 * @param pImageHStepSize Horizontal step size for the image. 
+	 * @param pImageVStepSize Vertical step size for the image. 
+	 *
+	 * @return An HRESULT error code indicating the success or failure of the function.
+	 */
+	STDMETHOD(QueryCustomImage)(
 		unsigned int mode,
 		bool* pAvailable,
 		unsigned int* pMaxWidth,
-		unsigned int* pMaxHeight,
+		unsigned int* pMaxHeight, 
 		unsigned int* pPixFormats,
 		unsigned int* pOffsetHStepSize,
 		unsigned int* pOffsetVStepSize,
 		unsigned int* pImageHStepSize,
 		unsigned int* pImageVStepSize ) = 0;
 
-/**
- * Set custom image / Format7 image settings to camera.
- *
- * @param mode Custom image / Format7 settings to use.
- * @param left Left offset.
- * @param top Top offset.
- * @param width Image width.
- * @param height Image height.
- * @param pixelFormat Pixel format index to use.
- *
- * @return An HRESULT error code indicating the success or failure of the function.
- */
-STDMETHOD(SetCustomImage)(
-		unsigned int mode,
-		unsigned int left,
-		unsigned int top,
-		unsigned int width,
-		unsigned int height,
-		unsigned int pixelFormat ) = 0;
+	/**
+	 * Set custom image / Format7 image settings to camera.
+	 *
+	 * @param mode Custom image / Format7 settings to use.
+	 * @param left Left offset.
+	 * @param top Top offset.
+	 * @param width Image width.
+	 * @param height Image height.
+	 * @param pixelFormat Pixel format index to use.
+	 *
+	 * @return An HRESULT error code indicating the success or failure of the function.
+	 */
+	STDMETHOD(SetCustomImage)(
+        unsigned int mode,
+        unsigned int left,
+        unsigned int top,
+        unsigned int width,
+        unsigned int height, 
+        unsigned int pixelFormat ) = 0;
 
-/**
- * Get custom image / Format7 settings from camera.
- *
- * @param pMode Custom image / Format7 settings on camera.
- * @param pLeft Left offset.
- * @param pTop Top offset.
- * @param pWidth Image width.
- * @param pHeight Image height.
- * @param pPixelFormat Pixel format.
- *
- * @return An HRESULT error code indicating the success or failure of the function.
- */
-STDMETHOD(GetCustomImage)(
-		unsigned int* pMode,
-		unsigned int* pLeft,
-		unsigned int* pTop,
-		unsigned int* pWidth,
-		unsigned int* pHeight,
-		unsigned int* pPixelFormat ) = 0;
+	/**
+	 * Get custom image / Format7 settings from camera.
+	 *
+	 * @param pMode Custom image / Format7 settings on camera.
+	 * @param pLeft Left offset.
+	 * @param pTop Top offset.
+	 * @param pWidth Image width.
+	 * @param pHeight Image height.
+	 * @param pPixelFormat Pixel format.
+	 *
+	 * @return An HRESULT error code indicating the success or failure of the function.
+	 */
+	STDMETHOD(GetCustomImage)(
+        unsigned int* pMode,
+        unsigned int* pLeft,
+        unsigned int* pTop,
+        unsigned int* pWidth,
+        unsigned int* pHeight, 
+        unsigned int* pPixelFormat ) = 0;	
 
-STDMETHOD(EnumerateCameras)(std::vector<CameraListEntry>* camList) = 0;
-STDMETHOD(ConnectToCamera)(unsigned int serialNum) = 0;
+	STDMETHOD(EnumerateCameras)(std::vector<CameraListEntry>* camList) = 0;
+	STDMETHOD(ConnectToCamera)(unsigned int serialNum) = 0;
 };

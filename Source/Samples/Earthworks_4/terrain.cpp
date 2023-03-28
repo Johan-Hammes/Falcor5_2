@@ -399,6 +399,15 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         // ecotopes
         split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/compute_tileEcotopes.hlsl");
         split.compute_tileEcotopes.Vars()->setSampler("linearSampler", sampler_Clamp);
+        /*split.compute_tileBicubic.Vars()->setTexture("gHeight", split.tileFbo->getColorTexture(0));
+        split.compute_tileBicubic.Vars()->setTexture("gAlbedo", split.tileFbo->getColorTexture(1));
+        split.compute_tileBicubic.Vars()->setTexture("gInPermanence", split.tileFbo->getColorTexture(3));
+        split.compute_tileBicubic.Vars()->setTexture("gInEct[0]", split.tileFbo->getColorTexture(4));
+        split.compute_tileBicubic.Vars()->setTexture("gInEct[1]", split.tileFbo->getColorTexture(5));
+        split.compute_tileBicubic.Vars()->setTexture("gInEct[2]", split.tileFbo->getColorTexture(6));
+        split.compute_tileBicubic.Vars()->setTexture("gInEct[3]", split.tileFbo->getColorTexture(7));
+        split.compute_tileBicubic.Vars()->setTexture("gOutput", split.tileFbo->getColorTexture(0));
+        */
 
         // normals
         split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/compute_tileNormals.hlsl");

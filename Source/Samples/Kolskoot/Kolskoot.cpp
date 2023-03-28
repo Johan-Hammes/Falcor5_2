@@ -27,12 +27,93 @@
  **************************************************************************/
 #include "Kolskoot.h"
 #include "Utils/UI/TextRenderer.h"
+#include "imgui.h"
+#include <imgui_internal.h>
+#include "Core/Platform/MonitorInfo.h"
 
 
 
-void Kolskoot::onGuiRender(Gui* pGui)
+void Kolskoot::onGuiMenubar(Gui* _gui)
 {
+    if (ImGui::BeginMainMenuBar())
+    {
+        ImGui::Text("Kolskoot          ");
+
+
+        if (ImGui::BeginMenu("Settings"))
+        {
+            ImGui::Text("camera");
+
+            ImGui::EndMenu();
+        }
+
+
+        ImGui::SetCursorPos(ImVec2(screenSize.x - 15, 0));
+        if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
+    }
+    ImGui::EndMainMenuBar();
 }
+
+
+
+void Kolskoot::onGuiRender(Gui* _gui)
+{
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    {
+        onGuiMenubar(_gui);
+
+
+        Gui::Window pointgreyPanel(_gui, "PointGrey", {900, 900}, {100, 100});
+        {
+            if (pointGreyCamera->isConnected())
+            {
+                ImGui::Text("serial  %d", pointGreyCamera->getSerialNumber());
+                ImGui::Text("%d x %d", (int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y);
+
+                ImGui::NewLine();
+                
+                if (ImGui::SliderFloat("Gain", &pgGain, 0, 12)) {
+                    pointGreyCamera->setGain(pgGain);
+                }
+                if (ImGui::SliderFloat("Gamma", &pgGamma, 0, 1)) {
+                    pointGreyCamera->setGamma(pgGamma);
+                }
+
+                ImVec2 C = ImGui::GetCursorPos();
+                if (pointGreyBuffer)
+                {
+                    if (pointgreyPanel.imageButton("testImage", pointGreyBuffer, pointGreyCamera->bufferSize))
+                    {
+
+                    }
+                }
+                else
+                {
+                    pointGreyBuffer = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1, pointGreyCamera->bufferData);
+                }
+
+
+                uint ndots = pointGreyCamera->dotQueue.size();
+                ImGui::Text("dots  %d", ndots);
+                for (uint i = 0; i < ndots; i++)
+                {
+                    glm::vec4 dot = pointGreyCamera->dotQueue.front();
+                    pointGreyCamera->dotQueue.pop();
+                    ImGui::SetCursorPos(ImVec2(C.x + dot.x, C.y + dot.y));
+                    ImGui::Text("x");
+                }
+
+            }
+
+        }
+        pointgreyPanel.release();
+
+    }
+    ImGui::PopFont();
+}
+
+
+
 
 void Kolskoot::onLoad(RenderContext* pRenderContext)
 {
@@ -57,12 +138,38 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     samplerDesc.setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear);
     mpLinearSampler = Sampler::create(samplerDesc);
 
-    PointGrey_Camera::GetSingleton();
+    pointGreyCamera = PointGrey_Camera::GetSingleton();
+    gpDevice->toggleVSync(true);
+
+
+    camera = Falcor::Camera::create();
+    camera->setDepthRange(0.5f, 40000.0f);
+    camera->setAspectRatio(1920.0f / 1080.0f);
+    camera->setFocalLength(15.0f);
+    camera->setPosition(float3(0, 900, 0));
+    camera->setTarget(float3(0, 900, 100));
+
+    graphicsState = GraphicsState::create();
 }
+
+
+
+void Kolskoot::onShutdown()
+{
+    PointGrey_Camera::FreeSingleton();
+}
+
+
 
 void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
+
+    if (pointGreyBuffer)
+    {
+        pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferData);
+    }
+
+    const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
     pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     mpGraphicsState->setFbo(pTargetFbo);
 
@@ -90,6 +197,8 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     TextRenderer::render(pRenderContext, mModelString, pTargetFbo, float2(10, 30));
 }
 
+
+
 bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
 {
     if (mpScene && mpScene->onKeyEvent(keyEvent)) return true;
@@ -101,16 +210,42 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
     return false;
 }
 
+
+
 bool Kolskoot::onMouseEvent(const MouseEvent& mouseEvent)
 {
     return mpScene ? mpScene->onMouseEvent(mouseEvent) : false;
 }
 
-void Kolskoot::onResizeSwapChain(uint32_t width, uint32_t height)
+
+
+void Kolskoot::onResizeSwapChain(uint32_t _width, uint32_t _height)
 {
-    float h = (float)height;
-    float w = (float)width;
+    auto monitorDescs = MonitorInfo::getMonitorDescs();
+    screenSize = monitorDescs[0].resolution;
+    viewport3d.originX = 0;
+    viewport3d.originY = 0;
+    viewport3d.minDepth = 0;
+    viewport3d.maxDepth = 1;
+    viewport3d.width = screenSize.x;
+    viewport3d.height = screenSize.y;
+
+    camera->setAspectRatio(screenSize.x / screenSize.y);
+
+    screenMouseScale.x = _width / screenSize.x;
+    screenMouseScale.y = _height / screenSize.y;
+    screenMouseOffset.x = 0;
+    screenMouseOffset.y = 0;
+
+    Fbo::Desc desc;
+    desc.setDepthStencilTarget(ResourceFormat::D24UnormS8);
+    desc.setColorTarget(0u, ResourceFormat::R11G11B10Float);
+    hdrFbo = Fbo::create2D(_width, _height, desc);
+    graphicsState->setFbo(hdrFbo);
+
+    hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 7, nullptr, Falcor::Resource::BindFlags::RenderTarget);
 }
+
 
 
 int main(int argc, char** argv)

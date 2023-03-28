@@ -15,64 +15,28 @@
 // THIS SOFTWARE OR ITS DERIVATIVES.
 //=============================================================================
 //=============================================================================
-// $Id: FlyCapture2Platform_C.h,v 1.5 2010-08-13 18:49:59 soowei Exp $
+// $Id: $
 //=============================================================================
 
-#ifndef PGR_FC2_FLYCAPTURE2PLATFORM_C_H
-#define PGR_FC2_FLYCAPTURE2PLATFORM_C_H
+#ifndef MULTISYNCLIBRARY_H
+#define MULTISYNCLIBRARY_H
 
 //=============================================================================
-// Platform-specific header file for FlyCapture2 C.
+// Global header file for MultiSync Library.
 //
-// All the platform-specific code that is required by individual compilers
-// to produce the appropriate code for each platform.
+// By including this file, all required header files for full MultiSync Library
+// operation will be included automatically. It is recommended that this file
+// be used instead of manually including individual header files.
 //=============================================================================
 
-#if defined(_WIN32) || defined(_WIN64)
+//=============================================================================
+// Platform-specific definitions
+//=============================================================================
+#include "MultiSyncLibraryPlatform.h"
 
-// Windows 32-bit and 64-bit
-#ifdef FLYCAPTURE2_C_EXPORTS
-#define FLYCAPTURE2_C_API __declspec( dllexport )
-#elif defined(FLYCAPTURE2_C_STATIC)
-#define FLYCAPTURE2_C_API
-#else
-#define FLYCAPTURE2_C_API __declspec( dllimport )
-#endif
+//=============================================================================
+// Global definitions
+//=============================================================================
+#include "MultiSyncLibraryDefs.h"
 
-#if _MSC_VER > 1000
-#pragma once
-#endif
-
-// Provide a common naming scheme for fixed-width integer types
-#ifdef _MSC_VER
-#if _MSC_VER >= 1600
-#include <stdint.h>
-#else
-typedef __int8				int8_t;
-typedef __int16				int16_t;
-typedef __int32				int32_t;
-typedef __int64				int64_t;
-typedef unsigned __int8		uint8_t;
-typedef unsigned __int16	uint16_t;
-typedef unsigned __int32	uint32_t;
-typedef unsigned __int64	uint64_t;
-#endif
-#elif __GNUC__ >=3
-#include <cstdint>
-#endif
-
-
-#elif defined(MAC_OSX)
-
-// Mac OSX
-
-#else
-
-#define FLYCAPTURE2_C_API
-#define FLYCAPTURE2_C_CALL_CONVEN
-// Linux and all others
-
-#endif
-
-#endif // PGR_FC2_FLYCAPTURE2PLATFORM_C_H
-
+#endif // MULTISYNCLIBRARY_H
