@@ -4,9 +4,16 @@
 
 
 
-void pixelShader::load(const std::filesystem::path& _path, const std::string _vsEntry, const std::string _psEntry, Vao::Topology _topology)
+void pixelShader::load(const std::filesystem::path& _path, const std::string _vsEntry, const std::string _psEntry, Vao::Topology _topology, const std::string _gsEntry)
 {
-	program = GraphicsProgram::createFromFile(_path, _vsEntry, _psEntry, defineList);
+    if (_gsEntry.size() > 0) {
+        GraphicsProgram::Desc d(_path);
+        d.vsEntry(_vsEntry).psEntry(_psEntry).gsEntry(_gsEntry);
+        program = GraphicsProgram::create(d, defineList);
+    }
+    else {
+        program = GraphicsProgram::createFromFile(_path, _vsEntry, _psEntry, defineList);
+    }
 	reflection = program->getActiveVersion()->getReflector();
 
 	state = GraphicsState::create();

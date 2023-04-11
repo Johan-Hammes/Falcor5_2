@@ -101,6 +101,9 @@ void allocateBuffers(int w, int h)
 
     PointGrey_Camera::GetSingleton()->bufferSize = glm::vec2(m_width, m_height);
     PointGrey_Camera::GetSingleton()->bufferData = BUFFER[0][0].data;
+    PointGrey_Camera::GetSingleton()->bufferReference = vidFrame[0];
+    //PointGrey_Camera::GetSingleton()->bufferBlur = vidBlur;
+    PointGrey_Camera::GetSingleton()->bufferThreshold = vidThresh;
 }
 
 

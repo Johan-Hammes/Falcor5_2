@@ -11,7 +11,7 @@
 #define numVertPerTile  16384
 
 // 16384 allows for a plant every 2x2 pixels, and roughly 128 Mb (16384 X 8 byte struct. 1024 tiles)
-#define numQuadsPerTile  16384
+#define numQuadsPerTile  32768
 
 // 4096 allows for a plant every 4x4 pixels, and roughly 32 Mb (4096 X 8 byte struct. 1024 tiles)
 #define numPlantsPerTile  4096

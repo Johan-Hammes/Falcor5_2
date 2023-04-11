@@ -1,46 +1,189 @@
 
 
-terrafectorSystem::loadPath(X:/resources/terrains/eifel/terrafectors/)
-###################################################################
-  BAKE_ONLY
-  base
-  landuse
-  add mesh - X:/resources/terrains/eifel/terrafectors/base/landuse/buildings.obj
-    add Material[0] - DefaultMaterial.terrafectorMaterial
-      TexturesCom_Pavement_CobblestoneStreet2_3x3_4K_albedo.png
-    add Material[1] - building_placements_main.terrafectorMaterial
+terrafectorSystem::loadPath    X:/resources/terrains/eifel/terrafectors
+  BAKE_ONLY_BOTTOM
+  001_Nurburgring_push_down
+  add mesh - X:/resources/terrains/eifel/terrafectors\BAKE_ONLY_BOTTOM\001_Nurburgring_push_down\terrafector_for_meshes.fbx
+    add Material[0] - gradient_alpha.terrafectorMaterial
+  add mesh - X:/resources/terrains/eifel/terrafectors\BAKE_ONLY_BOTTOM\001_Nurburgring_push_down\terrafector_park_nords.fbx
+  add mesh - X:/resources/terrains/eifel/terrafectors\BAKE_ONLY_BOTTOM\001_Nurburgring_push_down\tunnel_old_entrance.fbx
+  gis_buildings
+  add mesh - X:/resources/terrains/eifel/terrafectors\BAKE_ONLY_BOTTOM\gis_buildings\buildings.obj
       Concrete_Base10_2x2_ao.png
-  add mesh - X:/resources/terrains/eifel/terrafectors/base/landuse/landuses.obj
-    materialCache - found (DefaultMaterial.terrafectorMaterial)
-    add Material[2] - landuse_barren.terrafectorMaterial
-    add Material[3] - landuse_cemetery.terrafectorMaterial
-    add Material[4] - landuse_farmland0.terrafectorMaterial
-    add Material[5] - landuse_farmland1.terrafectorMaterial
-    add Material[6] - landuse_farmland2.terrafectorMaterial
-    add Material[7] - landuse_footpath.terrafectorMaterial
-    add Material[8] - landuse_garden.terrafectorMaterial
-    add Material[9] - landuse_grassland.terrafectorMaterial
-    add Material[10] - landuse_hardwood.terrafectorMaterial
-    add Material[11] - landuse_industrial.terrafectorMaterial
-    add Material[12] - landuse_infrastructure.terrafectorMaterial
-    add Material[13] - landuse_mixedwood.terrafectorMaterial
-    add Material[14] - landuse_moor.terrafectorMaterial
-    add Material[15] - landuse_none.terrafectorMaterial
-    add Material[16] - landuse_orchard.terrafectorMaterial
-    add Material[17] - landuse_quarry.terrafectorMaterial
-    add Material[18] - landuse_recreational.terrafectorMaterial
-    add Material[19] - landuse_residential.terrafectorMaterial
-    add Material[20] - landuse_softwood.terrafectorMaterial
-    add Material[21] - landuse_transport.terrafectorMaterial
-    add Material[22] - landuse_wasteland.terrafectorMaterial
-    add Material[23] - landuse_water.terrafectorMaterial
-  tracks
-  global_terrafectors
-  add mesh - X:/resources/terrains/eifel/terrafectors/base/tracks/global_terrafectors/terrafector_for_meshes.fbx
-    add Material[24] - gradient_alpha.terrafectorMaterial
-  add mesh - X:/resources/terrains/eifel/terrafectors/base/tracks/global_terrafectors/terrafector_park_nords.fbx
-    materialCache - found (gradient_alpha.terrafectorMaterial)
-  add mesh - X:/resources/terrains/eifel/terrafectors/base/tracks/global_terrafectors/tunnel_old_entrance.fbx
-    materialCache - found (gradient_alpha.terrafectorMaterial)
+    add Material[1] - building_placements_main.terrafectorMaterial
+    add Material[2] - building_placements_side.terrafectorMaterial
+  I10-highway_bridge
+  add mesh - X:/resources/terrains/eifel/terrafectors\BAKE_ONLY_BOTTOM\I10-highway_bridge\I10_bridges_highway_underneath.fbx
+    add Material[3] - default_vertexColor_Elevation.terrafectorMaterial
+  BAKE_ONLY_TOP
+  base
+  landuse_LOD2
+  add mesh - X:/resources/terrains/eifel/terrafectors\base\landuse_LOD2\landuses.obj
+      grass_cut2_height.png
+      agricolture_1.png
+      grass_cut2_albedo.dds
+      agricolture_1_roughness.png
+      grass_cut2_rough.png
+      white.png
+    add Material[4] - landuse_barren.terrafectorMaterial
+    add Material[5] - landuse_cemetery.terrafectorMaterial
+      Farmland0063_height.png
+      Farmland0063_albedo.png
+      agricolture_2.png
+    add Material[6] - landuse_farmland0.terrafectorMaterial
+    add Material[7] - landuse_farmland1.terrafectorMaterial
+    add Material[8] - landuse_farmland2.terrafectorMaterial
+      soil2_4x4_height.png
+      general_albedo.png
+      soil2_4x4_albedo.png
+      soil2_4x4_roughness.png
+    add Material[9] - landuse_footpath.terrafectorMaterial
+    add Material[10] - landuse_garden.terrafectorMaterial
+    add Material[11] - landuse_grassland.terrafectorMaterial
+      forest_floor_4_displacement.exr
+      forest_floor_4_albedo.jpg
+      forest_floor_4_roughness.jpg
+    add Material[12] - landuse_hardwood.terrafectorMaterial
+    add Material[13] - landuse_industrial.terrafectorMaterial
+    add Material[14] - landuse_infrastructure.terrafectorMaterial
+    add Material[15] - landuse_mixedwood.terrafectorMaterial
+    add Material[16] - landuse_moor.terrafectorMaterial
+    add Material[17] - landuse_none.terrafectorMaterial
+    add Material[18] - landuse_orchard.terrafectorMaterial
+    add Material[19] - landuse_quarry.terrafectorMaterial
+    add Material[20] - landuse_recreational.terrafectorMaterial
+    add Material[21] - landuse_residential.terrafectorMaterial
+      fresh_wild_grass_1_displacement.exr
+      fresh_wild_grass_1_albedo.jpg
+      fresh_wild_grass_1_roughness.jpg
+    add Material[22] - landuse_softwood.terrafectorMaterial
+    add Material[23] - landuse_transport.terrafectorMaterial
+    add Material[24] - landuse_wasteland.terrafectorMaterial
+    add Material[25] - landuse_water.terrafectorMaterial
+    add Material[26] - landuse_woods.terrafectorMaterial
   roads
   top
+  zOVERLAY
+  landuse
+  add mesh - X:/resources/terrains/eifel/terrafectors\zOVERLAY\landuse\landuses.obj
+    add Material[27] - landuse_barren.terrafectorMaterial
+    add Material[28] - landuse_cemetery.terrafectorMaterial
+    add Material[29] - landuse_farmland0.terrafectorMaterial
+    add Material[30] - landuse_farmland1.terrafectorMaterial
+    add Material[31] - landuse_farmland2.terrafectorMaterial
+    add Material[32] - landuse_footpath.terrafectorMaterial
+    add Material[33] - landuse_garden.terrafectorMaterial
+      grass_cut2_detail_general_albedo_2.png
+    add Material[34] - landuse_grassland.terrafectorMaterial
+    add Material[35] - landuse_hardwood.terrafectorMaterial
+    add Material[36] - landuse_industrial.terrafectorMaterial
+    add Material[37] - landuse_infrastructure.terrafectorMaterial
+    add Material[38] - landuse_mixedwood.terrafectorMaterial
+    add Material[39] - landuse_moor.terrafectorMaterial
+    add Material[40] - landuse_none.terrafectorMaterial
+    add Material[41] - landuse_orchard.terrafectorMaterial
+    add Material[42] - landuse_quarry.terrafectorMaterial
+    add Material[43] - landuse_recreational.terrafectorMaterial
+      Concrete5_3x3_1K_albedo.png
+    add Material[44] - landuse_residential.terrafectorMaterial
+    add Material[45] - landuse_softwood.terrafectorMaterial
+    add Material[46] - landuse_transport.terrafectorMaterial
+    add Material[47] - landuse_wasteland.terrafectorMaterial
+    add Material[48] - landuse_water.terrafectorMaterial
+    add Material[49] - landuse_woods.terrafectorMaterial
+
+
+loadCombine_LOD2.loadToGPU()
+
+     66   10646   55759         
+  11839  202254  118631     705 
+  54416  259227  291461  114339 
+  55477   91685  204529   78264 
+  lod 2  4x4
+  block with most triangles has 302781
+  47 Mb VB   18 Mb IB
+
+loadCombine_LOD4.loadToGPU()
+
+                                                                                                                                
+                                                                                                                                
+                                                            638    4637    3791     400                                         
+                             33    2254     938            4963   16698   24309    8551                                         
+                           2733   18735    9298    1520    6243   12410   16299     137                                         
+                           6846   16973   20532   10120   18621   22893    6553      17                                         
+                            744    8081   16818   12293   11433   16355    5219                                                 
+                             14    8919   25729   12004   15221   19764   12717    3170    6451     441                         
+                                  13072   23579   17017   10622   30459   14733    6114   18463    9809     498                 
+                   1454    6089    8444   19002   23970   16110   14560   20097   15923   18457   19341    1862                 
+             62    4583   17218   23657   12697   13737   15944   12974   19743   22581   24585   24266   10479    3696         
+            346   12907   12799   10156   16549   19980   24504   16780   21532   20288   24399   15958   14624   14298     559 
+           5020   15138   16656    8075   21905   13935   10857   31167   17047   16269   20106   24702   22664   17159    2608 
+           3689    8370    9041   15427    6736    9316    7668   17054   23153   20818   26307   10477    1645      27      18 
+                            220    1385     523      10       4    2479    6281   18123   14696     405                         
+                                                                                                                                
+  lod 4  16x16
+  block with most triangles has 33606
+  48 Mb VB   19 Mb IB
+
+loadCombine_LOD6.loadToGPU()
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                     13      47       7                                                                                                                                                                                                         
+                                                                                                                                                                                                                                                                            108     292     414     323     149     119     110       5                                                                                                                                                                                         
+                                                                                                                                                                                                                                                     56     571    1074    1464     685     876     870    1581     334     573     276              16       9                                                                                                                                                                 
+                                                                                                                                                                                                                                                     17    1719    2299     917     934    1740    1497    1296     263     865     832     312      43       7                                                                                                                                                                 
+                                                                                                                                                             23                                                                                     236    1126    1337     796    1105    2536     802     878     295    2085    3589     648                                                                                                                                                                                 
+                                                                                                                                             76     207     451     264                                                                              33    1475    1300     738    1053    1019    1054    1976    4438    4024    3235     131                                                                                                                                                                                 
+                                                                                                                             18     260     338     549     694     678                                                                               4     334    1028     358     591     558    1601    1181    3187    1736     530                                                                                                                                                                                         
+                                                                                                             22      65     260     675    1240    1287    1158     849                                                                             121     312     784     351     584     671     841    1574    1363      56      57                                                                                                                                                                                         
+                                                                                                            159     175     653    1070     757     629     865    1189     508      27                                                              50     343     878     783     906     937    4190    3811    1100     232      28                                                                                                                                                                                         
+                                                                                                            200      77     870     895    1568    1247    1566     435    1174    1165     611     159                      30     459     681     626     620     634     806     862    1045    1714     734     518     209      45                                                                                                                                                                                         
+                                                                                                                     11     721    2158    1756    2408    1299     604    1278    1665     881     674     108      17     443     837    1249    1183     824     907     986     913    2152     949     607     751     157      26                                                                                                                                                                                         
+                                                                                                                            538    2097    1428    1174    1769    1359     730    1217    1094     653     713     771     885     968    1172     837     800    1230    1330     990    2031     626     906     785     312                                                                                                                                                                                                 
+                                                                                                                     93     486     721     659     985    1235    1459    1187     993     572     446     420     582     732    1659    4308    1276     873    1176     976     764    1125     937    1491     431      49                                                                                                                                                                                                 
+                                                                                                            131     384    2866    1533     703     993     972    3939    3907    1479     817     629     335     902    1624    1297    1704     934    2021    3196    1877    3324    1126     384     510     232       7                                                                                                                                                                                                 
+                                                                                                            210    1115    1416     982     934     858    1480    1621    1296     570    1112     444     372    1015     776     760     734     877    1557    2926     879    1718     901     368     398     261                                                                                                                                                                                                         
+                                                                                                             95     353     165     303     535     305    1706    2642    1722    1298    1106     822    1348    1396     898    1552     993     974     905    1304    1223    2344     613     836     681     340                                                                                                                                                                                                         
+                                                                                                                                    509     200     396    1408     927    1740    1208    1078     268    2218     941     954    1350     804     601    1003    1903    1167    2666    1604     992     458     269      11                                                                                                                                                                                                 
+                                                                                                                                            565     636     879     558     103     336    1297    1282     813     688     429     770     711     321     279     997     276    1099     349     835      76      88      10                                                                                                                                                                                                 
+                                                                                                                                             52      57    1371    2789     120     181    1485     745     425     665     529     751     858     608     481     406     426    1183     740     769     418      54      30                                                                                                                                                                                                 
+                                                                                                                                             21      74    1290    1156     263    2394    1877     395     155     608     841     962    1784    1025     853     669     770    1415    1448    1770     996     130      55      17                                                                                                                                                                                         
+                                                                                                                                     14      98    1061    1660    1605    1667    4546    2981     558     289     247     660    2574    3015     882     594     856    2824    3077    2735    2026    1738    1263     490     262     321     223     211     213      20      48                                                                                                                                         
+                                                                                                                                     15      47     536    1598    1715    2156    1790    3182    1286    1079     836     891     886    1092     699     879     840    1071    1459    1694     871     522    1407     984      73     688     189     751     671     617     398      26      16      25       5                                                                                                         
+                                                                                                                              7      54     550    1730    1055     687     683    1009    1952     837    1135    2660     919     802     795     344     546     787    1267     875     836     591     598     739     380     206     432     363     297     670    2040    1358     821     320      25      37                                                                                                         
+                                                                                                                                    309    1391    1730    1412     714    1257    3190    1934     256     533    1005     951     740     890     351     690     501    2866    1248    1143     876     669     625     717     222     216     199      84     681    2062    1442    1004     450     469      62                                                                                                         
+                                                                                                                                      9    1183    2124    1617    2043    1487    1670    1395    1620    1187     965    1188     321     795    1173    1277    1203    4808    8550    4351    2583     880     721     430     424      93     196      95     835    1672    3396    1331     736     726     603     138                                                                                                 
+                                                                                                                                            482    2621    1594     983    2244    1974    1357    1140    1789    1562    1306     571     653    1174     802     933    1478    1536     913    2479     620     365     434     496     454     568     823     745     924    1819    1771    1384     709     765    1004     163      39                                                                                 
+                                                                                                                                              8     448     578      60    2585    1929    2270    1520    1991    1634     780    1427      81     618     859    1872     973     820    1065    2060    1362    1262     660     625     881     595    1263    1548     426     944     837     547     759    2240     906     229      35                                                                                 
+                                                                                                                                     36      30      16     234     699    1049    1776    2022    1735    1318    1649    1281    1243     826     683    1998    2567     747     644     970    1317    1253    2623    1316    1080     818     710    1238    1335      88     419    1249    1609    1676    1131     717     284      21                                                                                 
+                                                                                                                     37     325     616      45     218     631    1239    1904    1326    1288    1319    1543    2383    2615    1033    3130     950    1454     792     594     375     919    1288    1156    1224     837     754     720    1505    1533    2763     665    1156    1326    1503    1665    1633     239      41      62                                                                                 
+                                                                                            223     390     578     718     508     587     664     418    1492    1378    1499    1011    1841    3268    1478    1779    1708     408    1362    1296    1282     878     582     839    2456    1128    1084    1048    1315     797     591    1605    1233    1437    2054    1408    2113    1371    1507    1390     929     650     179                                                                                 
+                                                                            227     425     603    1017    1256    1376     898     837     922    1538    1426    1036     670     745    2299    1511    1077    1359    1280     377     556    1121     780     656     482    1599    1530    1316    1965    1671    2172    2022    1392     890    1325     918    1139    1295    1224    1151    1199    2106    2275     471     285      15                                                                         
+                                                                    114     476     168     794    1972    1734    2431    1816    1733    1535    1708     855     395     954    2181    1552    1264     469     570     425     144     615    1386     979     761     594     970     471    1708    1710    1534    1986    1854    3289    1505    1599    1039    1130    1382    1852    1592    1904    4955    4616    1043     778     126      32       3                                                         
+                                                             46      60      99     144     417     786     848    1185    1943    2256    1400    1835     828     339    1460    1498    1016    1095     537     183     642     797    1549    1398     683     626     818     487     754    1552    2005    1699    1469     649    2020    1409    2012    1491    2052    2282    2465    1616    1520    2291     742     936     328     550     548      26      88      15                                         
+                                                             26     104     307     238     494     689     874     986     884    1212    4801    3892     162     239     746    1221    1514    1550     596     560    1039    1388     899     835     615     841    1348     727     938     866    1551    1721     934    1494     662     748    1880    3445    2003     870    1518    2283    1058     793     868     694     807    1010    1028    1015     386                                                 
+                                                              4     194     182     430     942     930     655    1014     844    1444    1380    1549     461     117     304     622     993    1143    1366    1981    2042    2489    1310    1532    1166    1575    1818     831     976     368    1254     843     953    1047    2775     788    1346     891    1867    2171    1340     628     957    1003     672     612    1034    1136    1632    1419    1118     117      15                                 
+                                                              4     141     723     964     882     841     442     887     362    1538    1388    1158    1108      85     338    1118     550     930     715    1708    2308    1986    1681    1425    1822    4347    2028    1752     938     347     865    3671    2882    2459    2006    2658    1350     934    1698    2440     759    1793    2694    1012     912    1084     843    2173     995     931    1460     709      27                                 
+                                                                    164     536     938    1695    1254    1289    2327    1438    1226     881     289     776    1334    1431    3154    2425    2941    2763    1241    1560    1383    1611    1829    1809    1654     966     760     299    1080    2375    2103    1515    2419    1033    1223    1744    3621    1290    1611    1579     878    1165     847     808    1491     972     823    1284    1613     929    1303     352       5                         
+                                                                    337     761     959    3626     634     760    1239     974     481     499     301     288    1602     653    1132    1889    2355    2045    1169    1088    1195    1919     782    1729    1186     366     224     296     570    1869     989    1834    1100     991    1184    1565    2006     898    2637    2006    1604     709     472     693     994    1332     693    1238    2346    1217    1122     856      61                         
+                                                     76     207     491     815    1326     994    1229     413     760     648     168      41     491     900     487     721     544    1398     531     122     527     653    2218    2519    1787    1517    1474     284     601     213     986    1236    1137     888     673     728     821     930    1372    1651    1337    1359    1898     904    1187     653    1099    1083     434     322     761     997    1255    1039     331                         
+                                             63     488     598     657     647     954     966    1109     500     541     120      51     108     451    1953    1927     936    1590    2468     514     110     358     670     767     480     571    1720    2135    3292    1326     998    1207     439     469     713     247     327      19     306     805    2178    2194    1207     807    2113    1196    1160    2522    1329     947    1034     905    2005    2772    2603    1453                         
+                                            213     727     727     802    1084     322     356    1144    1017    1023     357     245     739     222    1058     577    2270    1602    4792    2170     829    2025    1276     877     193     444     941    2450    3107    1392    2115    1628     470     925    1468    1239    1443     774     394     652     648    1033    1590    1158    1678    1082    1073     890    1326    1166    2379    3203    2304    1064    1207    1092                         
+                                            228     538     704     741     901     654     354    1503    1896    2687    1059     623      24      88     661     324    1128    1860    1973    1977    1082    1508     929    1337     468     393    1609    4672    2800    2074    1295    1238    1065    1749    1989    1899    2064    1598    1455    1050    1914    2032    3082    2345    1114     674    3614    3407    2332    2212    1311    1518     915     135     369      18                         
+                                            405     708     870    2912    3605     809    1119    2523     914    1242    1721    1371      40     133    1017     561     464     559    1506     720     184     400     438     210     245     391    1291    1457    1449    3428    1361     359     652    2280    2734    3138    1485    1235    1028     878     910     998    2029    2157    2186    2429    3036    1462     692    1911    1027     110      38      38      69       6                         
+                                     10     279     572     507     516    1707     635    1036    1489     232     587     857    1053     309     476    1033    3180     396     539     338     628     605     527    1357    1326    1047     609     616     400    1307    1808    1918     687     696     996    1887    1632    1465    1631    2793    1782     512     403    1206    1470     694    1088    1194    1005     233     228      54                               9      17                         
+                                            106    1001     782     479     642     668     749     729     133     625     952    1075     766    1167    1095     512     460     526      57     462     699     563     842    1356    1213     698     360     323     648    1629    1393     959    1369    2675    1892     600     372    1220    2020    2255     502     976    1850    2568     479     168       6       7                                                                                         
+                                             43     636     689     771     465     588     965     881     730     388     699     585     778    4734    1023     279     135     322      33     887    1290    1353     725     146     148     471     695     442     740    1301    2674     994    1335    2012    1168     842     461     837    2107    2052    1756    1492    2523    2358     109      16                                                                                                         
+                                                     27       8       4      32     125     256     408     566     482     666     604    1574    1022     571     563      32     240      30     123     828      87                      21      50     198     563     946    1431    1866    1250    1374    2189    4309    1159     515    1664    3002    2763    2444    3713    2526     803      18                                                                                                                 
+                                                                                                             51      54     111     243     524     325     316     151     118     254      20       9                                                             236     780     842     700     718    1229    1319    1996    2201    1202    2633    4993    2561    1877    1933    1442     344       7                                                                                                                 
+                                                                                                                                                                                     27      29       6                                                                      59      55      75     219     396     304     476    1343    2583    1708    2003    2116    3186    1451     612      36                                                                                                                         
+                                                                                                                                                                                                                                                                                                                     10      77     172     606     165     168     572     929      81       5                                                                                                                                 
+                                                              

@@ -41,40 +41,38 @@ uint unpackFrustum(uint x)
 [numthreads(32, 1, 1)]
 void main(uint dispatchId : SV_DispatchThreadId)
 {
-	uint t = dispatchId.x;
+	const uint t = dispatchId.x;
 	
 
-	
+	if ((t>0) && (t < 1000))		// FIXME hardcoded
+	{
 
-	if (t < 1001)		// FIXME hardcoded
-	{	
-	
-	/*
-		if ((tiles[t].flags >> 31) && tiles[t].numQuads > 0)
+        //if ((unpackFrustum(t) & (1 << 20)) && tiles[t].numQuads > 0)
+        if ((unpackFrustum(t) >0) && tiles[t].numQuads > 0)
+        //if (tiles[t].numQuads > 0)
 		{
-			uint slot = 0;
-			InterlockedAdd( feedback[0].numQuadTiles, 1, slot );
 			
 			uint totalQuads = tiles[t].numQuads;
-			uint numB = (totalQuads >> 6) + 1;		// FIXME hardcoded move to header
+            uint numB = (totalQuads >> 4) + 1;		// FIXME hardcoded move to header
+
+            uint numQuadLookupBlocks;
+            InterlockedAdd(feedback[0].numLookupBlocks_Quads, numB, numQuadLookupBlocks);
+
+            uint slot = 0;
+            InterlockedAdd(feedback[0].numQuadTiles, 1, slot);
+            InterlockedAdd(DrawArgs_Quads[0].instanceCount, numB, slot);
+            InterlockedAdd(feedback[0].numQuadBlocks, numB, slot);
+            InterlockedAdd(feedback[0].numQuads, totalQuads, slot);
+
 			for (uint i = 0; i < numB; i++)
 			{
-				uint numPlants = min(totalQuads, 64);  // number of plants ion this block
-				totalQuads -= 64;
-
-				uint numLookupBlocks = 0;
-				InterlockedAdd( feedback[0].numLookupBlocks_Quads, 1, numLookupBlocks );
-				
-				InterlockedAdd( DrawArgs_Quads[0].instanceCount, 64, slot );
-				InterlockedAdd( feedback[0].numQuadBlocks, 1, slot );
-				InterlockedAdd( feedback[0].numQuads, numPlants, slot );
-				
-		
-				tileLookup[numLookupBlocks].tile = t + (numPlants <<16);
-				tileLookup[numLookupBlocks].offset = t * numQuadsPerTile + (i * 64);
+				uint numPlants = min(totalQuads, 16);  // number of plants on this block
+				totalQuads -= 16;
+				tileLookup[numQuadLookupBlocks + i].tile = t + (numPlants << 16);
+				tileLookup[numQuadLookupBlocks + i].offset = (t * numQuadsPerTile) + (i * 16);
 			}
 		}
-		*/
+		
 		
 		/*
 		// *** and now build the lookup table for the plants compute shader
@@ -114,31 +112,25 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		{
 			tiles[t].flags = 1<<31;
 			
-			uint slot = 0;
-			InterlockedAdd( feedback[0].numTerrainTiles, 1, slot );
-			
-			
-			DrawArgs_Terrain[0].instanceCount = 0;
-			
 			uint totalTriangles = tiles[t].numTriangles;
 			uint numB = (totalTriangles >> 6) + 1;									// FIXME hardcoded
+
+            uint numLookupBlocks = 0;
+            InterlockedAdd(feedback[0].numLookupBlocks_Terrain, numB, numLookupBlocks);
+
+            uint slot = 0;
+            InterlockedAdd(feedback[0].numTerrainTiles, 1, slot);
+            InterlockedAdd(DrawArgs_Terrain[0].instanceCount, 64* numB, slot);
+            InterlockedAdd(feedback[0].numTerrainBlocks, numB, slot);
+            InterlockedAdd(feedback[0].numTerrainVerts, totalTriangles, slot);
             
 			for (uint i = 0; i < numB; i++)
 			{
 				uint numTriangles = min(totalTriangles, 64);  						// number of plants ion this block
 				totalTriangles -= 64;
 
-				uint numLookupBlocks = 0;
-				InterlockedAdd( feedback[0].numLookupBlocks_Terrain, 1, numLookupBlocks );
-				
-				DrawArgs_Terrain[0].vertexCountPerInstance = 3;					// so a triangle - set this up once aerlier
-				InterlockedAdd( DrawArgs_Terrain[0].instanceCount, 64, slot );
-				InterlockedAdd( feedback[0].numTerrainBlocks, 1, slot );
-				InterlockedAdd( feedback[0].numTerrainVerts, numTriangles, slot );
-				
-		
-				terrainLookup[numLookupBlocks].tile = t + (numTriangles <<16);		// packing - mocve to function					;-) I think tiles[t].index  = t
-				terrainLookup[numLookupBlocks].offset = (t * numVertPerTile) + (i * 64 * 3);	
+				terrainLookup[numLookupBlocks + i].tile = t + (numTriangles <<16);		// packing - mocve to function					;-) I think tiles[t].index  = t
+				terrainLookup[numLookupBlocks + i].offset = (t * numVertPerTile) + (i * 64 * 3);	
 			}
 		}
 	}

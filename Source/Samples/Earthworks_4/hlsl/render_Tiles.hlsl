@@ -79,7 +79,7 @@ terrainVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     terrainVSOut output;
 
-uint tileIDX = tileLookup[ iId >> 6 ].tile &0xffff;
+    uint tileIDX = tileLookup[ iId >> 6 ].tile &0xffff;
 	uint numQuad = tileLookup[ iId >> 6 ].tile >>16;	
 	uint blockID = (iId & 0x3f);
 	
@@ -172,6 +172,7 @@ void prepareMaterialLayerTerrain( in SH_Attributes Attr, inout layer_material MA
 
 float4 psMain(terrainVSOut vIn) : SV_TARGET0
 {
+
     
 	SH_Attributes 	Attr;
 	eval_mat		Values;

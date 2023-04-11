@@ -68,15 +68,16 @@ void main(int2 coord : SV_DispatchThreadId)
 #if defined(COMPUTE_DEBUG_OUTPUT)
     debugInputGrid(coord);
 #endif
-
+    
     // FIXME move somehwre else it does not belong here
     if (coord.x == 0 && coord.y == 0) {
         uint tileIdx = constants.w;
         float centerHeight = gInHgt.SampleLevel(linearSampler, float2(0.5, 0.5), 0);
         tileCenters[tileIdx].min = centerHeight;
         tiles[tileIdx].origin.y = centerHeight - (tiles[tileIdx].scale_1024 * 2048);	// Its corner origin rather than middle
+        //tiles[tileIdx].origin.y = gHeight[uint2(128, 128)].r - (tile.scale_1024 * 2048);
     }
-
+    
 
     uint idx;
 

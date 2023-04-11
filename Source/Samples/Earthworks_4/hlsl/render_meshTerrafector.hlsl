@@ -54,16 +54,16 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     splineVSOut vsOut;
 
-    uint idx = (iId * 128 * 3) + vId;
-    //uint idx = vId;
-    triVertex V = vertexData[indexData[idx]];
-    //triVertex V = vertexData[vId];
+        uint idx = (iId * 128 * 3) + vId;
+        //uint idx = vId;
+        triVertex V = vertexData[indexData[idx]];
+        //triVertex V = vertexData[vId];
 
-    vsOut.pos = mul(float4(V.pos, 1), viewproj);
-    vsOut.posW = V.pos;
-    vsOut.flags.y = V.material;
-    vsOut.colour = V.alpha;
-    vsOut.texCoords = float3(V.uv, 0);
+        vsOut.pos = mul(float4(V.pos, 1), viewproj);
+        vsOut.posW = V.pos;
+        vsOut.flags.y = V.material;
+        vsOut.colour = V.alpha;
+        vsOut.texCoords = float3(V.uv, 0);
 
     return vsOut;
 }

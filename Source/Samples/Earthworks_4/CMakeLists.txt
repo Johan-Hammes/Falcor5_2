@@ -59,6 +59,7 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/render_splineTerrafector.hlsl
     hlsl/render_spline.hlsl
     hlsl/render_sprite.hlsl
+    hlsl/render_tile_sprite.hlsl
     hlsl/render_Tiles.hlsl
     hlsl/render_Common.hlsli
     hlsl/PBR.hlsli

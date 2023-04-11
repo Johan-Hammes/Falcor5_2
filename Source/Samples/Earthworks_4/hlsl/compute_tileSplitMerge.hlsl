@@ -15,9 +15,6 @@ cbuffer gConstants
 
 
 
-
-
-
 [numthreads(1, 1, 1)]
 void main(uint dispatchId : SV_DispatchThreadId)
 {

@@ -88,4 +88,7 @@ public:
     std::queue<glm::vec4> dotQueue;
     glm::vec2 bufferSize;
     unsigned char* bufferData;
+    unsigned char* bufferReference;
+    unsigned char* bufferBlur;
+    unsigned char* bufferThreshold;
 };

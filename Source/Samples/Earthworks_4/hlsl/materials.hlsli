@@ -200,7 +200,6 @@ void solveElevationColour(inout PS_OUTPUT_Terrafector output, const TF_material 
         else {
             output.Elevation.a = 0;  // since that causes OneMinusSrcAlpha to 1
         }
-
     }
 
 
@@ -231,13 +230,23 @@ void solveElevationColour(inout PS_OUTPUT_Terrafector output, const TF_material 
 
 
 
-    output.Alpha = float4(1, 1, 1, 1);
+    output.Alpha = float4(1-MAT.permanenceElevation, 1-MAT.permanenceColour, 1-MAT.permanenceEcotopes, alpha);
 
-    output.Ecotope1 = float4(0, 0, 0, alpha);
-    output.Ecotope2 = float4(0, 0, 0, alpha);
-    output.Ecotope3 = float4(0, 0, 0, alpha);
-    output.Ecotope4 = float4(0, 0, 0, alpha);
-
+    if (MAT.useEcotopes)
+    {
+        float3 ecotopeTex = gmyTextures.T[MAT.ecotopeTexture].Sample(gSmpLinear, uv.object).rgb;
+        output.Ecotope1 = float4(dot(MAT.ecotopeMasks[0].rgb, ecotopeTex), dot(MAT.ecotopeMasks[1].rgb, ecotopeTex), dot(MAT.ecotopeMasks[2].rgb, ecotopeTex), alpha * MAT.ecotopeMasks[0].a);
+        output.Ecotope2 = float4(dot(MAT.ecotopeMasks[3].rgb, ecotopeTex), dot(MAT.ecotopeMasks[4].rgb, ecotopeTex), dot(MAT.ecotopeMasks[5].rgb, ecotopeTex), alpha * MAT.ecotopeMasks[3].a);
+        output.Ecotope3 = float4(dot(MAT.ecotopeMasks[6].rgb, ecotopeTex), dot(MAT.ecotopeMasks[7].rgb, ecotopeTex), dot(MAT.ecotopeMasks[8].rgb, ecotopeTex), alpha * MAT.ecotopeMasks[6].a);
+        output.Ecotope4 = float4(dot(MAT.ecotopeMasks[9].rgb, ecotopeTex), dot(MAT.ecotopeMasks[10].rgb, ecotopeTex), dot(MAT.ecotopeMasks[11].rgb, ecotopeTex), alpha * MAT.ecotopeMasks[9].a);
+    }
+    else
+    {
+        output.Ecotope1 = float4(0, 0, 0, alpha);
+        output.Ecotope2 = float4(0, 0, 0, alpha);
+        output.Ecotope3 = float4(0, 0, 0, alpha);
+        output.Ecotope4 = float4(0, 0, 0, alpha);
+    }
 }
 
 

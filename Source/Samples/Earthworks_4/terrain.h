@@ -114,6 +114,7 @@ struct _lastFile
     std::string terrafectorMaterial = "";
     std::string texture = "";
     std::string fbx = "";
+    std::string EVO = "C:/Kunos/acevo_content/content";
 
 
     template<class Archive>
@@ -125,6 +126,7 @@ struct _lastFile
         _archive(CEREAL_NVP(terrafectorMaterial));
         _archive(CEREAL_NVP(texture));
         _archive(CEREAL_NVP(fbx));
+        _archive(CEREAL_NVP(EVO));
     }
 };
 CEREAL_CLASS_VERSION(_lastFile, 100);
@@ -138,7 +140,7 @@ struct _terrainSettings
     float size = 40000.f;
 
     std::string dirRoot = "X:/resources/terrains/eifel";
-    std::string dirExport = "C:/Kunos/acevo_content/content/terrains/Eifel";
+    std::string dirExport = "/terrains/Eifel";
     std::string dirGis = "X:/resources/terrains/eifel";
     std::string dirResource = "X:/resources";
 
@@ -201,8 +203,8 @@ public:
     bool    	main_ShouldSplit = false;
     bool	    env_ShouldSplit = false;
 
-    uint    numQuads;
-    uint    numPlants;
+    uint    numQuads = 0;
+    uint    numPlants = 0;
     uint    elevationHash;
 };
 
@@ -316,6 +318,8 @@ private:
     Texture::SharedPtr height_Array;
 
     pixelShader terrainShader;
+    pixelShader terrainSpiteShader;
+    Texture::SharedPtr	  spriteTexture = nullptr;
 
     _lastFile lastfile;
     _terrainSettings settings;

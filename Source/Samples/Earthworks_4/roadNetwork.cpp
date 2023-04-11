@@ -1066,9 +1066,11 @@ void roadNetwork::load(std::filesystem::path _path, uint _version)
         for (auto& roadSection : roadSectionsList) {
             if (roadSection.int_GUID_start < intersectionList.size()) {
                 roadSection.startLink = intersectionList.at(roadSection.int_GUID_start).findLink(roadSection.GUID);
+                //roadSection.startLink->roadPtr = &roadSectionsList.at(roadSection.int_GUID_start);
             }
             if (roadSection.int_GUID_end < intersectionList.size()) {
                 roadSection.endLink = intersectionList.at(roadSection.int_GUID_end).findLink(roadSection.GUID);
+                //roadSection.endLink->roadPtr = &roadSectionsList.at(roadSection.int_GUID_end);
             }
             roadSection.solveRoad();
             roadSection.solveRoad();

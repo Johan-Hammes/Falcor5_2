@@ -421,11 +421,14 @@ void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path)
                 fwrite(&gpuTiles[i].numVerts, sizeof(uint), 1, file);
                 fwrite(&gpuTiles[i].numTriangles, sizeof(uint), 1, file);
                 fwrite(&gpuTiles[i].numBlocks, sizeof(uint), 1, file);
-                if (tfTile.numBlocks > 0)
+                if (gpuTiles[i].numBlocks > 0)
                 {
-                    fwrite(tiles[i].verts.data(), sizeof(tfTile.numVerts), 1, file);
+                    fwrite(tiles[i].verts.data(), sizeof(triVertex), gpuTiles[i].numVerts, file);
                     fwrite(tiles[i].tempIndexBuffer.data(), sizeof(uint), gpuTiles[i].numBlocks * 128 * 3, file);
                 }
+                
+                if (i%(int)(pow(2, lod)) == 0)fprintf(terrafectorSystem::_logfile, "\n");
+                fprintf(terrafectorSystem::_logfile, "%7.d ", gpuTiles[i].numVerts);
             }
             fclose(file);
         }
@@ -435,7 +438,7 @@ void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path)
     // now release all CPU memory
     tiles.clear();
 
-    fprintf(terrafectorSystem::_logfile, "  lod %d  %dx%d\n", lod, grid, grid);
+    fprintf(terrafectorSystem::_logfile, "\n  lod %d  %dx%d\n", lod, grid, grid);
     fprintf(terrafectorSystem::_logfile, "  block with most triangles has %d\n", mostTri / 3);
     fprintf(terrafectorSystem::_logfile, "  %d Mb VB   %d Mb IB\n\n", vertexData / 1024 / 1024, indexData / 1024 / 1024);
 
@@ -1001,7 +1004,9 @@ bool terrafectorElement::isMeshCached(const std::string _path)
     {
         return false;
     }
-    if (std::filesystem::last_write_time(_path) < std::filesystem::last_write_time(_path + ".lod4Cache"));
+    auto timeFile = std::filesystem::last_write_time(_path);
+    auto timeCache = std::filesystem::last_write_time(_path + ".lod4Cache");
+    if (timeFile < timeCache);
     {
         return true;
     }
@@ -1286,7 +1291,7 @@ void terrafectorElement::loadPath(std::string _path)
 std::string terrafectorEditorMaterial::rootFolder;
 
 terrafectorEditorMaterial::terrafectorEditorMaterial() {
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 15; i++)
         for (int j = 0; j < 4; j++)
             _constData.ecotopeMasks[i][j] = 0;
 }
@@ -1375,7 +1380,7 @@ void terrafectorEditorMaterial::eXport() {
 void terrafectorEditorMaterial::loadTexture(int idx)
 {
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"tga"}, {"exr"} };
+    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"tga"}, {"exr"}, {"dds"} };
     if (openFileDialog(filters, path))
     {
         std::string P = path.string();

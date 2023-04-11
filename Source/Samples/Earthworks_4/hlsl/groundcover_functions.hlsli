@@ -12,9 +12,9 @@ uint repack_pos(uint x, uint z, uint uHgt, uint rnd)							// only adds 1 extra 
 	return (x << 23) + (z << 13) + ((rnd & 0x0401) << 12) + (uHgt &0xfff);
 }
 
-uint pack_SRTI(bool bScale, uint rotation, uint tile_index, uint index)
+uint pack_SRTI(uint bScale, uint rotation, uint tile_index, uint index)
 {
-	return (bScale << 31) + ((rotation & 0x1ff) << 22) + ((tile_index & 0x3ff) << 11) + (index & 0x3ff);
+	return (bScale << 31) + ((rotation & 0x1ff) << 22) + ((tile_index & 0x3ff) << 11) + (index & 0x7ff);
 }
 
 

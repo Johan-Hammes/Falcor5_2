@@ -639,6 +639,19 @@ void roadSection::solveStart()
         {
             points[0].lanesLeft[i].laneWidth = points[1].lanesLeft[i].laneWidth;
             points[0].lanesRight[i].laneWidth = points[1].lanesRight[i].laneWidth;
+
+            /*
+            float2 P = points[0].lanesLeft[i].percentage;
+            if (startLink->roadPtr->points.size() > 0) {
+                if (startLink->broadStart) {
+                    P = (points[0].lanesLeft[i].percentage + startLink->roadPtr->points.front().lanesRight[i].percentage) * 0.5f;
+                }
+                else {
+                    P = (points[0].lanesLeft[i].percentage + startLink->roadPtr->points.back().lanesLeft[i].percentage) * 0.5f;
+                }
+            }
+            points[0].lanesLeft[i].percentage = P;
+            */
         }
     }
 
@@ -690,6 +703,21 @@ void roadSection::solveEnd()
             {
                 points[idx].lanesLeft[i].laneWidth = points[idx - 1].lanesLeft[i].laneWidth;
                 points[idx].lanesRight[i].laneWidth = points[idx - 1].lanesRight[i].laneWidth;
+
+                /*
+                float2 P = points[idx].lanesLeft[i].percentage;
+                if (endLink->roadPtr->points.size() > 0) {
+                    if (endLink->broadStart) {
+                        P = (points[idx].lanesLeft[i].percentage + endLink->roadPtr->points.front().lanesLeft[i].percentage) * 0.5f;
+                    }
+                    else {
+                        P = (points[idx].lanesLeft[i].percentage + endLink->roadPtr->points.back().lanesRight[i].percentage) * 0.5f;
+                    }
+                }
+                */
+
+
+                //points[idx].lanesLeft[i].percentage = P;
             }
         }
     }

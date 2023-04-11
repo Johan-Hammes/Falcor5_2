@@ -286,7 +286,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::vector<unsigned short> random(256 * 256);
         for (int i = 0; i < 256 * 256; i++)
         {
-            random[i] = distribution(generator);
+            random[i] = distribution(generator);    // FIXME for 12 ecotopes
         }
         split.noise_u16 = Texture::create2D(256, 256, ResourceFormat::R16Uint, 1, 1, random.data());
 
@@ -322,9 +322,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.buffer_instance_quads = Buffer::createStructured(sizeof(instance_PLANT), numTiles * numQuadsPerTile);
         split.buffer_instance_plants = Buffer::createStructured(sizeof(instance_PLANT), numTiles * numPlantsPerTile);
 
-        split.buffer_lookup_terrain = Buffer::createStructured(sizeof(instance_PLANT), 524288);
-        split.buffer_lookup_quads = Buffer::createStructured(sizeof(instance_PLANT), 131072);
-        split.buffer_lookup_plants = Buffer::createStructured(sizeof(instance_PLANT), 131072);
+        split.buffer_lookup_terrain = Buffer::createStructured(sizeof(tileLookupStruct), 524288);   // enopugh for 32M tr  overkill FIXME - LOG
+        split.buffer_lookup_quads = Buffer::createStructured(sizeof(tileLookupStruct), 131072);     // enough for 8M far plants
+        split.buffer_lookup_plants = Buffer::createStructured(sizeof(tileLookupStruct), 131072);
 
         split.buffer_terrain = Buffer::createStructured(sizeof(Terrain_vertex), numVertPerTile * numTiles);
 
@@ -343,6 +343,14 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
         terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
 
+        spriteTexture = Texture::createFromFile("X:/resources/terrains/eifel/ecosystems/sprite_diff.DDS", true, true);
+
+        terrainSpiteShader.load("Samples/Earthworks_4/hlsl/render_tile_sprite.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
+        terrainSpiteShader.Vars()->setBuffer("tiles", split.buffer_tiles);
+        terrainSpiteShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_quads);
+        terrainSpiteShader.Vars()->setBuffer("instanceBuffer", split.buffer_instance_quads);        // WHY BOTH
+        terrainSpiteShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+        terrainSpiteShader.Vars()->setTexture("gAlbedo", spriteTexture);
 
         compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
@@ -353,6 +361,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         // clear
         split.compute_tileClear.load("Samples/Earthworks_4/hlsl/compute_tileClear.hlsl");
         split.compute_tileClear.Vars()->setBuffer("feedback", split.buffer_feedback);
+        split.compute_tileClear.Vars()->setBuffer("DrawArgs_Terrain", split.drawArgs_tiles);
+        split.compute_tileClear.Vars()->setBuffer("DrawArgs_Quads", split.drawArgs_quads);
+        split.compute_tileClear.Vars()->setBuffer("DrawArgs_Plants", split.drawArgs_plants);
 
         // split merge
         split.compute_tileSplitMerge.load("Samples/Earthworks_4/hlsl/compute_tileSplitMerge.hlsl");
@@ -399,15 +410,18 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         // ecotopes
         split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/compute_tileEcotopes.hlsl");
         split.compute_tileEcotopes.Vars()->setSampler("linearSampler", sampler_Clamp);
-        /*split.compute_tileBicubic.Vars()->setTexture("gHeight", split.tileFbo->getColorTexture(0));
-        split.compute_tileBicubic.Vars()->setTexture("gAlbedo", split.tileFbo->getColorTexture(1));
-        split.compute_tileBicubic.Vars()->setTexture("gInPermanence", split.tileFbo->getColorTexture(3));
-        split.compute_tileBicubic.Vars()->setTexture("gInEct[0]", split.tileFbo->getColorTexture(4));
-        split.compute_tileBicubic.Vars()->setTexture("gInEct[1]", split.tileFbo->getColorTexture(5));
-        split.compute_tileBicubic.Vars()->setTexture("gInEct[2]", split.tileFbo->getColorTexture(6));
-        split.compute_tileBicubic.Vars()->setTexture("gInEct[3]", split.tileFbo->getColorTexture(7));
-        split.compute_tileBicubic.Vars()->setTexture("gOutput", split.tileFbo->getColorTexture(0));
-        */
+        split.compute_tileEcotopes.Vars()->setTexture("gHeight", split.tileFbo->getColorTexture(0));
+        split.compute_tileEcotopes.Vars()->setTexture("gAlbedo", split.tileFbo->getColorTexture(1));
+        split.compute_tileEcotopes.Vars()->setTexture("gInPermanence", split.tileFbo->getColorTexture(3));
+        split.compute_tileEcotopes.Vars()->setTexture("gInEct_0", split.tileFbo->getColorTexture(4));
+        split.compute_tileEcotopes.Vars()->setTexture("gInEct_1", split.tileFbo->getColorTexture(5));
+        split.compute_tileEcotopes.Vars()->setTexture("gInEct_2", split.tileFbo->getColorTexture(6));
+        split.compute_tileEcotopes.Vars()->setTexture("gInEct_3", split.tileFbo->getColorTexture(7));
+        split.compute_tileEcotopes.Vars()->setTexture("gNoise", split.noise_u16);
+        split.compute_tileEcotopes.Vars()->setBuffer("tiles", split.buffer_tiles);
+        split.compute_tileEcotopes.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
+        split.compute_tileEcotopes.Vars()->setBuffer("feedback", split.buffer_feedback);
+        
 
         // normals
         split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/compute_tileNormals.hlsl");
@@ -436,7 +450,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileDelaunay.Vars()->setTexture("gInVerts", split.vertex_B_texture);
         split.compute_tileDelaunay.Vars()->setBuffer("VB", split.buffer_terrain);
         split.compute_tileDelaunay.Vars()->setBuffer("tiles", split.buffer_tiles);
-        split.compute_tileDelaunay.Vars()->setBuffer("tileDrawargsArray", split.drawArgs_tiles);
+        //split.compute_tileDelaunay.Vars()->setBuffer("tileDrawargsArray", split.drawArgs_tiles);
 
         // elevation mipmap
         split.compute_tileElevationMipmap.load("Samples/Earthworks_4/hlsl/compute_tileElevationMipmap.hlsl");
@@ -716,7 +730,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         switch (terrainMode)
         {
         case 0: break;
-        case 1: 
+        case 1:
             mEcosystem.renderGUI(_gui);
             if (ImGui::BeginPopupContextWindow(false))
             {
@@ -799,51 +813,51 @@ void terrainManager::onGuiRender(Gui* _gui)
 
 
                 //mRoadNetwork.exportBinary();
-                terrafectors.exportMaterialBinary(settings.dirRoot + "/bake", "C:/Kunos/acevo_content/content/" );
+                terrafectors.exportMaterialBinary(settings.dirRoot + "/bake", lastfile.EVO + "/");
 
 
                 char command[512];
-                sprintf(command, "attrib -r %s/Terrafectors/TextureList.gpu", settings.dirExport.c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/TextureList.gpu", (lastfile.EVO + settings.dirExport).c_str());
                 std::string sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/TextureList.gpu %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sprintf(command, "%s/bake/TextureList.gpu %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
                 system(sCmd.c_str());
 
-                sprintf(command, "attrib -r %s/Terrafectors/Materials.gpu", settings.dirExport.c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/Materials.gpu", (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/Materials.gpu %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sprintf(command, "%s/bake/Materials.gpu %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
                 system(sCmd.c_str());
 
                 // terrafectors and roads as well, might become one file in future
-                sprintf(command, "attrib -r %s/Terrafectors/terrafector*", settings.dirExport.c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/terrafector*", (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/terrafector* %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sprintf(command, "%s/bake/terrafector* %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
                 system(sCmd.c_str());
 
 
-                sprintf(command, "attrib -r %s/Terrafectors/roadbezier*", settings.dirExport.c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/roadbezier*", (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/roadbezier* %s/Terrafectors", settings.dirRoot.c_str(), settings.dirExport.c_str());
+                sprintf(command, "%s/bake/roadbezier* %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
@@ -863,7 +877,7 @@ void terrainManager::onGuiRender(Gui* _gui)
     switch (terrainMode)
     {
     case 0: break;
-    case 1: 
+    case 1:
     {
         Gui::Window ecotopePanel(_gui, "Ecotope##tfPanel", { 900, 900 }, { 100, 100 });
         {
@@ -969,22 +983,25 @@ void terrainManager::onGuiRender(Gui* _gui)
         {
             std::stringstream tooltip;
 
-            tooltip << "camber   " << (int)(mRoadNetwork.currentRoad->points[splineTest.index].camber * 57.2958f) << "º     <-   ->\n";
-            tooltip << "T   " << mRoadNetwork.currentRoad->points[splineTest.index].T << "      <-   ->\n";
-            tooltip << "C   " << mRoadNetwork.currentRoad->points[splineTest.index].C << "      <-   ->\n";
-            tooltip << "B   " << mRoadNetwork.currentRoad->points[splineTest.index].B << "      ctrl + left mouse + drag\n";
+            if (mRoadNetwork.currentRoad)
+            {
+                tooltip << "camber   " << (int)(mRoadNetwork.currentRoad->points[splineTest.index].camber * 57.2958f) << "º     <-   ->\n";
+                tooltip << "T   " << mRoadNetwork.currentRoad->points[splineTest.index].T << "      <-   ->\n";
+                tooltip << "C   " << mRoadNetwork.currentRoad->points[splineTest.index].C << "      <-   ->\n";
+                tooltip << "B   " << mRoadNetwork.currentRoad->points[splineTest.index].B << "      ctrl + left mouse + drag\n";
 
-            ImGui::PushFont(_gui->getFont("roboto_26"));
-            ImGui::SetTooltip(tooltip.str().c_str());
-            ImGui::PopFont();
+                ImGui::PushFont(_gui->getFont("roboto_26"));
+                ImGui::SetTooltip(tooltip.str().c_str());
+                ImGui::PopFont();
+            }
         }
         else
         {
             char TTTEXT[1024];
             uint idx = split.feedback.tum_idx;
-            sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlod %d\n", blockFromPositionB(split.feedback.tum_Position).c_str(),
+            sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlod %d\n%3.1fm", blockFromPositionB(split.feedback.tum_Position).c_str(),
                 split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
-                m_tiles[idx].lod
+                m_tiles[idx].lod, glm::length(split.feedback.tum_Position - this->cameraOrigin)
             );
             //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
             auto& style = ImGui::GetStyle();
@@ -1206,98 +1223,130 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::m
 bool terrainManager::update(RenderContext* _renderContext)
 {
     FALCOR_PROFILE("update");
-
-    if (bake.inProgress)
-    {
-        bake.renderContext = _renderContext;
-        bake_frame();
-    }
-
     bool dirty = false;
 
-    updateDynamicRoad(false);
-    mRoadNetwork.testHit(split.feedback.tum_Position);
-    if (mRoadNetwork.isDirty)
     {
-        splines.numStaticSplines = __min((int)roadNetwork::staticBezierData.size(), splines.maxBezier);
-        splines.numStaticSplinesIndex = __min((int)roadNetwork::staticIndexData.size(), splines.maxIndex);
-        if (splines.numStaticSplines > 0)
         {
-            splines.bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numStaticSplines * sizeof(cubicDouble));
-            splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
-            mRoadNetwork.isDirty = false;
+            FALCOR_PROFILE("update_bake");
+            if (bake.inProgress)
+            {
+                bake.renderContext = _renderContext;
+                bake_frame();
+            }
+
+            if (mEcosystem.change) {
+                mEcosystem.change = false;
+                reset(true);
+            }
         }
-        splines.numStaticSplinesBakeOnlyIndex = __min((int)roadNetwork::staticIndexData_BakeOnly.size(), splines.maxIndex);
-        if (splines.numStaticSplinesBakeOnlyIndex > 0)
+
+
         {
-            splines.indexDataBakeOnly->setBlob(roadNetwork::staticIndexData_BakeOnly.data(), 0, splines.numStaticSplinesBakeOnlyIndex * sizeof(bezierLayer));
-            mRoadNetwork.isDirty = false;
+            FALCOR_PROFILE("update_roads");
+            updateDynamicRoad(false);
+            mRoadNetwork.testHit(split.feedback.tum_Position);
+
+
+            if (mRoadNetwork.isDirty)
+            {
+                splines.numStaticSplines = __min((int)roadNetwork::staticBezierData.size(), splines.maxBezier);
+                splines.numStaticSplinesIndex = __min((int)roadNetwork::staticIndexData.size(), splines.maxIndex);
+                if (splines.numStaticSplines > 0)
+                {
+                    splines.bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numStaticSplines * sizeof(cubicDouble));
+                    splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
+                    mRoadNetwork.isDirty = false;
+                }
+                splines.numStaticSplinesBakeOnlyIndex = __min((int)roadNetwork::staticIndexData_BakeOnly.size(), splines.maxIndex);
+                if (splines.numStaticSplinesBakeOnlyIndex > 0)
+                {
+                    splines.indexDataBakeOnly->setBlob(roadNetwork::staticIndexData_BakeOnly.data(), 0, splines.numStaticSplinesBakeOnlyIndex * sizeof(bezierLayer));
+                    mRoadNetwork.isDirty = false;
+                }
+
+                bezierRoadstoLOD(4);
+                mRoadNetwork.isDirty = false;
+            }
         }
 
-        bezierRoadstoLOD(4);
-    }
+        {
+            FALCOR_PROFILE("update_splitmerge");
+            //split.compute_tileClear.dispatch(_renderContext, 1, 1);
+            memset(frustumFlags, 0, sizeof(unsigned int) * 2048);		// clear all
 
-    split.compute_tileClear.dispatch(_renderContext, 1, 1);
-    memset(frustumFlags, 0, sizeof(unsigned int) * 2048);		// clear all
+            for (auto& tile : m_used)
+            {
+                tile->reset();
+            }
 
-    for (auto& tile : m_used)
-    {
-        tile->reset();
-    }
+            for (auto& tile : m_used)
+            {
+                dirty |= testForSplit(tile);
 
-    for (auto& tile : m_used)
-    {
-        dirty |= testForSplit(tile);
+                if (!tile->main_ShouldSplit && tile->child[0]) {
+                    markChildrenForRemove(tile);
+                }
+            }
 
-        if (!tile->main_ShouldSplit && tile->child[0]) {
-            markChildrenForRemove(tile);
-        }
-    }
-
-    for (auto itt = m_used.begin(); itt != m_used.end();)               // do al merges
-    {
-        if ((*itt)->forRemove) {
-            (*itt)->forRemove = false;
-            m_free.push_back(*itt);
-            itt = m_used.erase(itt);
-        }
-        else {
-            ++itt;
+            for (auto itt = m_used.begin(); itt != m_used.end();)               // do al merges
+            {
+                if ((*itt)->forRemove) {
+                    (*itt)->forRemove = false;
+                    m_free.push_back(*itt);
+                    itt = m_used.erase(itt);
+                }
+                else {
+                    ++itt;
+                }
+            }
         }
     }
 
     splitOne(_renderContext);
 
-    if (dirty)
     {
-        testForSurfaceMain();
-        for (auto& tile : m_used)
+        
+        if (dirty)
         {
-            bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
-            //bool surface = tile->parent && tile->child[0] == nullptr;
-            bool bCM2 = true;
-            if (surface) {
-                frustumFlags[tile->index] |= 1 << 20;
-            }
-        }
+            FALCOR_PROFILE("update_dirty");
+            split.compute_tileClear.dispatch(_renderContext, 1, 1);
 
-        auto pCB = split.compute_tileBuildLookup.Vars()->getParameterBlock("gConstants");
-        pCB->setBlob(frustumFlags, 0, 2048 * sizeof(unsigned int));	// FIXME number of tiles
-        uint cnt = (numTiles + 31) >> 5;
-        split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
+            testForSurfaceMain();
+            for (auto& tile : m_used)
+            {
+                bool surface = tile->parent && tile->parent->main_ShouldSplit && tile->child[0] == nullptr;
+                //bool surface = tile->parent && tile->child[0] == nullptr;
+                bool bCM2 = true;
+                frustumFlags[tile->index] = 1;
+                if (surface) {
+                    frustumFlags[tile->index] |= 1 << 20;
+                }
+            }
+
+            auto pCB = split.compute_tileBuildLookup.Vars()->getParameterBlock("gConstants");
+            pCB->setBlob(frustumFlags, 0, 2048 * sizeof(unsigned int));	// FIXME number of tiles
+            uint cnt = (numTiles + 31) >> 5;
+            split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
+            //FIXME this of coarse adds it in teh worst fashion, interleaving 64 triangles or quads of diffirent tiles with one another
+            // see what to do diffirent VERY bad for materials and texture reads
+        }
     }
 
-    if (dirty)
+
     {
-        // readback of tile centers
-        _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
-        const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
-        std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
-        split.buffer_tileCenter_readback.get()->unmap();
-        for (int i = 0; i < m_tiles.size(); i++)
+        FALCOR_PROFILE("update_readback");
+        if (dirty)
         {
-            m_tiles[i].origin.y = split.tileCenters[i].x;
-            m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
+            // readback of tile centers
+            _renderContext->copyResource(split.buffer_tileCenter_readback.get(), split.buffer_tileCenters.get());
+            const float4* pData = (float4*)split.buffer_tileCenter_readback.get()->map(Buffer::MapType::Read);
+            std::memcpy(&split.tileCenters, pData, sizeof(float4) * numTiles);
+            split.buffer_tileCenter_readback.get()->unmap();
+            for (int i = 0; i < m_tiles.size(); i++)
+            {
+                m_tiles[i].origin.y = split.tileCenters[i].x;           // THIS is very wrong, .x contains the middl;em but i also think its unused
+                m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
+            }
         }
     }
 
@@ -1522,6 +1571,30 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         FALCOR_PROFILE("compute");
 
         {
+            FALCOR_PROFILE("ecotope");
+
+            heightMap& elevationMap = elevationTileHashmap[0];
+            split.compute_tileEcotopes.Vars()->setTexture("gLowresHgt", split.rootElevation);
+            split.compute_tileEcotopes.Vars()->setBuffer("plantIndex", mEcosystem.getPLantBuffer());
+            auto pCB = split.compute_tileEcotopes.Vars()->getParameterBlock("gConstants");
+
+            //mEcosystem.resetPlantIndex(_tile->lod);
+            ecotopeGpuConstants C = *mEcosystem.getConstants();
+            C.pixelSize = pixelSize;
+            C.tileXY = float2(_tile->x, _tile->y);
+            C.padd2 = float2(elevationMap.hgt_offset, elevationMap.hgt_scale);
+            C.lowResSize = _tile->size / 40000.0f / 248.0f;
+            C.lowResOffset = float2(_tile->origin.x + 20000, _tile->origin.z + 20000) / 40000.0f;
+            C.lod = _tile->lod;
+            C.tileIndex = _tile->index;
+            pCB->setBlob(&C, 0, sizeof(ecotopeGpuConstants));
+            if (C.numEcotopes > 0)
+            {
+                split.compute_tileEcotopes.dispatch(_renderContext, cs_w, cs_w);
+            }
+        }
+
+        {
             // Do this early to avoid stalls
             FALCOR_PROFILE("copy_VERT");
             _renderContext->copyResource(split.vertex_B_texture.get(), split.vertex_clear.get());			// not 100% sure this clear is needed
@@ -1741,7 +1814,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-
+    /*
 
     if (_pTile->lod >= 6)
     {
@@ -1783,7 +1856,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         }
     }
 
-
+    */
     // OVER:AY ######################################################
     if (gis_overlay.terrafectorOverlayStrength > 0)
         if (_pTile->lod >= 4)
@@ -1851,16 +1924,34 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
     }
 
-
+    
     {
+        
         FALCOR_PROFILE("terrainManager");
-
+        
         //terrainShader.State() = _graphicsState;
         terrainShader.State()->setFbo(_fbo);
         terrainShader.State()->setViewport(0, _viewport, true);
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
         terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
+        
+    }
+    
+    {
+        FALCOR_PROFILE("terrainQuadPlants");
+        terrainSpiteShader.State()->setFbo(_fbo);
+        terrainSpiteShader.State()->setViewport(0, _viewport, true);
+        terrainSpiteShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+
+        glm::vec3 D = glm::vec3(view[2][0], view[2][1], -view[2][2]);
+        glm::vec3 R = glm::normalize(glm::cross(glm::vec3(0, 1, 0), D));
+        terrainSpiteShader.Vars()["gConstantBuffer"]["right"] = R;
+
+        terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
+        terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
+
+        terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
     }
 
     if ((splines.numStaticSplines || splines.numDynamicSplines) && showRoadSpline && !bSplineAsTerrafector)
@@ -1956,12 +2047,15 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         //dstRect = vec4(512, 612, 1024, 1124);
         //pRenderContext->blit(mpCompressed_Normals->getSRV(0, 1, 0, 1), _fbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         char debugTxt[1024];
-        TextRenderer::setColor(float3(0.1, 0.1, 0.1));
+        TextRenderer::setColor(float3(1, 1, 1));
         sprintf(debugTxt, "%d of %d tiles used", (int)m_used.size(), (int)m_tiles.size());
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 300 });
 
-        sprintf(debugTxt, "%d of %d tiles / verts", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts);
+        sprintf(debugTxt, "%d of %d tiles / verts  %d", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts, split.feedback.numLookupBlocks_Terrain);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 320 });
+
+        sprintf(debugTxt, "%d tiles with quads    %d total quads", split.feedback.numQuadTiles, split.feedback.numQuads);
+        TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 340 });
     }
 }
 
@@ -2044,9 +2138,9 @@ void terrainManager::bake_frame()
                 fclose(info_file);
             }
 
-            sprintf(name, "attrib -r \"%s/Elevations/*.*\"", settings.dirExport.c_str());
+            sprintf(name, "attrib -r \"%s/Elevations/*.*\"", (lastfile.EVO + settings.dirExport).c_str());
             system(name);
-            sprintf(name, "copy /Y \"%s/bake/EVO/*.*\" \"%s/Elevations/\"", settings.dirRoot.c_str(), settings.dirExport.c_str());
+            sprintf(name, "copy /Y \"%s/bake/EVO/*.*\" \"%s/Elevations/\"", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
             system(name);
         }
     }
@@ -3423,7 +3517,7 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
         fprintf(terrafectorSystem::_logfile, "\nLOD 4. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
         fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
     }
-    
+
 
 
     file = fopen((settings.dirRoot + "/bake/roadbeziers_lod6.gpu").c_str(), "wb");
@@ -3459,7 +3553,7 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
         fprintf(terrafectorSystem::_logfile, "\nLOD 6. Total beziers %d from %d.   Most beziers in a block = %d\n", start, splines.numStaticSplinesIndex, largest);
         fprintf(terrafectorSystem::_logfile, "using %3.1f Mb\n", ((float)(start * sizeof(bezierLayer)) / 1024.0f / 1024.0f));
     }
-    
+
 
     file = fopen((settings.dirRoot + "/bake/roadbeziers_lod8.gpu").c_str(), "wb");
     datafile = fopen((settings.dirRoot + "/bake/roadbeziers_lod8_data.gpu").c_str(), "wb");
@@ -3505,5 +3599,5 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
         fclose(file);
     }
 
-    
+
 }

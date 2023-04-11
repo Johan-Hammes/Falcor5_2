@@ -29,7 +29,42 @@
 #include "Falcor.h"
 #include "PointGrey_Camera.h"
 
+#include "cereal/archives/binary.hpp"
+#include "cereal/archives/xml.hpp"
+#include "cereal/archives/json.hpp"
+#include "cereal/cereal.hpp"
+#include "cereal/types/map.hpp"
+#include "cereal/types/vector.hpp"
+#include "cereal/types/list.hpp"
+#include "cereal/types/array.hpp"
+#include "cereal/types/string.hpp"
+#include <fstream>
+
 using namespace Falcor;
+
+
+class videoToScreen
+{
+    glm::vec3 toScreen(glm::vec3 dot);
+
+    struct _block
+    {
+        glm::vec3 screenPos[4];
+        glm::vec3 videoPos[4];
+        glm::vec3 videoEdge[4];
+    };
+
+    _block grid[8][4];
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive_float3(grid);
+    }
+};
+CEREAL_CLASS_VERSION(videoToScreen, 100);
+
+
 
 class Kolskoot : public IRenderer
 {
@@ -42,6 +77,7 @@ public:
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
     void onGuiRender(Gui* pGui) override;
     void onGuiMenubar(Gui* _gui);
+    void guiStyle();
 
 private:
     bool mUseTriLinearFiltering = true;
@@ -72,6 +108,11 @@ private:
     float pgGain = 0;
     float pgGamma = 0;
     Texture::SharedPtr	        pointGreyBuffer = nullptr;
+    Texture::SharedPtr	        pointGreyDiffBuffer = nullptr;
+    int dot_min = 5;
+    int dot_max = 20; 
+    int threshold = 20;
+    int m_PG_dot_position = 1;
 
     GraphicsState::Viewport     viewport3d;
     float2                      screenSize;
@@ -81,4 +122,9 @@ private:
     Texture::SharedPtr	        hdrHalfCopy;
     GraphicsState::SharedPtr    graphicsState;
     Falcor::Camera::SharedPtr	camera;
+
+    bool    showPointGrey = false;
+    bool    showCalibration = false;
+
+    int modeCalibrate = 0;
 };

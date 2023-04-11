@@ -103,26 +103,36 @@ cubicDouble::cubicDouble(splinePoint a, splinePoint b, bool bRight, float2 A, fl
 
     // fixme lerp a en b ook
     if (bRight) {
+        float4 fwd = a.bezier[right].forward_uv() - a.bezier[right].pos_uv() + a.bezier[middle].pos_uv();
+        float4 bck = b.bezier[right].backward_uv() - b.bezier[right].pos_uv() + b.bezier[middle].pos_uv();
+
         data[0][0] = glm::lerp(a.bezier[middle].pos_uv(), a.bezier[right].pos_uv(), A.x);				// remember to pack UVs here
-        data[0][1] = glm::lerp(a.bezier[middle].forward_uv(), a.bezier[right].forward_uv(), B.x);
-        data[0][2] = glm::lerp(b.bezier[middle].backward_uv(), b.bezier[right].backward_uv(), C.x);
+        data[0][1] = glm::lerp(fwd, a.bezier[right].forward_uv(), B.x);
+        data[0][2] = glm::lerp(bck, b.bezier[right].backward_uv(), C.x);
         data[0][3] = glm::lerp(b.bezier[middle].pos_uv(), b.bezier[right].pos_uv(), D.x);
 
+        // tanget
+
+
         data[1][0] = glm::lerp(a.bezier[middle].pos_uv(), a.bezier[right].pos_uv(), A.y);
-        data[1][1] = glm::lerp(a.bezier[middle].forward_uv(), a.bezier[right].forward_uv(), B.y);
-        data[1][2] = glm::lerp(b.bezier[middle].backward_uv(), b.bezier[right].backward_uv(), C.y);
+        data[1][1] = glm::lerp(fwd, a.bezier[right].forward_uv(), B.y);
+        data[1][2] = glm::lerp(bck, b.bezier[right].backward_uv(), C.y);
         data[1][3] = glm::lerp(b.bezier[middle].pos_uv(), b.bezier[right].pos_uv(), D.y);
     }
     // left hand side, add backwards
     else {
+        float4 bck = a.bezier[left].backward_uv() - a.bezier[left].pos_uv() + a.bezier[middle].pos_uv();
+        float4 fwd = b.bezier[left].forward_uv() - b.bezier[left].pos_uv() + b.bezier[middle].pos_uv();
+        
+
         data[0][0] = glm::lerp(a.bezier[middle].pos_uv(), a.bezier[left].pos_uv(), A.x);		// remember to pack UVs here
-        data[0][1] = glm::lerp(a.bezier[middle].backward_uv(), a.bezier[left].backward_uv(), B.x);
-        data[0][2] = glm::lerp(b.bezier[middle].forward_uv(), b.bezier[left].forward_uv(), C.x);
+        data[0][1] = glm::lerp(bck, a.bezier[left].backward_uv(), B.x);
+        data[0][2] = glm::lerp(fwd, b.bezier[left].forward_uv(), C.x);
         data[0][3] = glm::lerp(b.bezier[middle].pos_uv(), b.bezier[left].pos_uv(), D.x);
 
         data[1][0] = glm::lerp(a.bezier[middle].pos_uv(), a.bezier[left].pos_uv(), A.y);
-        data[1][1] = glm::lerp(a.bezier[middle].backward_uv(), a.bezier[left].backward_uv(), B.y);
-        data[1][2] = glm::lerp(b.bezier[middle].forward_uv(), b.bezier[left].forward_uv(), C.y);
+        data[1][1] = glm::lerp(bck, a.bezier[left].backward_uv(), B.y);
+        data[1][2] = glm::lerp(fwd, b.bezier[left].forward_uv(), C.y);
         data[1][3] = glm::lerp(b.bezier[middle].pos_uv(), b.bezier[left].pos_uv(), D.y);
 
         // FIXME we have to be able to say if UV's fliup or not
