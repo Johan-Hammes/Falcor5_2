@@ -123,32 +123,26 @@ void intersection::updateCorner(float3 pos, float3 normal, int idx, int flags)
 
 
 
-void intersection::convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, uint* totalBezierCount, bool _forExport)
+void intersection::convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index)
 {
-    /*
-    uint size = (uint)lanesTarmac.size() / 3;
+
+    uint size = (uint)lanesTarmac.size() / 2;
     if (size == 0) return;
 
 
     for (uint i = 0; i < size; i++)
     {
-        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, 0, *totalBezierCount, 0.0f, 0.0f));
-        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 53, *totalBezierCount, -0.1f, -0.2f));
-        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 53, *totalBezierCount, 0.1f, 0.2f));
-        _bezier.push_back(lanesTarmac[i * 3]);
-        (*totalBezierCount)++;
+        //_index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, MATERIAL_EDIT_BLUE, _bezier.size(), false, 0.0f, 0.0f, false, false));
+        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, _bezier.size(), false, -0.1f, -0.2f, false, false));
+        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, _bezier.size(), false, 0.1f, 0.2f, false, false));
+        _bezier.push_back(lanesTarmac[i * 2]);
 
-        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, 0, *totalBezierCount, 0.0f, 0.0f));
-        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, 53, *totalBezierCount, -0.1f, -0.2f));
-        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, 53, *totalBezierCount, 0.1f, 0.2f));
-        _bezier.push_back(lanesTarmac[i * 3 + 1]);
-        (*totalBezierCount)++;
 
-        // push that last point
-        _bezier.push_back(lanesTarmac[i * 3 + 2]);
-        (*totalBezierCount)++;
+        //_index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::center, MATERIAL_EDIT_GREEN, _bezier.size(), false, 0.0f, 0.0f, false, false));
+        _index.push_back(bezierLayer(bezier_edge::outside, bezier_edge::outside, MATERIAL_EDIT_REDDOT, _bezier.size(), false, -0.1f, -0.2f, false, false));
+        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::center, MATERIAL_EDIT_REDDOT, _bezier.size(), false, 0.1f, 0.2f, false, false));
+        _bezier.push_back(lanesTarmac[i * 2 + 1]);
     }
-    */
 }
 
 
@@ -158,10 +152,10 @@ void intersection::updateTarmacLanes()
     uint numInter = (uint)roadLinks.size();
 
     uint numTar = 3;
-    if (numInter == 4) numTar = 6;
+    if (numInter == 4) numTar = 5;
 
 
-    lanesTarmac.resize(numTar * 3);
+    lanesTarmac.resize(numTar * 2);
 
 
     uint index = 0;
@@ -178,33 +172,48 @@ void intersection::updateTarmacLanes()
         {
             float width = roadLinks[j].roadPtr->points[1].widthLeft + roadLinks[j].roadPtr->points[1].widthRight;
 
+            // scale it on ang;e
+            if (!roadLinks[j].bOpenCorner)
+            {
+                width *= 1.4f;
+            }
+
             lanesTarmac[index + 0].data[0][0] = roadLinks[j].roadPtr->points[1].bezier[right].pos_uv();
             lanesTarmac[index + 0].data[0][1] = roadLinks[j].roadPtr->points[1].bezier[right].backward_uv();
             lanesTarmac[index + 0].data[0][2] = float4(roadLinks[j].corner_A + roadLinks[j].cornerTangent_A + perp * width, 0);
+            lanesTarmac[index + 0].data[0][3] = float4(roadLinks[j].corner_A + perp * width, 0);
             lanesTarmac[index + 1].data[0][0] = float4(roadLinks[j].corner_A + perp * width, 0);
             lanesTarmac[index + 1].data[0][1] = float4(roadLinks[j].corner_A - roadLinks[j].cornerTangent_A + perp * width, 0);
 
             lanesTarmac[index + 0].data[1][0] = roadLinks[j].roadPtr->points[1].bezier[left].pos_uv();
             lanesTarmac[index + 0].data[1][1] = roadLinks[j].roadPtr->points[1].bezier[left].backward_uv();
             lanesTarmac[index + 0].data[1][2] = float4(roadLinks[j].corner_A + roadLinks[j].cornerTangent_A, 0);
+            lanesTarmac[index + 0].data[1][3] = float4(roadLinks[j].corner_A, 0);
             lanesTarmac[index + 1].data[1][0] = float4(roadLinks[j].corner_A, 0);
             lanesTarmac[index + 1].data[1][1] = float4(roadLinks[j].corner_A - roadLinks[j].cornerTangent_A, 0);
         }
         else
         {
             uint idx1 = (uint)roadLinks[j].roadPtr->points.size() - 2;
-            uint idx0 = (uint)roadLinks[j].roadPtr->points.size() - 1;
+            
             float width = roadLinks[j].roadPtr->points[idx1].widthLeft + roadLinks[j].roadPtr->points[idx1].widthRight;
+
+            if (!roadLinks[j].bOpenCorner)
+            {
+                width *= 1.4f;
+            }
 
             lanesTarmac[index + 0].data[0][0] = roadLinks[j].roadPtr->points[idx1].bezier[left].pos_uv();
             lanesTarmac[index + 0].data[0][1] = roadLinks[j].roadPtr->points[idx1].bezier[left].forward_uv();
             lanesTarmac[index + 0].data[0][2] = float4(roadLinks[j].corner_A + roadLinks[j].cornerTangent_A + perp * width, 0);
+            lanesTarmac[index + 0].data[0][3] = float4(roadLinks[j].corner_A + perp * width, 0);
             lanesTarmac[index + 1].data[0][0] = float4(roadLinks[j].corner_A + perp * width, 0);
             lanesTarmac[index + 1].data[0][1] = float4(roadLinks[j].corner_A - roadLinks[j].cornerTangent_A + perp * width, 0);
 
             lanesTarmac[index + 0].data[1][0] = roadLinks[j].roadPtr->points[idx1].bezier[right].pos_uv();
             lanesTarmac[index + 0].data[1][1] = roadLinks[j].roadPtr->points[idx1].bezier[right].forward_uv();
             lanesTarmac[index + 0].data[1][2] = float4(roadLinks[j].corner_A + roadLinks[j].cornerTangent_A, 0);
+            lanesTarmac[index + 0].data[1][3] = float4(roadLinks[j].corner_A, 0);
             lanesTarmac[index + 1].data[1][0] = float4(roadLinks[j].corner_A, 0);
             lanesTarmac[index + 1].data[1][1] = float4(roadLinks[j].corner_A - roadLinks[j].cornerTangent_A, 0);
         }
@@ -213,20 +222,73 @@ void intersection::updateTarmacLanes()
         if (roadLinks[next].broadStart)
         {
             lanesTarmac[index + 1].data[0][2] = roadLinks[next].roadPtr->points[1].bezier[left].backward_uv();
-            lanesTarmac[index + 2].data[0][0] = roadLinks[next].roadPtr->points[1].bezier[left].pos_uv();
+            lanesTarmac[index + 1].data[0][3] = roadLinks[next].roadPtr->points[1].bezier[left].pos_uv();
 
             lanesTarmac[index + 1].data[1][2] = roadLinks[next].roadPtr->points[1].bezier[right].backward_uv();
-            lanesTarmac[index + 2].data[1][0] = roadLinks[next].roadPtr->points[1].bezier[right].pos_uv();
+            lanesTarmac[index + 1].data[1][3] = roadLinks[next].roadPtr->points[1].bezier[right].pos_uv();
         }
         else
         {
             lanesTarmac[index + 1].data[0][2] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[right].forward_uv();
-            lanesTarmac[index + 2].data[0][0] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[right].pos_uv();
+            lanesTarmac[index + 1].data[0][3] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[right].pos_uv();
 
             lanesTarmac[index + 1].data[1][2] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[left].forward_uv();
-            lanesTarmac[index + 2].data[1][0] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[left].pos_uv();
+            lanesTarmac[index + 1].data[1][3] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[left].pos_uv();
         }
-        index += 3;
+        index += 2;
+    }
+
+
+
+
+    // Now for straight across
+    if (numInter == 4)
+    {
+        for (uint j = 0; j < 2; j++) {
+
+            uint next = (j + 2) % numInter;
+
+            if (roadLinks[j].broadStart)
+            {
+                float width = roadLinks[j].roadPtr->points[1].widthLeft + roadLinks[j].roadPtr->points[1].widthRight;
+
+                lanesTarmac[index + 0].data[0][0] = roadLinks[j].roadPtr->points[1].bezier[right].pos_uv();
+                lanesTarmac[index + 0].data[0][1] = roadLinks[j].roadPtr->points[1].bezier[right].backward_uv();
+            }
+            else
+            {
+                uint idx1 = (uint)roadLinks[j].roadPtr->points.size() - 2;
+                float width = roadLinks[j].roadPtr->points[idx1].widthLeft + roadLinks[j].roadPtr->points[idx1].widthRight;
+
+                lanesTarmac[index + 0].data[0][0] = roadLinks[j].roadPtr->points[idx1].bezier[left].pos_uv();
+                lanesTarmac[index + 0].data[0][1] = roadLinks[j].roadPtr->points[idx1].bezier[left].forward_uv();
+
+                lanesTarmac[index + 0].data[1][0] = roadLinks[j].roadPtr->points[idx1].bezier[right].pos_uv();
+                lanesTarmac[index + 0].data[1][1] = roadLinks[j].roadPtr->points[idx1].bezier[right].forward_uv();
+            }
+
+
+            if (roadLinks[next].broadStart)
+            {
+                lanesTarmac[index + 0].data[0][2] = roadLinks[next].roadPtr->points[1].bezier[left].backward_uv();
+                lanesTarmac[index + 0].data[0][3] = roadLinks[next].roadPtr->points[1].bezier[left].pos_uv();
+
+                lanesTarmac[index + 0].data[1][2] = roadLinks[next].roadPtr->points[1].bezier[right].backward_uv();
+                lanesTarmac[index + 0].data[1][3] = roadLinks[next].roadPtr->points[1].bezier[right].pos_uv();
+            }
+            else
+            {
+                lanesTarmac[index + 0].data[0][2] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[right].forward_uv();
+                lanesTarmac[index + 0].data[0][3] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[right].pos_uv();
+
+                lanesTarmac[index + 0].data[1][2] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[left].forward_uv();
+                lanesTarmac[index + 0].data[1][3] = roadLinks[next].roadPtr->points[roadLinks[next].roadPtr->points.size() - 2].bezier[left].pos_uv();
+            }
+            
+
+
+            index += 1;  // tjhis skips one unused
+        }
     }
 }
 

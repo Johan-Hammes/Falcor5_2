@@ -482,6 +482,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
     terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
+
+    mEcosystem.terrainSize = settings.size;
 }
 
 
@@ -585,7 +587,7 @@ void terrainManager::reset(bool _fullReset)
 
     quadtree_tile* root = m_free.front();
     m_free.pop_front();
-    root->set(0, 0, 0, 40000, float4(-20000.0f, 0, -20000.0f, 0.0f), nullptr);
+    root->set(0, 0, 0, settings.size, float4(-0.5f * settings.size, 0, -0.5f * settings.size, 0.0f), nullptr);
 
     m_used.push_back(root);
 
@@ -673,8 +675,11 @@ void terrainManager::onShutdown()
 
 std::string blockFromPositionB(glm::vec3 _pos)
 {
-    uint y = (uint)floor((_pos.z + 20000) / 2500.0f);
-    uint x = (uint)floor((_pos.x + 20000) / 2500.0f);
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+    float blocksize = ecotopeSystem::terrainSize / 16.f;
+
+    uint y = (uint)floor((_pos.z + halfsize) / blocksize);
+    uint x = (uint)floor((_pos.x + halfsize) / blocksize);
     std::string answer = char(65 + x) + std::to_string(y);
     return answer;
 }
@@ -1534,6 +1539,8 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     const float2 origin = float2(_tile->origin.x, _tile->origin.z);
     const float outerSize = _tile->size * tile_numPixels / tile_InnerPixels;
     const float pixelSize = outerSize / tile_numPixels;
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+    float blocksize = ecotopeSystem::terrainSize / 16.f;
 
 
     {
@@ -1583,8 +1590,8 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             C.pixelSize = pixelSize;
             C.tileXY = float2(_tile->x, _tile->y);
             C.padd2 = float2(elevationMap.hgt_offset, elevationMap.hgt_scale);
-            C.lowResSize = _tile->size / 40000.0f / 248.0f;
-            C.lowResOffset = float2(_tile->origin.x + 20000, _tile->origin.z + 20000) / 40000.0f;
+            C.lowResSize = _tile->size / settings.size / 248.0f;
+            C.lowResOffset = float2(_tile->origin.x + halfsize, _tile->origin.z + halfsize) / settings.size;
             C.lod = _tile->lod;
             C.tileIndex = _tile->index;
             pCB->setBlob(&C, 0, sizeof(ecotopeGpuConstants));
@@ -2207,10 +2214,12 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
 
         const uint32_t cs_w = split.bakeSize / tile_cs_ThreadSize;
 
-        const float size = (40000.0F / (1 << _lod));
+        const float size = (settings.size / (1 << _lod));
         const float outerSize = size * tile_numPixels / tile_InnerPixels;
         const float pixelSize = outerSize / split.bakeSize;
-        const float2 origin = float2(-20000, -20000) + float2(_x * size, _y * size) - float2(pixelSize * 4 * 4, pixelSize * 4 * 4);
+        float halfsize = ecotopeSystem::terrainSize / 2.f;
+        float blocksize = ecotopeSystem::terrainSize / 16.f;
+        const float2 origin = float2(-halfsize, -halfsize) + float2(_x * size, _y * size) - float2(pixelSize * 4 * 4, pixelSize * 4 * 4);
 
         {
             const glm::vec4 clearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -2228,7 +2237,7 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
             // FIXME this is ghorrible 
             // cs_tile_Bicubic takes the inner tile coordinates, and compensates for 4 pixerls internall
             // so if we compendate for 12 here the other 4 is in teh shader
-            const float2 originBC = float2(-20000, -20000) + float2(_x * size, _y * size) - float2(pixelSize * 4 * 3, pixelSize * 4 * 3);
+            const float2 originBC = float2(-halfsize, -halfsize) + float2(_x * size, _y * size) - float2(pixelSize * 4 * 3, pixelSize * 4 * 3);
             float2 bicubicOffset = (originBC - elevationMap.origin) / elevationMap.size;
             float S = pixelSize / elevationMap.size;
             float2 bicubicSize = float2(S, S);
@@ -2353,7 +2362,7 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
 
 void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x, RenderContext* _renderContext)
 {
-    float terrainSize = 40000.0f;
+    float terrainSize = settings.size;
     uint gridSize = (uint)pow(2, _lod);
     float tileSize = terrainSize / gridSize;
     float tileOuterSize = tileSize * 256.0f / 248.0f;
@@ -3449,7 +3458,7 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
         for (int lod = 4; lod <= 8; lod += 2)
         {
             float scale = 1.0f / pow(2, lod);
-            float tileSize = 40000 * scale;
+            float tileSize = settings.size * scale;
             float pixelSize = tileSize / 248.0f;
             float borderSize = (pixelSize * 4.0f) + splineWidth;    // add splineWidth to compensate for curve
             //??? How to boos tarmac since left right that one is double
@@ -3462,10 +3471,12 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
                 float yMin = __min(__min(BEZ.data[0][0].z, BEZ.data[0][3].z), __min(BEZ.data[1][0].z, BEZ.data[1][3].z)) - 80;
                 float yMax = __max(__max(BEZ.data[0][0].z, BEZ.data[0][3].z), __max(BEZ.data[1][0].z, BEZ.data[1][3].z)) + 80;
 
-                uint gMinX = (uint)floor((xMin - borderSize + 20000.0f) / tileSize);
-                uint gMaxX = (uint)ceil((xMax + borderSize + 20000.0f) / tileSize);
-                uint gMinY = (uint)floor((yMin - borderSize + 20000.0f) / tileSize);
-                uint gMaxY = (uint)ceil((yMax + borderSize + 20000.0f) / tileSize);
+                float halfsize = ecotopeSystem::terrainSize / 2.f;
+                float blocksize = ecotopeSystem::terrainSize / 16.f;
+                uint gMinX = (uint)floor((xMin - borderSize + halfsize) / tileSize);
+                uint gMaxX = (uint)ceil((xMax + borderSize + halfsize) / tileSize);
+                uint gMinY = (uint)floor((yMin - borderSize + halfsize) / tileSize);
+                uint gMaxY = (uint)ceil((yMax + borderSize + halfsize) / tileSize);
 
                 for (int y = gMinY; y < gMaxY; y++) {
                     for (int x = gMinX; x < gMaxX; x++)

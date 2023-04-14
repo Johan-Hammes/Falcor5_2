@@ -172,7 +172,7 @@ void lodTriangleMesh::create(uint _lod)
 {
     lod = _lod;
     grid = (uint)pow(2, _lod);
-    tileSize = 40000.0f / grid; // FIxeme no boundary and hardcoded for 40k
+    tileSize = ecotopeSystem::terrainSize / grid; // FIxeme no boundary and hardcoded for 40k
     bufferSize = tileSize / 248.0f * 4.0f;
     tiles.resize(grid * grid);
     materialNames.clear();
@@ -191,16 +191,18 @@ void lodTriangleMesh::remapMaterials(uint* _map)
 
 void lodTriangleMesh::prepForMesh(aiAABB _aabb, uint _size, std::string _name)
 {
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+
     for (auto& tile : tiles) {
         tile.clearRemapping(_size);
     }
 
     materialNames.push_back(_name);
 
-    xMin = (uint)__max(0, floor((_aabb.mMin.x + 20000) / tileSize) - 1);
-    xMax = (uint)__min(grid, floor((_aabb.mMax.x + 20000) / tileSize) + 2);
-    yMin = (uint)__max(0, floor((-_aabb.mMax.y + 20000) / tileSize) - 1);
-    yMax = (uint)__min(grid, floor((-_aabb.mMin.y + 20000) / tileSize) + 2);
+    xMin = (uint)__max(0, floor((_aabb.mMin.x + halfsize) / tileSize) - 1);
+    xMax = (uint)__min(grid, floor((_aabb.mMax.x + halfsize) / tileSize) + 2);
+    yMin = (uint)__max(0, floor((-_aabb.mMax.y + halfsize) / tileSize) - 1);
+    yMax = (uint)__min(grid, floor((-_aabb.mMin.y + halfsize) / tileSize) + 2);
 
     // test for possible YZ flip issues
     float xRange = _aabb.mMax.x - _aabb.mMin.x;
@@ -224,19 +226,21 @@ void lodTriangleMesh::prepForMesh(aiAABB _aabb, uint _size, std::string _name)
 
 int lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh)
 {
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+
     float left, right, top, bottom;
     int count = 0;
 
     for (int y = yMin; y < yMax; y++)
     {
-        bottom = -20000 + (y * tileSize);
+        bottom = -halfsize + (y * tileSize);
         top = bottom + tileSize;
         bottom -= bufferSize;
         top += bufferSize;
 
         for (int x = xMin; x < xMax; x++)
         {
-            left = -20000 + (x * tileSize);
+            left = -halfsize + (x * tileSize);
             right = left + tileSize;
 
             left -= bufferSize;

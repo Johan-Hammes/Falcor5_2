@@ -48,7 +48,7 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
             float focal = camera->getFocalLength();
             if (ImGui::SliderFloat("focal length", &focal, 5, 100, "%.1fmm")) { camera->setFocalLength(focal); }
             if (ImGui::MenuItem("reset")) {
-                camera->setDepthRange(0.5f, 40000.0f);
+                camera->setDepthRange(0.3f, 20000.0f);
                 camera->setAspectRatio(1920.0f / 1080.0f);
                 camera->setFocalLength(15.0f);
                 camera->setPosition(float3(0, 500, 0));

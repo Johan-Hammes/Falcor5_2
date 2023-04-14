@@ -725,6 +725,11 @@ void roadSection::solveEnd()
 
 
 
+void roadSection::solvePercentages()
+{
+
+}
+
 
 void roadSection::saveType(int index)
 {

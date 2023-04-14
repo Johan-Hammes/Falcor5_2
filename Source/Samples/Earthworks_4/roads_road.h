@@ -136,6 +136,7 @@ public:
     void solveRoad(int index = -1);
     void solveStart();
     void solveEnd();
+    void solvePercentages();
 
     void setCenterline(uint type);
 

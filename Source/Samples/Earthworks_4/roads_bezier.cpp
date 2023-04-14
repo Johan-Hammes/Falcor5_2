@@ -185,16 +185,16 @@ splinePoint::splinePoint()
 }
 
 
-//Positions, so anything inside the 40,000km world for now
+//Positions, so anything inside the 200,000km world for now, just make this big it just test for errors in code
 bool isSanePosition(glm::vec3 v)
 {
     if (std::isnan(v.x)) return false;
     if (std::isnan(v.y)) return false;
     if (std::isnan(v.z)) return false;
 
-    if (fabs(v.x) > 20000.f) return false;
-    if (fabs(v.y) > 20000.f) return false;
-    if (fabs(v.z) > 20000.f) return false;
+    if (fabs(v.x) > 100000.f) return false;
+    if (fabs(v.y) > 100000.f) return false;
+    if (fabs(v.z) > 100000.f) return false;
 
     return true;
 }

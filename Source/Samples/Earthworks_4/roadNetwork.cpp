@@ -1233,8 +1233,8 @@ void roadNetwork::exportBinary() {
 
 std::string blockFromPosition(glm::vec3 _pos)
 {
-    uint y = (uint)floor((_pos.z + 20000) / 2500.0f);
-    uint x = (uint)floor((_pos.x + 20000) / 2500.0f);
+    uint y = (uint)floor((_pos.z + ecotopeSystem::terrainSize * 0.5f) / (ecotopeSystem::terrainSize / 16.f));
+    uint x = (uint)floor((_pos.x + ecotopeSystem::terrainSize * 0.5f) / (ecotopeSystem::terrainSize / 16.f));
     std::string answer = char(65 + x) + std::to_string(y);
     return answer;
 }
@@ -1334,19 +1334,71 @@ void roadNetwork::exportBridges() {
 
 void roadNetwork::exportRoads(int _numSplits)
 {
+    float blocksize = ecotopeSystem::terrainSize / 16.f;
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+
     for (uint y = 0; y < 16; y++)
     {
         for (uint x = 0; x < 16; x++)
         {
             std::string answer = char(65 + x) + std::to_string(y);
-            glm::vec3 center = glm::vec3(x * 2500 - 20000 + (2500 / 2), 0, y * 2500 - 20000 + (2500 / 2));
-            exportRoads(_numSplits, center, 1500.f, answer);
+            glm::vec3 center = glm::vec3(x * blocksize - halfsize + (blocksize / 2), 0, y * blocksize - halfsize + (blocksize / 2));
+            exportRoads(_numSplits, center, blocksize * 0.66f, answer);
         }
     }
 }
 
 
+void roadNetwork::fillMesh(roadSection& road, aiMesh* _mesh, uint _numsplits, bool bLeft, uint lane)
+{
+    uint numBezier = (uint)road.points.size() - 1;
+    uint numfaces = _numsplits - 1;
 
+    _mesh->mFaces = new aiFace[numfaces * numBezier];
+    _mesh->mNumFaces = numfaces * numBezier;
+    _mesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
+    _mesh->mVertices = new aiVector3D[_numsplits * 2 * numBezier];
+    _mesh->mNumVertices = _numsplits * 2 * numBezier;
+
+    for (uint bez = 0; bez < numBezier; bez++)
+    {
+        for (uint i = 0; i < numfaces; i++)
+        {
+            aiFace& face = _mesh->mFaces[bez * numfaces + i];
+
+            face.mIndices = new unsigned int[4];
+            face.mNumIndices = 4;
+
+            face.mIndices[0] = (bez * _numsplits + i) * 2 + 0;
+            face.mIndices[1] = (bez * _numsplits + i) * 2 + 1;
+            face.mIndices[2] = (bez * _numsplits + i) * 2 + 3;
+            face.mIndices[3] = (bez * _numsplits + i) * 2 + 2;
+        }
+
+        bezierPoint* pntOut1 = &road.points[bez].bezier[left];
+        bezierPoint* pntOut2 = &road.points[bez + 1].bezier[left];
+        bezierPoint* pntIn1 = &road.points[bez].bezier[middle];
+        bezierPoint* pntIn2 = &road.points[bez + 1].bezier[middle];
+
+        for (int y = 0; y < _numsplits; y++)
+        {
+            float t = (float)y / (float)numfaces;
+            glm::vec3 A = cubic_Casteljau(t, pntOut1, pntOut2);
+            glm::vec3 B = cubic_Casteljau(t, pntIn1, pntIn2);
+
+            if (road.points[bez].isBridge || road.points[bez].isAIonly)
+            {
+                _mesh->mVertices[bez * _numsplits * 2 + y * 2 + 0] = aiVector3D(0, 0, 0);
+                _mesh->mVertices[bez * _numsplits * 2 + y * 2 + 1] = aiVector3D(0, 0, 0);
+            }
+            else
+            {
+                _mesh->mVertices[bez * _numsplits * 2 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
+                _mesh->mVertices[bez * _numsplits * 2 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
+            }
+        }
+    }
+}
 
 void roadNetwork::exportRoads(int _numSplits, glm::vec3 _center, float _size, std::string _blockName)
 {
@@ -1378,6 +1430,7 @@ void roadNetwork::exportRoads(int _numSplits, glm::vec3 _center, float _size, st
     {
         scene->mMeshes[cnt] = new aiMesh();
         scene->mMeshes[cnt]->mMaterialIndex = 0;
+        scene->mMeshes[cnt]->mName = _blockName;
         auto pMesh = scene->mMeshes[cnt];
         uint numBez = (uint)road.points.size() - 1;
 
@@ -1699,9 +1752,9 @@ void roadNetwork::updateDynamicRoad()
             for (int i = 0; i < currentIntersection->roadLinks.size(); i++) {
                 currentIntersection->roadLinks[i].roadPtr = &roadSectionsList.at(currentIntersection->roadLinks[i].roadGUID);
                 //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Stylized(&bezierCount);
-                currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly, 0, 0, true, false);
+                //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly, 0, 0, true, false);
             }
-            currentIntersection->convertToGPU(staticBezierData, staticIndexData, &bezierCount);
+            currentIntersection->convertToGPU(staticBezierData, staticIndexData);
         }
 
         debugNumBezier = (uint)staticBezierData.size();
@@ -1723,9 +1776,9 @@ void roadNetwork::updateAllRoads(bool _forExport)
         roadSection.convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly);
     }
 
-    //	for (auto &intersection : intersectionList) {
-    //		intersection.convertToGPU(&bezierCount, _forExport);
-    //	}
+    // 	for (auto &intersection : intersectionList) {
+    // 		intersection.convertToGPU(staticBezierData, staticIndexData);
+    // 	}
 
     debugNumBezier = (uint)staticBezierData.size();
     debugNumIndex = (uint)staticIndexData.size();

@@ -28,6 +28,7 @@ void spriteCache::rebuildStructuredBuffer()
 }
 */
 
+float ecotopeSystem::terrainSize;
 
 ecotope::ecotope() {
     for (int j = 0; j < 6; j++)
@@ -251,8 +252,8 @@ void ecotope::renderPlantGUI(Gui* _gui)
         //ImGui::DragFloat("scale", &plants[selectedPlant].scale, 0, 1000, 0.1f);
         ImGui::DragFloat("variance", &plants[selectedPlant].scaleVariation, 0, 1000, 0.1f);
         ImGui::DragInt("lod", &plants[selectedPlant].lod, 1, 2, 16);
-        ImGui::Text("pixelSize for lod %d = %f", plants[selectedPlant].lod, 40000.0f / 248.0f / pow(2, plants[selectedPlant].lod));
-        ImGui::Text("spacing for density %3.2f = %3.2f m between plants", plants[selectedPlant].density, 40000.0f / 248.0f / pow(2, plants[selectedPlant].lod) / plants[selectedPlant].density);
+        ImGui::Text("pixelSize for lod %d = %f", plants[selectedPlant].lod, ecotopeSystem::terrainSize / 248.0f / pow(2, plants[selectedPlant].lod));
+        ImGui::Text("spacing for density %3.2f = %3.2f m between plants", plants[selectedPlant].density, ecotopeSystem::terrainSize / 248.0f / pow(2, plants[selectedPlant].lod) / plants[selectedPlant].density);
         ImGui::Text("integer density %d / 64", plants[selectedPlant].percentageOfLodTotalInt);
         ImGui::Text("idx  %d", plants[selectedPlant].index);
         //}

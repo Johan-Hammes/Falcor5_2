@@ -47,6 +47,7 @@ public:
     void exportBridges();
     void exportRoads(int _numSplits);
     void exportRoads(int _numSplits, glm::vec3 _center, float _size, std::string _blockName);
+    void fillMesh(roadSection& road, aiMesh* mesh, uint _numsplits, bool bLeft, uint lane);
 
     void TEMP_pushAllMaterial();
 

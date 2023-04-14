@@ -152,6 +152,7 @@ public:
 	Texture::SharedPtr	texAO;
 
     bool hasChanged = false;
+    
 };
 
 
@@ -213,5 +214,6 @@ public:
     Buffer::SharedPtr getPLantBuffer() { return piBuffer; }
 
     bool change = false;
+    static float terrainSize;
 };
 

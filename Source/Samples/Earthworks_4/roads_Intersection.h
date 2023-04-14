@@ -43,7 +43,7 @@ public:
     std::vector<intersectionRoadLink> roadLinks;
 
     std::vector<cubicDouble> lanesTarmac;
-    void convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index, uint* totalBezierCount, bool _forExport = false);
+    void convertToGPU(std::vector<cubicDouble>& _bezier, std::vector<bezierLayer>& _index);
     void updateTarmacLanes();
 
     template<class Archive>
