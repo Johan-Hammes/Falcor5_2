@@ -1155,6 +1155,11 @@ uint terrainManager::gisHash(glm::vec3 _position)
 
 void terrainManager::gisReload(glm::vec3 _position)
 {
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+    float blocksize = ecotopeSystem::terrainSize / 16.f;
+    float buffersize = blocksize * (3200 / 2500); // this ratio was set by eifel, keep it
+    float edgesize = (buffersize - blocksize) / 2;
+
     uint hash = gisHash(_position);
     if (hash != gis_overlay.hash)
     {
@@ -1165,7 +1170,7 @@ void terrainManager::gisReload(glm::vec3 _position)
         std::filesystem::path path = settings.dirRoot + "/overlay/" + char(65 + hash & 0xff) + "_" + std::to_string(z) + "_image.dds";
         gis_overlay.texture = Texture::createFromFile(path, true, true, Resource::BindFlags::ShaderResource);
 
-        gis_overlay.box = glm::vec4(-350 - (settings.size / 2.0f) + x * 2500, -350 - (settings.size / 2.0f) + z * 2500, 3200, 3200);    // fixme this sort of asumes 40 x 40 km
+        gis_overlay.box = glm::vec4(-edgesize - halfsize + x * blocksize, -edgesize - halfsize + z * blocksize, blocksize, blocksize);    // fixme this sort of asumes 40 x 40 km
 
         terrainShader.Vars()->setTexture("gGISAlbedo", gis_overlay.texture);
         terrainShader.Vars()["PerFrameCB"]["showGIS"] = (int)gis_overlay.show;
