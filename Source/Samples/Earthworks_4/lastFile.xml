@@ -2,7 +2,7 @@
 <cereal>
 	<lastfile>
 		<cereal_class_version>100</cereal_class_version>
-		<terrain>X:/resources/terrains/eifel/eifel.terrain</terrain>
+		<terrain>F:/terrains/sonoma/sonoma.terrain</terrain>
 		<road></road>
 		<roadMaterial>X:/resources/terrafectors_and_road_materials/roads/sidewalk_Asphalt.roadMaterial</roadMaterial>
 		<terrafectorMaterial></terrafectorMaterial>

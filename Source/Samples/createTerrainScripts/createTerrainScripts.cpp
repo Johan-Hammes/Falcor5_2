@@ -7,6 +7,7 @@
 #include <string>
 
 
+
 std::string path = "F:/terrains/";
 std::string name = "sonoma";
 std::string proj = "\"+proj=tmerc +lat_0=38.161 +lon_0=-122.46 +k_0=1 + x_0=0 + y_0=0 +ellps=GRS80 +units=m\"";
@@ -14,7 +15,7 @@ float size = 32768.f;
 std::string elevInputFiles = "";
 float rootheight[2048][2048];
 
-void addTile(int _lod, int _y, int _x, FILE* _file)
+void addTile(int _lod, int _y, int _x, FILE* _file, FILE* _list)
 {
     int grid = pow(2, _lod);
     int halfgrid = grid / 2;
@@ -24,6 +25,7 @@ void addTile(int _lod, int _y, int _x, FILE* _file)
     float edge = (total - block) * 0.5f;
 
     // minmax
+    /*
     float min = 100000000;
     float max = -100000000;
     int minmaxgrid = 2048 / grid;
@@ -37,8 +39,10 @@ void addTile(int _lod, int _y, int _x, FILE* _file)
     }
     //then padd a little to make yp for lack of presision
     min = __max(0, min);
+    //max = __min(0, max);
     max += 10;
     min -= 10;
+    */
 
     float xstart = origin + (_x * block) - edge;
     float ystart = origin + (_y * block) - edge;
@@ -46,9 +50,26 @@ void addTile(int _lod, int _y, int _x, FILE* _file)
     fprintf(_file, "-te %f %f %f %f ", xstart, -(ystart + total), xstart + total, -ystart);     // remember to flip Y
     fprintf(_file, "-ts 1024 1024 -r cubicspline -multi -overwrite -ot Float32 ");      //-srcnodata 0.0 
     fprintf(_file, "%s ", elevInputFiles.c_str());
-    fprintf(_file, "../_temp/hgt_%d_%d_%d.tiff \n\n", _lod, _y, _x);
+    fprintf(_file, "../_temp/hgt_%d_%d_%d.tiff \n\n", _lod, _y, _x);    // tiff for now
+
+    fprintf(_file, "gdal_translate -ot Float32 ../_temp/hgt_%d_%d_%d.tiff ../_temp/hgt_%d_%d_%d.bil \n\n\n", _lod, _y, _x, _lod, _y, _x);
+
+    fprintf(_list, "%d %d %d %f %f %f hgt_%d_%d_%d\n", _lod, _y, _x, xstart, ystart, total, _lod, _y, _x);
+
+    if (_lod == 0) {
+        //fprintf(_file, "gdal_translate  -ot UINT16 -scale %f %f 0 65536  ../_temp/hgt_%d_%d_%d.tiff ../../elevation/hgt_%d_%d_%d.bil \n\n\n", min, max, _lod, _y, _x, _lod, _y, _x);
+
+        //fprintf(_list, "%d %d %d 1024 %f %f %f %f %f elevation/hgt_%d_%d_%d.bil\n", _lod, _y, _x, xstart, ystart, total, min, max - min, _lod, _y, _x);
+    }
+    else {
+        //fprintf(_file, "gdal_translate -of JP2OpenJPEG -ot UINT16 -scale %f %f 0 65536  ../_temp/hgt_%d_%d_%d.tiff ../../elevation/hgt_%d_%d_%d.jp2 \n\n\n", min, max, _lod, _y, _x, _lod, _y, _x);
+
+        //fprintf(_list, "%d %d %d 1024 %f %f %f %f %f elevation/hgt_%d_%d_%d.jp2\n", _lod, _y, _x, xstart, ystart, total, min, max - min, _lod, _y, _x);
+    }
+
+
+
     
-    fprintf(_file, "gdal_translate -of JP2OpenJPEG -ot UINT16 -scale %f %f 0 65536  ../_temp/hgt_%d_%d_%d.tiff ../../elevation/hgt_%d_%d_%d.jp2 \n\n\n", min, max, _lod, _y, _x, _lod, _y, _x);
 }
 
 
@@ -239,18 +260,19 @@ int main()
         } while (numread > 0);
         printf("%s", elevInputFiles.c_str());
 
-        FILE* file;
+        FILE* file, *list;
+        fopen_s(&list, (path + name + +"/gis/_temp/filenames.txt").c_str(), "w");
         int lod, y, x, grid;
         fopen_s(&file, (path + name + +"/gis/elevation/_gdal_jp2.bat").c_str(), "w");
         if (file) {
 
-            addTile(0, 0, 0, file);
+            addTile(0, 0, 0, file, list);
 
             lod = 2;
             grid = pow(2, lod);
             for (y = 0; y < 3; y++) {
                 for (x = 0; x < 3; x++) {
-                    addTile(lod, y, x, file);
+                    addTile(lod, y, x, file, list);
                 }
             }
 
@@ -259,32 +281,36 @@ int main()
             for (y = 0; y < grid; y++) {
                 for (x = 0; x < grid; x++) {
                     if (lod4[y][x] > 128) {
-                        addTile(lod, y, x, file);
+                        addTile(lod, y, x, file, list);
                     }
                 }
             }
 
+            // this gets us down to 0.6 meters probably good enough 512x512 tile
             lod = 6;
             grid = pow(2, lod);
             for (y = 0; y < grid; y++) {
                 for (x = 0; x < grid; x++) {
                     if (lod6[y][x] > 128) {
-                        addTile(lod, y, x, file);
+                        addTile(lod, y, x, file, list);
                     }
                 }
             }
 
+            /*
             lod = 8;
             grid = pow(2, lod);
             for (y = 0; y < grid; y++) {
                 for (x = 0; x < grid; x++) {
                     if (lod8[y][x] > 128) {
-                        addTile(lod, y, x, file);
+                        addTile(lod, y, x, file, list);
                     }
                 }
             }
+            */
 
             fclose(file);
+            fclose(list);
         }
     }
         break;

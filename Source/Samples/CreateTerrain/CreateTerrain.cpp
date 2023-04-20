@@ -33,27 +33,27 @@ int main()
 
 
     system("mkdir elevation");
-    system("mkdir elevation_baked");
+    system("mkdir bake");
     system("mkdir ecosystem");
     system("mkdir terrafectors");
-    system("mkdir _max");
+    system("mkdir _export");
     system("mkdir overlay");
     system("mkdir gis");
     system("mkdir roads");
 
     {
         _chdir((path + name + "/terrafectors").c_str());
-        system("mkdir 10_bakeOnly");
+        system("mkdir 10_bakeOnlyBottom");
         system("mkdir 20_base");
         system("mkdir 30_roads");
-        system("mkdir 40_bakeOnly");
+        system("mkdir 40_bakeOnlyTop");
         system("mkdir 50_top");
         system("mkdir 60_overlay");
     }
 
     
     {
-        _chdir((path + name + "/_max").c_str());
+        _chdir((path + name + "/_export").c_str());
         system("mkdir bridges");
         system("mkdir roads");
         system("mkdir scene");

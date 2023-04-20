@@ -1,12 +1,11 @@
 ﻿  createTerrainScripts.cpp
   The contents of <filesystem> are available only with C++17 or later.
-C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(19,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
-C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(250,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
-C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(258,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
-C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(268,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
-C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(278,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(20,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(272,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(280,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(291,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
   Generating code
-  1 of 135 functions ( 0.7%) were compiled, the rest were copied from previous compilation.
+  0 of 135 functions ( 0.0%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
     0 functions had inline decision re-evaluated but remain unchanged
   Finished generating code

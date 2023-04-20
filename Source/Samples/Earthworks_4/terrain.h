@@ -108,7 +108,8 @@ public:
 struct _lastFile
 {
     // these are for quick load
-    std::string terrain = "X:/resources/terrains/eifel/eifel.terrain";
+    //std::string terrain = "X:/resources/terrains/eifel/eifel.terrain";
+    std::string terrain = "F:/terrains/sonoma/sonoma.terrain";
     std::string road = "X:/resources/terrains/eifel/roads/day6.roadnetwork";
     std::string roadMaterial = "X:/resources/terrafectors_and_road_materials/roads/sidewalk_Asphalt.roadMaterial";
     std::string terrafectorMaterial = "";
@@ -265,6 +266,9 @@ public:
     void reset(bool _fullReset = false);
     void loadElevationHash();
 
+    void bil_to_jp2();
+    void bil_to_jp2(std::string file, const uint size, FILE* summary, uint _lod, uint _y, uint _x, float _xstart, float _ystart, float _size);
+
     void clearCameras();
     void setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution);
     bool update(RenderContext* pRenderContext);
@@ -285,7 +289,8 @@ private:
     uint gisHash(glm::vec3 _position);
     void gisReload(glm::vec3 _position);
 
-    void bake_start();
+    void bake_start(bool _toMAX);
+    bool bakeToMax;
     void bake_frame();
     void bake_Setup(float _size, uint lod, uint y, uint x, RenderContext* _renderContext);
     void bake_RenderTopdown(float _size, uint lod, uint y, uint x, RenderContext* _renderContext);
@@ -320,6 +325,9 @@ private:
     pixelShader terrainShader;
     pixelShader terrainSpiteShader;
     Texture::SharedPtr	  spriteTexture = nullptr;
+
+    pixelShader ribbonShader;
+    Buffer::SharedPtr       ribbonData;
 
     _lastFile lastfile;
     _terrainSettings settings;

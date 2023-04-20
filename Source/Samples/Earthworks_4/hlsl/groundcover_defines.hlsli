@@ -132,6 +132,14 @@ struct instance_PLANT
 	// and maybe position should get less and scale and rotation more bits 
 };
 
+struct ribbonVertex
+{
+    float3 pos;
+    int A;
+    float3 right;
+    int B;
+};
+
 
 // but keep it a struct for now in case we need a bit more info
 // this is a shortcut lookup between vertex and tile, given SV_InstanceId , what is tile

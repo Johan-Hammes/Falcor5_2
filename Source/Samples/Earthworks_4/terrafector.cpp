@@ -1030,7 +1030,7 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
     lodder_6.create(6);
 
     bool useLOD2 = _path.find("LOD2") != std::string::npos;
-    bool bakeOnlyOverlay = (_path.find("BAKE_ONLY") != std::string::npos) || (_path.find("OVERLAY") != std::string::npos);
+    bool bakeOnlyOverlay = (_path.find("bakeOnly") != std::string::npos) || (_path.find("overlay") != std::string::npos);
     int num2 = 0;
     int num4 = 0;
     int num6 = 0;
@@ -1074,15 +1074,15 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
 
         if (num4 > 0)
         {
-            if (_path.find("BAKE_ONLY_BOTTOM") != std::string::npos)
+            if (_path.find("bakeOnlyBottom") != std::string::npos)
             {
                 terrafectorSystem::loadCombine_LOD4_bakeLow.addMesh(P.parent_path().string() + "/", lodder_4);
             }
-            else if (_path.find("BAKE_ONLY_TOP") != std::string::npos)
+            else if (_path.find("bakeOnlyTop") != std::string::npos)
             {
                 terrafectorSystem::loadCombine_LOD4_bakeHigh.addMesh(P.parent_path().string() + "/", lodder_4);
             }
-            else if (_path.find("OVERLAY") != std::string::npos)
+            else if (_path.find("overlay") != std::string::npos)
             {
                 terrafectorSystem::loadCombine_LOD4_overlay.addMesh(P.parent_path().string() + "/", lodder_4);
             }
@@ -1117,7 +1117,7 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
     }
 
     children.emplace_back(_type, _name);
-    if (_name.find("BAKE_ONLY") != std::string::npos) {
+    if (_name.find("bakeOnly") != std::string::npos) {
         children.back().bakeOnly = true;
     }
 
@@ -1159,15 +1159,15 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
             if (use6)   terrafectorSystem::loadCombine_LOD6.addMesh(P.parent_path().string() + "/", lodder6);
             if (use4)
             {
-                if (_path.find("BAKE_ONLY_BOTTOM") != std::string::npos)
+                if (_path.find("bakeOnlyBottom") != std::string::npos)
                 {
                     terrafectorSystem::loadCombine_LOD4_bakeLow.addMesh(P.parent_path().string() + "/", lodder4);
                 }
-                else if (_path.find("BAKE_ONLY_TOP") != std::string::npos)
+                else if (_path.find("bakeOnlyTop") != std::string::npos)
                 {
                     terrafectorSystem::loadCombine_LOD4_bakeHigh.addMesh(P.parent_path().string() + "/", lodder4);
                 }
-                else if (_path.find("OVERLAY") != std::string::npos)
+                else if (_path.find("overlay") != std::string::npos)
                 {
                     terrafectorSystem::loadCombine_LOD4_overlay.addMesh(P.parent_path().string() + "/", lodder4);
                 }
