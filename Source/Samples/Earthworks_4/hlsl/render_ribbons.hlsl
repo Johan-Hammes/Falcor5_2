@@ -69,7 +69,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float3 rootPos = unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024);
         //rootPos.x += plantID;
         //rootPos.y += tiles[tileIDX].scale_1024 * 2048;
-        float scale = 3 *  SCALE(plant.s_r_idx);
+        float scale = 4 *  SCALE(plant.s_r_idx);
         float rotation = ROTATION(plant.s_r_idx);
         uint index = PLANT_INDEX(plant.s_r_idx);
 
@@ -163,7 +163,7 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     A = saturate(A + 0.1);
     float S = pow(abs(dot(vOut.world, spec)), 25);
 
-    float3 colour = float3(0.07, 0.2, 0.05);
-    float3 final = (colour * A * saturate(vOut.texCoords.z * 3))  +  float3(0.1, 0.2, 0) * A_backface  + S;
+    float3 colour = float3(0.07, 0.1, 0.05);
+    float3 final = (colour * A * saturate(vOut.texCoords.z * 3))  +  float3(0.1, 0.1, 0) * A_backface  + S;
     return float4(final, 1);
 }

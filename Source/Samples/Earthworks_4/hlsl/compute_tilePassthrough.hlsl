@@ -42,7 +42,9 @@ cbuffer gConstants			// ??? wonder if this just works here, then we can skip str
 void main(uint dispatchId : SV_DispatchThreadId)
 {
 	gpuTile tile = tiles[parent_index];
-	
+
+    //float OH = gHgt[uint2(128, 128)].r - (tile.scale_1024 * 2048);	// Its corner origin rather than middle
+    //tile.origin.y = OH;
 	
 	if(dispatchId < tile.numQuads )
 	{
@@ -50,15 +52,21 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		
 		uint XYZ = quad_instance[parent_index * numQuadsPerTile + dispatchId].xyz;
 		uint SRTI = quad_instance[parent_index * numQuadsPerTile + dispatchId].s_r_idx;
-		uint cx = XYZ >> 31;
-		uint cy = (XYZ >> 21) & 0x1;
-		
+		//uint cx = XYZ >> 31;
+		//uint cy = (XYZ >> 21) & 0x1;
+
+        uint x10 = ((XYZ >> 22) & 0x3ff);
+        uint y10 = ((XYZ >> 12) & 0x3ff);   // 10 bit values
+
+        uint cx = 0;
+        uint cy = 0;
+        if (x10 >= 496) cx = 1;
+        if (y10 >= 496) cy = 1;
+
 		if ((cx == dX) && (cy == dY))	//write cleaner		XOR
-		//if ((cx == dX) && (cy == dY) && dX==1 && dY == 0)	//write cleaner		XOR
 		{
-		
-			uint x = ((XYZ >> 22) & 0x1ff) + 16*dX - 8;	// remaining 9 bits
-			uint y = ((XYZ >> 12) & 0x1ff) + 16*dY - 8;
+			uint x = x10 - (cx * 496);	// remaining 9 bits
+			uint y = y10 - (cy * 496);
 			
 
 			
@@ -66,9 +74,11 @@ void main(uint dispatchId : SV_DispatchThreadId)
 			uint x_idx = (tile.lod * tile.X * 23 + x);
 			uint y_idx = (tile.lod * tile.Y * 13 + y);
 			uint rnd = gNoise.Load( int3(x_idx & 0xff, y_idx & 0xff, 0) );
-			
-			float height = gHgt.Load( int3( x>>1, y>>1, 0) );
-			uint uHgt = (height - tileC.origin.y) / tileC.scale_1024;
+
+            
+			float height = gHgt[int2( (x>>1) + 4, (y>>1) + 4)].r;
+            float OH = gHgt[uint2(128, 128)].r - (tileC.scale_1024 * 2048);	// Its corner origin rather than middle
+			uint uHgt = (height - OH) / tileC.scale_1024;
 			
 			
 			float FACTOR = 0.5f / tile.scale_1024 / 2.0f;		// FIXME we need plant sizes in teh GPU ecotipe desc

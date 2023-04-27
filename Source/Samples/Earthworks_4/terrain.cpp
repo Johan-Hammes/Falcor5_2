@@ -877,47 +877,47 @@ void terrainManager::onGuiRender(Gui* _gui)
 
 
                 char command[512];
-                sprintf(command, "attrib -r %s/Terrafectors/TextureList.gpu", (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/TextureList.gpu", (settings.dirExport).c_str());
                 std::string sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/TextureList.gpu %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "%s/bake/TextureList.gpu %s/Terrafectors", settings.dirRoot.c_str(), (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
                 system(sCmd.c_str());
 
-                sprintf(command, "attrib -r %s/Terrafectors/Materials.gpu", (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/Materials.gpu", (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/Materials.gpu %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "%s/bake/Materials.gpu %s/Terrafectors", settings.dirRoot.c_str(), (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
                 system(sCmd.c_str());
 
                 // terrafectors and roads as well, might become one file in future
-                sprintf(command, "attrib -r %s/Terrafectors/terrafector*", (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/terrafector*", (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/terrafector* %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "%s/bake/terrafector* %s/Terrafectors", settings.dirRoot.c_str(), (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
                 system(sCmd.c_str());
 
 
-                sprintf(command, "attrib -r %s/Terrafectors/roadbezier*", (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "attrib -r %s/Terrafectors/roadbezier*", (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 system(sCmd.c_str());
 
-                sprintf(command, "%s/bake/roadbezier* %s/Terrafectors", settings.dirRoot.c_str(), (lastfile.EVO + settings.dirExport).c_str());
+                sprintf(command, "%s/bake/roadbezier* %s/Terrafectors", settings.dirRoot.c_str(), (settings.dirExport).c_str());
                 sCmd = command;
                 replaceAllterrain(sCmd, "/", "\\");
                 sCmd = "copy / Y " + sCmd;
@@ -1775,15 +1775,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     {
         FALCOR_PROFILE("compute");
 
-        {
-            FALCOR_PROFILE("passthrough");
-            uint cnt = (numQuadsPerTile) >> 8;	  // FIXME - hiesdie oordoen is es dan stadig - dit behoort Compute indoirect te wees  en die regte getal te gebruik
-            split.compute_tilePassthrough.Vars()["gConstants"]["parent_index"] = _tile->parent->index;
-            split.compute_tilePassthrough.Vars()["gConstants"]["child_index"] = _tile->index;
-            split.compute_tilePassthrough.Vars()["gConstants"]["dX"] = _tile->x & 0x1;
-            split.compute_tilePassthrough.Vars()["gConstants"]["dY"] = _tile->y & 0x1;
-            split.compute_tilePassthrough.dispatch(_renderContext, cnt, 1);
-        }
+        
 
 
 
@@ -1809,6 +1801,16 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             {
                 split.compute_tileEcotopes.dispatch(_renderContext, cs_w, cs_w);
             }
+        }
+
+        {
+            FALCOR_PROFILE("passthrough");
+            uint cnt = (numQuadsPerTile) >> 8;	  // FIXME - hiesdie oordoen is es dan stadig - dit behoort Compute indoirect te wees  en die regte getal te gebruik
+            split.compute_tilePassthrough.Vars()["gConstants"]["parent_index"] = _tile->parent->index;
+            split.compute_tilePassthrough.Vars()["gConstants"]["child_index"] = _tile->index;
+            split.compute_tilePassthrough.Vars()["gConstants"]["dX"] = _tile->x & 0x1;
+            split.compute_tilePassthrough.Vars()["gConstants"]["dY"] = _tile->y & 0x1;
+            split.compute_tilePassthrough.dispatch(_renderContext, cnt, 1);
         }
 
         {
@@ -2338,7 +2340,7 @@ void terrainManager::bake_start(bool _toMAX)
 
     bake.tileHash.clear();
 
-    int highestLOD = 16;
+    int highestLOD = 8;
     if (bakeToMax)
     {
         highestLOD = 7;
@@ -2666,7 +2668,7 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
     V[2] = glm::vec4(0, -1, 0, 0);
     V[3] = glm::vec4(-x, z, 0, 1);
 
-    s *= 256.0f / 248.0f;
+    
     P = glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f);
 
     //viewproj = view * proj;

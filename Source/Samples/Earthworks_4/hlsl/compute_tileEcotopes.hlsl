@@ -229,8 +229,8 @@ void main(uint2 crd : SV_DispatchThreadId)
 
         //plants
         
-        uint x_idx = (tileXY.x * 23 + crd.x);
-        uint y_idx = (tileXY.y * 13 + crd.y);
+        uint x_idx = (tileXY.x * 0.02356 + crd.x);
+        uint y_idx = (tileXY.y * 3.1267 + crd.y);
         uint rnd = gNoise.Load(int3(x_idx & 0xff, y_idx & 0xff, 0));
 
         int sum = 0;
@@ -246,9 +246,9 @@ void main(uint2 crd : SV_DispatchThreadId)
             }
         }
         if (crd.x < 4)ecotopeForPlants = 20;;
-        if (crd.x > 252)ecotopeForPlants = 20;;
+        if (crd.x >= 252)ecotopeForPlants = 20;;
         if (crd.y < 4)ecotopeForPlants = 20;;
-        if (crd.y > 252)ecotopeForPlants = 20;;
+        if (crd.y >= 252)ecotopeForPlants = 20;;
 
 
 
