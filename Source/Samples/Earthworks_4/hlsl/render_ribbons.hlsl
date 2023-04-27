@@ -12,6 +12,9 @@ Texture2D gAlbedo : register(t0);
 
 
 StructuredBuffer<ribbonVertex>        instanceBuffer;
+StructuredBuffer<instance_PLANT>        plantBuffer;
+RWStructuredBuffer<gpuTile> 			tiles;
+StructuredBuffer<tileLookupStruct>		tileLookup;
 
 
 cbuffer gConstantBuffer
@@ -53,30 +56,56 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     VSOut output = (VSOut)0;
 
-    int x = iId & 0x7f;
-    int y = iId >> 7;
-    float3 Ipos = float3(x * 0.1, 0, y * 0.1);
-    //int P = saturate(frac((float)iId * 0.2)) *5 * 128;
-    int P = (iId & 0x3 )  * 128;
+    uint blockId = iId >> 6;
+    uint tileIDX = tileLookup[blockId].tile & 0xffff;
+    uint numQuad = tileLookup[blockId].tile >> 16;
+    uint plantID = iId & 0x3f;
 
-    float F = frac(iId / 50.f);
-    P = floor(F * 50) * 128;
+    if (plantID < numQuad)
+    {
+        uint newID = tileLookup[blockId].offset + plantID;
+        instance_PLANT plant = plantBuffer[newID];
 
+        float3 rootPos = unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024);
+        //rootPos.x += plantID;
+        //rootPos.y += tiles[tileIDX].scale_1024 * 2048;
+        float scale = 3 *  SCALE(plant.s_r_idx);
+        float rotation = ROTATION(plant.s_r_idx);
+        uint index = PLANT_INDEX(plant.s_r_idx);
 
-    ribbonVertex R = instanceBuffer[vId + P];
+        /*
+        int x = iId & 0x7f;
+        int y = iId >> 7;
+        float3 Ipos = float3(x * 0.1, 0, y * 0.1);
+        //int P = saturate(frac((float)iId * 0.2)) *5 * 128;
+        int P = (iId & 0x3) * 128;
 
-    output.rootPos = float4(Ipos + R.pos + float3(2984, 611.9, 5709), 1);
-    output.right = float4(R.right * 0.004, 0);
-    output.flags = R.A;
-    output.other.x = R.pos.y * 4;
+        float F = frac(iId / 50.f);
+        P = floor(F * 50) * 128;
+        */
+        float s;
+        float c;
+        sincos(rotation, s, c);
+        
+        uint P = 1 * 128;
 
-    float3 U = instanceBuffer[vId + P + 1].pos - R.pos;
-    float3 E = R.pos - eye;
-    E.z *= -1;
-    float3 RGH = normalize(cross(U, E));
-    //output.right = float4(RGH * 0.004, 0);
+        ribbonVertex R = instanceBuffer[vId + P];
+        float3 vPos = R.pos;
+        vPos.x = R.pos.x * s + R.pos.z * c;
+        vPos.z = R.pos.x * c - R.pos.z * s;
+        output.rootPos = float4(rootPos + vPos * scale, 1);
+        output.right = float4(R.right * 0.005 * scale, 0);
+        output.flags = R.A;
+        output.other.x = R.pos.y * 4;
 
-    output.N = normalize(cross(R.right, U));
+        float3 U = instanceBuffer[vId + P + 1].pos - R.pos;
+        float3 E = R.pos - eye;
+        E.z *= -1;
+        float3 RGH = normalize(cross(U, E));
+        //output.right = float4(RGH * 0.008, 0);
+
+        output.N = normalize(cross(R.right, U));
+    }
 
 
     return output;
@@ -132,7 +161,7 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float A = dot(normal, sunDir);
     float A_backface = saturate(-A);
     A = saturate(A + 0.1);
-    float S = pow(abs(dot(vOut.world, spec)), 15);
+    float S = pow(abs(dot(vOut.world, spec)), 25);
 
     float3 colour = float3(0.07, 0.2, 0.05);
     float3 final = (colour * A * saturate(vOut.texCoords.z * 3))  +  float3(0.1, 0.2, 0) * A_backface  + S;

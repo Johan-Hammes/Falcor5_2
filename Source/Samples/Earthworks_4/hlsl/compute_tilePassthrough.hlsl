@@ -22,13 +22,14 @@ RWStructuredBuffer<gpuTile> 			tiles;
 
 
 
-StructuredBuffer<tileExtract>			tileInfo;				// FIXME DOES NTO EXIST ANY MOR EMAKE SURE WE GET THE INDEX
+//StructuredBuffer<tileExtract>			tileInfo;				// FIXME DOES NTO EXIST ANY MOR EMAKE SURE WE GET THE INDEX
 RWStructuredBuffer<GC_feedback>			feedback;
 
 
 
 cbuffer gConstants			// ??? wonder if this just works here, then we can skip structured buffer for it
 {
+    uint parent_index;
 	uint child_index;
 	uint dX;
 	uint dY;
@@ -40,15 +41,15 @@ cbuffer gConstants			// ??? wonder if this just works here, then we can skip str
 [numthreads(256, 1, 1)]			
 void main(uint dispatchId : SV_DispatchThreadId)
 {
-	gpuTile tile = tiles[ tileInfo[0].index ];
+	gpuTile tile = tiles[parent_index];
 	
 	
 	if(dispatchId < tile.numQuads )
 	{
 		gpuTile tileC = tiles[child_index];
 		
-		uint XYZ = quad_instance[tileInfo[0].index * numQuadsPerTile + dispatchId].xyz;
-		uint SRTI = quad_instance[tileInfo[0].index * numQuadsPerTile + dispatchId].s_r_idx;
+		uint XYZ = quad_instance[parent_index * numQuadsPerTile + dispatchId].xyz;
+		uint SRTI = quad_instance[parent_index * numQuadsPerTile + dispatchId].s_r_idx;
 		uint cx = XYZ >> 31;
 		uint cy = (XYZ >> 21) & 0x1;
 		
@@ -70,16 +71,16 @@ void main(uint dispatchId : SV_DispatchThreadId)
 			uint uHgt = (height - tileC.origin.y) / tileC.scale_1024;
 			
 			
-			float FACTOR = 0.5f / tile.scale_1024 / 2.0f;		// FIXME we need plant sizes in teh GPU ecitipe desc
+			float FACTOR = 0.5f / tile.scale_1024 / 2.0f;		// FIXME we need plant sizes in teh GPU ecotipe desc
 			
-			if (FACTOR > 40.0)	
+			if (FACTOR > 20.0)	
 			{
 				// *** its large pack into the plant structure
 				uint slot = 0;
 				InterlockedAdd( tiles[child_index].numPlants, 1, slot );
 				
-				plant_instance[child_index*2000 + slot].xyz =  repack_pos(x, y, uHgt, rnd);
-				plant_instance[child_index*2000 + slot].s_r_idx = repack_SRTI( SRTI, child_index);
+				plant_instance[child_index * numPlantsPerTile + slot].xyz =  repack_pos(x, y, uHgt, rnd);
+				plant_instance[child_index * numPlantsPerTile + slot].s_r_idx = repack_SRTI( SRTI, child_index);
 			}
 			else
 			{

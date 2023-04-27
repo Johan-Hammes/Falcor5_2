@@ -323,8 +323,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.buffer_instance_plants = Buffer::createStructured(sizeof(instance_PLANT), numTiles * numPlantsPerTile);
 
         split.buffer_lookup_terrain = Buffer::createStructured(sizeof(tileLookupStruct), 524288);   // enopugh for 32M tr  overkill FIXME - LOG
-        split.buffer_lookup_quads = Buffer::createStructured(sizeof(tileLookupStruct), 131072);     // enough for 8M far plants
-        split.buffer_lookup_plants = Buffer::createStructured(sizeof(tileLookupStruct), 131072);
+        split.buffer_lookup_quads = Buffer::createStructured(sizeof(instance_PLANT), 131072);     // enough for 8M far plants
+        split.buffer_lookup_plants = Buffer::createStructured(sizeof(instance_PLANT), 131072);
 
         split.buffer_terrain = Buffer::createStructured(sizeof(Terrain_vertex), numVertPerTile * numTiles);
 
@@ -397,7 +397,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
+        ribbonShader.Vars()->setBuffer("plantBuffer", split.buffer_instance_plants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+        ribbonShader.Vars()->setBuffer("tiles", split.buffer_tiles);
+        ribbonShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_plants);
+        
         
         
 
@@ -446,6 +450,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileBuildLookup.Vars()->setBuffer("plantLookup", split.buffer_lookup_plants);
         split.compute_tileBuildLookup.Vars()->setBuffer("terrainLookup", split.buffer_lookup_terrain);
         split.compute_tileBuildLookup.Vars()->setBuffer("DrawArgs_Quads", split.drawArgs_quads);
+        split.compute_tileBuildLookup.Vars()->setBuffer("DrawArgs_Plants", split.drawArgs_plants);
         split.compute_tileBuildLookup.Vars()->setBuffer("DrawArgs_Terrain", split.drawArgs_tiles);
         split.compute_tileBuildLookup.Vars()->setBuffer("feedback", split.buffer_feedback);
 
@@ -1055,9 +1060,9 @@ void terrainManager::onGuiRender(Gui* _gui)
         {
             char TTTEXT[1024];
             uint idx = split.feedback.tum_idx;
-            sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlod %d\n%3.1fm", blockFromPositionB(split.feedback.tum_Position).c_str(),
+            sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlodyx %d %d %d\n%3.1fm", blockFromPositionB(split.feedback.tum_Position).c_str(),
                 split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
-                m_tiles[idx].lod, glm::length(split.feedback.tum_Position - this->cameraOrigin)
+                m_tiles[idx].lod, m_tiles[idx].y, m_tiles[idx].x,  glm::length(split.feedback.tum_Position - this->cameraOrigin)
             );
             //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
             auto& style = ImGui::GetStyle();
@@ -1771,6 +1776,18 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         FALCOR_PROFILE("compute");
 
         {
+            FALCOR_PROFILE("passthrough");
+            uint cnt = (numQuadsPerTile) >> 8;	  // FIXME - hiesdie oordoen is es dan stadig - dit behoort Compute indoirect te wees  en die regte getal te gebruik
+            split.compute_tilePassthrough.Vars()["gConstants"]["parent_index"] = _tile->parent->index;
+            split.compute_tilePassthrough.Vars()["gConstants"]["child_index"] = _tile->index;
+            split.compute_tilePassthrough.Vars()["gConstants"]["dX"] = _tile->x & 0x1;
+            split.compute_tilePassthrough.Vars()["gConstants"]["dY"] = _tile->y & 0x1;
+            split.compute_tilePassthrough.dispatch(_renderContext, cnt, 1);
+        }
+
+
+
+        {
             FALCOR_PROFILE("ecotope");
 
             heightMap& elevationMap = elevationTileHashmap[0];
@@ -1907,6 +1924,8 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             //mpVertsMap->captureToFile(0, 0, "e:/voroinoi_verts.png");
         }
     }
+
+    
 }
 
 
@@ -2016,7 +2035,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
     
-
+    /*
     if (_pTile->lod >= 6)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
@@ -2056,7 +2075,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
             }
         }
     }
-
+    */
     
     // OVER:AY ######################################################
     if (gis_overlay.terrafectorOverlayStrength > 0)
@@ -2168,7 +2187,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
         ribbonShader.State()->setBlendState(split.blendstateSplines);
 
-        ribbonShader.drawInstanced(_renderContext, 128, 10024);
+        //ribbonShader.drawInstanced(_renderContext, 128, 10024);
+        ribbonShader.renderIndirect(_renderContext, split.drawArgs_plants);
+
+        //buffer_lookup_plants
         
     }
 
@@ -2269,11 +2291,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         sprintf(debugTxt, "%d of %d tiles used", (int)m_used.size(), (int)m_tiles.size());
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 300 });
 
-        sprintf(debugTxt, "%d of %d tiles / verts  %d", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts, split.feedback.numLookupBlocks_Terrain);
+        sprintf(debugTxt, "%d tiles / triangles  %d  {%d}max", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts, split.feedback.maxTriangles);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 320 });
 
-        sprintf(debugTxt, "%d tiles with quads    %d total quads", split.feedback.numQuadTiles, split.feedback.numQuads);
+        sprintf(debugTxt, "%d tiles with quads    %d total quads  {%d}max", split.feedback.numQuadTiles, split.feedback.numQuads, split.feedback.maxQuads);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 340 });
+
+        sprintf(debugTxt, "%d tiles with plants    %d total plants (%d)  {%d}max", split.feedback.numPlantTiles, split.feedback.numPlants, split.feedback.numPlantBlocks, split.feedback.maxPlants);
+        TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 360 });
+
+
     }
 }
 
@@ -2311,7 +2338,12 @@ void terrainManager::bake_start(bool _toMAX)
 
     bake.tileHash.clear();
 
-    for (uint lod = 4; lod < 16; lod++) {
+    int highestLOD = 16;
+    if (bakeToMax)
+    {
+        highestLOD = 7;
+    }
+    for (uint lod = 4; lod < highestLOD; lod++) {
         uint size = 1 << lod;
         unsigned char value;
 
@@ -2472,20 +2504,20 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
             float S = pixelSize / elevationMap.size;
             float2 bicubicSize = float2(S, S);
 
+
+
             split.compute_tileBicubic.Vars()["gConstants"]["offset"] = bicubicOffset;
             split.compute_tileBicubic.Vars()["gConstants"]["size"] = bicubicSize;
             split.compute_tileBicubic.Vars()["gConstants"]["hgt_offset"] = elevationMap.hgt_offset;
             split.compute_tileBicubic.Vars()["gConstants"]["hgt_scale"] = elevationMap.hgt_scale;
 
-
             //split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.bakeFbo->getColorTexture(0));
-
+            split.compute_tileBicubic.Vars()->setTexture("gOutput", split.bakeFbo->getColorTexture(0));
             split.compute_tileBicubic.dispatch(_renderContext, cs_w, cs_w);
-
             //split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.tileFbo->getColorTexture(0));
         }
 
-        //bake_RenderTopdown(_size, _lod, _y, _x, _renderContext);
+        bake_RenderTopdown(_size, _lod, _y, _x, _renderContext);
 
         // FIXME MAY HAVE TO ECOTOPE SHADER in future
 
@@ -2495,6 +2527,9 @@ void terrainManager::bake_Setup(float _size, uint _lod, uint _y, uint _x, Render
 
         if (bakeToMax)
         {
+            sprintf(outName, "%s/bake/fakeVeg/%d_%d_%d_albedo.png", settings.dirRoot.c_str(), _lod, _y, _x);
+            split.bakeFbo->getColorTexture(1).get()->captureToFile(0, 0, outName, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+
             sprintf(outName, "%s/bake/fakeVeg/%d_%d_%d_ect_1.png", settings.dirRoot.c_str(), _lod, _y, _x);
             split.bakeFbo->getColorTexture(4).get()->captureToFile(0, 0, outName, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
@@ -2648,13 +2683,15 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
 
 
     {
-        split.shader_meshTerrafector.State()->setFbo(split.tileFbo);
+        split.shader_meshTerrafector.State()->setFbo(split.bakeFbo);
         split.shader_meshTerrafector.State()->setRasterizerState(split.rasterstateSplines);
         split.shader_meshTerrafector.State()->setBlendState(split.blendstateRoadsCombined);
         split.shader_meshTerrafector.State()->setDepthStencilState(split.depthstateAll);
 
         split.shader_meshTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = 1.0f;
+
+        
 
         auto& block = split.shader_meshTerrafector.Vars()->getParameterBlock("gmyTextures");
         ShaderVar& var = block->findMember("T");        // FIXME pre get
@@ -2663,7 +2700,7 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
 
     //if (bSplineAsTerrafector)           // Now render the roadNetwork
     {
-        split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
+        split.shader_splineTerrafector.State()->setFbo(split.bakeFbo);
         split.shader_splineTerrafector.State()->setRasterizerState(split.rasterstateSplines);
         split.shader_splineTerrafector.State()->setDepthStencilState(split.depthstateAll);
         split.shader_splineTerrafector.State()->setBlendState(split.blendstateRoadsCombined);

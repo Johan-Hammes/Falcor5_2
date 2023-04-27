@@ -18,13 +18,17 @@ void main(uint dispatchId : SV_DispatchThreadId)
 	feedback[0].numQuadTiles = 0;
 	feedback[0].numQuadBlocks = 0;
 	feedback[0].numQuads = 0;
+    feedback[0].maxQuads = 0;
+
 	feedback[0].numPlantTiles = 0;
 	feedback[0].numPlantBlocks = 0;
 	feedback[0].numPlants = 0;
+    feedback[0].maxPlants = 0;
 	
 	feedback[0].numTerrainTiles = 0;
 	feedback[0].numTerrainBlocks = 0;
 	feedback[0].numTerrainVerts = 0;
+    feedback[0].maxTriangles = 0;
 	
 	feedback[0].numLookupBlocks_Quads = 0;
 	feedback[0].numLookupBlocks_Plants = 0;
@@ -40,5 +44,5 @@ void main(uint dispatchId : SV_DispatchThreadId)
     DrawArgs_Quads[0].vertexCountPerInstance = 16;
 
     DrawArgs_Plants[0].instanceCount = 0;
-    DrawArgs_Plants[0].vertexCountPerInstance = 4;
+    DrawArgs_Plants[0].vertexCountPerInstance = 128;
 }

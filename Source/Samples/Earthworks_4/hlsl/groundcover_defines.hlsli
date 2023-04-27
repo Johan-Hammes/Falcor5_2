@@ -263,13 +263,16 @@ struct GC_feedback			// to log and read back to debug and test the process
 	uint numQuadTiles;
 	uint numQuadBlocks;
 	uint numQuads;
+    uint maxQuads;
 	uint numPlantTiles;
 	uint numPlantBlocks;
 	uint numPlants;
+    uint maxPlants;
 	
 	uint numTerrainTiles;		// FXIME these wil ahve te be per camera later - maybe allow a max of 16 cameras or somethign like htta
 	uint numTerrainBlocks;
 	uint numTerrainVerts;
+    uint maxTriangles;
 	
 	// lookup params
 	uint numLookupBlocks_Quads;

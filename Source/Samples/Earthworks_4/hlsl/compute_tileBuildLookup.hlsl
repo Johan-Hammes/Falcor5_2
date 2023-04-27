@@ -14,6 +14,7 @@ StructuredBuffer<uint> 					visibility;
 RWStructuredBuffer<GC_feedback>			feedback;
 
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Quads;
+RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Plants;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Terrain;
 
 
@@ -47,8 +48,8 @@ void main(uint dispatchId : SV_DispatchThreadId)
 	if ((t>0) && (t < 1000))		// FIXME hardcoded
 	{
 
-        //if ((unpackFrustum(t) & (1 << 20)) && tiles[t].numQuads > 0)
-        if ((unpackFrustum(t) >0) && tiles[t].numQuads > 0)
+        if ((unpackFrustum(t) & (1 << 20)) && tiles[t].numQuads > 0)
+        //if ((unpackFrustum(t) >0) && tiles[t].numQuads > 0)
         //if (tiles[t].numQuads > 0)
 		{
 			
@@ -63,6 +64,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
             InterlockedAdd(DrawArgs_Quads[0].instanceCount, numB, slot);
             InterlockedAdd(feedback[0].numQuadBlocks, numB, slot);
             InterlockedAdd(feedback[0].numQuads, totalQuads, slot);
+            InterlockedMax(feedback[0].maxQuads, totalQuads, slot);
 
 			for (uint i = 0; i < numB; i++)
 			{
@@ -74,37 +76,40 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		}
 		
 		
-		/*
+		
 		// *** and now build the lookup table for the plants compute shader
-		if (tiles[t].numPlants > 0)
+        if ((unpackFrustum(t) >0) && tiles[t].lod > 10 && tiles[t].numPlants > 0)
+		//if (tiles[t].numPlants > 0)
 		{
-			uint slot = 0;
-			InterlockedAdd( feedback[0].numPlantTiles, 1, slot );
-			
 			uint totalPlants = tiles[t].numPlants;
 			uint numB = (totalPlants >> 6) + 1;		// FIXME hardcoded
+
+            uint numLookupBlocks = 0;
+            InterlockedAdd(feedback[0].numLookupBlocks_Plants, numB, numLookupBlocks);
+
+            uint slot = 0;
+            InterlockedAdd(feedback[0].numPlantTiles, 1, slot);
+            InterlockedAdd(DrawArgs_Plants[0].instanceCount, numB * 64, slot); // here the empty padding is a LOT worse and also breaks lodding so replace eventually one we have num,bers
+            InterlockedAdd(feedback[0].numPlantBlocks, numB, slot);
+            InterlockedAdd(feedback[0].numPlants, totalPlants, slot);
+            InterlockedMax(feedback[0].maxPlants, totalPlants, slot);
+
 			for (uint i = 0; i < numB; i++)
 			{
 				uint numPlants = min(totalPlants, 64);  // number of plants ion this block
 				totalPlants -= 64;
-
-				uint numLookupBlocks = 0;
-				InterlockedAdd( feedback[0].numLookupBlocks_Plants, 1, numLookupBlocks );
-				
-				InterlockedAdd( feedback[0].numPlantBlocks, 1, slot );
-				InterlockedAdd( feedback[0].numPlants, numPlants, slot );
-				
-		
-				plantLookup[numLookupBlocks].tile = tiles[t].index + (numPlants <<16);		// packing - mocve to function					;-) I think tiles[t].index  = t
-				plantLookup[numLookupBlocks].offset = tiles[t].index*2000 + (i * 64);		// FXIME the 2000 is hardcoded pass in
+				plantLookup[numLookupBlocks + i].tile = t + (numPlants <<16);
+				plantLookup[numLookupBlocks + i].offset = (t * numPlantsPerTile) + (i * 64);
 			}
 		}
-		*/
+		
 		
 		
 		/*
 			So the really interesting part is that doing frustum culling does almost nothing for rendering speed, the vertex shader is just not the bottlenect
 			and its a hell of a lot easier to just have one surface to bother with
+
+            TEST THIS AGAIN
 		*/
 		
 		tiles[t].flags = 0;
@@ -123,6 +128,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
             InterlockedAdd(DrawArgs_Terrain[0].instanceCount, 64* numB, slot);
             InterlockedAdd(feedback[0].numTerrainBlocks, numB, slot);
             InterlockedAdd(feedback[0].numTerrainVerts, totalTriangles, slot);
+            InterlockedMax(feedback[0].maxTriangles, totalTriangles, slot);
             
 			for (uint i = 0; i < numB; i++)
 			{
