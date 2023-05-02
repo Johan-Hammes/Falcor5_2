@@ -146,6 +146,8 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     }
 
     aboutTex = Texture::createFromFile("earthworks_4/about.dds", false, true);
+
+    tonemapper.load("Samples/Earthworks_4/hlsl/compute_tonemapper.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
 }
 
 
@@ -165,7 +167,15 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
     graphicsState->setFbo(pTargetFbo);
 
-    terrain.onFrameRender(_renderContext, pTargetFbo, camera, graphicsState, viewport3d);
+    terrain.onFrameRender(_renderContext, hdrFbo, camera, graphicsState, viewport3d);
+
+    {
+        FALCOR_PROFILE("tonemapper");
+        tonemapper.Vars()->setTexture("hdr", hdrFbo->getColorTexture(0));
+        tonemapper.State()->setFbo(pTargetFbo);
+        tonemapper.State()->setRasterizerState(graphicsState->getRasterizerState());
+        tonemapper.drawInstanced(_renderContext, 3, 1);
+    }
 
     Texture::SharedPtr tex = terrafectorEditorMaterial::static_materials.getDisplayTexture();
     if (!tex) {
@@ -181,6 +191,8 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
         _renderContext->blit(tex->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
         terrafectorEditorMaterial::static_materials.dispTexIndex = -1;
     }
+
+    
 
     if (changed) slowTimer = 10;
     slowTimer--;
@@ -246,7 +258,7 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
 
     Fbo::Desc desc;
     desc.setDepthStencilTarget(ResourceFormat::D24UnormS8);
-    desc.setColorTarget(0u, ResourceFormat::R11G11B10Float);
+    desc.setColorTarget(0u, ResourceFormat::R11G11B10Float);        // add , true if we want to write to it UAV
     hdrFbo = Fbo::create2D(_width, _height, desc);
     graphicsState->setFbo(hdrFbo);
 

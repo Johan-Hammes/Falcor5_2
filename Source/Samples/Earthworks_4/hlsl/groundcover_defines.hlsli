@@ -9,7 +9,7 @@
 #define MAX_LIGHTS_PER_TILE 64
 #define MAX_LIGHTS_PER_TILE_ARRAY 32
 
-//#define COMPUTE_DEBUG_OUTPUT
+#define COMPUTE_DEBUG_OUTPUT
 
 struct t_DrawArguments
 {
@@ -17,6 +17,14 @@ struct t_DrawArguments
     uint instanceCount;
     uint startVertexLocation;
     uint startInstanceLocation;
+};
+
+struct t_DispatchArguments
+{
+    uint numGroupX;
+    uint numGroupY;
+    uint numGroupZ;
+    uint padd;              // but useful ,maybe
 };
 
 
@@ -110,6 +118,16 @@ struct instance_PLANT_PART
 };
 
 
+struct xformed_PLANT
+{
+    float3 position;
+    float scale;
+
+    float2 rotation;
+    uint index;
+    uint padd;
+};
+
 
 
 /*	It is possible to get this down to 8 bytes with tight bit packing but the unpacking will probably be slower than the memory access, this way will build a matrix fast
@@ -170,7 +188,7 @@ struct gpuTile
 	uint numQuads;			// compute
 	uint numPlants;			// compute
 	uint numTriangles;		// compute
-	uint numVerticis;			// compute
+	uint numVerticis;		// compute
 };
 
 	
@@ -295,7 +313,8 @@ struct GC_feedback			// to log and read back to debug and test the process
 	float4 bStoView;
 	float4 bsSaturate;
 	float size;
-	float3 paddS;
+	float2 paddS;
+    uint    numPostClippedPlants;
 };
 
 

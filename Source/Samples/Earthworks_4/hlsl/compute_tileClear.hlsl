@@ -6,6 +6,8 @@ RWStructuredBuffer<GC_feedback>			feedback;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Quads;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Terrain;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Plants;
+RWStructuredBuffer<t_DrawArguments> 	DrawArgs_ClippedLoddedPlants;
+RWStructuredBuffer<t_DispatchArguments> DispatchArgs_Plants;
 
 
 
@@ -24,6 +26,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
 	feedback[0].numPlantBlocks = 0;
 	feedback[0].numPlants = 0;
     feedback[0].maxPlants = 0;
+    feedback[0].numPostClippedPlants = 0;
 	
 	feedback[0].numTerrainTiles = 0;
 	feedback[0].numTerrainBlocks = 0;
@@ -45,4 +48,14 @@ void main(uint dispatchId : SV_DispatchThreadId)
 
     DrawArgs_Plants[0].instanceCount = 0;
     DrawArgs_Plants[0].vertexCountPerInstance = 128;
+
+    DrawArgs_ClippedLoddedPlants[0].instanceCount = 0;
+    DrawArgs_ClippedLoddedPlants[0].vertexCountPerInstance = 128;
+
+    DispatchArgs_Plants[0].numGroupX = 0;
+    DispatchArgs_Plants[0].numGroupY = 1;
+    DispatchArgs_Plants[0].numGroupZ = 1;
+    DispatchArgs_Plants[0].padd = 0;
+
+    
 }

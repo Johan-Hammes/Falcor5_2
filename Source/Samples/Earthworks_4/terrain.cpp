@@ -313,14 +313,19 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         split.drawArgs_quads = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
         split.drawArgs_plants = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+        split.drawArgs_clippedloddedplants = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
         split.drawArgs_tiles = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+        split.dispatchArgs_plants = Buffer::createStructured(sizeof(t_DispatchArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+        
 
         split.buffer_feedback = Buffer::createStructured(sizeof(GC_feedback), 1);
         split.buffer_feedback_read = Buffer::createStructured(sizeof(GC_feedback), 1, Resource::BindFlags::None, Buffer::CpuAccess::Read);
 
         split.buffer_tiles = Buffer::createStructured(sizeof(gpuTile), numTiles);
+        split.buffer_tiles_readback = Buffer::createStructured(sizeof(gpuTile), numTiles, Resource::BindFlags::None, Buffer::CpuAccess::Read);
         split.buffer_instance_quads = Buffer::createStructured(sizeof(instance_PLANT), numTiles * numQuadsPerTile);
         split.buffer_instance_plants = Buffer::createStructured(sizeof(instance_PLANT), numTiles * numPlantsPerTile);
+        split.buffer_clippedloddedplants = Buffer::createStructured(sizeof(xformed_PLANT), 1024 * 1024); //32 bytes
 
         split.buffer_lookup_terrain = Buffer::createStructured(sizeof(tileLookupStruct), 524288);   // enopugh for 32M tr  overkill FIXME - LOG
         split.buffer_lookup_quads = Buffer::createStructured(sizeof(instance_PLANT), 131072);     // enough for 8M far plants
@@ -395,12 +400,19 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonData->setBlob(testribbons, 0, 50 * 128 * sizeof(ribbonVertex));
          
 
+        /*
         ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
         ribbonShader.Vars()->setBuffer("plantBuffer", split.buffer_instance_plants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
         ribbonShader.Vars()->setBuffer("tiles", split.buffer_tiles);
         ribbonShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_plants);
+        */
+        ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+        ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
+        ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
+        ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+
         
         
         
@@ -417,6 +429,18 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_Terrain", split.drawArgs_tiles);
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_Quads", split.drawArgs_quads);
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_Plants", split.drawArgs_plants);
+        split.compute_tileClear.Vars()->setBuffer("DrawArgs_ClippedLoddedPlants", split.drawArgs_clippedloddedplants);
+        split.compute_tileClear.Vars()->setBuffer("DispatchArgs_Plants", split.dispatchArgs_plants);
+        
+        
+        // plants clip lod animate
+        split.compute_clipLodAnimatePlants.load("Samples/Earthworks_4/hlsl/compute_clipLodAnimatePlants.hlsl");
+        split.compute_clipLodAnimatePlants.Vars()->setBuffer("tiles", split.buffer_tiles);
+        split.compute_clipLodAnimatePlants.Vars()->setBuffer("tileLookup", split.buffer_lookup_plants);
+        split.compute_clipLodAnimatePlants.Vars()->setBuffer("plantBuffer", split.buffer_instance_plants);
+        split.compute_clipLodAnimatePlants.Vars()->setBuffer("output", split.buffer_clippedloddedplants);
+        split.compute_clipLodAnimatePlants.Vars()->setBuffer("drawArgs_Plants", split.drawArgs_clippedloddedplants);
+        split.compute_clipLodAnimatePlants.Vars()->setBuffer("feedback", split.buffer_feedback);
 
         // split merge
         split.compute_tileSplitMerge.load("Samples/Earthworks_4/hlsl/compute_tileSplitMerge.hlsl");
@@ -453,6 +477,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileBuildLookup.Vars()->setBuffer("DrawArgs_Plants", split.drawArgs_plants);
         split.compute_tileBuildLookup.Vars()->setBuffer("DrawArgs_Terrain", split.drawArgs_tiles);
         split.compute_tileBuildLookup.Vars()->setBuffer("feedback", split.buffer_feedback);
+        split.compute_tileBuildLookup.Vars()->setBuffer("DispatchArgs_Plants", split.dispatchArgs_plants);
 
         // bicubic
         split.compute_tileBicubic.load("Samples/Earthworks_4/hlsl/compute_tileBicubic.hlsl");
@@ -522,9 +547,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.bc6h_texture = Texture::create2D(tile_numPixels / 4, tile_numPixels / 4, Falcor::ResourceFormat::RGBA32Uint, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
         split.compute_bc6h.load("Samples/Earthworks_4/hlsl/compute_bc6h.hlsl");
         split.compute_bc6h.Vars()->setTexture("gOutput", split.bc6h_texture);
+
     }
 
-    allocateTiles(1024);
+    allocateTiles(numTiles);
 
     elevationCache.resize(45);
     loadElevationHash();
@@ -1294,7 +1320,7 @@ bool terrainManager::testForSplit(quadtree_tile* _tile)
             viewBS.w = 0;
             float distance = length(viewBS) + 0.01f;
             float fovscale = glm::length(cameraViews[i].proj[0]);
-            float m_halfAngle_to_Pixels = cameraViews[i].resolution * fovscale / 4.0f;
+            float m_halfAngle_to_Pixels = cameraViews[i].resolution * fovscale / 5.0f;
             float lod_Pix = _tile->size / distance * m_halfAngle_to_Pixels;
 
 
@@ -1508,10 +1534,12 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     {
         
-        if (dirty)
+        //if (dirty)
         {
             FALCOR_PROFILE("update_dirty");
             split.compute_tileClear.dispatch(_renderContext, 1, 1);
+
+            
 
             testForSurfaceMain();
             for (auto& tile : m_used)
@@ -1531,10 +1559,28 @@ bool terrainManager::update(RenderContext* _renderContext)
             split.compute_tileBuildLookup.dispatch(_renderContext, cnt, 1);
             //FIXME this of coarse adds it in teh worst fashion, interleaving 64 triangles or quads of diffirent tiles with one another
             // see what to do diffirent VERY bad for materials and texture reads
+
+            {
+                FALCOR_PROFILE("clip_lod_animate");
+                rmcv::mat4 view, clip;
+                for (int i = 0; i < 4; i++) {
+                    for (int j = 0; j < 4; j++) {
+                        view[j][i] = cameraViews[1].view[j][i];
+                        clip[j][i] = cameraViews[1].frustumMatrix[j][i];
+                    }
+                }
+                split.compute_clipLodAnimatePlants.Vars()["gConstantBuffer"]["view"] = view;
+                split.compute_clipLodAnimatePlants.Vars()["gConstantBuffer"]["clip"] = clip;
+                split.compute_clipLodAnimatePlants.dispatchIndirect(_renderContext, split.dispatchArgs_plants.get(), 0);//225
+            }
         }
     }
 
+    
 
+    
+
+    //static gpuTile RB_tiles[1024];
     {
         FALCOR_PROFILE("update_readback");
         if (dirty)
@@ -1549,6 +1595,13 @@ bool terrainManager::update(RenderContext* _renderContext)
                 m_tiles[i].origin.y = split.tileCenters[i].x;           // THIS is very wrong, .x contains the middl;em but i also think its unused
                 m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
             }
+
+            
+            /*
+            const void* tiledata = split.buffer_tiles.get()->map(Buffer::MapType::Read);
+            std::memcpy(RB_tiles, tiledata, sizeof(gpuTile)* numTiles);
+            split.buffer_tiles.get()->unmap();
+            */
         }
     }
 
@@ -1619,6 +1672,7 @@ void terrainManager::setChild(quadtree_tile* pTile, int y, int x)
     float origY = pTile->size / 2.0f * y;
 
     pTile->child[childIdx] = m_free.front();
+    //printf("%d, ",pTile->child[childIdx]->index);
     m_free.pop_front();
     pTile->child[childIdx]->set(pTile->lod + 1, pTile->x * 2 + x, pTile->y * 2 + y, pTile->size / 2.0f, pTile->origin + float4(origX, 0, origY, 0), pTile);
     m_used.push_back(pTile->child[childIdx]);
@@ -1629,7 +1683,7 @@ void terrainManager::setChild(quadtree_tile* pTile, int y, int x)
 void terrainManager::splitOne(RenderContext* _renderContext)
 {
     /* Bloody hell, pick the best one to do*/
-    if (m_free.size() < 4) return;
+    if (m_free.size() < 8) return;
 
 
     // FIXME PICK A BETTER ONE HERE
@@ -1843,7 +1897,8 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             if (_tile->lod == 14)  scale = 1.5f;
             if (_tile->lod == 15)  scale = 2.0f;
             if (_tile->lod >= 16)  scale = 3.2f;
-            scale *= 1.5;
+            //scale *= 1.5;
+            
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
             split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize * scale, 0, 0, _tile->index);
             split.compute_tileVerticis.dispatch(_renderContext, cs_w / 2, cs_w / 2);
@@ -2169,15 +2224,19 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         glm::vec3 D = glm::vec3(view[2][0], view[2][1], -view[2][2]);
         glm::vec3 R = glm::normalize(glm::cross(glm::vec3(0, 1, 0), D));
         terrainSpiteShader.Vars()["gConstantBuffer"]["right"] = R;
+        terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 0;
 
         terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
         terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
 
         terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
+
+        terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
+        terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
     }
 
     {
-        
+       
         FALCOR_PROFILE("ribbonShader");
 
         ribbonShader.State()->setFbo(_fbo);
@@ -2190,10 +2249,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         ribbonShader.State()->setBlendState(split.blendstateSplines);
 
         //ribbonShader.drawInstanced(_renderContext, 128, 10024);
-        ribbonShader.renderIndirect(_renderContext, split.drawArgs_plants);
+        ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
 
         //buffer_lookup_plants
-        
+       
     }
 
     if ((splines.numStaticSplines || splines.numDynamicSplines) && showRoadSpline && !bSplineAsTerrafector)
@@ -2301,6 +2360,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         sprintf(debugTxt, "%d tiles with plants    %d total plants (%d)  {%d}max", split.feedback.numPlantTiles, split.feedback.numPlants, split.feedback.numPlantBlocks, split.feedback.maxPlants);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 360 });
+
+        sprintf(debugTxt, "%d clipped plants", split.feedback.numPostClippedPlants);
+        TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 380 });
 
 
     }

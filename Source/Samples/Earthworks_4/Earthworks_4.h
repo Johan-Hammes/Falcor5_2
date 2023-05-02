@@ -28,6 +28,7 @@
 #pragma once
 #include "Falcor.h"
 #include "terrain.h"
+#include "RenderGraph/RenderGraph.h"
 
 using namespace Falcor;
 
@@ -53,12 +54,12 @@ private:
     float2                      screenMouseScale;
     float2                      screenMouseOffset;
     Fbo::SharedPtr		        hdrFbo;
+    Fbo::SharedPtr		        tonemappedFbo;
     Texture::SharedPtr	        hdrHalfCopy;
 
     GraphicsState::SharedPtr    graphicsState;
-    //ToneMapper::SharedPtr		toneMapper;
-    //RenderGraph               graph;
     Camera::SharedPtr	        camera;
+    pixelShader		            tonemapper;
     terrainManager              terrain;
     bool showAbout = false;
     Texture::SharedPtr aboutTex;

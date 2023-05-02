@@ -302,7 +302,7 @@ private:
 
     void bezierRoadstoLOD(uint _lod);
 
-    uint                        numTiles = 1024;
+    uint                        numTiles = 997;
     std::vector<quadtree_tile>	m_tiles;
     std::list<quadtree_tile*>	m_free;
     std::list<quadtree_tile*>	m_used;
@@ -399,13 +399,16 @@ private:
         computeShader		compute_tileJumpFlood;
         computeShader		compute_tileDelaunay;
         computeShader		compute_tileElevationMipmap;
+        computeShader		compute_clipLodAnimatePlants;
 
         // BC6H compressor
         computeShader           compute_bc6h;
         Texture::SharedPtr      bc6h_texture;
 
+        Buffer::SharedPtr       dispatchArgs_plants;
         Buffer::SharedPtr       drawArgs_quads;
         Buffer::SharedPtr       drawArgs_plants;
+        Buffer::SharedPtr       drawArgs_clippedloddedplants;
         Buffer::SharedPtr       drawArgs_tiles;         // block based
         Buffer::SharedPtr       buffer_feedback;
         Buffer::SharedPtr		buffer_feedback_read;
@@ -413,8 +416,10 @@ private:
 
         std::vector<gpuTile>    cpuTiles;
         Buffer::SharedPtr       buffer_tiles;
+        Buffer::SharedPtr       buffer_tiles_readback;
         Buffer::SharedPtr       buffer_instance_quads;
         Buffer::SharedPtr       buffer_instance_plants;
+        Buffer::SharedPtr       buffer_clippedloddedplants;
 
         Buffer::SharedPtr       buffer_lookup_terrain;
         Buffer::SharedPtr       buffer_lookup_quads;

@@ -12,9 +12,7 @@ Texture2D gAlbedo : register(t0);
 
 
 StructuredBuffer<ribbonVertex>        instanceBuffer;
-StructuredBuffer<instance_PLANT>        plantBuffer;
-RWStructuredBuffer<gpuTile> 			tiles;
-StructuredBuffer<tileLookupStruct>		tileLookup;
+StructuredBuffer<xformed_PLANT>       instances;
 
 
 cbuffer gConstantBuffer
@@ -43,70 +41,21 @@ struct GSOut
 };
 
 
-int rand_5(in float2 uv)
-{
-    float2 noise = frac(sin(dot(uv, float2(12.9898, 78.233) * 2.0)) * 43758.5453);
-    return noise.x * 50;
-    //return floor(frac(abs(noise.x + noise.y)) * 5);
-}
-
-
 
 VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     VSOut output = (VSOut)0;
 
-    uint blockId = iId >> 6;
-    uint tileIDX = tileLookup[blockId].tile & 0xffff;
-    uint numQuad = tileLookup[blockId].tile >> 16;
-    uint plantID = iId & 0x3f;
+    const xformed_PLANT plant = instances[iId];
+    const uint P = 0;// plant.index * 128;
+    const ribbonVertex R = instanceBuffer[vId + P];
 
-    if (plantID < numQuad)
-    {
-        uint newID = tileLookup[blockId].offset + plantID;
-        instance_PLANT plant = plantBuffer[newID];
-
-        float3 rootPos = unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024);
-        //rootPos.x += plantID;
-        //rootPos.y += tiles[tileIDX].scale_1024 * 2048;
-        float scale = 4 *  SCALE(plant.s_r_idx);
-        float rotation = ROTATION(plant.s_r_idx);
-        uint index = PLANT_INDEX(plant.s_r_idx);
-
-        /*
-        int x = iId & 0x7f;
-        int y = iId >> 7;
-        float3 Ipos = float3(x * 0.1, 0, y * 0.1);
-        //int P = saturate(frac((float)iId * 0.2)) *5 * 128;
-        int P = (iId & 0x3) * 128;
-
-        float F = frac(iId / 50.f);
-        P = floor(F * 50) * 128;
-        */
-        float s;
-        float c;
-        sincos(rotation, s, c);
-        
-        uint P = 1 * 128;
-
-        ribbonVertex R = instanceBuffer[vId + P];
-        float3 vPos = R.pos;
-        vPos.x = R.pos.x * s + R.pos.z * c;
-        vPos.z = R.pos.x * c - R.pos.z * s;
-        output.rootPos = float4(rootPos + vPos * scale, 1);
-        output.right = float4(R.right * 0.005 * scale, 0);
-        output.flags = R.A;
-        output.other.x = R.pos.y * 4;
-
-        float3 U = instanceBuffer[vId + P + 1].pos - R.pos;
-        float3 E = R.pos - eye;
-        E.z *= -1;
-        float3 RGH = normalize(cross(U, E));
-        //output.right = float4(RGH * 0.008, 0);
-
-        output.N = normalize(cross(R.right, U));
-    }
-
+    output.rootPos = float4(plant.position + (float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x) * plant.scale), 1);
+    output.right = float4(R.right * 0.005 * plant.scale, 0);
+    output.flags = R.A;
+    output.other.x = R.pos.y * 4;
+    float3 U = instanceBuffer[vId + P + 1].pos - R.pos; // FIXME needs to roatet
+    output.N = normalize(cross(R.right, U));
 
     return output;
 }
@@ -119,7 +68,8 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
     GSOut v;
 
     //OutputStream.RestartStrip();
-    if (L[1].flags == 1) {
+    if (L[1].flags == 1)
+    {
 
 
         v.pos = mul(L[0].rootPos - L[0].right, viewproj);

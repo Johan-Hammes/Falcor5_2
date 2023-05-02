@@ -54,6 +54,7 @@ target_sources(Earthworks_4 PRIVATE
 	hlsl/compute_tilePassthrough.hlsl
 	hlsl/compute_tileSplitMerge.hlsl
     hlsl/compute_terrain_under_mouse.hlsl
+    hlsl/compute_clipLodAnimatePlants.hlsl
 
     hlsl/render_meshTerrafector.hlsl
     hlsl/render_splineTerrafector.hlsl
@@ -65,6 +66,7 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/render_Common.hlsli
     hlsl/PBR.hlsli
     hlsl/material.hlsli
+    hlsl/compute_tonemapper.hlsl
 )
 
 

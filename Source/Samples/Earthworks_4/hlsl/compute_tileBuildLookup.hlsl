@@ -16,6 +16,7 @@ RWStructuredBuffer<GC_feedback>			feedback;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Quads;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Plants;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Terrain;
+RWStructuredBuffer<t_DispatchArguments> DispatchArgs_Plants;
 
 
 cbuffer gConstants
@@ -93,6 +94,9 @@ void main(uint dispatchId : SV_DispatchThreadId)
             InterlockedAdd(feedback[0].numPlantBlocks, numB, slot);
             InterlockedAdd(feedback[0].numPlants, totalPlants, slot);
             InterlockedMax(feedback[0].maxPlants, totalPlants, slot);
+
+            InterlockedAdd(DispatchArgs_Plants[0].numGroupX, numB, slot);
+            
 
 			for (uint i = 0; i < numB; i++)
 			{

@@ -124,7 +124,16 @@ void gsMain(point VSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
 float4 psMain(GSOut vOut) : SV_TARGET
 {
     float4 samp = gAlbedo.Sample(gSampler, vOut.texCoords.xy);
-    samp.a = saturate(samp.a * 2);
-    clip(samp.a - 0.2);
+    //samp.a = saturate(samp.a * 2);
+    
+    if (alpha_pass == 0) {
+        clip(samp.a - 0.6);
+        samp.a = 1;
+    }
+    else
+    {
+        clip(samp.a - 0.1); // all the trabnsparent stuff
+        clip(0.6 - samp.a);
+    }
     return samp;
 }

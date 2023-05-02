@@ -28,6 +28,13 @@ float ROTATION(uint srti)
 	return ((srti >> 22) & 0x1ff) * 0.012271846303085f;		// 512 to radians magfic number
 }
 
+float2 ROTATIONxy(uint srti)
+{
+    float2 rot;
+    sincos( ((srti >> 22) & 0x1ff) * 0.012271846303085f, rot.x, rot.y );		// 512 to radians magfic number
+    return rot;
+}
+
 uint PLANT_INDEX(uint srti)
 {
 	return srti & 0x7ff;

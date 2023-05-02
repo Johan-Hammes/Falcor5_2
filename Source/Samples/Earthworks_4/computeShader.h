@@ -9,6 +9,7 @@ class computeShader
 public:
 	void load(const std::filesystem::path& _path);
 	void dispatch(RenderContext* _renderContext, const uint32_t _width, const uint32_t _height, const uint32_t _slices=1);
+    void dispatchIndirect(RenderContext* _renderContext, const Buffer* pArgBuffer, uint64_t argBufferOffset);
 
 	ComputeState::SharedPtr State() { return state; }
 	ComputeVars::SharedPtr Vars() { return vars; }

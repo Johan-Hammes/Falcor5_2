@@ -383,7 +383,7 @@ namespace Falcor
     Fbo::SharedPtr Fbo::create2D(uint32_t width, uint32_t height, ResourceFormat color, ResourceFormat depth)
     {
         Desc d;
-        d.setColorTarget(0, color).setDepthStencilTarget(depth);
+        d.setColorTarget(0, color, true).setDepthStencilTarget(depth);
         return create2D(width, height, d);
     }
 
