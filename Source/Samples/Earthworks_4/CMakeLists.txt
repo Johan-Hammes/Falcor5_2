@@ -62,6 +62,7 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/render_sprite.hlsl
     hlsl/render_tile_sprite.hlsl
     hlsl/render_ribbons.hlsl
+    hlsl/render_triangles.hlsl
     hlsl/render_Tiles.hlsl
     hlsl/render_Common.hlsli
     hlsl/PBR.hlsli

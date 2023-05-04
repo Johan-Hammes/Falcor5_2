@@ -75,7 +75,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         instance_PLANT plant = instanceBuffer[newID];
 
         output.rootPos = float4(unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024), 1);
-        output.scale = SCALE(plant.s_r_idx);
+        output.scale = SCALE(plant.s_r_idx) * 0.4;
         output.index = PLANT_INDEX(plant.s_r_idx);
     }
     return output;

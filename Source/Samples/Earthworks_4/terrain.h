@@ -328,6 +328,8 @@ private:
 
     pixelShader ribbonShader;
     Buffer::SharedPtr       ribbonData;
+    pixelShader triangleShader;
+    Buffer::SharedPtr       triangleData;
 
     _lastFile lastfile;
     _terrainSettings settings;

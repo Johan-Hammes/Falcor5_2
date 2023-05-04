@@ -172,7 +172,7 @@ terrainManager::terrainManager()
 
         mRoadNetwork.lastUsedFilename = lastfile.road;
     }
-    
+
     std::ifstream isT(lastfile.terrain);
     if (isT.good()) {
         cereal::JSONInputArchive archive(isT);
@@ -316,7 +316,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.drawArgs_clippedloddedplants = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
         split.drawArgs_tiles = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
         split.dispatchArgs_plants = Buffer::createStructured(sizeof(t_DispatchArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
-        
+
 
         split.buffer_feedback = Buffer::createStructured(sizeof(GC_feedback), 1);
         split.buffer_feedback_read = Buffer::createStructured(sizeof(GC_feedback), 1, Resource::BindFlags::None, Buffer::CpuAccess::Read);
@@ -357,12 +357,27 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainSpiteShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
         terrainSpiteShader.Vars()->setTexture("gAlbedo", spriteTexture);
 
+
+
+
+
+
+
+
         
+
+
+
+
+
+
+
+
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
         ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 16384); // just a nice amount for now
-        ribbonVertex testribbons[50*128];
+        ribbonVertex testribbons[50 * 128];
         memset(testribbons, 0, 50 * 128 * sizeof(ribbonVertex)); //16x8
         // now fill it with stuff
         uint CNT = 0;
@@ -398,7 +413,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             }
         }
         ribbonData->setBlob(testribbons, 0, 50 * 128 * sizeof(ribbonVertex));
-         
+
 
         /*
         ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
@@ -413,9 +428,65 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
 
-        
-        
-        
+
+
+
+
+        triangleData = Buffer::createStructured(sizeof(triangleVertex), 16384); // just a nice amount for now
+
+        triangleShader.load("Samples/Earthworks_4/hlsl/render_triangles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+        triangleShader.Vars()->setBuffer("instanceBuffer", triangleData);        // WHY BOTH
+        triangleShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
+        triangleShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+
+        // Grass from disk ###########################################################################################################
+
+        unsigned int flags =
+            aiProcess_FlipUVs |
+            aiProcess_Triangulate |
+            aiProcess_PreTransformVertices |
+            //aiProcess_JoinIdenticalVertices |
+            aiProcess_GenBoundingBoxes;
+
+
+        triangleVertex testribbonsFile[50 * 128];
+        memset(testribbonsFile, 0, 50 * 128 * sizeof(triangleVertex));
+        uint vertCount = 0;
+        Assimp::Importer importer;
+        const aiScene* scene = nullptr;
+        char name[256];
+
+        for (int F = 1; F <= 16; F++)
+        {
+            sprintf(name, "F:\\texturesDotCom\\wim\\blades\\%d.fbx", F);
+            scene = importer.ReadFile(name, flags);
+            if (scene)
+            {
+                aiMesh* M = scene->mMeshes[0];
+                uint numSegments = M->mNumFaces;
+                for (uint j = 0; j < numSegments; j++)
+                {
+                    aiFace face = M->mFaces[j];
+                    for (int idx = 0; idx < 3; idx++)
+                    {
+                        aiVector3D V = M->mVertices[face.mIndices[idx]];
+                        aiVector3D N = M->mNormals[face.mIndices[idx]];
+                        aiVector3D U = M->mTextureCoords[0][face.mIndices[idx]];
+                        testribbonsFile[vertCount].pos = float3(V.x, V.y, V.z) * 0.01f;
+                        testribbonsFile[vertCount].norm = float3(N.x, N.y, N.z);
+                        testribbonsFile[vertCount].u = U.x;
+                        testribbonsFile[vertCount].v = U.y;
+                        vertCount++;
+                    }
+                }
+            }
+        }
+
+
+        triangleData->setBlob(testribbonsFile, 0, 50 * 128 * sizeof(triangleVertex));
+
+
+
 
         compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
@@ -431,8 +502,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_Plants", split.drawArgs_plants);
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_ClippedLoddedPlants", split.drawArgs_clippedloddedplants);
         split.compute_tileClear.Vars()->setBuffer("DispatchArgs_Plants", split.dispatchArgs_plants);
-        
-        
+
+
         // plants clip lod animate
         split.compute_clipLodAnimatePlants.load("Samples/Earthworks_4/hlsl/compute_clipLodAnimatePlants.hlsl");
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("tiles", split.buffer_tiles);
@@ -500,7 +571,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileEcotopes.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileEcotopes.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
         split.compute_tileEcotopes.Vars()->setBuffer("feedback", split.buffer_feedback);
-        
+
 
         // normals
         split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/compute_tileNormals.hlsl");
@@ -564,7 +635,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 
-    
+
 }
 
 
@@ -1088,7 +1159,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             uint idx = split.feedback.tum_idx;
             sprintf(TTTEXT, "%s\n(%3.1f, %3.1f, %3.1f)\nlodyx %d %d %d\n%3.1fm", blockFromPositionB(split.feedback.tum_Position).c_str(),
                 split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
-                m_tiles[idx].lod, m_tiles[idx].y, m_tiles[idx].x,  glm::length(split.feedback.tum_Position - this->cameraOrigin)
+                m_tiles[idx].lod, m_tiles[idx].y, m_tiles[idx].x, glm::length(split.feedback.tum_Position - this->cameraOrigin)
             );
             //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
             auto& style = ImGui::GetStyle();
@@ -1110,7 +1181,7 @@ void terrainManager::bil_to_jp2()
     FileDialogFilterVec filters = { {"txt"} }; // select the filanemaes file
     if (openFileDialog(filters, path))
     {
-        FILE* file, *summary;
+        FILE* file, * summary;
         fopen_s(&file, path.string().c_str(), "r");
         int numread;
         std::string pathOnly = path.string().substr(0, path.string().find_last_of("/\\") + 1);
@@ -1143,7 +1214,7 @@ void terrainManager::bil_to_jp2(std::string file, const uint size, FILE* summary
 
     FILE* bilData = fopen((file + ".bil").c_str(), "rb");
     if (bilData) {
-        
+
         for (uint i = 0; i < size; i++) {
             fread(data, sizeof(float), size, bilData);
             for (uint j = 0; j < size; j++) {
@@ -1533,13 +1604,13 @@ bool terrainManager::update(RenderContext* _renderContext)
     splitOne(_renderContext);
 
     {
-        
+
         //if (dirty)
         {
             FALCOR_PROFILE("update_dirty");
             split.compute_tileClear.dispatch(_renderContext, 1, 1);
 
-            
+
 
             testForSurfaceMain();
             for (auto& tile : m_used)
@@ -1576,9 +1647,9 @@ bool terrainManager::update(RenderContext* _renderContext)
         }
     }
 
-    
 
-    
+
+
 
     //static gpuTile RB_tiles[1024];
     {
@@ -1596,7 +1667,7 @@ bool terrainManager::update(RenderContext* _renderContext)
                 m_tiles[i].boundingSphere.y = split.tileCenters[i].x;
             }
 
-            
+
             /*
             const void* tiledata = split.buffer_tiles.get()->map(Buffer::MapType::Read);
             std::memcpy(RB_tiles, tiledata, sizeof(gpuTile)* numTiles);
@@ -1829,7 +1900,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     {
         FALCOR_PROFILE("compute");
 
-        
+
 
 
 
@@ -1898,7 +1969,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             if (_tile->lod == 15)  scale = 2.0f;
             if (_tile->lod >= 16)  scale = 3.2f;
             //scale *= 1.5;
-            
+
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
             split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize * scale, 0, 0, _tile->index);
             split.compute_tileVerticis.dispatch(_renderContext, cs_w / 2, cs_w / 2);
@@ -1982,7 +2053,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         }
     }
 
-    
+
 }
 
 
@@ -2091,7 +2162,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-    
+
     /*
     if (_pTile->lod >= 6)
     {
@@ -2133,7 +2204,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         }
     }
     */
-    
+
     // OVER:AY ######################################################
     if (gis_overlay.terrafectorOverlayStrength > 0)
         if (_pTile->lod >= 4)
@@ -2201,20 +2272,20 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
     }
 
-    
+
     {
-        
+
         FALCOR_PROFILE("terrainManager");
-        
+
         //terrainShader.State() = _graphicsState;
         terrainShader.State()->setFbo(_fbo);
         terrainShader.State()->setViewport(0, _viewport, true);
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
         terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
-        
+
     }
-    
+
     {
         FALCOR_PROFILE("terrainQuadPlants");
         terrainSpiteShader.State()->setFbo(_fbo);
@@ -2236,7 +2307,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
-       
+
         FALCOR_PROFILE("ribbonShader");
 
         ribbonShader.State()->setFbo(_fbo);
@@ -2244,15 +2315,25 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
 
-        
+
         ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
         ribbonShader.State()->setBlendState(split.blendstateSplines);
 
         //ribbonShader.drawInstanced(_renderContext, 128, 10024);
-        ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+        //ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
 
         //buffer_lookup_plants
-       
+
+
+        triangleShader.State()->setFbo(_fbo);
+        triangleShader.State()->setViewport(0, _viewport, true);
+        triangleShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        triangleShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
+        triangleShader.State()->setRasterizerState(split.rasterstateSplines);
+        triangleShader.State()->setBlendState(split.blendstateSplines);
+        triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+
+
     }
 
     if ((splines.numStaticSplines || splines.numDynamicSplines) && showRoadSpline && !bSplineAsTerrafector)
@@ -2730,7 +2811,7 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
     V[2] = glm::vec4(0, -1, 0, 0);
     V[3] = glm::vec4(-x, z, 0, 1);
 
-    
+
     P = glm::orthoLH(-s, s, -s, s, -10000.0f, 10000.0f);
 
     //viewproj = view * proj;
@@ -2755,7 +2836,7 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
         split.shader_meshTerrafector.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         split.shader_meshTerrafector.Vars()["gConstantBuffer"]["overlayAlpha"] = 1.0f;
 
-        
+
 
         auto& block = split.shader_meshTerrafector.Vars()->getParameterBlock("gmyTextures");
         ShaderVar& var = block->findMember("T");        // FIXME pre get
@@ -2865,7 +2946,7 @@ void terrainManager::bake_RenderTopdown(float _size, uint _lod, uint _y, uint _x
     }
 
 
-    
+
 
 
     //??? should probably be in the roadnetwork code, but look at the optimize step first
@@ -3334,7 +3415,11 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                         break;
                     case Input::Key::Space:
                         if (mRoadNetwork.currentRoad) mRoadNetwork.showMaterials = !mRoadNetwork.showMaterials;
+                        break;
 
+                    case Input::Key::Enter:
+                        if (mRoadNetwork.currentRoad) mRoadNetwork.currentRoad->solveRoad(splineTest.index);
+                        if (mRoadNetwork.currentIntersection) mRoadNetwork.solveIntersection();
                         break;
                     }
 

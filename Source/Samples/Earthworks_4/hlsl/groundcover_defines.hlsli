@@ -158,6 +158,14 @@ struct ribbonVertex
     int B;
 };
 
+struct triangleVertex
+{
+    float3 pos;
+    float u;
+    float3 norm;
+    float v;
+};
+
 
 // but keep it a struct for now in case we need a bit more info
 // this is a shortcut lookup between vertex and tile, given SV_InstanceId , what is tile

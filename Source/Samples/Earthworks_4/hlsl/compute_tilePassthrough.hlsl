@@ -83,7 +83,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
 			
 			float FACTOR = 0.5f / tile.scale_1024 / 2.0f;		// FIXME we need plant sizes in teh GPU ecotipe desc
 			
-			if (FACTOR > 15.0)	
+			if (FACTOR > 10.0)	
 			{
 				// *** its large pack into the plant structure
 				uint slot = 0;

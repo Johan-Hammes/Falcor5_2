@@ -34,7 +34,7 @@ void main(uint plantId : SV_GroupThreadID, uint blockId : SV_GroupID)
         float3 position = unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024);
         float scale = SCALE(plant.s_r_idx);
         float4 viewBS = mul( float4(position, 1), view);
-        float4 test = saturate( mul(clip, viewBS ) + float4(4, 4, 4, 4));
+        float4 test = saturate( mul(clip, viewBS ) + 0.05 * float4(4, 4, 4, 4));
         bool inFrust = all(test);
 
         // extract and save
