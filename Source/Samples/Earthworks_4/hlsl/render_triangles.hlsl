@@ -42,7 +42,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const triangleVertex R = instanceBuffer[vId + P];
 
     float3 vPos = float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x);
-    output.pos = mul( float4(plant.position + vPos * plant.scale*0.4, 1), viewproj );
+    output.pos = mul( float4(plant.position + vPos * plant.scale*40.4, 1), viewproj );
     output.texCoords = float2(R.u, R.v);
     output.N = R.norm;
     output.world = normalize(eye - plant.position);

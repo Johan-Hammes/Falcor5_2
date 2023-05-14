@@ -1450,31 +1450,34 @@ void roadNetwork::exportRoads(int _numSplits, glm::vec3 _center, float _size, st
             anyRoads = true;
 
             {
-                pMesh->mFaces = new aiFace[(_numSplits - 1) * numBez];
-                pMesh->mNumFaces = (_numSplits - 1) * numBez;
+                pMesh->mNumFaces = (_numSplits - 1) * numBez * 6;
+                pMesh->mFaces = new aiFace[pMesh->mNumFaces];
                 pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
 
                 for (uint j = 0; j < numBez; j++)
                 {
                     for (uint i = 0; i < _numSplits - 1; i++)
                     {
-                        aiFace& face = pMesh->mFaces[j * (_numSplits - 1) + i];
+                        for (uint k = 0; k < 6; k++)
+                        {
+                            aiFace& face = pMesh->mFaces[(j * (_numSplits - 1) + i) * 6 + k];
 
-                        face.mIndices = new unsigned int[4];
-                        face.mNumIndices = 4;
+                            face.mIndices = new unsigned int[4];
+                            face.mNumIndices = 4;
 
-                        face.mIndices[0] = (j * _numSplits + i) * 2 + 0;
-                        face.mIndices[1] = (j * _numSplits + i) * 2 + 1;
-                        face.mIndices[2] = (j * _numSplits + i) * 2 + 3;
-                        face.mIndices[3] = (j * _numSplits + i) * 2 + 2;
+                            face.mIndices[0] = (j * _numSplits + i) * 7 + (k + 0);
+                            face.mIndices[1] = (j * _numSplits + i) * 7 + (k + 1);
+
+                            face.mIndices[2] = (j * _numSplits + i) * 7 + (7 + k + 1);
+                            face.mIndices[3] = (j * _numSplits + i) * 7 + (7 + k + 0);
+                        }
                     }
                 }
             }
 
             {
-                pMesh->mVertices = new aiVector3D[_numSplits * 2 * numBez];
-                pMesh->mNumVertices = _numSplits * 2 * numBez;
-
+                pMesh->mNumVertices = _numSplits * 7 * numBez;
+                pMesh->mVertices = new aiVector3D[pMesh->mNumVertices];
 
                 //for (auto &pnt : road.points)
                 for (uint ZZ = 0; ZZ < numBez; ZZ++)
@@ -1483,25 +1486,52 @@ void roadNetwork::exportRoads(int _numSplits, glm::vec3 _center, float _size, st
 
                     for (int y = 0; y < _numSplits; y++)
                     {
-                        float total = (float)_numSplits - 1.0f;
-                        float t = (float)y / total;
-                        bezierPoint* pntThis = &pnt.bezier[left];
-                        bezierPoint* pntNext = &road.points[ZZ + 1].bezier[left];
-                        glm::vec3 A = cubic_Casteljau(t, pntThis, pntNext);// -origin;
-
-                        pntThis = &pnt.bezier[right];
-                        pntNext = &road.points[ZZ + 1].bezier[right];
-                        glm::vec3 B = cubic_Casteljau(t, pntThis, pntNext);// -origin; absolute coordinates
-
-                        if (pnt.isBridge || pnt.isAIonly)
+                        for (uint k = 0; k < 7; k++)
                         {
-                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(0, 0, 0);
-                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(0, 0, 0);
-                        }
-                        else
-                        {
-                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
-                            pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
+                            float total = (float)_numSplits - 1.0f;
+                            float t = (float)y / total;
+                            splinePoint P2 = road.points[ZZ + 1];
+
+                            glm::vec3 L = cubic_Casteljau(t, &pnt.bezier[left], &P2.bezier[left]);
+                            glm::vec3 M = cubic_Casteljau(t, &pnt.bezier[middle], &P2.bezier[middle]);
+                            glm::vec3 R = cubic_Casteljau(t, &pnt.bezier[right], &P2.bezier[right]);
+                            glm::vec3 PNT;
+                            switch (k)
+                            {
+                            case 0: PNT = L; break;
+                            case 1: PNT = glm::lerp(L, M, 0.33f);  PNT.y += 0.05f; break;
+                            case 2: PNT = glm::lerp(L, M, 0.67f);  PNT.y += 0.08686315f; break;
+                            case 3: PNT = M; PNT.y += 0.1f; break;
+                            case 4: PNT = glm::lerp(M, R, 0.33f);  PNT.y += 0.08686315f; break;
+                            case 5: PNT = glm::lerp(M, R, 0.67f);  PNT.y += 0.05f; break;
+                            case 6: PNT = R; break;
+                            }
+
+                            //PNT = L;
+                            //if (k == 3) PNT = M;
+                            //if (k > 3) PNT = R;
+
+                            pMesh->mVertices[(ZZ * _numSplits + y) * 7 + k] = aiVector3D(PNT.x, PNT.y, PNT.z);
+                            /*
+                            bezierPoint* pntThis = &pnt.bezier[left];
+                            bezierPoint* pntNext = &road.points[ZZ + 1].bezier[left];
+                            glm::vec3 A = cubic_Casteljau(t, pntThis, pntNext);// -origin;
+
+                            pntThis = &pnt.bezier[right];
+                            pntNext = &road.points[ZZ + 1].bezier[right];
+                            glm::vec3 B = cubic_Casteljau(t, pntThis, pntNext);// -origin; absolute coordinates
+
+                            if (pnt.isBridge || pnt.isAIonly)
+                            {
+                                pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(0, 0, 0);
+                                pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(0, 0, 0);
+                            }
+                            else
+                            {
+                                pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 0] = aiVector3D(A.x, A.y, A.z);
+                                pMesh->mVertices[ZZ * _numSplits * 2 + y * 2 + 1] = aiVector3D(B.x, B.y, B.z);
+                            }
+                            */
                         }
                     }
                 }

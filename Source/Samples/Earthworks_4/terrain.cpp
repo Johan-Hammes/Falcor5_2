@@ -456,9 +456,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         const aiScene* scene = nullptr;
         char name[256];
 
-        for (int F = 1; F <= 16; F++)
+        //for (int F = 1; F <= 16; F++)
         {
-            sprintf(name, "F:\\texturesDotCom\\wim\\blades\\%d.fbx", F);
+            //sprintf(name, "F:\\texturesDotCom\\wim\\blades\\%d.fbx", F);
+            sprintf(name, "F:\\texturesDotCom\\TexturesCom_3dplant_Nettle\\Individual_seeds\\A_256.fbx");
+        
             scene = importer.ReadFile(name, flags);
             if (scene)
             {
@@ -2163,7 +2165,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-    /*
+    
     if (_pTile->lod >= 6)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
@@ -2203,7 +2205,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
             }
         }
     }
-    */
+    
 
     // OVER:AY ######################################################
     if (gis_overlay.terrafectorOverlayStrength > 0)
@@ -3417,7 +3419,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                         if (mRoadNetwork.currentRoad) mRoadNetwork.showMaterials = !mRoadNetwork.showMaterials;
                         break;
 
-                    case Input::Key::Enter:
+                    case Input::Key::Q:
                         if (mRoadNetwork.currentRoad) mRoadNetwork.currentRoad->solveRoad(splineTest.index);
                         if (mRoadNetwork.currentIntersection) mRoadNetwork.solveIntersection();
                         break;
