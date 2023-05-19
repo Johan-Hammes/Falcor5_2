@@ -49,6 +49,16 @@ void main(uint dispatchId : SV_DispatchThreadId)
 	if ((t>0) && (t < 1000))		// FIXME hardcoded
 	{
 
+        uint S = 0;
+        const uint lod = tiles[t].lod;
+        if ((unpackFrustum(t) & (1 << 20)))
+        {
+            InterlockedAdd(feedback[0].numTiles[lod], 1, S);
+            InterlockedMax(feedback[0].numSprite[lod], tiles[t].numQuads, S);
+            InterlockedMax(feedback[0].numPlantsLOD[lod], tiles[t].numPlants, S);
+            InterlockedMax(feedback[0].numTris[lod], tiles[t].numTriangles, S);
+        }
+
         if ((unpackFrustum(t) & (1 << 20)) && tiles[t].numQuads > 0)
         //if ((unpackFrustum(t) >0) && tiles[t].numQuads > 0)
         //if (tiles[t].numQuads > 0)

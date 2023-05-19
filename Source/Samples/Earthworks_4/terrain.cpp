@@ -1027,6 +1027,41 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::DragFloat("jp2 quality", &bake.quality, 0.0001f, 0.0001f, 0.01f, "%3.5f");
             if (ImGui::Button("bake - EVO", ImVec2(W, 0))) { bake_start(false); }
             if (ImGui::Button("bake - fakeVeg", ImVec2(W, 0))) { bake_start(true); }
+
+
+
+
+            ImGui::NewLine();
+            ImGui::Separator();
+            ImGui::Text("Artificial Intelligence");
+
+
+            ImGui::Checkbox("AI mode", &mRoadNetwork.AI_path_mode);
+            if (mRoadNetwork.AI_path_mode) {
+                if (ImGui::Button("clear Path")) { mRoadNetwork.ai_clearPath(); }
+                ImGui::Separator();
+                if (ImGui::Button("currentRoad to AI")) {
+                    mRoadNetwork.currentRoadtoAI();
+                    updateDynamicRoad(true);
+                }
+                if (ImGui::Button("export AI")) { mRoadNetwork.exportAI(); }
+                if (ImGui::Button("export CSV")) { mRoadNetwork.exportAI_CSV(); }
+                if (ImGui::Button("load AI")) { mRoadNetwork.loadAI(); }
+                ImGui::Text("start - %3.2f, %3.2f, %3.2f", mRoadNetwork.pathBezier.startpos.x, mRoadNetwork.pathBezier.startpos.y, mRoadNetwork.pathBezier.startpos.z);
+                ImGui::Text("end - %3.2f, %3.2f, %3.2f", mRoadNetwork.pathBezier.endpos.x, mRoadNetwork.pathBezier.endpos.y, mRoadNetwork.pathBezier.endpos.z);
+                for (uint i = 0; i < mRoadNetwork.pathBezier.roads.size(); i++) {
+                    ImGui::Text("%d, %d", mRoadNetwork.pathBezier.roads[i].roadIndex, (int)mRoadNetwork.pathBezier.roads[i].bForward);
+                }
+
+                ImGui::DragInt("kevRepeats", &mRoadNetwork.pathBezier.kevRepeats, 1, 1, 200);
+                ImGui::DragFloat("kevOutScale", &mRoadNetwork.pathBezier.kevOutScale, 1, 0, 200);
+                ImGui::DragFloat("kevInScale", &mRoadNetwork.pathBezier.kevInScale, 1, 0, 200);
+                ImGui::DragInt("kevSmooth", &mRoadNetwork.pathBezier.kevSmooth, 1, 0, 100);
+                ImGui::DragInt("kevAvsCnt", &mRoadNetwork.pathBezier.kevAvsCnt, 1, 0, 10);
+                ImGui::DragInt("kecMaxCnt", &mRoadNetwork.pathBezier.kecMaxCnt, 1, 0, 20);
+                ImGui::DragFloat("kevSampleMinSpacing", &mRoadNetwork.pathBezier.kevSampleMinSpacing, 1, 1, 20);
+
+            }
             break;
 
         }
@@ -1965,11 +2000,12 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
         {
             FALCOR_PROFILE("verticies");
-            float scale = 1.0f;
-            if (_tile->lod == 13)  scale = 1.2f;
-            if (_tile->lod == 14)  scale = 1.5f;
-            if (_tile->lod == 15)  scale = 2.0f;
-            if (_tile->lod >= 16)  scale = 3.2f;
+            float scale = 0.7f;
+            if (_tile->lod < 4)  scale = 1.3f;
+            //if (_tile->lod == 13)  scale = 1.2f;
+            //if (_tile->lod == 14)  scale = 1.5f;
+            //if (_tile->lod == 15)  scale = 2.0f;
+            //if (_tile->lod >= 16)  scale = 3.2f;
             //scale *= 1.5;
 
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
@@ -2254,6 +2290,36 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
         }
     }
 
+
+
+
+    // TOP #################################################################################################################
+    if (_pTile->lod >= 6)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6_top.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
+        if (tile)
+        {
+            if (tile->numBlocks > 0)
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
+        }
+    }
+    else if (_pTile->lod >= 4)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD4_top.getTile((_pTile->y >> (_pTile->lod - 4)) * 16 + (_pTile->x >> (_pTile->lod - 4)));
+        if (tile)
+        {
+            if (tile->numBlocks > 0)
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
+        }
+    }
 }
 
 
@@ -2446,6 +2512,14 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         sprintf(debugTxt, "%d clipped plants", split.feedback.numPostClippedPlants);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 380 });
+
+
+
+        for (uint L = 0; L < 18; L++)
+        {
+            sprintf(debugTxt, "%3d %5d %5d %5d %5d", L, split.feedback.numTiles[L], split.feedback.numSprite[L], split.feedback.numPlantsLOD[L], split.feedback.numTris[L]);
+            TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 450 + L*20 });
+        }
 
 
     }

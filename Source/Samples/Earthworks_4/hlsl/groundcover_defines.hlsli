@@ -323,6 +323,12 @@ struct GC_feedback			// to log and read back to debug and test the process
 	float size;
 	float2 paddS;
     uint    numPostClippedPlants;
+
+
+    uint numTiles[20];
+    uint numSprite[20];
+    uint numPlantsLOD[20];
+    uint numTris[20];
 };
 
 

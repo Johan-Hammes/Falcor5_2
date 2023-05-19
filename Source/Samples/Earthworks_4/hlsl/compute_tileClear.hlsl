@@ -57,5 +57,14 @@ void main(uint dispatchId : SV_DispatchThreadId)
     DispatchArgs_Plants[0].numGroupZ = 1;
     DispatchArgs_Plants[0].padd = 0;
 
+
+
+    for (int j = 0; j < 20; j++)
+    {
+        feedback[0].numTiles[j] = 0;
+        feedback[0].numSprite[j] = 0;
+        feedback[0].numPlantsLOD[j] = 0;
+        feedback[0].numTris[j] = 0;
+    }
     
 }

@@ -23,6 +23,8 @@ bool terrafectorSystem::needsRefresh = false;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD2;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD6;
+lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_top;
+lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD6_top;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeLow;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeHigh;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_overlay;
@@ -1031,6 +1033,7 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
 
     bool useLOD2 = _path.find("LOD2") != std::string::npos;
     bool bakeOnlyOverlay = (_path.find("bakeOnly") != std::string::npos) || (_path.find("overlay") != std::string::npos);
+    bool top = (_path.find("50_top") != std::string::npos);
     int num2 = 0;
     int num4 = 0;
     int num6 = 0;
@@ -1070,7 +1073,15 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
         if (num6 > 0) lodder_6.save(_path + ".lod6Cache");
         std::filesystem::path P = _path;
         if (num2 > 0) terrafectorSystem::loadCombine_LOD2.addMesh(P.parent_path().string() + "/", lodder_2);
-        if (num6 > 0) terrafectorSystem::loadCombine_LOD6.addMesh(P.parent_path().string() + "/", lodder_6);
+
+        if (top)
+        {
+            if (num6 > 0) terrafectorSystem::loadCombine_LOD6_top.addMesh(P.parent_path().string() + "/", lodder_6);
+        }
+        else
+        {
+            if (num6 > 0) terrafectorSystem::loadCombine_LOD6.addMesh(P.parent_path().string() + "/", lodder_6);
+        }
 
         if (num4 > 0)
         {
@@ -1088,7 +1099,14 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
             }
             else
             {
-                terrafectorSystem::loadCombine_LOD4.addMesh(P.parent_path().string() + "/", lodder_4);
+                if (top)
+                {
+                    terrafectorSystem::loadCombine_LOD4_top.addMesh(P.parent_path().string() + "/", lodder_4);
+                }
+                else
+                {
+                    terrafectorSystem::loadCombine_LOD4.addMesh(P.parent_path().string() + "/", lodder_4);
+                }
             }
         }
 
@@ -1147,6 +1165,8 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
         }
         else
         {
+            bool top = (_path.find("50_top") != std::string::npos);
+
             lodTriangleMesh lodder2;
             lodTriangleMesh lodder4;
             lodTriangleMesh lodder6;
@@ -1156,7 +1176,13 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
 
             std::filesystem::path P = _path;
             if (use2)   terrafectorSystem::loadCombine_LOD2.addMesh(P.parent_path().string() + "/", lodder2);
-            if (use6)   terrafectorSystem::loadCombine_LOD6.addMesh(P.parent_path().string() + "/", lodder6);
+            if (top)
+            {
+                if (use6)   terrafectorSystem::loadCombine_LOD6_top.addMesh(P.parent_path().string() + "/", lodder6);
+            }
+            else {
+                if (use6)   terrafectorSystem::loadCombine_LOD6.addMesh(P.parent_path().string() + "/", lodder6);
+            }
             if (use4)
             {
                 if (_path.find("bakeOnlyBottom") != std::string::npos)
@@ -1173,7 +1199,14 @@ terrafectorElement& terrafectorElement::find_insert(const std::string _name, tfT
                 }
                 else
                 {
-                    terrafectorSystem::loadCombine_LOD4.addMesh(P.parent_path().string() + "/", lodder4);
+                    if (top)
+                    {
+                        terrafectorSystem::loadCombine_LOD4_top.addMesh(P.parent_path().string() + "/", lodder4);
+                    }
+                    else
+                    {
+                        terrafectorSystem::loadCombine_LOD4.addMesh(P.parent_path().string() + "/", lodder4);
+                    }
                 }
             }
 
@@ -1950,6 +1983,8 @@ void terrafectorSystem::loadPath(std::string _path, std::string _exportPath, boo
     terrafectorSystem::loadCombine_LOD2.create(2);
     terrafectorSystem::loadCombine_LOD4.create(4);
     terrafectorSystem::loadCombine_LOD6.create(6);
+    terrafectorSystem::loadCombine_LOD4_top.create(4);
+    terrafectorSystem::loadCombine_LOD6_top.create(6);
     terrafectorSystem::loadCombine_LOD4_bakeLow.create(4);
     terrafectorSystem::loadCombine_LOD4_bakeHigh.create(4);
     terrafectorSystem::loadCombine_LOD4_overlay.create(4);
@@ -1964,6 +1999,12 @@ void terrafectorSystem::loadPath(std::string _path, std::string _exportPath, boo
     terrafectorSystem::loadCombine_LOD4.loadToGPU(_exportPath + "/terrafector_lod4.gpu");   // this also releases CPU memory
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6.loadToGPU()\n");
     terrafectorSystem::loadCombine_LOD6.loadToGPU(_exportPath + "/terrafector_lod6.gpu");   // this also releases CPU memory
+
+    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_top.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD4_top.loadToGPU(_exportPath + "/terrafector_lod4_top.gpu");   // this also releases CPU memory
+    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6_top.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD6_top.loadToGPU(_exportPath + "/terrafector_lod6_top.gpu");   // this also releases CPU memory
+
 
     fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeLow.loadToGPU()\n");
     terrafectorSystem::loadCombine_LOD4_bakeLow.loadToGPU("");   // this also releases CPU memory

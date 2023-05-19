@@ -114,7 +114,7 @@ void main(int2 coord : SV_DispatchThreadId)
         {
             
             InterlockedAdd(tiles[constants.w].numVerticis, 1, idx);
-            if (idx < 2000)
+            //if (idx < 2000)
             {
                 gOutVerts[pixCrd] = (pixCrd.y << 7) + pixCrd.x;
             }

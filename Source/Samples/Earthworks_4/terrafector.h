@@ -455,6 +455,9 @@ public:
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4;       // 10m pixel 2.5km tile
     static lodTriangleMesh_LoadCombiner loadCombine_LOD6;       // 2.5m pixel 600m tile
 
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD4_top;       // 10m pixel 2.5km tile
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD6_top;       // 2.5m pixel 600m tile
+
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4_bakeLow;       // all baking will happen at lod4 level
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4_bakeHigh;
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4_overlay;
