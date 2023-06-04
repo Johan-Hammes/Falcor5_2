@@ -1,0 +1,7 @@
+﻿  createTerrainScripts.cpp
+  The contents of <filesystem> are available only with C++17 or later.
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(20,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(273,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(281,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+C:\development\Falcor5_2\Source\Samples\createTerrainScripts\createTerrainScripts.cpp(292,23): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+  createTerrainScripts.vcxproj -> C:\development\Falcor5_2\Source\Samples\createTerrainScripts\x64\Debug\createTerrainScripts.exe

@@ -9,9 +9,9 @@
 
 
 std::string path = "F:/terrains/";
-std::string name = "sonoma";
-std::string proj = "\"+proj=tmerc +lat_0=38.161 +lon_0=-122.46 +k_0=1 + x_0=0 + y_0=0 +ellps=GRS80 +units=m\"";
-float size = 32768.f;
+std::string name = "switserland_Steg";
+std::string proj = "\"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 + x_0=0 + y_0=0 +ellps=GRS80 +units=m\"";
+float size = 40000.f;
 std::string elevInputFiles = "";
 float rootheight[2048][2048];
 
@@ -54,7 +54,8 @@ void addTile(int _lod, int _y, int _x, FILE* _file, FILE* _list)
 
     fprintf(_file, "gdal_translate -ot Float32 ../_temp/hgt_%d_%d_%d.tiff ../_temp/hgt_%d_%d_%d.bil \n\n\n", _lod, _y, _x, _lod, _y, _x);
 
-    fprintf(_list, "%d %d %d %f %f %f hgt_%d_%d_%d\n", _lod, _y, _x, xstart, ystart, total, _lod, _y, _x);
+    // FIXME makt eh 10234 ajustable so we can pla
+    fprintf(_list, "%d %d %d 1024 %f %f %f hgt_%d_%d_%d\n", _lod, _y, _x, xstart, ystart, total, _lod, _y, _x);
 
     if (_lod == 0) {
         //fprintf(_file, "gdal_translate  -ot UINT16 -scale %f %f 0 65536  ../_temp/hgt_%d_%d_%d.tiff ../../elevation/hgt_%d_%d_%d.bil \n\n\n", min, max, _lod, _y, _x, _lod, _y, _x);
@@ -123,13 +124,13 @@ int main()
         float edge = (total - block) * 0.5f;
         fopen_s(&file, (path + name + +"/gis/photos/_gdal_tiles.bat").c_str(), "w");
         if (file) {
-            for (int y = 7; y < 9; y++)
+            for (int y = 2; y < 6; y++)
             {
                 float ystart = ((7 - y) * block) - edge;
-                for (int x = 7; x < 9; x++)
+                for (int x = 2; x < 6; x++)
                 {
                     float xstart = ((x - 8) * block) - edge;
-                    fprintf(file, "gdalwarp -t_srs %s -te %f %f %f %f -ts 8192 8192 -r cubicspline -multi -overwrite -ot byte ", proj.c_str(), xstart, ystart, xstart + total, ystart + total);
+                    fprintf(file, "gdalwarp -t_srs %s -te %f %f %f %f -ts 16384 16384 -r cubicspline -multi -overwrite -ot byte ", proj.c_str(), xstart, ystart, xstart + total, ystart + total);
 
                     numread = 1;
                     fopen_s(&input, (path + name + +"/gis/photos/files.txt").c_str(), "r");
@@ -270,8 +271,8 @@ int main()
 
             lod = 2;
             grid = pow(2, lod);
-            for (y = 0; y < 3; y++) {
-                for (x = 0; x < 3; x++) {
+            for (y = 0; y < 4; y++) {
+                for (x = 0; x < 4; x++) {
                     addTile(lod, y, x, file, list);
                 }
             }

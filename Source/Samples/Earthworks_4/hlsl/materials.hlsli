@@ -231,6 +231,7 @@ void solveElevationColour(inout PS_OUTPUT_Terrafector output, const TF_material 
 
 
     output.Alpha = float4(1-MAT.permanenceElevation, 1-MAT.permanenceColour, 1-MAT.permanenceEcotopes, alpha);
+    output.Alpha = float4(1, 1, 1, 0);
 
     if (MAT.useEcotopes)
     {

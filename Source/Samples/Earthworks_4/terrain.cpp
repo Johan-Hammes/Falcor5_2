@@ -626,7 +626,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     allocateTiles(numTiles);
 
     elevationCache.resize(45);
-    loadElevationHash();
+    loadElevationHash(pRenderContext);
 
     init_TopdownRender();
 
@@ -773,7 +773,7 @@ uint32_t getHashFromTileCoords(unsigned int lod, unsigned int y, unsigned int x)
     return (lod << 28) + (y << 14) + (x);
 }
 
-void terrainManager::loadElevationHash()
+void terrainManager::loadElevationHash(RenderContext* pRenderContext)
 {
     std::string fullpath = settings.dirRoot + "/elevations.txt";
     elevationTileHashmap.clear();
@@ -796,17 +796,21 @@ void terrainManager::loadElevationHash()
                 fullpath = settings.dirRoot + "/" + filename;
                 if (map.lod == 0)
                 {
-                    std::vector<unsigned short> data;
-                    data.resize(texSize * texSize);
+                    std::vector<float> data;
+                    data.resize(texSize * texSize * 2);
+                    
 
-                    FILE* pData = fopen(fullpath.c_str(), "r");
+                    FILE* pData = fopen(fullpath.c_str(), "rb");
                     if (pData)
                     {
-                        fread(data.data(), sizeof(unsigned short), texSize * texSize, pData);
+                        fread(data.data(), sizeof(float), texSize * texSize, pData);
                         fclose(pData);
                     }
 
-                    split.rootElevation = Texture::create2D(texSize, texSize, Falcor::ResourceFormat::R16Unorm, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
+                    split.rootElevation = Texture::create2D(texSize, texSize, Falcor::ResourceFormat::R32Float, 1, 8, data.data(), Resource::BindFlags::ShaderResource | Resource::BindFlags::RenderTarget);
+                    split.rootElevation->generateMips(pRenderContext);
+                    map.hgt_offset = 0;
+                    map.hgt_scale = 1;
                     elevationTileHashmap[hash] = map;
                 }
                 else
@@ -1329,7 +1333,7 @@ void terrainManager::bil_to_jp2(std::string file, const uint size, FILE* summary
     codestream.close();
 
 
-    fprintf(summary, "%d %d %d %d %f %f %f %f %f Eifel/elevation/hgt_%d_%d_%d.jp2\n", _lod, _y, _x, size, _xstart, _ystart, _size, data_min, (data_max - data_min), _lod, _y, _x);
+    fprintf(summary, "%d %d %d %d %f %f %f %f %f elevation/hgt_%d_%d_%d.jp2\n", _lod, _y, _x, size, _xstart, _ystart, _size, data_min, (data_max - data_min), _lod, _y, _x);
 }
 
 
@@ -1906,6 +1910,13 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     {
         // Not nessesary but nice where we lack data for now
         _renderContext->clearFbo(split.tileFbo.get(), glm::vec4(0.3f, 0.3f, 0.3f, 1.0f), 1.0f, 0, FboAttachmentType::All);
+
+        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(3).get(), glm::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+
+        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(4).get(), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(5).get(), glm::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(6).get(), glm::vec4(1.0f, 1.0f, 0.0f, 0.0f));
+        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(7).get(), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
     }
 
 
@@ -1948,6 +1959,19 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             split.compute_tileEcotopes.Vars()->setTexture("gLowresHgt", split.rootElevation);
             split.compute_tileEcotopes.Vars()->setBuffer("plantIndex", mEcosystem.getPLantBuffer());
             auto pCB = split.compute_tileEcotopes.Vars()->getParameterBlock("gConstants");
+
+            // bad herer but lets set the textures
+            auto& block = split.compute_tileEcotopes.Vars()->getParameterBlock("gmyTextures");
+            ShaderVar& var = block->findMember("T");        // FIXME pre get
+            {
+                for (size_t i = 0; i < mEcosystem.ecotopes.size(); i++)
+                {
+                    var[i] = mEcosystem.ecotopes[i].texAlbedo;
+                    var[12+i] = mEcosystem.ecotopes[i].texNoise;
+                }
+            }
+            
+
 
             //mEcosystem.resetPlantIndex(_tile->lod);
             ecotopeGpuConstants C = *mEcosystem.getConstants();
@@ -2000,8 +2024,8 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
         {
             FALCOR_PROFILE("verticies");
-            float scale = 0.7f;
-            if (_tile->lod < 4)  scale = 1.3f;
+            float scale = 1.0f;
+            if (_tile->lod < 7)  scale = 1.3f;
             //if (_tile->lod == 13)  scale = 1.2f;
             //if (_tile->lod == 14)  scale = 1.5f;
             //if (_tile->lod == 15)  scale = 2.0f;
