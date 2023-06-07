@@ -11,10 +11,10 @@ int main()
     std::cout << "Hello World!\n";
 
     std::string path = "F:/terrains/";
-    std::string name = "sonoma";
-    float size = 32768.f;
-    float latt = 38.161f;
-    float lon = -122.46f;
+    std::string name = "switserland_Steg";
+    float size = 40000.f;
+    float latt = 47.27f;
+    float lon = 9.07f;
 
 
     _chdir( path.c_str() );
