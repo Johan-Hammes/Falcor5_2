@@ -26,3 +26,8 @@
 *.mp4
 *.tlog
 *.bak
+*.lock
+*.vsidx
+*.ipch
+/Source/Samples/CreateTerrain/x64/Debug
+/Source/Samples/createTerrainScripts/x64/Debug
