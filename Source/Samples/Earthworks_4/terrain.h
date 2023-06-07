@@ -264,7 +264,7 @@ public:
     void init_TopdownRender();
     void allocateTiles(uint numT);			// ??? FIXME pass shader in as well to allocate GPU memory
     void reset(bool _fullReset = false);
-    void loadElevationHash();
+    void loadElevationHash(RenderContext* pRenderContext);
 
     void bil_to_jp2();
     void bil_to_jp2(std::string file, const uint size, FILE* summary, uint _lod, uint _y, uint _x, float _xstart, float _ystart, float _size);

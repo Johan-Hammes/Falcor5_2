@@ -552,22 +552,26 @@ int materialCache::find_insert_texture(const std::filesystem::path _path, bool i
                 replaceAllrm(cmdExp, "/", "\\");
                 system(cmdExp.c_str());
     */
-    std::string ddsFilename = _path.string() + ".earthworks.dds";
+    std::string ddsFilename = _path.string();
+    if (_path.string().find(".dds") == std::string::npos)
+    {
+        ddsFilename = _path.string() + ".earthworks.dds";
+    }
     if (!std::filesystem::exists(ddsFilename))
     {
         std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
-        std::string cmdExp = "X:\\resources\\Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + "X:\\resources\\Compressonator\\temp_mip.dds";
+        std::string cmdExp = "F:\\terrains\\resources\\Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + "X:\\resources\\Compressonator\\temp_mip.dds";
 
         fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp.c_str());
         system(cmdExp.c_str());
         if (isSRGB)
         {
-            std::string cmdExp2 = "X:\\resources\\Compressonator\\CompressonatorCLI -fd BC6H  X:\\resources\\Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            std::string cmdExp2 = "F:\\terrains\\resources\\Compressonator\\CompressonatorCLI -fd BC6H  X:\\resources\\Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
             system(cmdExp2.c_str());
         }
         else
         {
-            std::string cmdExp2 = "X:\\resources\\Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 X:\\resources\\Compressonator\\temp_mip.dds " + ddsFilename + "\"";
+            std::string cmdExp2 = "F:\\terrains\\resources\\Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 X:\\resources\\Compressonator\\temp_mip.dds " + ddsFilename + "\"";
             system(cmdExp2.c_str());
         }
     }

@@ -45,10 +45,10 @@ Texture2D<float4> gInEct_1 : register(t3);
 Texture2D<float4> gInEct_2 : register(t4);
 Texture2D<float4> gInEct_3 : register(t5);
 
-Texture2D<float4> gAlbedoAlpha[12] : register(t6);	  // these are dowbn to 12 so we can consider moving them closer togetehr again
-Texture2D<float> gDisplacement[12] : register(t18);
-Texture2D<float3> gPBR[12] : register(t30);
-Texture2D<float3> gECTNoise[12] : register(t42);
+//Texture2D<float4> gAlbedoAlpha[12] : register(t6);	  // these are dowbn to 12 so we can consider moving them closer togetehr again
+//Texture2D<float> gDisplacement[12] : register(t18);
+//Texture2D<float3> gPBR[12] : register(t30);
+//Texture2D<float3> gECTNoise[12] : register(t42);
 
 Texture2D<uint> 	gNoise : register(t54);
 
@@ -58,11 +58,16 @@ RWStructuredBuffer<instance_PLANT> 	quad_instance;
 RWStructuredBuffer<GC_feedback>		feedback;
 
 
+struct myTextures
+{
+    Texture2D<float4> T[256];
+};
+ParameterBlock<myTextures> gmyTextures;
 
 
 
 [numthreads(16, 16, 1)]
-void main(uint2 crd : SV_DispatchThreadId)
+void main(int2 crd : SV_DispatchThreadId)
 {
 
     gpuTile tile = tiles[tileIndex];
@@ -77,12 +82,10 @@ void main(uint2 crd : SV_DispatchThreadId)
         float dx = gHeight[crd_clamped + int2(-1, 0)].r - gHeight[crd_clamped + int2(1, 0)].r;
         float dy = gHeight[crd_clamped + int2(0, -1)].r - gHeight[crd_clamped + int2(0, 1)].r;
         float3 n = normalize(float3(dx, 2.0 * pixelSize, dy));
-        float2 nA = n.xz;
 
-        float hgt = gHeight[crd].r;
-        //float2 lowResUV = (crd - 4.0) * lowResSize + lowResOffset;
-        float2 lowResUV = (crd  ) * lowResSize + lowResOffset;
-        float rel = hgt - (gLowresHgt.SampleLevel(linearSampler, lowResUV, 0) * padd2.y + padd2.x);
+        const float hgt = gHeight[crd].r;
+        float2 lowResUV = ((crd - 4) * lowResSize) + lowResOffset;
+        
 
         float weights[12];
         float ectWsum = 0;
@@ -107,7 +110,7 @@ void main(uint2 crd : SV_DispatchThreadId)
         weights[11] = inEct4.b + 0.001;
 
         if (debug < numEcotopes) {
-            weights[debug] = 1;
+            //weights[debug] = 1;
         }
 
 
@@ -121,73 +124,40 @@ void main(uint2 crd : SV_DispatchThreadId)
         float hgt_1 = 0;
         float hgt_2 = 0;
 
-        if (permanence.b < 1.0 || (debug < numEcotopes) ) {
+        if (permanence.b > 0.0 || (debug < numEcotopes) ) {
 
             for (i = 0; i < numEcotopes; i++) // ecotope weights calculation -----------------------------------------------------------------------------------
             {
                 float2 UV = World / texScales[i].x;
-                float2 UV2 = frac(World / 2048.0f);
+                float2 UV2 = frac(World / 248.0f);
                 float MIP = log2(pixelSize / 0.005f);
-
+                
                 //height
                 weights[i] *= lerp(1, smoothstep(ect[i][0].g - ect[i][0].a, ect[i][0].g + ect[i][0].a, hgt) * smoothstep(ect[i][0].b + ect[i][0].a, ect[i][0].b - ect[i][0].a, hgt), ect[i][0].r);
 
                 //concavity
+                float rel = ect[i][1].b + hgt - gLowresHgt.SampleLevel(linearSampler, lowResUV, ect[i][1].a);
                 weights[i] *= lerp(1, saturate((rel) / ect[i][1].g), ect[i][1].r);
                 
                 //flatness
-                weights[i] *= lerp(1, 1.0 - saturate(abs(rel) / ect[i][1].a), ect[i][1].b);
+                //weights[i] *= lerp(1, 1.0 - saturate(abs(rel) / ect[i][1].a), ect[i][1].b);
                 
                 //slope
                 weights[i] *= lerp(1, smoothstep(ect[i][2].g - ect[i][2].a, ect[i][2].g + ect[i][2].a, (1 - n.y)) * smoothstep(ect[i][2].b + ect[i][2].a, ect[i][2].b - ect[i][2].a, (1 - n.y)), ect[i][2].r);
 
                 // aspect
-                weights[i] *= lerp(1, saturate(dot(nA, float2(ect[i][3].g, ect[i][3].b))), ect[i][3].r);
+                weights[i] *= lerp(1, saturate(dot(n, float3(ect[i][3].g, ect[i][3].b, ect[i][3].a))), ect[i][3].r);
+                //weights[i] *= lerp(1, saturate(n.x), ect[i][3].r);
 
-                //weights[i] = saturate(rel / 50);
 
-                /*
-                if (ect[i][0].r) { // height
-                    weights[i] *= 1.0 + ect[i][0].r * (pow(0.5, pow(abs((hgt - ect[i][0].g) / ect[i][0].b), ect[i][0].a)) - 1);
-                }
-                *
-
-                // We have temprarily lost concavity and Flatness,as the low res texture is not being set. This was in the move to jpeg2000 - needs terrainmanager code to just load and set that
                 // texture
-                /*
-                if (ect[i][1].r) { // concavity
-                    weights[i] *= 1.0 + ect[i][1].r * (saturate((rel) / ect[i][1].g) - 1);
-                }
-                if (ect[i][1].b) { // flatness
-                    weights[i] *= 1.0 + ect[i][1].b * (1.0 - saturate(abs(rel) / ect[i][1].a) - 1);
-                }
-                */
-
-                /*
-                if (ect[i][3].r) { // aspect
-                    weights[i] *= 1.0 + ect[i][3].r * (dot(nA, float2(ect[i][3].g, ect[i][3].b)) - 1);
-                }
-
-                if (ect[i][4].r) { // slope
-                    weights[i] *= 1.0 + ect[i][4].r * (pow(0.5, pow(abs(((1 - n.y) - ect[i][4].g) / ect[i][4].b), ect[i][4].a)) - 1);
-                }
-
-                if (ect[i][2].r) { // large area noise texture
-                    float2 UV2 = UV;
-                    UV2.xy *= ect[i][2].g;
-                    float hgtTex = gAlbedoAlpha[i].SampleLevel(linearSampler, UV2, MIP - 6).a * 2.0; // FIXME mip-6 is ect[i][2].g dependent
-                    weights[i] *= 1.0 + ect[i][2].r * (saturate((hgtTex * ect[i][2].b) + ect[i][2].a) - 1);
-                    hgt_1 += ect[i][2].r * weights[i] * (hgtTex - 1.0) * 0.3;
-                }
-                if (ect[i][2].r) { // detail noise texture
-                    float hgtTex = gAlbedoAlpha[i].SampleLevel(linearSampler, UV, MIP).a;
-                    weights[i] *= hgtTex * 2;
-                }
+                float txWeight = 4 * gmyTextures.T[12+i].SampleLevel(linearSampler, UV2, 0).r;
+                weights[i] *= lerp(1, txWeight, ect[i][4].r);
                 
                 // also scale by the weighs, and offset around 0.5
 
                 weights[i] *= weights[i]; // sqr to exagerate the result, play with this some more, the idea seems good
-                */
+                
                 ectWsum += weights[i];
             }
         }
@@ -200,32 +170,28 @@ void main(uint2 crd : SV_DispatchThreadId)
 
         for (i = 0; i < numEcotopes; i++) // normalize the weights --------------------------------------------------------------------------------------
         {
+            weights[i] /= ectWsum;
             if (debug  == i) {
                 gAlbedo[crd] = float3(lerp(0.0, 1.0, saturate((weights[i] * 2) - 1)), lerp(1.0, 0.0, abs(0.5 - weights[i]) * 2), lerp(0.3, 0.0, saturate(weights[i] * 2)));
             }
-            weights[i] /= ectWsum;
+            
         }
 
 
         float3 col_new = 0;
         for (i = 0; i < numEcotopes; i++)
         {
-            float2 UV = World / texScales[i].x;
-            float MIP = log2(pixelSize / 0.005f);  // There is a BUG in here I assume with the 0.005
+            //float2 UV = frac(World / texScales[i].x);
+            float2 UV = frac(World / 2);
+            float MIP = log2(pixelSize / 0.001f);  // There is a BUG in here I assume with the 0.005
 
-            col_new += weights[i] * gAlbedoAlpha[i].SampleLevel(linearSampler, UV, MIP).rgb;
-            float hgtTex = gDisplacement[i].SampleLevel(linearSampler, UV, MIP).r;
-            hgt_2 += weights[i] * (hgtTex - 0.5) * texScales[i].g;
+            col_new += weights[i] * gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).rgb;
+            float hgtTex = gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).a;
+            //hgt_2 += weights[i] * (hgtTex - 0.5) * texScales[i].g * 0.1;
         }
 
-        //float2 UV = World / texScales[0].x;
-        //col_new = gAlbedoAlpha[0].SampleLevel(linearSampler, UV, 0).rgb;
 
-        {
-            //			float2 UV = World / texScales[4].x;
-            //			float MIP = log2(pixelSize / 0.005f);
-            //			col_new = weights[4] * gAlbedoAlpha[4].SampleLevel(linearSampler, UV, MIP).rgb;
-        }
+
 
         //plants
         
@@ -239,7 +205,7 @@ void main(uint2 crd : SV_DispatchThreadId)
         for (i = 0; i < numEcotopes; i++)
         {
             uint density = plantIndex.Load(i * (16 * 65) + (lod * 65));
-            sum += (int)((float)density * weights[0]);
+            sum += (int)((float)density * weights[i]);
             if (sum > rnd) {
                 ecotopeForPlants = i;
                 break;
@@ -268,9 +234,9 @@ void main(uint2 crd : SV_DispatchThreadId)
         }
         
         // write final colours
-        if (debug > 100) {
+        if (debug > 12) {
             //gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
-            gAlbedo[crd] = lerp(gAlbedo[crd], col_new, permanence.g);
+            gAlbedo[crd] = lerp(gAlbedo[crd], col_new * 3, permanence.g);
             //gAlbedo[crd] = gInEct[1][crd].rgb;
         }
     }

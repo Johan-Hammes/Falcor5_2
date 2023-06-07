@@ -71,10 +71,9 @@ void ecotope::reloadTextures()
     texDisplacement = Texture::createFromFile(displacementName, false, false);
     texRoughness = Texture::createFromFile(roughnessName, false, false);
     texAO = Texture::createFromFile(aoName, false, false);
-
 }
 
-std::array<std::string, 6> tfWeights = { "Height", "Concavity", "Flatness", "Slope", "Aspect", "Texture" };
+std::array<std::string, 5> tfWeights = { "Height", "Concavity", "Slope", "Aspect", "Texture" };
 std::array<std::string, 5> tfTexHeading = { "albedo", "noise", "displacement", "roughness", "ao" };
 void ecotope::GuiTextures(Gui* _pGui)
 {
@@ -100,7 +99,7 @@ void ecotope::GuiTextures(Gui* _pGui)
 void ecotope::GuiWeights(Gui* _pGui)
 {
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 5; i++) {
         ImGui::PushID(i);
         //ImGui::Text(tfWeights[i].c_str());
         if (ImGui::SliderFloat(tfWeights[i].c_str(), &weights[i][0], 0, 1, "%.2f")) hasChanged = true;
@@ -112,33 +111,40 @@ void ecotope::GuiWeights(Gui* _pGui)
                 if (ImGui::DragFloat("###c", &weights[i][3], 0.1f, 0.1f, 20, "smooth %.1f")) hasChanged = true;
                 break;
             case 1:
-                if (ImGui::DragFloat("###a", &weights[i][1], 1, 0, 10, "disp %3.1f m")) hasChanged = true;
+                if (ImGui::DragFloat("###a", &weights[i][1], 1, -50, 50, "disp %3.1f m")) hasChanged = true;
+                if (ImGui::DragFloat("###b", &weights[i][2], 1, -200, 200, "bias %3.1f m")) hasChanged = true;
+                if (ImGui::DragFloat("###c", &weights[i][3], 1, 0, 8, "mip %3.1f m")) hasChanged = true;
                 break;
             case 2:
-                if (ImGui::DragFloat("###a", &weights[i][1], 1, 0, 10, "disp %3.1f m")) hasChanged = true;
-                break;
-            case 3:
                 if (ImGui::DragFloat("min", &weights[i][1], 0.01f, 0, 1, "%3.2f")) hasChanged = true;
                 if (ImGui::DragFloat("max", &weights[i][2], 0.01f, 0, 1, "%3.2f")) hasChanged = true;
                 if (ImGui::DragFloat("smooth", &weights[i][3], 0.1f, 0.1f, 20, "%.1f")) hasChanged = true;
                 break;
-            case 4:
+            case 3:
                 if (ImGui::DragFloat("###a", &weights[i][1], 0.01f, -1, 1, "dX %.2f")) {
-                    glm::vec2 A = glm::vec2(weights[4][1], weights[4][2]);
-                    glm::normalize(A);
-                    weights[4][1] = A.x;
-                    weights[4][2] = A.y;
+                    glm::vec3 A = glm::normalize(glm::vec3(weights[3][1], weights[3][2], weights[3][3]));
+
+                    weights[3][1] = A.x;
+                    weights[3][2] = A.y;
+                    weights[3][3] = A.z;
                     hasChanged = true;
                 }
-                if (ImGui::DragFloat("###b", &weights[i][2], 0.01f, 1, 1, "dZ %.2f")) {
-                    glm::vec2 A = glm::vec2(weights[4][1], weights[4][2]);
-                    glm::normalize(A);
-                    weights[4][1] = A.x;
-                    weights[4][2] = A.y;
+                if (ImGui::DragFloat("###b", &weights[i][2], 0.01f, -1, 1, "dY %.2f")) {
+                    glm::vec3 A = glm::normalize(glm::vec3(weights[3][1], weights[3][2], weights[3][3]));
+                    weights[3][1] = A.x;
+                    weights[3][2] = A.y;
+                    weights[3][3] = A.z;
+                    hasChanged = true;
+                }
+                if (ImGui::DragFloat("###c", &weights[i][3], 0.01f, -1, 1, "dZ %.2f")) {
+                    glm::vec3 A = glm::normalize(glm::vec3(weights[3][1], weights[3][2], weights[3][3]));
+                    weights[3][1] = A.x;
+                    weights[3][2] = A.y;
+                    weights[3][3] = A.z;
                     hasChanged = true;
                 }
                 break;
-            case 5:
+            case 4:
                 if (ImGui::DragFloat("###c", &weights[i][1], 1, 1, 100, "%.2f uv")) hasChanged = true;
                 if (ImGui::DragFloat("###a", &weights[i][2], 0.01f, 0, 1, "%.2f scale")) hasChanged = true;
                 if (ImGui::DragFloat("###b", &weights[i][3], 0.01f, 0, 1, "%.2f offset")) hasChanged = true;
@@ -274,6 +280,11 @@ void ecotopeSystem::load()
         cereal::JSONInputArchive archive(is);
         serialize(archive);
         rebuildRuntime();
+
+        for (int ect = 0; ect < ecotopes.size(); ect++)
+        {
+            ecotopes[ect].reloadTextures();
+        }
     }
 }
 
@@ -404,10 +415,10 @@ void ecotopeSystem::rebuildRuntime() {
     for (int ect = 0; ect < constantbuffer.numEcotopes; ect++)
     {
         constantbuffer.ect[ect][0] = float4(ecotopes[ect].weights[0][0], ecotopes[ect].weights[0][1], ecotopes[ect].weights[0][2], ecotopes[ect].weights[0][3]);
-        constantbuffer.ect[ect][1] = float4(ecotopes[ect].weights[1][0], ecotopes[ect].weights[1][1], ecotopes[ect].weights[2][0], ecotopes[ect].weights[2][1]);
-        constantbuffer.ect[ect][2] = float4(ecotopes[ect].weights[3][0], ecotopes[ect].weights[3][1], ecotopes[ect].weights[3][2], ecotopes[ect].weights[3][3]);
-        constantbuffer.ect[ect][3] = float4(ecotopes[ect].weights[4][0], ecotopes[ect].weights[4][1], ecotopes[ect].weights[4][2], ecotopes[ect].weights[4][3]);
-        constantbuffer.ect[ect][4] = float4(ecotopes[ect].weights[5][0], ecotopes[ect].weights[5][1], ecotopes[ect].weights[5][2], ecotopes[ect].weights[5][3]);
+        constantbuffer.ect[ect][1] = float4(ecotopes[ect].weights[1][0], ecotopes[ect].weights[1][1], ecotopes[ect].weights[1][2], ecotopes[ect].weights[1][3]);
+        constantbuffer.ect[ect][2] = float4(ecotopes[ect].weights[2][0], ecotopes[ect].weights[2][1], ecotopes[ect].weights[2][2], ecotopes[ect].weights[2][3]);
+        constantbuffer.ect[ect][3] = float4(ecotopes[ect].weights[3][0], ecotopes[ect].weights[3][1], ecotopes[ect].weights[3][2], ecotopes[ect].weights[3][3]);
+        constantbuffer.ect[ect][4] = float4(ecotopes[ect].weights[4][0], ecotopes[ect].weights[4][1], ecotopes[ect].weights[4][2], ecotopes[ect].weights[4][3]);
 
         constantbuffer.texScales[ect] = float4(4.0f, 0.2f, 0, 0);     // 4m, 20cm displacement
 
