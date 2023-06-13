@@ -57,6 +57,103 @@
 using namespace Falcor;
 
 
+
+struct _leafNode
+{
+    float3 pos;
+    float3 dir;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(pos));
+        _archive(CEREAL_NVP(dir));
+    }
+};
+CEREAL_CLASS_VERSION(_leafNode, 100);
+
+
+
+struct _branchnode
+{
+    float3 pos;
+    float radius;
+    float3 dir;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(pos));
+        _archive(CEREAL_NVP(radius));
+        _archive(CEREAL_NVP(dir));
+    }
+};
+CEREAL_CLASS_VERSION(_branchnode, 100);
+
+struct _GroveBranch
+{
+    
+    std::vector<_branchnode> nodes;
+    
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(nodes));
+    }
+
+    void reset();
+};
+CEREAL_CLASS_VERSION(_GroveBranch, 100);
+
+
+
+struct _GroveTree
+{
+    std::string filename;
+    int numFour = 3;       // number of start segments with 4 verts, try to auto detect
+    float scale = 100.0f;
+    std::vector<_GroveBranch> branches;
+    std::vector<_leafNode> endLeaves;
+    std::vector<_leafNode> branchLeaves;
+    
+    // lodding stuff
+    FILE* objfile;
+    float3 verts[100];
+    int numVerts;
+    int oldNumVerts;
+    bool enfOfFile;
+    bool branchMode;
+    bool isPlanar;
+    int totalVerts;
+    float3 nodeDir;
+    float nodeOffset;
+    _GroveBranch* currentBranch;
+    void readHeader();
+    void read2();
+    void readahead1();
+    float3 readVertex();
+    void testBranchLeaves();
+
+    ribbonVertex branchRibbons[16380];
+    int numBranchRibbons;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(filename));
+        _archive(CEREAL_NVP(numFour));
+        _archive(CEREAL_NVP(scale));
+        _archive(CEREAL_NVP(branches));
+    }
+
+    void renderGui(Gui* _gui);
+    void load();
+};
+CEREAL_CLASS_VERSION(_GroveTree, 100);
+
+
+
 template<typename K, typename V = K>
 class LRUCache
 {
@@ -519,5 +616,8 @@ private:
     Sampler::SharedPtr			sampler_Clamp;
     Sampler::SharedPtr			sampler_ClampAnisotropic;
 
+
+    bool requestPopupTree = false;
+    _GroveTree groveTree;
     
 };

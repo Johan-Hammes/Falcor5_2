@@ -287,7 +287,7 @@ namespace Falcor
 
         // Show the progress bar (unless window is minimized)
         ProgressBar::SharedPtr pBar;
-        if (config.windowDesc.mode != Window::WindowMode::Minimized) pBar = ProgressBar::show("Initializing Falcor");
+        if (config.windowDesc.mode != Window::WindowMode::Minimized) pBar = ProgressBar::show("Initializing Earthworks");
 
         // Create device
         Device::Desc d = config.deviceDesc;

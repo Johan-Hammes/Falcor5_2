@@ -50,12 +50,17 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const uint P = 0;// plant.index * 128;
     const ribbonVertex R = instanceBuffer[vId + P];
 
-    output.rootPos = float4(plant.position + (float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x) * plant.scale), 1);
-    output.right = float4(R.right * 0.005 * plant.scale, 0);
+    output.rootPos = float4(plant.position + (float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x) * plant.scale * 0.05), 1);
+    //output.right = float4(R.right * 0.005 * plant.scale, 0);
+
+    float3 up = float3(R.right.x * plant.rotation.x + R.right.z * plant.rotation.y, R.right.y, R.right.x * plant.rotation.y - R.right.z * plant.rotation.x)  * 0.1;
+    float3 dir = normalize(eye - output.rootPos.xyz);
+    float3 right = cross(up, dir);
+    output.right = float4(right, 0) * 0.5 * plant.scale;
     output.flags = R.A;
     output.other.x = R.pos.y * 4;
     float3 U = instanceBuffer[vId + P + 1].pos - R.pos; // FIXME needs to roatet
-    output.N = normalize(cross(R.right, U));
+    output.N = normalize(cross(output.right.xyz, up));
 
     return output;
 }
@@ -73,26 +78,26 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
 
 
         v.pos = mul(L[0].rootPos - L[0].right, viewproj);
-        v.texCoords = float3(0.1, 0.9, L[0].other.x);
+        v.texCoords = float3(0.1, 0.0, L[0].other.x);
         v.N = L[0].N;
         v.world = normalize(eye - L[0].rootPos.xyz);
         OutputStream.Append(v);
 
         v.pos = mul(L[0].rootPos + L[0].right, viewproj);
-        v.texCoords = float3(0.9, 0.9, L[0].other.x);
+        v.texCoords = float3(0.9, 0.0, L[0].other.x);
         v.N = L[0].N;
         v.world = normalize(eye - L[0].rootPos.xyz);
         OutputStream.Append(v);
 
 
         v.pos = mul(L[1].rootPos - L[1].right, viewproj);
-        v.texCoords = float3(0.1, 0.9, L[1].other.x);
+        v.texCoords = float3(0.1, 1.0, L[1].other.x);
         v.N = L[1].N;
         v.world = normalize(eye - L[1].rootPos.xyz);
         OutputStream.Append(v);
 
         v.pos = mul(L[1].rootPos + L[1].right, viewproj);
-        v.texCoords = float3(0.9, 0.9, L[1].other.x);
+        v.texCoords = float3(0.9, 1.0, L[1].other.x);
         v.N = L[1].N;
         v.world = normalize(eye - L[1].rootPos.xyz);
         OutputStream.Append(v);
@@ -104,6 +109,8 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
 
 float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    //return float4(0.01, 0.01, 0.01, 1);
+    float alpha = 1;
     float3 normal = vOut.N * (2* isFrontFace - 1);
 
     float3 sunDir = normalize(float3(0.7, -0.3, 0.2));
@@ -111,9 +118,11 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float A = dot(normal, sunDir);
     float A_backface = saturate(-A);
     A = saturate(A + 0.1);
-    float S = pow(abs(dot(vOut.world, spec)), 25);
+    float S =  pow(abs(dot(vOut.world, spec)), 25);
 
-    float3 colour = float3(0.07, 0.1, 0.05);
-    float3 final = (colour * A * saturate(vOut.texCoords.z * 3))  +  float3(0.1, 0.1, 0) * A_backface  + S;
-    return float4(final, 1);
+    float3 colour = float3(0.04, 0.051, 0.01);
+    float3 final = (colour * A * saturate(vOut.texCoords.z * 3)) +float3(0.02, 0.02, 0) * A_backface * 0.9 + S* 0.1;
+
+ 
+    return float4(final, alpha);
 }

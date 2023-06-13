@@ -436,6 +436,14 @@ void ecotopeSystem::rebuildRuntime() {
                 }
             }
 
+            if (ecotopes[ect].totalPlantDensity[lod] > 0)
+            {
+                if (ecotopes[ect].totalPlantDensity[lod] > 1)
+                {
+                    ecotopes[ect].totalPlantDensity[lod] = 1;
+                }
+            }
+
             //constantbuffer.totalDensity[i][lod].x = (uint)(__min(ecotopes[i].totalPlantDensity[lod], 1.0f) * 65535);
             plantIndex[ect][lod][0] = (uint)(__min(ecotopes[ect].totalPlantDensity[lod], 1.0f) * 65535);
 

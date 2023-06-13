@@ -35,6 +35,272 @@ using namespace Assimp;
 
 #pragma optimize("", off)
 
+
+
+
+
+
+void _GroveBranch::reset()
+{
+    nodes.clear();
+}
+
+
+
+void _GroveTree::renderGui(Gui* _gui)
+{
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    {
+        ImGui::DragInt("##size", &numFour, 1, 0, 100);
+        if (ImGui::Button("load")) {
+            load();
+        }
+    }
+    ImGui::PopFont();
+}
+
+
+void _GroveTree::readHeader()
+{
+    enfOfFile = false;
+    char header[256];
+    fscanf(objfile, "%39[^\n]\n", header);
+    fscanf(objfile, "%39[^\n]\n", header);
+    fscanf(objfile, "%39[^\n]\n", header);
+    //fscanf(objfile, "%s\n", header);
+    //fscanf(objfile, "%39[^,]\n", header);    // just read 3 lines
+
+    //enfOfFile = true;
+    //while (enfOfFile) {
+    //    readVertex();
+    //}
+
+    verts[0] = readVertex();
+    numVerts = 1;
+    branchMode = true;
+}
+
+
+void _GroveTree::read2()
+{
+    // completes a triangle and calculate its plane
+    verts[1] = readVertex();
+    verts[2] = readVertex();
+    numVerts = 3;
+    nodeDir = glm::normalize(glm::cross(verts[1] - verts[0], verts[2] - verts[0]));
+    nodeOffset = glm::dot(nodeDir, verts[0]);
+    isPlanar = true;
+}
+
+void _GroveTree::readahead1()
+{
+    verts[numVerts] = readVertex();
+    float offset = glm::dot(nodeDir, verts[numVerts]) - nodeOffset;
+    if (fabs(offset) > 0.01) {
+        isPlanar = false;
+    }
+    numVerts++;
+}
+
+float3 _GroveTree::readVertex()
+{
+    float3 v;
+    char type[256];
+    int ret = fscanf(objfile, "%s %f %f %f\n", type, &v.x, &v.y, &v.z);
+    if (ret < 4) {
+        enfOfFile = true;
+    }
+    else {
+        enfOfFile = false;
+    }
+    totalVerts++;
+    return v;
+}
+
+void _GroveTree::testBranchLeaves()
+{
+    float3 center = (verts[0] + verts[1] + verts[2] ) / 3.0f;
+    for (int j = 1; j < currentBranch->nodes.size(); j++) {         // start at 1, dont seacr that first node, it breaks branch inetrsections
+        float3 nodeCenter = currentBranch->nodes[j].pos;
+        float dist = glm::length(nodeCenter - center);
+        if (fabs(dist) < 0.01f) {
+            //we have a leaf, add it in future
+            float l1 = glm::length(verts[1] - verts[0]);
+            float l2 = glm::length(verts[2] - verts[1]);
+            float l3 = glm::length(verts[0] - verts[2]);
+            float radius = 0.19f * (l1 + l2 + l3);
+
+            branchLeaves.emplace_back();
+            branchLeaves.back().pos = (verts[0] + verts[1] + verts[2]) / 3.0f;
+            branchLeaves.back().dir = nodeDir;
+
+            verts[0] = readVertex();
+            read2();
+            return;
+        }
+    }
+
+    // we dont, this is the start of the next branc, and we have 3 already
+    branchMode = true;
+    branches.emplace_back();
+    currentBranch = &branches.back();
+    oldNumVerts = 1000;
+}
+
+
+void _GroveTree::load()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"obj"} };
+    if (openFileDialog(filters, path))
+    {
+        filename = path.string();
+        branches.clear();
+        branchLeaves.clear();
+        endLeaves.clear();
+        totalVerts = 0;
+        
+
+        objfile = fopen(filename.c_str(), "r");
+        if (objfile) {
+            readHeader();
+            branches.emplace_back();
+            currentBranch = &branches.back();
+            read2();
+            oldNumVerts = 1000; // just bog to alwasy keep first node
+            while(!enfOfFile)
+            {
+                if (branchMode)
+                {
+                    while (isPlanar) {
+                        readahead1();
+                    }
+
+                    // solve vert and save in branch
+                    float3 center = float3(0, 0, 0);
+                    for (int j = 0; j < numVerts-1; j++) {
+                        center += verts[j] * (1.0f / (numVerts-1));
+                    }
+
+                    float l1 = glm::length(verts[1] - verts[0]);
+                    float l2 = glm::length(verts[2] - verts[1]);
+                    float l3 = glm::length(verts[0] - verts[2]);
+                    float radius = 0.19f * (l1 + l2 + l3);
+
+                    if (oldNumVerts < numVerts) {
+                        // so when the verts increase we have hit the endcap of a branch
+                        endLeaves.emplace_back();
+                        endLeaves.back().pos = center;
+                        endLeaves.back().dir = nodeDir;
+                        branchMode = false;
+                    }
+                    oldNumVerts = numVerts;
+
+                    _branchnode BN;
+                    BN.pos = center;
+                    BN.radius = radius;
+                    BN.dir = nodeDir;
+                    currentBranch->nodes.push_back(BN);
+
+                    verts[0] = verts[numVerts - 1];
+                    read2();
+                }
+                else
+                {
+                    testBranchLeaves();
+                }
+
+            }
+            fclose(objfile);
+
+
+            numBranchRibbons = 0;
+            for (int b = 0; b < branches.size(); b++)
+            {
+                if (branches[b].nodes.size() > 1)
+                {
+                    for (int n = 0; n < branches[b].nodes.size(); n++)
+                    {
+                        branchRibbons[numBranchRibbons].pos = branches[b].nodes[n].pos;
+                        branchRibbons[numBranchRibbons].A = 1;
+                        float3 D;
+                        if (n == 0) {
+                            branchRibbons[numBranchRibbons].A = 0;
+                            D = glm::normalize(branches[b].nodes[1].pos - branches[b].nodes[0].pos);
+                        }
+                        else
+                        {
+                            D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n-1].pos);
+                        }
+
+                        float offset = glm::dot(D, branches[b].nodes[n].dir);
+                        if (offset < 0.9) {
+                            bool bcm = true;
+                        }
+                        branchRibbons[numBranchRibbons].right = branches[b].nodes[n].radius * branches[b].nodes[n].dir;
+
+                        numBranchRibbons++;
+                    }
+
+                    float3 pos = branches[b].nodes.back().pos;
+                    float3 dir = branches[b].nodes.back().dir;
+                    branchRibbons[numBranchRibbons].pos = pos + dir * 0.1f;
+                    branchRibbons[numBranchRibbons].right = 0.04f * dir;
+                    branchRibbons[numBranchRibbons].A = 1;
+                    numBranchRibbons++;
+
+                    branchRibbons[numBranchRibbons].pos = pos + dir * 0.2f;
+                    branchRibbons[numBranchRibbons].right = 0.05f * dir;
+                    branchRibbons[numBranchRibbons].A = 1;
+                    numBranchRibbons++;
+
+                    branchRibbons[numBranchRibbons].pos = pos + dir * 0.3f;
+                    branchRibbons[numBranchRibbons].right = 0.02f * dir;
+                    branchRibbons[numBranchRibbons].A = 1;
+                    numBranchRibbons++;
+                }
+            }
+
+            for (int b = 0; b < branchLeaves.size(); b++)
+            {
+                branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.05f;
+                branchRibbons[numBranchRibbons].right = 0.01f * branchLeaves[b].dir;
+                branchRibbons[numBranchRibbons].A = 0;
+                numBranchRibbons++;
+
+                branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.15f;
+                branchRibbons[numBranchRibbons].right = 0.04f * branchLeaves[b].dir;
+                branchRibbons[numBranchRibbons].A = 1;
+                numBranchRibbons++;
+
+                branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.25f;
+                branchRibbons[numBranchRibbons].right = 0.01f * branchLeaves[b].dir;
+                branchRibbons[numBranchRibbons].A = 1;
+                numBranchRibbons++;
+            }
+
+            FILE* f = fopen("f:\\theGrove\\ash.ribbon", "wb");
+            if (f) {
+                fwrite(branchRibbons, sizeof(ribbonVertex), numBranchRibbons, f);
+                fclose(f);
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void _terrainSettings::renderGui(Gui* _gui)
 {
     ImGui::PushFont(_gui->getFont("roboto_32"));
@@ -348,7 +614,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
         terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
 
-        spriteTexture = Texture::createFromFile("X:/resources/terrains/eifel/ecosystems/sprite_diff.DDS", true, true);
+        spriteTexture = Texture::createFromFile("F:/terrains/switserland_Steg/ecosystem/sprite_diff.DDS", true, true);
 
         terrainSpiteShader.load("Samples/Earthworks_4/hlsl/render_tile_sprite.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
         terrainSpiteShader.Vars()->setBuffer("tiles", split.buffer_tiles);
@@ -364,7 +630,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-        
+
 
 
 
@@ -415,6 +681,13 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonData->setBlob(testribbons, 0, 50 * 128 * sizeof(ribbonVertex));
 
 
+        FILE* f = fopen("f:\\theGrove\\ash.ribbon", "rb");
+        if (f) {
+            fread(testribbons, sizeof(ribbonVertex), 2114, f);
+            ribbonData->setBlob(testribbons, 0, 2114 * sizeof(ribbonVertex));
+            fclose(f);
+        }
+
         /*
         ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
@@ -459,8 +732,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         //for (int F = 1; F <= 16; F++)
         {
             //sprintf(name, "F:\\texturesDotCom\\wim\\blades\\%d.fbx", F);
-            sprintf(name, "F:\\texturesDotCom\\TexturesCom_3dplant_Nettle\\Individual_seeds\\A_256.fbx");
-        
+            sprintf(name, "F:\\terrains\\_resources\\textures_dot_com\\TexturesCom_3dplant_Nettle\\Individual_seeds\\A_256.fbx");
+
             scene = importer.ReadFile(name, flags);
             if (scene)
             {
@@ -798,7 +1071,7 @@ void terrainManager::loadElevationHash(RenderContext* pRenderContext)
                 {
                     std::vector<float> data;
                     data.resize(texSize * texSize * 2);
-                    
+
 
                     FILE* pData = fopen(fullpath.c_str(), "rb");
                     if (pData)
@@ -867,6 +1140,18 @@ void terrainManager::onGuiRender(Gui* _gui)
         settings.renderGui(_gui);
         ImGui::EndPopup();
     }
+
+
+    if (requestPopupTree) {
+        ImGui::OpenPopup("tree");
+        requestPopupTree = false;
+    }
+    if (ImGui::BeginPopup("tree"))      // modal
+    {
+        groveTree.renderGui(_gui);
+        ImGui::EndPopup();
+    }
+
 
     if (requestPopupDebug) {
         ImGui::OpenPopup("debug");
@@ -1367,6 +1652,10 @@ void terrainManager::onGuiMenubar(Gui* pGui)
         if (ImGui::MenuItem("settings"))
         {
             requestPopupSettings = true;
+        }
+        if (ImGui::MenuItem("tree"))
+        {
+            requestPopupTree = true;
         }
         if (ImGui::MenuItem("debug"))
         {
@@ -1967,10 +2256,10 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
                 for (size_t i = 0; i < mEcosystem.ecotopes.size(); i++)
                 {
                     var[i] = mEcosystem.ecotopes[i].texAlbedo;
-                    var[12+i] = mEcosystem.ecotopes[i].texNoise;
+                    var[12 + i] = mEcosystem.ecotopes[i].texNoise;
                 }
             }
-            
+
 
 
             //mEcosystem.resetPlantIndex(_tile->lod);
@@ -2225,7 +2514,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-    
+
     if (_pTile->lod >= 6)
     {
         gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD6.getTile((_pTile->y >> (_pTile->lod - 6)) * 64 + (_pTile->x >> (_pTile->lod - 6)));
@@ -2265,7 +2554,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
             }
         }
     }
-    
+
 
     // OVER:AY ######################################################
     if (gis_overlay.terrafectorOverlayStrength > 0)
@@ -2407,16 +2696,15 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
 
-
         ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
         ribbonShader.State()->setBlendState(split.blendstateSplines);
 
         //ribbonShader.drawInstanced(_renderContext, 128, 10024);
-        //ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+        ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
 
         //buffer_lookup_plants
 
-
+        /*
         triangleShader.State()->setFbo(_fbo);
         triangleShader.State()->setViewport(0, _viewport, true);
         triangleShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
@@ -2424,7 +2712,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         triangleShader.State()->setRasterizerState(split.rasterstateSplines);
         triangleShader.State()->setBlendState(split.blendstateSplines);
         triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
-
+        */
 
     }
 
@@ -2542,7 +2830,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         for (uint L = 0; L < 18; L++)
         {
             sprintf(debugTxt, "%3d %5d %5d %5d %5d", L, split.feedback.numTiles[L], split.feedback.numSprite[L], split.feedback.numPlantsLOD[L], split.feedback.numTris[L]);
-            TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 450 + L*20 });
+            TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 450 + L * 20 });
         }
 
 
