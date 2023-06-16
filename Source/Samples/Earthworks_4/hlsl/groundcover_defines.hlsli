@@ -153,9 +153,10 @@ struct instance_PLANT
 struct ribbonVertex
 {
     float3 pos;
-    int A;
+    int A;          // start bit, leaves 31 bits unused
     float3 right;
-    int B;
+    int B;          // material
+    float4 lighting;
 };
 
 struct triangleVertex

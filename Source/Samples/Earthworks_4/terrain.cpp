@@ -266,6 +266,7 @@ void _GroveTree::load()
 
 
             findSideBranches();
+            calcLight();
             rebuildRibbons();
 
             /*
@@ -363,6 +364,8 @@ void _GroveTree::rebuildRibbons()
                     branchRibbons[numBranchRibbons].B = 1;
                 }
 
+                branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+
                 if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
                     numBranchRibbons++; // fixme test start
                 }
@@ -388,12 +391,14 @@ void _GroveTree::rebuildRibbons()
             branchRibbons[numBranchRibbons].right = 0.15f * branchLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 0;
             branchRibbons[numBranchRibbons].B = 1;
+            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
 
             branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.3f;
             branchRibbons[numBranchRibbons].right = 0.15f * branchLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 1;
             branchRibbons[numBranchRibbons].B = 1;
+            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
         }
     }
@@ -405,12 +410,14 @@ void _GroveTree::rebuildRibbons()
             branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 0;
             branchRibbons[numBranchRibbons].B = 2;
+            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
 
             branchRibbons[numBranchRibbons].pos = endLeaves[b].pos + endLeaves[b].dir * 0.4f;
             branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 1;
             branchRibbons[numBranchRibbons].B = 2;
+            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
         }
     }
@@ -421,9 +428,87 @@ void _GroveTree::rebuildRibbons()
 
 
 
+glm::int3 _GroveTree::cubeLookup(glm::vec3 Vin)
+{
+    glm::vec3 V = glm::normalize((Vin - light.center) * light.scale);
+    glm::int3 R;
+    if ((fabs(V.x) > fabs(V.y)) && (fabs(V.x) > fabs(V.z)))
+    {
+        if (V.x > 0) R.x = 0;
+        else R.x = 1;
+        V /= fabs(V.x);
+        R.y = (int)floor(V.y * 8.f) + 8;
+        R.z = (int)floor(V.z * 8.f) + 8;
+    }
+    else if (fabs(V.y) > fabs(V.x))
+    {
+        if (V.y > 0) R.x = 2;
+        else R.x = 3;
+        V /= fabs(V.y);
+        R.y = (int)floor(V.x * 8.f) + 8;
+        R.z = (int)floor(V.z * 8.f) + 8;
+    }
+    else
+    {
+        if (V.z > 0) R.x = 4;
+        else R.x = 5;
+        V /= fabs(V.z);
+        R.y = (int)floor(V.x * 8.f) + 8;
+        R.z = (int)floor(V.y * 8.f) + 8;
+    }
 
 
+    return R;
+}
 
+void _GroveTree::calcLight()
+{
+    // center
+    light.center = float3(0, 0, 0);
+    light.Min = float3(10000, 10000, 10000);
+    light.Max = float3(-10000, -10000, -10000);
+    int cnt = endLeaves.size();
+    for (int b = 0; b < cnt; b++)
+    {
+        light.center += endLeaves[b].pos;
+        light.Min = glm::min(light.Min, endLeaves[b].pos);
+        light.Max = glm::max(light.Max, endLeaves[b].pos);
+    }
+    light.center /= cnt;
+    glm::vec3 extents = light.Max - light.Min;
+    light.scale = 2.0f / extents;
+
+    for (int a = 0; a < 6; a++)
+    {
+        for (int b = 0; b < 16; b++) {
+            for (int c = 0; c < 16; c++) {
+                light.distCube[a][b][c] = 0;
+            }
+        }
+    }
+
+
+    for (int b = 0; b < cnt; b++)
+    {
+        glm::int3 R = cubeLookup(endLeaves[b].pos);
+        float L = glm::length(endLeaves[b].pos - light.center) + 0.2f;  // so that the tips are outside
+        light.distCube[R.x][R.y][R.z] = __max(light.distCube[R.x][R.y][R.z], L);
+    }
+
+}
+
+
+float4 _GroveTree::lightPos(glm::vec3 P)
+{
+    
+    glm::int3 R = cubeLookup(P);
+    float scale = glm::length(P - light.center) / light.distCube[R.x][R.y][R.z];
+    glm::vec3 norm = (P - light.center) * light.scale;
+    
+
+
+    return float4(norm.x, norm.y, norm.z, glm::smoothstep(0.8f, 1.0f, scale));
+}
 
 
 

@@ -151,6 +151,10 @@ struct _GroveTree
     int numBadEnds;
     bool showOnlyUnattached = false;
 
+    void calcLight();
+    glm::int3 cubeLookup(glm::vec3 pos);
+    float4 lightPos(glm::vec3 P);
+
     ribbonVertex branchRibbons[1024*1024];
     int numBranchRibbons;
     bool bChanged = false;
@@ -162,6 +166,14 @@ struct _GroveTree
     float endRadius = 0.f;
     float stepFactor = 2.0f;
     float bendFactor = 0.95f;
+
+    struct {
+        glm::vec3 center;
+        glm::vec3 Min;
+        glm::vec3 Max;
+        glm::vec3 scale;
+        float distCube[6][16][16];
+    } light;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)

@@ -42,6 +42,7 @@ struct VSOut
     float3 N : TEXCOORD3;
     float3 U : TEXCOORD4;
     float3 R : TEXCOORD5;
+    float4 lighting : TEXCOORD6;
 };
 
 struct GSOut
@@ -54,6 +55,7 @@ struct GSOut
     float3 N : TEXCOORD3;
     float3 U : TEXCOORD4;
     float3 R : TEXCOORD5;
+    float4 lighting : TEXCOORD6;
     
 };
 
@@ -87,6 +89,8 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.U = normalize(up);
     output.R = normalize(right);
 
+    output.lighting =  R.lighting; // FIXME rotate this still
+
     return output;
 }
 
@@ -104,6 +108,7 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
         v.N = L[0].N;
         v.U = L[0].U;
         v.R = L[0].R;
+        v.lighting = L[0].lighting;
         v.world = normalize(eye - L[0].rootPos.xyz);
         v.flags = L[0].flags;
 
@@ -118,6 +123,7 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
         v.N = L[1].N;
         v.U = L[1].U;
         v.R = L[1].R;
+        v.lighting = L[1].lighting;
         v.pos = mul(L[1].rootPos - L[1].right, viewproj);
         v.texCoords = float3(0, 0.0, L[1].other.x);
         v.world = normalize(eye - L[1].rootPos.xyz);
@@ -134,6 +140,7 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
 
 float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    
         int material = vOut.flags.y;
     if (material == 2)
     {
@@ -155,22 +162,24 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 normal = vOut.N * (2* isFrontFace - 1);
 
     //float3 sunDir = normalize(float3(0.7, -0.3, 0.2));
-    float3 sunDir = normalize(float3(1.0, 0.2, 0.0));
+    float3 sunDir = normalize(float3(1.0, 1.0, 0.0));
     float3 spec = reflect(eyeDir, NORM);
     float A = dot(NORM, sunDir);
     float A_backface = saturate(-A);
     A = saturate(A);
-    float S = pow(abs(dot(sunDir, spec)), 15);
+    float S = pow(abs(dot(sunDir, spec)), 35);
     float AO = 1.0f;
-    
+
+    AO = (vOut.lighting.w + 0.3) / 1.3;
+    //A *= vOut.lighting.w;
     if (material < 0.5)
     {
         S *= 0.0;
-        A *= 0.3;
+        //A *= 0.3;
     }
     else
     {
-        A *= 0.8;
+        //A *= 0.8;
         S *= 0.3;
         //clip(-1);
 
@@ -178,12 +187,23 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     if (vOut.flags.y == 1)
     {
-        A *= 0.3;
-        AO = 0.3;
-        S *= 0.1;
+        //A *= 0.3;
+        //AO = 0.3;
+        //S *= 0.1;
     }
+
+    float Z = dot(normalize(vOut.lighting.xyz) + 0.1 * sunDir * AO, sunDir);
+    float shadow = saturate(3 * Z) - (1 - vOut.lighting.w);
     
-        float3 final = (albedoAlpha.rgb * A) + (albedoAlpha.rgb * float3(0.05, 0.1, 0.2)) * AO + S;
+    //albedoAlpha.rgb = vOut.lighting.xyz;
+    float3 final = (albedoAlpha.rgb * A) * shadow;//    +(albedoAlpha.rgb * float3(0.16, 0.2, 0.1)) * AO + S * shadow;
+
+    // back light
+    final += shadow * saturate(-dot(NORM, sunDir)) * albedoAlpha.rgb * float3(0.7, 1.0, 0.3);
+
+    final += shadow * S*2;
+
+    final += (albedoAlpha.rgb * float3(0.1, 0.15, 0.1)) * saturate(AO);
 
  
     return float4(final, albedoAlpha.a);
