@@ -50,7 +50,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
     DrawArgs_Plants[0].vertexCountPerInstance = 128;
 
     DrawArgs_ClippedLoddedPlants[0].instanceCount = 0;
-    DrawArgs_ClippedLoddedPlants[0].vertexCountPerInstance = 2114;//    542; // 768 for triangles
+    DrawArgs_ClippedLoddedPlants[0].vertexCountPerInstance = 1598;//    2114; //542; // 768 for triangles 2114;//
 
     DispatchArgs_Plants[0].numGroupX = 0;
     DispatchArgs_Plants[0].numGroupY = 1;

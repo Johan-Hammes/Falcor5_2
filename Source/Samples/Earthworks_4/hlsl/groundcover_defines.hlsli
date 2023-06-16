@@ -333,7 +333,13 @@ struct GC_feedback			// to log and read back to debug and test the process
 
 
 
-
+struct sprite_material
+{
+    uint albedoTexture;
+    uint normalTexture;
+    uint pbrTexture;
+    uint buf_01;
+};
 
 
 

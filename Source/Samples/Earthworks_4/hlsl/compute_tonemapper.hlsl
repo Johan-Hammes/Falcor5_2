@@ -39,5 +39,5 @@ VSQuadOut vsMain(uint vId : SV_VertexID)
 
 float4 psMain(VSQuadOut vIn) : SV_TARGET0
 {
-    return float4(ACESFilm(hdr[vIn.position.xy] * 1.5), 1);
+    return float4(ACESFilm(hdr[vIn.position.xy] * 1.2), 1);
 }

@@ -55,6 +55,38 @@ void _GroveTree::renderGui(Gui* _gui)
         if (ImGui::Button("load")) {
             load();
         }
+        ImGui::Text("branches - %d", branches.size());
+        ImGui::Text("branch leaves - %d", branchLeaves.size());
+        ImGui::Text("# ribbons - %d", numBranchRibbons);
+        ImGui::Text("# side B found - %d", numSideBranchesFound);
+        ImGui::Text("# dead ends - %d", numDeadEnds);
+        ImGui::Text("# bad ends - %d", numBadEnds);
+        
+
+        if (ImGui::Checkbox("branch leaves", &includeBranchLeaves)) {
+            rebuildRibbons();
+        }
+        if (ImGui::Checkbox("tip leaves", &includeEndLeaves)) {
+            rebuildRibbons();
+        }
+        if (ImGui::Checkbox("showOnlyUnattached", &showOnlyUnattached)) {
+            rebuildRibbons();
+        }
+        
+
+        if (ImGui::DragFloat("start", &startRadius, 0.1f, 0.01f, 10.f)) {
+            rebuildRibbons();
+        }
+        if (ImGui::DragFloat("end", &endRadius, 0.003f, 0.0f, 1.f)) {
+            rebuildRibbons();
+        }
+        if (ImGui::DragFloat("step", &stepFactor, 0.1f, 0.1f, 5.f)) {
+            rebuildRibbons();
+        }
+        if (ImGui::DragFloat("bend", &bendFactor, 0.01f, 0.9f, 1.f)) {
+            rebuildRibbons();
+        }
+
     }
     ImGui::PopFont();
 }
@@ -96,7 +128,7 @@ void _GroveTree::readahead1()
 {
     verts[numVerts] = readVertex();
     float offset = glm::dot(nodeDir, verts[numVerts]) - nodeOffset;
-    if (fabs(offset) > 0.01) {
+    if (fabs(offset) > 0.003) {
         isPlanar = false;
     }
     numVerts++;
@@ -119,20 +151,23 @@ float3 _GroveTree::readVertex()
 
 void _GroveTree::testBranchLeaves()
 {
-    float3 center = (verts[0] + verts[1] + verts[2] ) / 3.0f;
+    float3 center = (verts[0] + verts[1] + verts[2]) / 3.0f;
     for (int j = 1; j < currentBranch->nodes.size(); j++) {         // start at 1, dont seacr that first node, it breaks branch inetrsections
         float3 nodeCenter = currentBranch->nodes[j].pos;
         float dist = glm::length(nodeCenter - center);
-        if (fabs(dist) < 0.01f) {
+        if (fabs(dist) < 0.004f) {
             //we have a leaf, add it in future
             float l1 = glm::length(verts[1] - verts[0]);
             float l2 = glm::length(verts[2] - verts[1]);
             float l3 = glm::length(verts[0] - verts[2]);
             float radius = 0.19f * (l1 + l2 + l3);
 
-            branchLeaves.emplace_back();
-            branchLeaves.back().pos = (verts[0] + verts[1] + verts[2]) / 3.0f;
-            branchLeaves.back().dir = nodeDir;
+            _leafNode L;
+            L.pos = currentBranch->nodes[j].pos;
+            L.dir = nodeDir;
+            L.branchNode = j;
+            branchLeaves.push_back(L);
+            currentBranch->leaves.push_back(L);
 
             verts[0] = readVertex();
             read2();
@@ -159,7 +194,9 @@ void _GroveTree::load()
         branchLeaves.clear();
         endLeaves.clear();
         totalVerts = 0;
-        
+        numDeadEnds = 0;
+        numBadEnds = 0;
+
 
         objfile = fopen(filename.c_str(), "r");
         if (objfile) {
@@ -168,7 +205,7 @@ void _GroveTree::load()
             currentBranch = &branches.back();
             read2();
             oldNumVerts = 1000; // just bog to alwasy keep first node
-            while(!enfOfFile)
+            while (!enfOfFile)
             {
                 if (branchMode)
                 {
@@ -178,8 +215,8 @@ void _GroveTree::load()
 
                     // solve vert and save in branch
                     float3 center = float3(0, 0, 0);
-                    for (int j = 0; j < numVerts-1; j++) {
-                        center += verts[j] * (1.0f / (numVerts-1));
+                    for (int j = 0; j < numVerts - 1; j++) {
+                        center += verts[j] * (1.0f / (numVerts - 1));
                     }
 
                     float l1 = glm::length(verts[1] - verts[0]);
@@ -188,14 +225,27 @@ void _GroveTree::load()
                     float radius = 0.19f * (l1 + l2 + l3);
 
                     if (oldNumVerts < numVerts) {
-                        // so when the verts increase we have hit the endcap of a branch
-                        endLeaves.emplace_back();
-                        endLeaves.back().pos = center;
-                        endLeaves.back().dir = nodeDir;
+                        if (numVerts == 8) {
+                            // so when the verts increase we have hit the endcap of a branch
+                            endLeaves.emplace_back();
+                            endLeaves.back().pos = center;
+                            endLeaves.back().dir = nodeDir;
+                        }
+                        else if (numVerts == 5) {
+                            numDeadEnds++;
+                        }
+                        else {
+                            numBadEnds++;
+                        }
                         branchMode = false;
                     }
                     oldNumVerts = numVerts;
 
+                    //if(branches.size()==1 && currentBranch->nodes)
+                    if (currentBranch->nodes.size() == 1)
+                    {
+                        currentBranch->nodes[0].radius = radius;
+                    }
                     _branchnode BN;
                     BN.pos = center;
                     BN.radius = radius;
@@ -214,78 +264,159 @@ void _GroveTree::load()
             fclose(objfile);
 
 
-            numBranchRibbons = 0;
-            for (int b = 0; b < branches.size(); b++)
-            {
-                if (branches[b].nodes.size() > 1)
-                {
-                    for (int n = 0; n < branches[b].nodes.size(); n++)
-                    {
-                        branchRibbons[numBranchRibbons].pos = branches[b].nodes[n].pos;
-                        branchRibbons[numBranchRibbons].A = 1;
-                        float3 D;
-                        if (n == 0) {
-                            branchRibbons[numBranchRibbons].A = 0;
-                            D = glm::normalize(branches[b].nodes[1].pos - branches[b].nodes[0].pos);
-                        }
-                        else
-                        {
-                            D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n-1].pos);
-                        }
 
-                        float offset = glm::dot(D, branches[b].nodes[n].dir);
-                        if (offset < 0.9) {
-                            bool bcm = true;
-                        }
-                        branchRibbons[numBranchRibbons].right = branches[b].nodes[n].radius * branches[b].nodes[n].dir;
+            findSideBranches();
+            rebuildRibbons();
 
-                        numBranchRibbons++;
-                    }
-
-                    float3 pos = branches[b].nodes.back().pos;
-                    float3 dir = branches[b].nodes.back().dir;
-                    branchRibbons[numBranchRibbons].pos = pos + dir * 0.1f;
-                    branchRibbons[numBranchRibbons].right = 0.04f * dir;
-                    branchRibbons[numBranchRibbons].A = 1;
-                    numBranchRibbons++;
-
-                    branchRibbons[numBranchRibbons].pos = pos + dir * 0.2f;
-                    branchRibbons[numBranchRibbons].right = 0.05f * dir;
-                    branchRibbons[numBranchRibbons].A = 1;
-                    numBranchRibbons++;
-
-                    branchRibbons[numBranchRibbons].pos = pos + dir * 0.3f;
-                    branchRibbons[numBranchRibbons].right = 0.02f * dir;
-                    branchRibbons[numBranchRibbons].A = 1;
-                    numBranchRibbons++;
-                }
-            }
-
-            for (int b = 0; b < branchLeaves.size(); b++)
-            {
-                branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.05f;
-                branchRibbons[numBranchRibbons].right = 0.01f * branchLeaves[b].dir;
-                branchRibbons[numBranchRibbons].A = 0;
-                numBranchRibbons++;
-
-                branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.15f;
-                branchRibbons[numBranchRibbons].right = 0.04f * branchLeaves[b].dir;
-                branchRibbons[numBranchRibbons].A = 1;
-                numBranchRibbons++;
-
-                branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.25f;
-                branchRibbons[numBranchRibbons].right = 0.01f * branchLeaves[b].dir;
-                branchRibbons[numBranchRibbons].A = 1;
-                numBranchRibbons++;
-            }
-
+            /*
             FILE* f = fopen("f:\\theGrove\\ash.ribbon", "wb");
             if (f) {
                 fwrite(branchRibbons, sizeof(ribbonVertex), numBranchRibbons, f);
                 fclose(f);
             }
+            */
         }
     }
+}
+
+bool pointCylindar(const glm::vec3 &point, const glm::vec3& A, const glm::vec3& B, const float radius)
+{
+    glm::vec3 dir = B - A;
+    float L = glm::length(dir);
+    dir = glm::normalize(dir);
+    glm::vec3 P = point - A;
+    float dist = glm::dot(P, dir);
+    if ((dist >= -radius) && (dist < (L + radius))) {
+        glm::vec3 Pline = dir * dist;
+        if (glm::length(P - Pline) < radius) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void _GroveTree::findSideBranches()
+{
+    numSideBranchesFound = 0;
+    for (int B = 0; B < branches.size(); B++)
+    {
+        glm::vec3 P0 = branches[B].nodes[0].pos;
+        float R0 = branches[B].nodes[0].radius;
+        for (int C = B-1; C >= 0; C--)   // try <B again
+        {
+            if (branches[B].rootBranch >= 0) continue; // have al;ready found it
+
+            if (branches[C].nodes[0].radius > R0)
+            {
+                for (int n = 0; n < branches[C].nodes.size() - 1; n++)
+                {
+                    //if (branches[C].nodes[n].radius < (R0 * 0.6)) break;
+
+                    if (pointCylindar(P0, branches[C].nodes[n].pos, branches[C].nodes[n+1].pos, branches[C].nodes[n].radius * 4))
+                    {
+                        branches[B].rootBranch = C;
+                        branches[B].sideNode = n;
+                        branches[C].sideBranches.push_back(B);
+                        numSideBranchesFound++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+void _GroveTree::rebuildRibbons()
+{
+    numBranchRibbons = 0;
+    for (int b = 0; b < branches.size(); b++)
+    {
+        if (showOnlyUnattached && branches[b].rootBranch >= 0) continue;
+        if (showOnlyUnattached && b == 0) continue;
+
+        if (branches[b].nodes.size() > 1)
+        {
+            for (int n = 0; n < branches[b].nodes.size(); n++)
+            {
+                branchRibbons[numBranchRibbons].pos = branches[b].nodes[n].pos;
+                branchRibbons[numBranchRibbons].A = 1;
+                float3 D;
+                if (n == 0) {
+                    branchRibbons[numBranchRibbons].A = 0;
+                    D = glm::normalize(branches[b].nodes[1].pos - branches[b].nodes[0].pos);
+                }
+                else
+                {
+                    D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
+                }
+
+                float offset = glm::dot(D, branches[b].nodes[n].dir);
+                if (offset < 0.9) {
+                    bool bcm = true;
+                }
+                branchRibbons[numBranchRibbons].right = branches[b].nodes[n].radius * branches[b].nodes[n].dir * 2.0f;
+                branchRibbons[numBranchRibbons].B = 0;
+                if (n == branches[b].nodes.size() - 1) {
+                    branchRibbons[numBranchRibbons].B = 1;
+                }
+
+                if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
+                    numBranchRibbons++; // fixme test start
+                }
+                else if (   (branches[b].nodes[n].radius < startRadius) &&
+                            (branches[b].nodes[n].radius > endRadius) &&
+                            (glm::length(branchRibbons[numBranchRibbons].pos - branchRibbons[numBranchRibbons-1].pos) / branches[b].nodes[n].radius > stepFactor) ){
+                    numBranchRibbons++;
+                }
+                /*startRadius = 1000.f;
+    float endRadius = 0.f;
+    float stepFactor = 2.0f;
+    float bendFactor = 0.95;*/
+                
+            }
+
+        }
+    }
+
+    if (includeBranchLeaves) {
+        for (int b = 0; b < branchLeaves.size(); b++)
+        {
+            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.0f;
+            branchRibbons[numBranchRibbons].right = 0.15f * branchLeaves[b].dir;
+            branchRibbons[numBranchRibbons].A = 0;
+            branchRibbons[numBranchRibbons].B = 1;
+            numBranchRibbons++;
+
+            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.3f;
+            branchRibbons[numBranchRibbons].right = 0.15f * branchLeaves[b].dir;
+            branchRibbons[numBranchRibbons].A = 1;
+            branchRibbons[numBranchRibbons].B = 1;
+            numBranchRibbons++;
+        }
+    }
+
+    if (includeEndLeaves) {
+        for (int b = 0; b < endLeaves.size(); b++)
+        {
+            branchRibbons[numBranchRibbons].pos = endLeaves[b].pos + endLeaves[b].dir * 0.0f;
+            branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
+            branchRibbons[numBranchRibbons].A = 0;
+            branchRibbons[numBranchRibbons].B = 2;
+            numBranchRibbons++;
+
+            branchRibbons[numBranchRibbons].pos = endLeaves[b].pos + endLeaves[b].dir * 0.4f;
+            branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
+            branchRibbons[numBranchRibbons].A = 1;
+            branchRibbons[numBranchRibbons].B = 2;
+            numBranchRibbons++;
+        }
+    }
+
+
+    bChanged = true;
 }
 
 
@@ -642,7 +773,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
-        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 16384); // just a nice amount for now
+        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 1024 * 1024); // just a nice amount for now
         ribbonVertex testribbons[50 * 128];
         memset(testribbons, 0, 50 * 128 * sizeof(ribbonVertex)); //16x8
         // now fill it with stuff
@@ -688,20 +819,30 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             fclose(f);
         }
 
-        /*
-        ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
-        ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
-        ribbonShader.Vars()->setBuffer("plantBuffer", split.buffer_instance_plants);
-        ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
-        ribbonShader.Vars()->setBuffer("tiles", split.buffer_tiles);
-        ribbonShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_plants);
-        */
+
+
+        Texture::SharedPtr tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\bark\\Oak1_albedo.dds", false, true);
+        ribbonTextures.emplace_back(tex);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\bark\\Oak1_sprite_normal.dds", false, false);
+        ribbonTextures.emplace_back(tex);
+
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\twigs\\poplar_twig1_albedo.dds", false, true);
+        ribbonTextures.emplace_back(tex);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\twigs\\poplar_twig1_normal.dds", false, false);
+        ribbonTextures.emplace_back(tex);
+
+
         ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
-        ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+        ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);              // fixme only cvlamlX
 
-
+        auto& block = ribbonShader.Vars()->getParameterBlock("gribbonTextures");
+        ShaderVar& var = block->findMember("T");
+        for (size_t i = 0; i < ribbonTextures.size(); i++)
+        {
+            var[i] = ribbonTextures[i];
+        }
 
 
 
@@ -1168,7 +1309,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::PushFont(_gui->getFont("roboto_20"));
 
         ImGui::PushItemWidth(ImGui::GetWindowWidth() - 20);
-        if (ImGui::Combo("###modeSelector", &terrainMode, "ortho photo\0Ecotope\0Terrafector\0Bezier road network\0")) { ; }
+        if (ImGui::Combo("###modeSelector", &terrainMode, "Vegetation\0Ecotope\0Terrafector\0Bezier road network\0")) { ; }
         ImGui::PopItemWidth();
         ImGui::NewLine();
 
@@ -1177,7 +1318,9 @@ void terrainManager::onGuiRender(Gui* _gui)
 
         switch (terrainMode)
         {
-        case 0: break;
+        case 0:
+            groveTree.renderGui(_gui);
+            break;
         case 1:
             mEcosystem.renderGUI(_gui);
             if (ImGui::BeginPopupContextWindow(false))
@@ -1665,7 +1808,7 @@ void terrainManager::onGuiMenubar(Gui* pGui)
     }
 
     float x = ImGui::GetCursorPosX();
-    ImGui::SetCursorPos(ImVec2(screenSize.x - 600, 0));
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 700, 0));
     ImGui::Text(lastfile.terrain.c_str());
     ImGui::SetCursorPos(ImVec2(x, 0));
 }
@@ -2653,6 +2796,29 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
     }
 
+    if (terrainMode == 0)
+    {
+        FALCOR_PROFILE("ribbonShader");
+
+        if (groveTree.bChanged)
+        {
+            ribbonData->setBlob(groveTree.branchRibbons, 0, groveTree.numBranchRibbons * sizeof(ribbonVertex));
+            groveTree.bChanged = false;
+        }
+
+        ribbonShader.State()->setFbo(_fbo);
+        ribbonShader.State()->setViewport(0, _viewport, true);
+        ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
+
+        ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
+        ribbonShader.State()->setBlendState(split.blendstateSplines);
+
+        ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, 1);
+        //ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+
+        return;
+    }
 
     {
 
@@ -3977,108 +4143,154 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
 bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera)
 {
-    bool bEdit = onMouseEvent_Roads(mouseEvent, _screenSize, _camera);
-
-    if (!bEdit)
+    if (terrainMode == 0)
     {
         glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
+        glm::vec2 diff;
         if (pos.x > 0 && pos.x < 1 && pos.y > 0 && pos.y < 1)
         {
             pos.y = 1.0 - pos.y;
-            glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
-            glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
-            mouseDirection = glm::normalize(F - N);
-            screenSize = _screenSize;
-            mousePosition = _camera->getPosition();
-            mouseCoord = mouseEvent.pos * _screenSize;
+            diff = pos - mousePositionOld;
+            mousePositionOld = pos;
+        }
 
 
-
-            switch (mouseEvent.type)
+        switch (mouseEvent.type)
+        {
+        case MouseEvent::Type::Move:
+        {
+            if (ImGui::IsMouseDown(1))
             {
-            case MouseEvent::Type::Move:
-            {
-                //if (bRightButton)  // PAN
-                if (ImGui::IsMouseDown(1))
-                {
-                    glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
-                    glm::vec3 deltaPos = newPos - _camera->getPosition();
+                mouseVegPitch += diff.y * 10.0f;
+                mouseVegPitch = glm::clamp(mouseVegPitch, 0.f, 1.5f);
 
-                    glm::vec3 newTarget = _camera->getTarget() + deltaPos;
-                    _camera->setPosition(newPos);
-                    _camera->setTarget(newTarget);
-                    hasChanged = true;
-                }
-
-                // orbit
-                if (ImGui::IsMouseDown(2))
-                {
-                    glm::vec3 D = _camera->getTarget() - _camera->getPosition();
-                    glm::vec3 U = glm::vec3(0, 1, 0);
-                    glm::vec3 R = glm::normalize(glm::cross(U, D));
-                    glm::vec2 diff = pos - mousePositionOld;
-                    glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
-
-                    glm::vec3 Dnorm = glm::normalize(D);
-                    if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
-                    if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
-
-                    glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
-                    mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
-                    glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
-
-                    _camera->setPosition(mouse.orbit - mouse.toGround);
-                    _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
-                    hasChanged = true;
-                }
-                mousePositionOld = pos;
+                mouseVegYaw += diff.x * 20.0f;
+                while (mouseVegYaw < 0) mouseVegYaw += 6.28318530718f;
+                while (mouseVegYaw > 6.28318530718f) mouseVegYaw -= 6.28318530718f;
             }
-            break;
-            case MouseEvent::Type::Wheel:
-            {
-                if (mouse.hit)
-                {
-                    float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
-                    mouse.toGround *= scale;
-                    glm::vec3 newPos = mouse.terrain - mouse.toGround;
-                    glm::vec3 deltaPos = newPos - _camera->getPosition();
-                    glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+        }
+        break;
+        case MouseEvent::Type::Wheel:
+        {
+            float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
+            mouseVegOrbit *= scale;
+            mouseVegOrbit = glm::clamp(mouseVegOrbit, 1.f, 5000.f);
+        }
+        break;
+        }
 
-                    _camera->setPosition(newPos);
-                    _camera->setTarget(newTarget);
-                    hasChanged = true;
-                }
-            }
-            break;
-            case MouseEvent::Type::ButtonDown:
-            {
-                if (mouseEvent.button == Input::MouseButton::Middle)
-                {
-                    mouse.orbitRadius = glm::length(mouse.toGround);
-                }
-            }
-            break;
-            case MouseEvent::Type::ButtonUp:
-            {
-            }
-            break;
-            }
+        glm::vec3 camPos;
+        camPos.y = sin(mouseVegPitch);
+        camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
+        camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
+        _camera->setPosition(camPos * mouseVegOrbit);
+        _camera->setTarget(glm::vec3(0, 6, 0));
+        return true;
+    }
+    else {
+        bool bEdit = onMouseEvent_Roads(mouseEvent, _screenSize, _camera);
 
-
-            // rebuild from new camera
+        if (!bEdit)
+        {
+            glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
+            if (pos.x > 0 && pos.x < 1 && pos.y > 0 && pos.y < 1)
             {
+                pos.y = 1.0 - pos.y;
                 glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
                 glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
                 mouseDirection = glm::normalize(F - N);
                 screenSize = _screenSize;
                 mousePosition = _camera->getPosition();
                 mouseCoord = mouseEvent.pos * _screenSize;
-            }
 
-            return false;
+
+
+                switch (mouseEvent.type)
+                {
+                case MouseEvent::Type::Move:
+                {
+                    //if (bRightButton)  // PAN
+                    if (ImGui::IsMouseDown(1))
+                    {
+                        glm::vec3 newPos = mouse.pan - mouseDirection * (_camera->getPosition().y - mouse.pan.y) / fabs(mouseDirection.y);
+                        glm::vec3 deltaPos = newPos - _camera->getPosition();
+
+                        glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+                        _camera->setPosition(newPos);
+                        _camera->setTarget(newTarget);
+                        hasChanged = true;
+                    }
+
+                    // orbit
+                    if (ImGui::IsMouseDown(2))
+                    {
+                        glm::vec3 D = _camera->getTarget() - _camera->getPosition();
+                        glm::vec3 U = glm::vec3(0, 1, 0);
+                        glm::vec3 R = glm::normalize(glm::cross(U, D));
+                        glm::vec2 diff = pos - mousePositionOld;
+                        glm::mat4 yaw = glm::rotate(glm::mat4(1.0f), diff.x * 10.0f, glm::vec3(0, 1, 0));
+
+                        glm::vec3 Dnorm = glm::normalize(D);
+                        if ((Dnorm.y < -0.99f) && (diff.y < 0)) diff.y = 0;
+                        if ((Dnorm.y > 0.0f) && (diff.y > 0)) diff.y = 0;
+
+                        glm::mat4 pitch = glm::rotate(glm::mat4(1.0f), diff.y * 10.0f, R);
+                        mouse.toGround = glm::vec4(mouseDirection, 0) * mouse.orbitRadius * yaw * pitch;
+                        glm::vec4 newDir = glm::vec4(D, 0) * yaw * pitch;
+
+                        _camera->setPosition(mouse.orbit - mouse.toGround);
+                        _camera->setTarget(mouse.orbit - mouse.toGround + glm::vec3(newDir));
+                        hasChanged = true;
+                    }
+                    mousePositionOld = pos;
+                }
+                break;
+                case MouseEvent::Type::Wheel:
+                {
+                    if (mouse.hit)
+                    {
+                        float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
+                        mouse.toGround *= scale;
+                        glm::vec3 newPos = mouse.terrain - mouse.toGround;
+                        glm::vec3 deltaPos = newPos - _camera->getPosition();
+                        glm::vec3 newTarget = _camera->getTarget() + deltaPos;
+
+                        _camera->setPosition(newPos);
+                        _camera->setTarget(newTarget);
+                        hasChanged = true;
+                    }
+                }
+                break;
+                case MouseEvent::Type::ButtonDown:
+                {
+                    if (mouseEvent.button == Input::MouseButton::Middle)
+                    {
+                        mouse.orbitRadius = glm::length(mouse.toGround);
+                    }
+                }
+                break;
+                case MouseEvent::Type::ButtonUp:
+                {
+                }
+                break;
+                }
+
+
+                // rebuild from new camera
+                {
+                    glm::vec3 N = glm::unProject(glm::vec3(pos * _screenSize, 0.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+                    glm::vec3 F = glm::unProject(glm::vec3(pos * _screenSize, 1.0f), toGLM(_camera->getViewMatrix()), toGLM(_camera->getProjMatrix()), glm::vec4(0, 0, _screenSize));
+                    mouseDirection = glm::normalize(F - N);
+                    screenSize = _screenSize;
+                    mousePosition = _camera->getPosition();
+                    mouseCoord = mouseEvent.pos * _screenSize;
+                }
+
+                return false;
+            }
         }
+        return true;
     }
-    return true;
 }
 
 

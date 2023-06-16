@@ -62,12 +62,14 @@ struct _leafNode
 {
     float3 pos;
     float3 dir;
+    int branchNode;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
         _archive(CEREAL_NVP(pos));
         _archive(CEREAL_NVP(dir));
+        _archive(CEREAL_NVP(branchNode));
     }
 };
 CEREAL_CLASS_VERSION(_leafNode, 100);
@@ -94,12 +96,20 @@ struct _GroveBranch
 {
     
     std::vector<_branchnode> nodes;
+    std::vector <_leafNode> leaves;
+    std::vector<int> sideBranches;
+    int rootBranch = -1;
+    int sideNode = 0;
     
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
         _archive(CEREAL_NVP(nodes));
+        _archive(CEREAL_NVP(leaves));
+        _archive(CEREAL_NVP(sideBranches));
+        _archive(CEREAL_NVP(sideBranch));
+        _archive(CEREAL_NVP(sideNode));
     }
 
     void reset();
@@ -134,9 +144,24 @@ struct _GroveTree
     void readahead1();
     float3 readVertex();
     void testBranchLeaves();
+    void rebuildRibbons();
+    void findSideBranches();
+    int numSideBranchesFound;
+    int numDeadEnds;
+    int numBadEnds;
+    bool showOnlyUnattached = false;
 
-    ribbonVertex branchRibbons[16380];
+    ribbonVertex branchRibbons[1024*1024];
     int numBranchRibbons;
+    bool bChanged = false;
+    bool includeBranchLeaves = false;
+    bool includeEndLeaves = false;
+
+    // optimize, move to a lod calss
+    float startRadius = 1000.f;
+    float endRadius = 0.f;
+    float stepFactor = 2.0f;
+    float bendFactor = 0.95f;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -424,7 +449,9 @@ private:
     Texture::SharedPtr	  spriteTexture = nullptr;
 
     pixelShader ribbonShader;
+    Buffer::SharedPtr       ribbonMaterials;
     Buffer::SharedPtr       ribbonData;
+    std::vector< Texture::SharedPtr> ribbonTextures;
     pixelShader triangleShader;
     Buffer::SharedPtr       triangleData;
 
@@ -441,6 +468,10 @@ private:
     glm::vec2 mousePositionOld;
     glm::vec2 screenSize;
     glm::vec2 mouseCoord;
+    float mouseVegOrbit = 10;
+    float mouseVegPitch = 0.1f;
+    float mouseVegYaw = 0.0f;
+    float mouseVegRoll = 0.0f;
     computeShader compute_TerrainUnderMouse;
 
     std::map<uint32_t, heightMap> elevationTileHashmap;
@@ -619,5 +650,17 @@ private:
 
     bool requestPopupTree = false;
     _GroveTree groveTree;
+
+
+    struct
+    {
+        bool show = false;
+        Texture::SharedPtr	  skyTexture;
+        // sky mesh
+
+        _GroveTree groveTree;
+        int numSegments = 2000;
+
+    }vegetation;
     
 };

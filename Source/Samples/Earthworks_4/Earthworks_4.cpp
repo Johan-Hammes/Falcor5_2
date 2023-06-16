@@ -161,7 +161,8 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     bool changed = terrain.update(_renderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
-    const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
+    //const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
+    const float4 clearColor(0.02f, 0.1f, 0.35f, 1);
     _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
 
