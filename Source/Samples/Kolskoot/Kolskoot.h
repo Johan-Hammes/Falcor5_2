@@ -39,27 +39,61 @@
 #include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
 #include <fstream>
+#define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
+#define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
+#define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
 
 using namespace Falcor;
 
 
-class videoToScreen
+struct _block
 {
-    glm::vec3 toScreen(glm::vec3 dot);
+    std::array<glm::vec3, 4>  screenPos;
+    std::array<glm::vec3, 4>  videoPos;
+    std::array<glm::vec3, 4>  videoEdge;
 
-    struct _block
-    {
-        glm::vec3 screenPos[4];
-        glm::vec3 videoPos[4];
-        glm::vec3 videoEdge[4];
-    };
-
-    _block grid[8][4];
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
     {
-        archive_float3(grid);
+        archive_float3(screenPos[0]);
+        archive_float3(screenPos[1]);
+        archive_float3(screenPos[2]);
+        archive_float3(screenPos[3]);
+
+        archive_float3(videoPos[0]);
+        archive_float3(videoPos[1]);
+        archive_float3(videoPos[2]);
+        archive_float3(videoPos[3]);
+
+        archive_float3(videoEdge[0]);
+        archive_float3(videoEdge[1]);
+        archive_float3(videoEdge[2]);
+        archive_float3(videoEdge[3]);
+
+        //_archive(CEREAL_NVP(screenPos[0]));
+        //_archive(CEREAL_NVP(videoPos));
+        //_archive(CEREAL_NVP(videoEdge));
+    }
+};
+CEREAL_CLASS_VERSION(_block, 100);
+
+
+class videoToScreen
+{
+public:
+    glm::vec3 toScreen(glm::vec3 dot);
+    void build(std::array<glm::vec4, 45>  dots, float2 screenSize);
+
+
+    
+
+    _block grid[4][8];
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(grid));
     }
 };
 CEREAL_CLASS_VERSION(videoToScreen, 100);
@@ -105,14 +139,16 @@ private:
 
     //PointGrey
     PointGrey_Camera*   pointGreyCamera;
+    int calibrationCounter;
     float pgGain = 0;
     float pgGamma = 0;
     Texture::SharedPtr	        pointGreyBuffer = nullptr;
     Texture::SharedPtr	        pointGreyDiffBuffer = nullptr;
     int dot_min = 5;
-    int dot_max = 20; 
+    int dot_max = 40; 
     int threshold = 20;
     int m_PG_dot_position = 1;
+    std::array<glm::vec4, 45> calibrationDots;
 
     GraphicsState::Viewport     viewport3d;
     float2                      screenSize;
@@ -122,6 +158,8 @@ private:
     Texture::SharedPtr	        hdrHalfCopy;
     GraphicsState::SharedPtr    graphicsState;
     Falcor::Camera::SharedPtr	camera;
+
+    videoToScreen   screenMap;
 
     bool    showPointGrey = false;
     bool    showCalibration = false;

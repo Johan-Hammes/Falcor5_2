@@ -33,6 +33,53 @@
 
 
 
+bool sort_x(glm::vec4& a, glm::vec4& b) {
+    return (a.x < b.x);
+}
+bool sort_y(glm::vec4& a, glm::vec4& b) {
+    return (a.y < b.y);
+}
+
+void videoToScreen::build(std::array<glm::vec4, 45>  dots, float2 screenSize)
+{
+    std::sort(dots.begin(), dots.end(), sort_y);
+
+    std::sort(dots.begin() + 0, dots.begin() + 9, sort_x);
+    std::sort(dots.begin() + 9, dots.begin() + 18, sort_x);
+    std::sort(dots.begin() + 18, dots.begin() + 27, sort_x);
+    std::sort(dots.begin() + 27, dots.begin() + 36, sort_x);
+    std::sort(dots.begin() + 36, dots.begin() + 45, sort_x);
+
+    float dY = (screenSize.y - 40) / 4;
+    float dX = (screenSize.x - 40) / 8;
+
+    for (int y = 0; y < 4; y++)
+    {
+        for (int x = 0; x < 8; x++)
+        {
+            uint index = y * 9 + x;
+            //grid[y][x].screenpos[0]
+            grid[y][x].videoPos[0] = dots[index + 0];
+            grid[y][x].videoPos[1] = dots[index + 1];
+            grid[y][x].videoPos[2] = dots[index + 10];
+            grid[y][x].videoPos[3] = dots[index + 9];
+            grid[y][x].videoPos[0].z = 0;
+            grid[y][x].videoPos[1].z = 0;
+            grid[y][x].videoPos[2].z = 0;
+            grid[y][x].videoPos[3].z = 0;
+
+            grid[y][x].videoEdge[0] = glm::normalize(grid[y][x].videoPos[1] - grid[y][x].videoPos[0]);
+            grid[y][x].videoEdge[1] = glm::normalize(grid[y][x].videoPos[2] - grid[y][x].videoPos[1]);
+            grid[y][x].videoEdge[2] = glm::normalize(grid[y][x].videoPos[3] - grid[y][x].videoPos[2]);
+            grid[y][x].videoEdge[3] = glm::normalize(grid[y][x].videoPos[0] - grid[y][x].videoPos[3]);
+
+            grid[y][x].screenPos[0] = glm::vec3(20 + x * dX, 20 + y * dY, 0);
+            grid[y][x].screenPos[1] = glm::vec3(20 + (x + 1) * dX, 20 + y * dY, 0);
+            grid[y][x].screenPos[2] = glm::vec3(20 + (x + 1) * dX, 20 + (y + 1) * dY, 0);
+            grid[y][x].screenPos[3] = glm::vec3(20 + x * dX, 20 + (y + 1) * dY, 0);
+        }
+    }
+}
 
 glm::vec3 videoToScreen::toScreen(glm::vec3 dot)
 {
@@ -47,10 +94,10 @@ glm::vec3 videoToScreen::toScreen(glm::vec3 dot)
             glm::vec3 vC = dot - grid[y][x].videoPos[2];
             glm::vec3 vD = dot - grid[y][x].videoPos[3];
 
-            float wA = glm::cross(vA, grid[y][x].videoEdge[0]).z;
-            float wB = glm::cross(vB, grid[y][x].videoEdge[1]).z;
-            float wC = glm::cross(vC, grid[y][x].videoEdge[2]).z;
-            float wD = glm::cross(vD, grid[y][x].videoEdge[3]).z;
+            float wA = glm::cross(-vA, grid[y][x].videoEdge[0]).z;
+            float wB = glm::cross(-vB, grid[y][x].videoEdge[1]).z;
+            float wC = glm::cross(-vC, grid[y][x].videoEdge[2]).z;
+            float wD = glm::cross(-vD, grid[y][x].videoEdge[3]).z;
 
             if (wA >= 0 && wB >= 0 && wC >= 0 && wD >= 0)		// ons het die regte blok
             {
@@ -60,8 +107,6 @@ glm::vec3 videoToScreen::toScreen(glm::vec3 dot)
                     grid[y][x].screenPos[1] * (1.0f - wX) * (wY)+
                     grid[y][x].screenPos[2] * (wX) * (wY)+
                     grid[y][x].screenPos[3] * (wX) * (1.0f - wY);
-                // do with lerp
-
             }
         }
     }
@@ -204,10 +249,22 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 ImGui::SetWindowPos(ImVec2(0, 0), 0);
                 ImGui::SetWindowSize(ImVec2(screenSize.x, screenSize.y), 0);
                 //ImGui::BringWindowToDisplayFront(calibrationPanel);
+
+                
+
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 {
+                    
 
                     if (modeCalibrate == 1) {
+
+                        ImGui::SetCursorPos(ImVec2(100, 100));
+                        if (pointGreyBuffer)
+                        {
+                            calibrationPanel.imageButton("testImage", pointGreyBuffer, float2(screenSize.x - 200, screenSize.y - 200), false);
+                        }
+                        ImGui::Text("cnt %d", pointGreyCamera->getFrameCount(0));
+
                         style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
                         ImGui::SetCursorPos(ImVec2(50, 50));
                         ImGui::Text("Top left");
@@ -218,60 +275,88 @@ void Kolskoot::onGuiRender(Gui* _gui)
                         ImGui::SetCursorPos(ImVec2(screenSize.x - 200, screenSize.y - 50));
                         ImGui::Text("Bottom right");
 
-                        ImGui::SetCursorPos(ImVec2(screenSize.x/2 - 150, screenSize.y/2 - 60));
+                        ImGui::SetCursorPos(ImVec2(screenSize.x/2 + 150, screenSize.y/2 - 60));
                         ImGui::Text("remove the filter");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 30));
+                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 30));
                         ImGui::Text("zoom and focus the camera");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 0));
+                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 0));
                         ImGui::Text("set the brightness");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 + 30));
+                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 + 30));
                         ImGui::Text("press 'space' when done");
-                        pointGreyCamera->setReferenceFrame(true, 1);
-
-                        style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 0.0f, 0.3f, 1.f);
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 + 100));
-                        ImGui::Text("set the ");
+                        //pointGreyCamera->setReferenceFrame(true, 1);
+                        
                     }
 
                     if (modeCalibrate == 2) {
-                        style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 0.0f, 0.3f, 1.f);
-
-
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 200));
-                        ImGui::Text("adjust the light untill all 45 dots are found");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 160));
-                        ImGui::Text("hide cursor by dragging it to the bottom of the screen");
-                        uint ndots = pointGreyCamera->dotQueue.size();
-                        while (pointGreyCamera->dotQueue.size()) {
-                            pointGreyCamera->dotQueue.pop();
+                        if (calibrationCounter > 0) {
+                            if (calibrationCounter == 100) {
+                                pointGreyCamera->setReferenceFrame(true, 5);
+                            }
+                            calibrationCounter--;
                         }
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 120));
-                        ImGui::Text("also log dot count here  %d / 45", ndots);
-
-                        if (ndots == 45) {
-                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 60));
-                            ImGui::Text("all dots picked up, press space to save");
-                        }
-
-                        style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
-
-                        float dY = (screenSize.y - 40) / 4;
-                        float dX = (screenSize.x - 40) / 8;
-
-
-                        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-                        static ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                        const ImU32 col32 = ImColor(col);
-
-                        for (int y = 0; y < 5; y++)
+                        else
                         {
-                            for (int x = 0; x < 9; x++)
+                            style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 0.0f, 0.1f, 1.f);
+
+
+                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 200));
+                            ImGui::Text("adjust the light untill all 45 dots are found");
+                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 160));
+                            ImGui::Text("hide cursor by dragging it to the bottom of the screen");
+                            uint ndots = pointGreyCamera->dotQueue.size();
+
+                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 120));
+                            ImGui::Text("also log dot count here  %d / 45", ndots);
+
+                            if (ndots == 45) {
+                                ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 60));
+                                ImGui::Text("all dots picked up, press space to save");
+                                for (int j = 0; j < 45; j++) {
+                                    calibrationDots[j] = pointGreyCamera->dotQueue.front();
+                                    pointGreyCamera->dotQueue.pop();
+                                }
+                            }
+
+                            while (pointGreyCamera->dotQueue.size()) {
+                                pointGreyCamera->dotQueue.pop();
+                            }
+
+                            style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
+
+                            float dY = (screenSize.y - 40) / 4;
+                            float dX = (screenSize.x - 40) / 8;
+
+
+                            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                            static ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                            const ImU32 col32 = ImColor(col);
+
+                            for (int y = 0; y < 5; y++)
                             {
-                                //ImGui::SetCursorPos(ImVec2(10 + x * dX, 10 + y * dY));
-                                //ImGui::Text("o");
-                                draw_list->AddCircle(ImVec2(20 + (x * dX), 20 + (y * dY)), 4, col32, 20, 6);
+                                for (int x = 0; x < 9; x++)
+                                {
+                                    //ImGui::SetCursorPos(ImVec2(10 + x * dX, 10 + y * dY));
+                                    //ImGui::Text("o");
+                                    draw_list->AddCircle(ImVec2(20 + (x * dX), 20 + (y * dY)), 4, col32, 20, 6);
+                                }
                             }
                         }
+                    }
+
+                    if (modeCalibrate == 3)
+                    {
+                        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                        static ImVec4 col = ImVec4(1.0f, 0.0f, 0.0f, 0.3f);
+                        const ImU32 col32 = ImColor(col);
+
+
+                        while (pointGreyCamera->dotQueue.size()) {
+                            glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
+                            draw_list->AddCircle(ImVec2(screen.x, screen.y), 18, col32, 30, 6);
+
+                            pointGreyCamera->dotQueue.pop();
+                        }
+                        
                     }
                 }
                 ImGui::PopFont();
@@ -279,7 +364,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             calibrationPanel.release();
             
 
-            if (modeCalibrate == 3) {
+            if (modeCalibrate == 4) {
                 modeCalibrate = 0;
             }
         }
@@ -344,7 +429,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
     if (pointGreyBuffer)
     {
-        pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferData);
+        pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
     }
     if (pointGreyDiffBuffer)
     {
@@ -393,6 +478,19 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
     if ((modeCalibrate > 0) &&(keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Space))
     {
         modeCalibrate++;
+
+        if (modeCalibrate == 2) {
+            calibrationCounter = 120;
+        }
+        else if (modeCalibrate == 3) {
+            screenMap.build(calibrationDots, screenSize);
+
+            std::ofstream os("kolskootCamera.xml");
+            if (os.good()) {
+                cereal::XMLOutputArchive archive(os);
+                screenMap.serialize(archive, 100);
+            }
+        }
     }
 
     return false;

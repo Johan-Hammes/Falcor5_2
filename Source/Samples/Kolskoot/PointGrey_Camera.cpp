@@ -790,6 +790,11 @@ unsigned int PointGrey_Camera::getSerialNumber(int cam)
 	
 }
 
+unsigned int PointGrey_Camera::getFrameCount(int cam)
+{
+    return frameCNT[cam];
+}
+
 
 
 

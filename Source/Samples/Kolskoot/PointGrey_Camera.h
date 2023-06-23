@@ -64,6 +64,7 @@ public :
 	bool isConnected() { return m_bConnected; }
 
 	unsigned int getSerialNumber( int cam = 0 );
+    unsigned int getFrameCount(int cam);
 
 
 	
