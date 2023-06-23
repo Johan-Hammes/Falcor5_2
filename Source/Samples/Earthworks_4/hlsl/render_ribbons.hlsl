@@ -70,24 +70,36 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const ribbonVertex R = instanceBuffer[vId + P];
 
     xformed_PLANT plant;;
-    plant.position = float3(0, 0, 0);
+    plant.position = float3((iId % 10) * 20, 0, ((int) (iId / 10)) * 20) - float3(100, 0, 100);
     plant.rotation.x = 1;
     plant.rotation.y = 0;
+    sincos(iId, plant.rotation.x, plant.rotation.y);
     plant.scale = 1;
 
     output.rootPos = float4(plant.position + (float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x) * plant.scale ), 1);
-
-    float3 up = float3(R.right.x * plant.rotation.x + R.right.z * plant.rotation.y, R.right.y, R.right.x * plant.rotation.y - R.right.z * plant.rotation.x) ;
+    
+    bool absolute = (R.B >> 16) & 0x1;
+    float3 up;
     float3 dir = normalize(eye - output.rootPos.xyz);
-    float3 right = normalize(cross(up, dir)) * length(up);
-    output.right = float4(right, 0) * 0.5 * plant.scale;
+    if (absolute)
+    {
+        output.right = 0.5 * float4(R.right.x * plant.rotation.x + R.right.z * plant.rotation.y, R.right.y, R.right.x * plant.rotation.y - R.right.z * plant.rotation.x, 0);
+        up = normalize(cross(dir, output.right.xyz));
+    }
+    else
+    {
+        float3 up = float3(R.right.x * plant.rotation.x + R.right.z * plant.rotation.y, R.right.y, R.right.x * plant.rotation.y - R.right.z * plant.rotation.x);
+        float3 right = normalize(cross(up, dir)) * length(up);
+        output.right = float4(right, 0) * 0.5 * plant.scale;
+    }
+    
     output.flags.x = R.A;
-    output.flags.y = R.B;
+    output.flags.y = (R.B & 0xff);
     output.other.x = R.pos.y * 4;
     //float3 U = instanceBuffer[vId + P + 1].pos - R.pos; // FIXME needs to roatet
     output.N = normalize(cross(output.right.xyz, up));
     output.U = normalize(up);
-    output.R = normalize(right);
+    output.R = normalize(output.right.xyz);
 
     output.lighting =  R.lighting; // FIXME rotate this still
 
@@ -140,7 +152,7 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
 
 float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    
+    //return 1;
         int material = vOut.flags.y;
     if (material == 2)
     {
@@ -148,7 +160,7 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
 
         float4 albedoAlpha = gribbonTextures.T[material * 2 + 0].Sample(gSampler, vOut.texCoords.xy);
-    clip(albedoAlpha.a - 0.7);
+    //clip(albedoAlpha.a - 0.7);
 
     float3 normalTex = ((gribbonTextures.T[material * 2 + 1].Sample(gSampler, vOut.texCoords.xy).rgb) * 2.0) - 1.0;
 
@@ -167,10 +179,10 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float A = dot(NORM, sunDir);
     float A_backface = saturate(-A);
     A = saturate(A);
-    float S = pow(abs(dot(sunDir, spec)), 35);
+    float S = pow(abs(dot(sunDir, spec)), 15);
     float AO = 1.0f;
 
-    AO = (vOut.lighting.w + 0.3) / 1.3;
+    AO = (vOut.lighting.w + 0.5) / 1.5;
     //A *= vOut.lighting.w;
     if (material < 0.5)
     {
@@ -192,19 +204,19 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         //S *= 0.1;
     }
 
-    float Z = dot(normalize(vOut.lighting.xyz) + 0.1 * sunDir * AO, sunDir);
-    float shadow = saturate(3 * Z) - (1 - vOut.lighting.w);
+    float Z = dot(normalize(vOut.lighting.xyz) + 0.3 * sunDir * vOut.lighting.w, sunDir);
+    float shadow = saturate(3 * Z) - saturate(1*(1 - vOut.lighting.w));
     
     //albedoAlpha.rgb = vOut.lighting.xyz;
-    float3 final = (albedoAlpha.rgb * A) * shadow;//    +(albedoAlpha.rgb * float3(0.16, 0.2, 0.1)) * AO + S * shadow;
+    float3 final = (albedoAlpha.rgb * saturate(A*2)/3) * shadow; //    +(albedoAlpha.rgb * float3(0.16, 0.2, 0.1)) * AO + S * shadow;
 
     // back light
-    final += shadow * saturate(-dot(NORM, sunDir)) * albedoAlpha.rgb * float3(0.7, 1.0, 0.3);
+    final += 0.7 * shadow * saturate(-dot(NORM, sunDir)) * albedoAlpha.rgb * float3(0.7, 1.0, 0.3);
 
-    final += shadow * S*2;
+    //final += shadow * S*2;
 
     final += (albedoAlpha.rgb * float3(0.1, 0.15, 0.1)) * saturate(AO);
 
- 
+    albedoAlpha.a = 1;
     return float4(final, albedoAlpha.a);
 }

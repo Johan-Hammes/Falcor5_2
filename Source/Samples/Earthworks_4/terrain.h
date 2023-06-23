@@ -155,7 +155,7 @@ struct _GroveTree
     glm::int3 cubeLookup(glm::vec3 pos);
     float4 lightPos(glm::vec3 P);
 
-    ribbonVertex branchRibbons[1024*1024];
+    ribbonVertex branchRibbons[1024*1024*20];
     int numBranchRibbons;
     bool bChanged = false;
     bool includeBranchLeaves = false;
@@ -166,6 +166,13 @@ struct _GroveTree
     float endRadius = 0.f;
     float stepFactor = 2.0f;
     float bendFactor = 0.95f;
+
+
+    // twigs
+    ribbonVertex twig[1024];
+    uint twiglength = 0;
+    float twigScale = 1.0f;
+    void importTwig();
 
     struct {
         glm::vec3 center;

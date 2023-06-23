@@ -87,10 +87,52 @@ void _GroveTree::renderGui(Gui* _gui)
             rebuildRibbons();
         }
 
+        ImGui::Separator();
+        ImGui::Text("Twigs");
+        if (ImGui::DragFloat("twig scale", &twigScale, 0.01f, 0.001f, 1.f)) {
+            rebuildRibbons();
+        }
+        if (ImGui::Button("import twig")) {
+            importTwig();
+            rebuildRibbons();
+        }
+
     }
     ImGui::PopFont();
 }
 
+void _GroveTree::importTwig()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"obj.twig"} };
+    if (openFileDialog(filters, path))
+    {
+        twiglength = 0;
+        objfile = fopen(path.string().c_str(), "r");
+        if (objfile) {
+            int numSegments;
+            int ret = 10;
+            enfOfFile = false;
+            while (ret > 0)
+            {
+                ret = fscanf(objfile, "%d\n", &numSegments);
+                for (int i = 0; i < numSegments; i++)
+                {
+                    float3 vin = readVertex();
+                    float3 v0 = float3(vin.x, vin.z, -vin.y);
+                    vin = readVertex();
+                    float3 v1 = float3(vin.x, vin.z, -vin.y);
+                    twig[twiglength].pos = (v0 + v1) * 0.5f;
+                    twig[twiglength].right = v1 - v0;
+                    twig[twiglength].B = 1 + ((i > 0) << 16);     // material + do not rotate
+                    twig[twiglength].A = i > 0;
+                    twiglength++;
+                }
+            }
+            fclose(objfile);
+        }
+    }
+}
 
 void _GroveTree::readHeader()
 {
@@ -387,25 +429,55 @@ void _GroveTree::rebuildRibbons()
     if (includeBranchLeaves) {
         for (int b = 0; b < branchLeaves.size(); b++)
         {
-            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.0f;
-            branchRibbons[numBranchRibbons].right = 0.15f * branchLeaves[b].dir;
+            
+            float3 P = branchLeaves[b].pos;
+            float3 D = normalize(branchLeaves[b].dir);
+            float3 U = float3(0, 0, 1);
+            float3 R = cross(U, D);
+            U = cross(D, R);
+            /*
+            for (int i = 0; i < twiglength; i++)
+            {
+                branchRibbons[numBranchRibbons] = twig[i];
+                branchRibbons[numBranchRibbons].pos = P + twig[i].pos.x * D + twig[i].pos.y * R + twig[i].pos.z * U;
+                branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                numBranchRibbons++;
+            }
+            */
+            
+            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.1f;
+            branchRibbons[numBranchRibbons].right = 0.07f * branchLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 0;
             branchRibbons[numBranchRibbons].B = 1;
             branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
 
-            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.3f;
-            branchRibbons[numBranchRibbons].right = 0.15f * branchLeaves[b].dir;
+            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.25f;
+            branchRibbons[numBranchRibbons].right = 0.07f * branchLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 1;
             branchRibbons[numBranchRibbons].B = 1;
             branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
+            
         }
     }
 
     if (includeEndLeaves) {
         for (int b = 0; b < endLeaves.size(); b++)
         {
+            float3 P = endLeaves[b].pos;
+            float3 D = normalize(endLeaves[b].dir);
+            float3 U = float3(0, 0, 1);
+            float3 R = cross(U, D);
+            U = cross(D, R);
+            for (int i = 0; i < twiglength; i++)
+            {
+                branchRibbons[numBranchRibbons] = twig[i];
+                branchRibbons[numBranchRibbons].pos = P + twig[i].pos.x * D + twig[i].pos.y * R + twig[i].pos.z * U;
+                branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                numBranchRibbons++;
+            }
+            /*
             branchRibbons[numBranchRibbons].pos = endLeaves[b].pos + endLeaves[b].dir * 0.0f;
             branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
             branchRibbons[numBranchRibbons].A = 0;
@@ -419,6 +491,7 @@ void _GroveTree::rebuildRibbons()
             branchRibbons[numBranchRibbons].B = 2;
             branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
             numBranchRibbons++;
+            */
         }
     }
 
@@ -858,7 +931,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
-        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 1024 * 1024); // just a nice amount for now
+        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 1024 * 1024 * 20); // just a nice amount for now
         ribbonVertex testribbons[50 * 128];
         memset(testribbons, 0, 50 * 128 * sizeof(ribbonVertex)); //16x8
         // now fill it with stuff
@@ -2883,7 +2956,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     if (terrainMode == 0)
     {
-        FALCOR_PROFILE("ribbonShader");
+        
 
         if (groveTree.bChanged)
         {
@@ -2899,8 +2972,11 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
         ribbonShader.State()->setBlendState(split.blendstateSplines);
 
-        ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, 1);
-        //ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+        {
+            FALCOR_PROFILE("ribbonShader");
+            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, 100);
+            //ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+        }
 
         return;
     }
