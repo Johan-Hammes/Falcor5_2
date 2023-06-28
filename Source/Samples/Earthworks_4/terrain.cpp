@@ -40,6 +40,212 @@ using namespace Assimp;
 
 
 
+
+void _cubemap::toCube(float3 _v)
+{
+    float3 vAbs = float3(fabs(_v.x), fabs(_v.y), fabs(_v.z));
+
+    if ((vAbs.x > vAbs.y) && (vAbs.x > vAbs.z))
+    {
+        face = (_v.x > 0) ? 0 : 1;
+        _v /= vAbs.x;
+        dx = _v.z * cubeHalfSize + cubeHalfSize + 1.f;
+        dy = _v.y * cubeHalfSize + cubeHalfSize + 1.f;
+    }
+    else if (vAbs.y > vAbs.z)
+    {
+        face = (_v.y > 0) ? 2 : 3;
+        _v /= vAbs.y;
+        dx = _v.x * cubeHalfSize + cubeHalfSize + 1.f;
+        dy = _v.z * cubeHalfSize + cubeHalfSize + 1.f;
+    }
+    else
+    {
+        face = (_v.z > 0) ? 4 : 5;
+        _v /= vAbs.z;
+        dx = _v.x * cubeHalfSize + cubeHalfSize + 1.f;
+        dy = _v.y * cubeHalfSize + cubeHalfSize + 1.f;
+    }
+
+    x = (int)floor(dx);
+    y = (int)floor(dy);
+    dx -= x;
+    dy -= y;        // not nie reg nie ek wil middelpunte van pixels he
+}
+
+
+float3 _cubemap::toVec(int face, int y, int x)
+{
+    float3 V;
+    float S = cubeHalfSize + 1.f;
+    float SS = (float)cubeHalfSize;
+    switch (face)
+    {
+    case 0:
+        V.x = 1;
+        V.z = (x - S) / SS;
+        V.y = (y - S) / SS;
+        break;
+    case 1:
+        V.x = -1;
+        V.z = (x - S) / SS;
+        V.y = (y - S) / SS;
+        break;
+    case 2:
+        V.y = 1;
+        V.x = (x - S) / SS;
+        V.z = (y - S) / SS;
+        break;
+    case 3:
+        V.y = -1;
+        V.x = (x - S) / SS;
+        V.z = (y - S) / SS;
+        break;
+    case 4:
+        V.z = 1;
+        V.x = (x - S) / SS;
+        V.y = (y - S) / SS;
+        break;
+    case 5:
+        V.z = -1;
+        V.x = (x - S) / SS;
+        V.y = (y - S) / SS;
+        break;
+    }
+
+    return glm::normalize(V);
+}
+
+/*
+float3 _cubemap::toVec(glm::int3 c)
+{
+} */
+
+
+float _cubemap::sampleDistance(float3 _v)
+{
+    toCube(_v);
+    return data[face][y][x].d;
+}
+
+
+void _cubemap::clear()
+{
+    for (int f = 0; f < 6; f++)
+    {
+        for (int y = 0; y < cubeHalfSize * 2 + 2; y++)
+        {
+            for (int x = 0; x < cubeHalfSize * 2 + 2; x++)
+            {
+                data[f][y][x].d = 0;
+                data[f][y][x].cone = 0;
+                data[f][y][x].sum = 0;
+                data[f][y][x].dir = float3(0, 0, 0);
+            }
+        }
+    }
+}
+
+void _cubemap::writeDistance(float3 _v)     // fixme alpha
+{
+    glm::vec3 V = glm::normalize((_v - center) * scale);
+
+    toCube(V);
+    data[face][y][x].d = __max(data[face][y][x].d, glm::length(_v - center));
+}
+
+
+// net later vir smooth lookup
+void _cubemap::solveEdges()
+{
+    float max = 0;
+    for (int f = 0; f < 6; f++)
+    {
+        for (int y = 0; y < cubeHalfSize * 2 + 2; y++)
+        {
+            for (int x = 0; x < cubeHalfSize * 2 + 2; x++)
+            {
+                max = __max(max, data[f][y][x].d);
+            }
+        }
+    }
+
+    for (int f = 0; f < 6; f++)
+    {
+        for (int y = 0; y < cubeHalfSize * 2 + 2; y++)
+        {
+            for (int x = 0; x < cubeHalfSize * 2 + 2; x++)
+            {
+                data[f][y][x].d = __max(data[f][y][x].d, max * 0.5f);
+            }
+        }
+    }
+
+
+
+    for (int i = 1; i < cubeHalfSize * 2 + 1; i++)
+    {
+        //data[0][0][i] = data[3][0][i];
+    }
+}
+
+void _cubemap::solve()
+{
+    for (int f = 0; f < 6; f++)
+    {
+        for (int y = 1; y < cubeHalfSize * 2 + 1; y++)
+        {
+            for (int x = 1; x < cubeHalfSize * 2 + 1; x++)
+            {
+                if (x == 8 && y == 8)
+                {
+                    bool bCM = true;
+                }
+                float3 V = toVec(f, y, x);
+                float3 U = float3(0, 1, 0);
+                if ((face == 2) || (face == 3)) {
+                    U = float3(0, 0, 1);
+                }
+
+                float3 R = normalize(cross(U, V));
+                U = cross(V, R);
+
+                float scale = 0.4f; // about 30 degrees
+                float3 v1 = V - U * scale;
+                float3 v2 = V + (U * scale * 0.5f) + (R * scale * 0.8616f);
+                float3 v3 = V + (U * scale * 0.5f) - (R * scale * 0.8616f);
+
+                float d1 = sampleDistance(v1);
+                float d2 = sampleDistance(v2);
+                float d3 = sampleDistance(v3);
+                v1 *= d1;
+                v2 *= d2;
+                v3 *= d3;
+
+                float3 middle = (v1 + v2 + v3) * 0.333333f;
+                float CONE = (data[f][y][x].d - length(middle)) / data[f][y][x].d;
+
+                data[f][y][x].dir = normalize(cross(v2 - v1, v3 - v1));
+                data[f][y][x].cone = CONE;
+            }
+        }
+    }
+}
+
+
+float4 _cubemap::light(float3 _p, float* _depth)
+{
+    toCube(_p - center);
+    *_depth = data[face][y][x].d - length(_p - center);
+    return float4(data[face][y][x].dir, data[face][y][x].cone);
+}
+
+
+
+
+
+
+
 void _GroveBranch::reset()
 {
     nodes.clear();
@@ -119,12 +325,12 @@ void _GroveTree::importTwig()
                 for (int i = 0; i < numSegments; i++)
                 {
                     float3 vin = readVertex();
-                    float3 v0 = float3(vin.x, vin.z, -vin.y);
+                    float3 v0 = float3(vin.x, vin.z + vin.x, -vin.y);
                     vin = readVertex();
-                    float3 v1 = float3(vin.x, vin.z, -vin.y);
+                    float3 v1 = float3(vin.x, vin.z + vin.x, -vin.y);
                     twig[twiglength].pos = (v0 + v1) * 0.5f;
-                    twig[twiglength].right = v1 - v0;
-                    twig[twiglength].B = 1 + ((i > 0) << 16);     // material + do not rotate
+                    twig[twiglength].right = (v1 - v0) * 0.5f;
+                    twig[twiglength].B = 1 + (1<<16);// +((i > 0) << 16);     // material + do not rotate
                     twig[twiglength].A = i > 0;
                     twiglength++;
                 }
@@ -406,7 +612,8 @@ void _GroveTree::rebuildRibbons()
                     branchRibbons[numBranchRibbons].B = 1;
                 }
 
-                branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                float A;
+                branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
 
                 if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
                     numBranchRibbons++; // fixme test start
@@ -426,39 +633,109 @@ void _GroveTree::rebuildRibbons()
         }
     }
 
+    {
+        // axis
+        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
+        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.1f;
+        branchRibbons[numBranchRibbons].A = 0;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        numBranchRibbons++;
+
+        branchRibbons[numBranchRibbons].pos = float3(10, 0, 0);
+        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.2f;
+        branchRibbons[numBranchRibbons].A = 1;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        numBranchRibbons++;
+
+
+        // Z
+        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
+        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.3f;
+        branchRibbons[numBranchRibbons].A = 0;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        numBranchRibbons++;
+
+        branchRibbons[numBranchRibbons].pos = float3(0, 0, 10);
+        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.01f;
+        branchRibbons[numBranchRibbons].A = 1;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        numBranchRibbons++;
+
+
+
+        //        Human
+        branchRibbons[numBranchRibbons].pos = float3(5, 0, 5);
+        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
+        branchRibbons[numBranchRibbons].A = 0;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        numBranchRibbons++;
+
+        branchRibbons[numBranchRibbons].pos = float3(5, 1.8, 5);
+        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
+        branchRibbons[numBranchRibbons].A = 1;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        numBranchRibbons++;
+
+    }
+    /*
+    {
+        // debug cube
+        for (int f = 0; f < 6; f++)
+        //int f = 1;
+        {
+            for (int y = 1; y < 17; y++)
+            {
+                for (int x = 1; x < 17; x++)
+                {
+                    float d = light.cubemap.data[f][y][x].d;
+                    float3 v = light.cubemap.toVec(f, y, x);
+                    float3 p = light.center + v * d;
+                    float3 dir = light.cubemap.data[f][y][x].dir;
+                    float c = light.cubemap.data[f][y][x].cone;
+
+                    branchRibbons[numBranchRibbons].pos = p;
+                    branchRibbons[numBranchRibbons].right = dir * 0.07f;
+                    branchRibbons[numBranchRibbons].A = 0;
+                    branchRibbons[numBranchRibbons].B = 0;
+                    branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                    numBranchRibbons++;
+
+                    branchRibbons[numBranchRibbons].pos = p + dir * (1.f + c);
+                    branchRibbons[numBranchRibbons].right = 0.07f * dir;
+                    branchRibbons[numBranchRibbons].A = 1;
+                    branchRibbons[numBranchRibbons].B = 0;
+                    branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                    numBranchRibbons++;
+                }
+            }
+        }
+    }
+    */
     if (includeBranchLeaves) {
         for (int b = 0; b < branchLeaves.size(); b++)
         {
             
             float3 P = branchLeaves[b].pos;
             float3 D = normalize(branchLeaves[b].dir);
-            float3 U = float3(0, 0, 1);
-            float3 R = cross(U, D);
+            float3 U = float3(0, 1, 0);
+            float3 R = normalize(cross(U, D));
             U = cross(D, R);
-            /*
+            
             for (int i = 0; i < twiglength; i++)
             {
                 branchRibbons[numBranchRibbons] = twig[i];
-                branchRibbons[numBranchRibbons].pos = P + twig[i].pos.x * D + twig[i].pos.y * R + twig[i].pos.z * U;
-                branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                branchRibbons[numBranchRibbons].pos = P + (twig[i].pos.x * D) + (twig[i].pos.y * U) + (twig[i].pos.z * R);
+                branchRibbons[numBranchRibbons].right = twig[i].right.x * D + twig[i].right.y * U + twig[i].right.z * R;
+                float A;
+                branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
                 numBranchRibbons++;
             }
-            */
-            
-            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.1f;
-            branchRibbons[numBranchRibbons].right = 0.07f * branchLeaves[b].dir;
-            branchRibbons[numBranchRibbons].A = 0;
-            branchRibbons[numBranchRibbons].B = 1;
-            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
-            numBranchRibbons++;
-
-            branchRibbons[numBranchRibbons].pos = branchLeaves[b].pos + branchLeaves[b].dir * 0.25f;
-            branchRibbons[numBranchRibbons].right = 0.07f * branchLeaves[b].dir;
-            branchRibbons[numBranchRibbons].A = 1;
-            branchRibbons[numBranchRibbons].B = 1;
-            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
-            numBranchRibbons++;
-            
         }
     }
 
@@ -467,31 +744,20 @@ void _GroveTree::rebuildRibbons()
         {
             float3 P = endLeaves[b].pos;
             float3 D = normalize(endLeaves[b].dir);
-            float3 U = float3(0, 0, 1);
-            float3 R = cross(U, D);
+            float3 U = float3(0, 1, 0);
+            float3 R = normalize(cross(U, D));
             U = cross(D, R);
             for (int i = 0; i < twiglength; i++)
             {
+                /// DAMN _ EK MOET DIE right vector ook roteer hier en dit geberu nooit nie
                 branchRibbons[numBranchRibbons] = twig[i];
-                branchRibbons[numBranchRibbons].pos = P + twig[i].pos.x * D + twig[i].pos.y * R + twig[i].pos.z * U;
-                branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                branchRibbons[numBranchRibbons].pos = P + twig[i].pos.x * D + twig[i].pos.y * U + twig[i].pos.z * R;
+                branchRibbons[numBranchRibbons].right = twig[i].right.x * D + twig[i].right.y * U + twig[i].right.z * R;
+                //float A;
+                branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
                 numBranchRibbons++;
             }
-            /*
-            branchRibbons[numBranchRibbons].pos = endLeaves[b].pos + endLeaves[b].dir * 0.0f;
-            branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
-            branchRibbons[numBranchRibbons].A = 0;
-            branchRibbons[numBranchRibbons].B = 2;
-            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
-            numBranchRibbons++;
-
-            branchRibbons[numBranchRibbons].pos = endLeaves[b].pos + endLeaves[b].dir * 0.4f;
-            branchRibbons[numBranchRibbons].right = 0.2f * endLeaves[b].dir;
-            branchRibbons[numBranchRibbons].A = 1;
-            branchRibbons[numBranchRibbons].B = 2;
-            branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
-            numBranchRibbons++;
-            */
+         
         }
     }
 
@@ -500,7 +766,7 @@ void _GroveTree::rebuildRibbons()
 }
 
 
-
+/*
 glm::int3 _GroveTree::cubeLookup(glm::vec3 Vin)
 {
     glm::vec3 V = glm::normalize((Vin - light.center) * light.scale);
@@ -533,6 +799,7 @@ glm::int3 _GroveTree::cubeLookup(glm::vec3 Vin)
 
     return R;
 }
+*/
 
 void _GroveTree::calcLight()
 {
@@ -551,37 +818,27 @@ void _GroveTree::calcLight()
     glm::vec3 extents = light.Max - light.Min;
     light.scale = 2.0f / extents;
 
-    for (int a = 0; a < 6; a++)
-    {
-        for (int b = 0; b < 16; b++) {
-            for (int c = 0; c < 16; c++) {
-                light.distCube[a][b][c] = 0;
-            }
-        }
-    }
+    light.cubemap.clear();
+    light.cubemap.center = light.center;
+    light.cubemap.scale = light.scale;
+    light.cubemap.twigOffset = 0.1f;
 
 
     for (int b = 0; b < cnt; b++)
     {
-        glm::int3 R = cubeLookup(endLeaves[b].pos);
-        float L = glm::length(endLeaves[b].pos - light.center) + 0.2f;  // so that the tips are outside
-        light.distCube[R.x][R.y][R.z] = __max(light.distCube[R.x][R.y][R.z], L);
+        light.cubemap.writeDistance(endLeaves[b].pos + endLeaves[b].dir * 0.15f);
     }
 
+    for (int b = 0; b < branchLeaves.size(); b++)
+    {
+        light.cubemap.writeDistance(branchLeaves[b].pos + branchLeaves[b].dir * 0.2f);
+    }
+
+    light.cubemap.solveEdges();
+    light.cubemap.solve();
 }
 
 
-float4 _GroveTree::lightPos(glm::vec3 P)
-{
-    
-    glm::int3 R = cubeLookup(P);
-    float scale = glm::length(P - light.center) / light.distCube[R.x][R.y][R.z];
-    glm::vec3 norm = (P - light.center) * light.scale;
-    
-
-
-    return float4(norm.x, norm.y, norm.z, glm::smoothstep(0.8f, 1.0f, scale));
-}
 
 
 
@@ -764,6 +1021,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(4);
         sampler_ClampAnisotropic = Sampler::create(samplerDesc);
+
+        samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(1);
+        sampler_Ribbons = Sampler::create(samplerDesc);
     }
 
     {
@@ -931,7 +1191,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
-        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 1024 * 1024 * 20); // just a nice amount for now
+        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 1024 * 1024 * 10); // just a nice amount for now
+        /*
         ribbonVertex testribbons[50 * 128];
         memset(testribbons, 0, 50 * 128 * sizeof(ribbonVertex)); //16x8
         // now fill it with stuff
@@ -968,6 +1229,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             }
         }
         ribbonData->setBlob(testribbons, 0, 50 * 128 * sizeof(ribbonVertex));
+        
 
 
         FILE* f = fopen("f:\\theGrove\\ash.ribbon", "rb");
@@ -976,7 +1238,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             ribbonData->setBlob(testribbons, 0, 2114 * sizeof(ribbonVertex));
             fclose(f);
         }
-
+        */
 
 
         Texture::SharedPtr tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\bark\\Oak1_albedo.dds", false, true);
@@ -993,9 +1255,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
-        ribbonShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);              // fixme only cvlamlX
+        ribbonShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
+        
 
-        auto& block = ribbonShader.Vars()->getParameterBlock("gribbonTextures");
+        auto& block = ribbonShader.Vars()->getParameterBlock("textures");
         ShaderVar& var = block->findMember("T");
         for (size_t i = 0; i < ribbonTextures.size(); i++)
         {
@@ -1010,6 +1273,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         triangleShader.Vars()->setBuffer("instanceBuffer", triangleData);        // WHY BOTH
         triangleShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         triangleShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+
+        vegetation.skyTexture = Texture::createFromFile("F:\\alps_bc.dds", false, true);
+        vegetation.envTexture = Texture::createFromFile("F:\\alps_IR_bc.dds", false, true);
+        triangleShader.Vars()->setTexture("gSky", vegetation.skyTexture);
+        ribbonShader.Vars()->setTexture("gEnv", vegetation.envTexture);
 
         // Grass from disk ###########################################################################################################
 
@@ -1031,7 +1299,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         //for (int F = 1; F <= 16; F++)
         {
             //sprintf(name, "F:\\texturesDotCom\\wim\\blades\\%d.fbx", F);
-            sprintf(name, "F:\\terrains\\_resources\\textures_dot_com\\TexturesCom_3dplant_Nettle\\Individual_seeds\\A_256.fbx");
+            //sprintf(name, "F:\\terrains\\_resources\\textures_dot_com\\TexturesCom_3dplant_Nettle\\Individual_seeds\\A_256.fbx");
+            sprintf(name, "F:\\terrains\\_resources\\cube.fbx");
 
             scene = importer.ReadFile(name, flags);
             if (scene)
@@ -2956,26 +3225,41 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     if (terrainMode == 0)
     {
+
+        {
+            FALCOR_PROFILE("skydome");
+
+            triangleShader.State()->setFbo(_fbo);
+            triangleShader.State()->setViewport(0, _viewport, true);
+            triangleShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+            triangleShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
+            triangleShader.State()->setRasterizerState(split.rasterstateSplines);
+            triangleShader.State()->setBlendState(split.blendstateSplines);
+            triangleShader.drawInstanced(_renderContext, 36, 1);
+            //triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+        }
+
         
 
         if (groveTree.bChanged)
         {
             ribbonData->setBlob(groveTree.branchRibbons, 0, groveTree.numBranchRibbons * sizeof(ribbonVertex));
             groveTree.bChanged = false;
+
+            ribbonShader.State()->setFbo(_fbo);
+            ribbonShader.State()->setViewport(0, _viewport, true);
+
+            ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
+            ribbonShader.State()->setBlendState(split.blendstateSplines);
         }
 
-        ribbonShader.State()->setFbo(_fbo);
-        ribbonShader.State()->setViewport(0, _viewport, true);
-        ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-        ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
-
-        ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
-        ribbonShader.State()->setBlendState(split.blendstateSplines);
+        
 
         {
             FALCOR_PROFILE("ribbonShader");
+            ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+            ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
             ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, 100);
-            //ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
         }
 
         return;
@@ -4339,6 +4623,8 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         }
         break;
         }
+
+        mouseVegYaw += 0.002f;
 
         glm::vec3 camPos;
         camPos.y = sin(mouseVegPitch);

@@ -10,6 +10,8 @@
 SamplerState gSampler;
 Texture2D gAlbedo : register(t0);
 
+TextureCube gSky : register(t1);
+
 
 StructuredBuffer<triangleVertex>        instanceBuffer;
 StructuredBuffer<xformed_PLANT>       instances;
@@ -41,11 +43,14 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const uint P = 0;// plant.index * 128;
     const triangleVertex R = instanceBuffer[vId + P];
 
-    float3 vPos = float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x);
-    output.pos = mul( float4(plant.position + vPos * plant.scale*40.4, 1), viewproj );
+    //float3 vPos = float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x);
+    //output.pos = mul( float4(plant.position + vPos * plant.scale*40.4, 1), viewproj );
+    float3 vPos = R.pos * 1000 + eye;
+    output.pos = mul(float4(vPos, 1), viewproj);
     output.texCoords = float2(R.u, R.v);
     output.N = R.norm;
-    output.world = normalize(eye - plant.position);
+    //output.world = normalize(eye - plant.position);
+    output.world = R.pos;
 
     return output;
 }
@@ -56,6 +61,11 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    float3 dir = normalize(vOut.world.xyz);
+    dir.z *= -1;
+    return gSky.SampleLevel(gSampler, dir, 0);
+    //return float4(normalize(vOut.world.xyz) * 0.5 + 0.5, 1);
+    
     float3 normal = vOut.N * (2* isFrontFace - 1);
 
     float3 sunDir = normalize(float3(0.7, -0.3, 0.2));

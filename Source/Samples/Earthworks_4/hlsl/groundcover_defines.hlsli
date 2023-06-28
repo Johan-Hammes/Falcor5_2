@@ -157,6 +157,7 @@ struct ribbonVertex
     float3 right;
     int B;          // material
     float4 lighting;
+    float4 extra;
 };
 
 struct triangleVertex

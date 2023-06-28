@@ -76,6 +76,37 @@ CEREAL_CLASS_VERSION(_leafNode, 100);
 
 
 
+struct _cubemap
+{
+    // this is about every 5 drgrees
+#define cubeHalfSize 32
+    struct _data
+    {
+        float d;
+        float sum;      // for averaging into buckets esencially
+        float3 dir;
+        float cone;     // cosTheta value
+    };
+
+    float3 center;
+    float3 scale;
+    float twigOffset = 0.2f;
+
+    int face, y, x;
+    float dy, dx;
+    void toCube(float3 _v);
+    float3 toVec(int face, int y, int x);
+    float sampleDistance(float3 _v);
+    void clear();
+    void writeDistance(float3 _v);
+    void solveEdges();
+    void solve();
+
+    float4 light(float3 p, float* _depth);
+
+    _data data[6][cubeHalfSize*2 + 2][cubeHalfSize*2 + 2];
+};
+
 struct _branchnode
 {
     float3 pos;
@@ -152,10 +183,9 @@ struct _GroveTree
     bool showOnlyUnattached = false;
 
     void calcLight();
-    glm::int3 cubeLookup(glm::vec3 pos);
-    float4 lightPos(glm::vec3 P);
 
-    ribbonVertex branchRibbons[1024*1024*20];
+
+    ribbonVertex branchRibbons[1024*1024*10];
     int numBranchRibbons;
     bool bChanged = false;
     bool includeBranchLeaves = false;
@@ -179,7 +209,8 @@ struct _GroveTree
         glm::vec3 Min;
         glm::vec3 Max;
         glm::vec3 scale;
-        float distCube[6][16][16];
+        //float distCube[6][16][16];
+        _cubemap cubemap;
     } light;
 
     template<class Archive>
@@ -665,6 +696,7 @@ private:
     Sampler::SharedPtr			sampler_Trilinear;
     Sampler::SharedPtr			sampler_Clamp;
     Sampler::SharedPtr			sampler_ClampAnisotropic;
+    Sampler::SharedPtr			sampler_Ribbons;
 
 
     bool requestPopupTree = false;
@@ -675,6 +707,7 @@ private:
     {
         bool show = false;
         Texture::SharedPtr	  skyTexture;
+        Texture::SharedPtr	  envTexture;
         // sky mesh
 
         _GroveTree groveTree;
