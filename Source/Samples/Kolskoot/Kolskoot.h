@@ -46,6 +46,92 @@
 using namespace Falcor;
 
 
+
+
+
+
+
+enum _pose {pose_stand, pose_kneel, pose_sit, pose_prone};
+enum _action {action_static, action_popup, action_move};    // net staic vir eers
+
+
+
+class target
+{
+public:
+    void renderGui(Gui* _gui);
+    std::string title;
+    std::string description;
+
+    float2 size;
+    Texture::SharedPtr	        image;
+    // scoring image, maybe just raw
+    int maxScore;       // to auto calcl exercise score from rounds
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+    }
+};
+CEREAL_CLASS_VERSION(target, 100);
+
+
+class exercise
+{
+public:
+    void renderGui(Gui* _gui);
+
+    std::string title;
+    std::string description;
+    int maxScore;
+
+    // target
+    // target action
+    // timing
+    
+    int numRounds;
+    _pose pose;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(title));
+        _archive(CEREAL_NVP(description));
+        _archive(CEREAL_NVP(maxScore));
+        _archive(CEREAL_NVP(numRounds));
+        _archive(CEREAL_NVP(pose));
+    }
+};
+CEREAL_CLASS_VERSION(exercise, 100);
+
+
+
+class quickRange
+{
+public:
+    void renderGui(Gui* _gui);
+
+    std::string title;
+    std::string description;
+    int maxScore;
+    std::vector<exercise> exercises;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(title));
+        _archive(CEREAL_NVP(description));
+        _archive(CEREAL_NVP(maxScore));
+        _archive(CEREAL_NVP(exercises));        
+    }
+};
+CEREAL_CLASS_VERSION(quickRange, 100);
+
+
+
+
+
+
 struct _block
 {
     std::array<glm::vec3, 4>  screenPos;
@@ -165,4 +251,15 @@ private:
     bool    showCalibration = false;
 
     int modeCalibrate = 0;
+
+    struct
+    {
+        float pixelsPerMeter = 800.f;
+        float shootingDistance = 10.f;  // fixme move to somethign that loads or saves
+        float eyeHeights[4];
+    } screen;
+
+    // quick range
+    bool    showQuickrange = false;
+    quickRange  QR;
 };

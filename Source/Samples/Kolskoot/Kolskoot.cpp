@@ -33,6 +33,43 @@
 
 
 
+
+
+
+void target::renderGui(Gui* _gui)
+{
+
+}
+
+
+void exercise::renderGui(Gui* _gui)
+{
+
+}
+
+
+void quickRange::renderGui(Gui* _gui)
+{
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 bool sort_x(glm::vec4& a, glm::vec4& b) {
     return (a.x < b.x);
 }
@@ -136,6 +173,14 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Quick range"))
+        {
+            ImGui::Checkbox("new", &showQuickrange);
+            ImGui::Button("load"); 
+
+            ImGui::EndMenu();
+        }
+
 
         ImGui::SetCursorPos(ImVec2(screenSize.x - 15, 0));
         if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
@@ -157,6 +202,14 @@ void Kolskoot::onGuiRender(Gui* _gui)
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
         onGuiMenubar(_gui);
+
+        if (showQuickrange)
+        {
+            Gui::Window pointgreyPanel(_gui, "Quick range", { 900, 900 }, { 100, 100 });
+            {
+            }
+        }
+
 
         if (showPointGrey)
         {
