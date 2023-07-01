@@ -322,6 +322,8 @@ void _GroveTree::importTwig()
             while (ret > 0)
             {
                 ret = fscanf(objfile, "%d\n", &numSegments);
+                float v = 0.f;
+                float dV = 1.0f / (numSegments - 1);
                 for (int i = 0; i < numSegments; i++)
                 {
                     float3 vin = readVertex();
@@ -332,6 +334,8 @@ void _GroveTree::importTwig()
                     twig[twiglength].right = (v1 - v0) * 0.5f;
                     twig[twiglength].B = 1 + (1<<16);// +((i > 0) << 16);     // material + do not rotate
                     twig[twiglength].A = i > 0;
+                    twig[twiglength].extra.y = v;
+                    v += dV;
                     twiglength++;
                 }
             }
@@ -581,6 +585,66 @@ void _GroveTree::findSideBranches()
 void _GroveTree::rebuildRibbons()
 {
     numBranchRibbons = 0;
+
+
+    {
+        // axis
+        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
+        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.1f;
+        branchRibbons[numBranchRibbons].A = 0;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        branchRibbons[numBranchRibbons].extra.y = 0.0f;
+        numBranchRibbons++;
+
+        branchRibbons[numBranchRibbons].pos = float3(10, 0, 0);
+        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.2f;
+        branchRibbons[numBranchRibbons].A = 1;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        branchRibbons[numBranchRibbons].extra.y = 1.0f;
+        numBranchRibbons++;
+
+
+        // Z
+        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
+        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.3f;
+        branchRibbons[numBranchRibbons].A = 0;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        branchRibbons[numBranchRibbons].extra.y = 0.0f;
+        numBranchRibbons++;
+
+        branchRibbons[numBranchRibbons].pos = float3(0, 0, 10);
+        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.01f;
+        branchRibbons[numBranchRibbons].A = 1;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        branchRibbons[numBranchRibbons].extra.y = 1.0f;
+        numBranchRibbons++;
+
+
+
+        //        Human
+        branchRibbons[numBranchRibbons].pos = float3(5, 0, 5);
+        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
+        branchRibbons[numBranchRibbons].A = 0;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        branchRibbons[numBranchRibbons].extra.y = 0.0f;
+        numBranchRibbons++;
+
+        branchRibbons[numBranchRibbons].pos = float3(5, 1.8, 5);
+        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
+        branchRibbons[numBranchRibbons].A = 1;
+        branchRibbons[numBranchRibbons].B = 0;
+        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+        branchRibbons[numBranchRibbons].extra.y = 1.0f;
+        numBranchRibbons++;
+
+    }
+
+
     for (int b = 0; b < branches.size(); b++)
     {
         if (showOnlyUnattached && branches[b].rootBranch >= 0) continue;
@@ -588,6 +652,7 @@ void _GroveTree::rebuildRibbons()
 
         if (branches[b].nodes.size() > 1)
         {
+            float v = 0.0f;
             for (int n = 0; n < branches[b].nodes.size(); n++)
             {
                 branchRibbons[numBranchRibbons].pos = branches[b].nodes[n].pos;
@@ -600,6 +665,7 @@ void _GroveTree::rebuildRibbons()
                 else
                 {
                     D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
+                    v += length(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
                 }
 
                 float offset = glm::dot(D, branches[b].nodes[n].dir);
@@ -614,6 +680,9 @@ void _GroveTree::rebuildRibbons()
 
                 float A;
                 branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+
+                branchRibbons[numBranchRibbons].extra.y = v;
+                
 
                 if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
                     numBranchRibbons++; // fixme test start
@@ -633,56 +702,7 @@ void _GroveTree::rebuildRibbons()
         }
     }
 
-    {
-        // axis
-        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
-        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.1f;
-        branchRibbons[numBranchRibbons].A = 0;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        numBranchRibbons++;
-
-        branchRibbons[numBranchRibbons].pos = float3(10, 0, 0);
-        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.2f;
-        branchRibbons[numBranchRibbons].A = 1;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        numBranchRibbons++;
-
-
-        // Z
-        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
-        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.3f;
-        branchRibbons[numBranchRibbons].A = 0;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        numBranchRibbons++;
-
-        branchRibbons[numBranchRibbons].pos = float3(0, 0, 10);
-        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.01f;
-        branchRibbons[numBranchRibbons].A = 1;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        numBranchRibbons++;
-
-
-
-        //        Human
-        branchRibbons[numBranchRibbons].pos = float3(5, 0, 5);
-        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
-        branchRibbons[numBranchRibbons].A = 0;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        numBranchRibbons++;
-
-        branchRibbons[numBranchRibbons].pos = float3(5, 1.8, 5);
-        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
-        branchRibbons[numBranchRibbons].A = 1;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        numBranchRibbons++;
-
-    }
+    
     /*
     {
         // debug cube
@@ -761,6 +781,53 @@ void _GroveTree::rebuildRibbons()
         }
     }
 
+
+    for (int i = 0; i < numBranchRibbons; i++)
+    {
+        int x14 = ((int)(branchRibbons[i].pos.x * 500 + 8192)) & 0x3fff;
+        int y16 = ((int)(branchRibbons[i].pos.y * 500 + 4096)) & 0xffff;
+        int z14 = ((int)(branchRibbons[i].pos.z * 500 + 8192)) & 0x3fff;
+        int start = branchRibbons[i].A & 0x1;
+
+        int material = branchRibbons[i].B & 0x3ff;
+        int v = ((int)(branchRibbons[i].extra.y * 16)) & 0xff;
+
+        float yaw = atan2(branchRibbons[i].right.z, branchRibbons[i].right.x) + 3.1415926535897932;
+        float pitch = atan2(branchRibbons[i].right.y, length(float2(branchRibbons[i].right.x, branchRibbons[i].right.z))) + 1.570796326794;
+        float radius = length(branchRibbons[i].right);
+        int yaw9 = ((int)(yaw * 81.17)) & 0x1ff;
+        int pitch8 = ((int)(pitch * 81.17)) & 0xff;
+        int radius8 = (__min(255, (int)(radius * 1000))) & 0xff;
+        int u7 = 127;
+
+        float coneyaw = atan2(branchRibbons[i].lighting.z, branchRibbons[i].lighting.x) + 3.1415926535897932;
+        float conepitch = atan2(branchRibbons[i].lighting.y, length(float2(branchRibbons[i].lighting.x, branchRibbons[i].lighting.z))) + 1.570796326794;
+        float cone = branchRibbons[i].lighting.w;
+        float depth = branchRibbons[i].extra.x;
+        int coneYaw9 = ((int)(coneyaw * 81.17)) & 0x1ff;
+        int conePitch8 = ((int)(conepitch * 81.17)) & 0xff;
+        int cone7 = (int)((cone + 1.f) * 63.5f);
+        int depth8 = (int)(clamp(depth, 0.f, 2.0f) * 127.5f);
+
+        packedRibbons[i].x = (start << 31) + (x14 << 16) + y16;
+        packedRibbons[i].y = (z14 << 18) + (material << 8) + v;
+        packedRibbons[i].z = (yaw9 << 23) + (pitch8 << 15) + (radius8<<7) + u7;
+        packedRibbons[i].w = (coneYaw9 << 23) + (conePitch8 << 15) + (cone7 << 8) + depth8;
+
+        // reverse yaw pitch
+        {
+            float plane, x, y, z;
+            z = sin((float)(yaw9 - 256) * 0.01227);
+            x = cos((float)(yaw9 - 256) * 0.01227);
+
+            y = sin((float)(pitch8 - 128) * 0.01227);
+            plane = cos((float)(pitch8 - 128) * 0.01227);
+
+            float3 dir = float3(plane * x, y, plane * z);
+            float3 dIn = normalize(branchRibbons[i].right);
+            bool bCm = true;
+        }
+    }
 
     bChanged = true;
 }
@@ -1191,7 +1258,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
-        ribbonData = Buffer::createStructured(sizeof(ribbonVertex), 1024 * 1024 * 10); // just a nice amount for now
+        ribbonData = Buffer::createStructured(sizeof(int4), 1024 * 1024 * 10); // just a nice amount for now
         /*
         ribbonVertex testribbons[50 * 128];
         memset(testribbons, 0, 50 * 128 * sizeof(ribbonVertex)); //16x8
@@ -1699,6 +1766,7 @@ void replaceAllterrain(std::string& str, const std::string& from, const std::str
 
 void terrainManager::onGuiRender(Gui* _gui)
 {
+    if (!showGUI) return;
     if (requestPopupSettings) {
         ImGui::OpenPopup("settings");
         requestPopupSettings = false;
@@ -2421,6 +2489,12 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::m
 
 bool terrainManager::update(RenderContext* _renderContext)
 {
+    if (terrainMode == 0)
+    {
+        return true;
+    }
+
+
     FALCOR_PROFILE("update");
     bool dirty = false;
 
@@ -3243,11 +3317,17 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         if (groveTree.bChanged)
         {
-            ribbonData->setBlob(groveTree.branchRibbons, 0, groveTree.numBranchRibbons * sizeof(ribbonVertex));
+            ribbonData->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(int4));
             groveTree.bChanged = false;
 
             ribbonShader.State()->setFbo(_fbo);
             ribbonShader.State()->setViewport(0, _viewport, true);
+
+            ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(0.002f, 0.002f, 0.002f);
+            ribbonShader.Vars()["gConstantBuffer"]["treeDensity"] = 0.5f;
+            ribbonShader.Vars()["gConstantBuffer"]["treeScale"] = 10.f;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = 0.001f;
 
             ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
             ribbonShader.State()->setBlendState(split.blendstateSplines);
@@ -3255,11 +3335,13 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         
 
+        if (groveTree.numBranchRibbons > 2)
         {
             FALCOR_PROFILE("ribbonShader");
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-            ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
-            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, 100);
+            ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
+
+            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons-1, 100);
         }
 
         return;
@@ -3305,13 +3387,13 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         ribbonShader.State()->setFbo(_fbo);
         ribbonShader.State()->setViewport(0, _viewport, true);
         ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-        ribbonShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
+        ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
 
         ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
         ribbonShader.State()->setBlendState(split.blendstateSplines);
 
         //ribbonShader.drawInstanced(_renderContext, 128, 10024);
-        ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+//        ribbonShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
 
         //buffer_lookup_plants
 
@@ -4350,6 +4432,10 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
             {
                 gisReload(split.feedback.tum_Position);
             }
+            if (keyEvent.key == Input::Key::G)
+            {
+                showGUI = !showGUI;
+            }
         }
 
         switch (terrainMode)
@@ -4624,7 +4710,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         break;
         }
 
-        mouseVegYaw += 0.002f;
+        //mouseVegYaw += 0.002f;
 
         glm::vec3 camPos;
         camPos.y = sin(mouseVegPitch);

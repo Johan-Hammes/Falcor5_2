@@ -9,35 +9,57 @@
 
 struct ribbonVertex
 {
-    (1, 1, 14, 16)bit position        // start EMPTY x y
-    (14, 10, 8)                     // z, material, v
+    3x16bit position        += 32 meter in mm res
+    10 bit material
+    6 bit stuff - maybe shadow material     // 64
 
-    (9, 8, 8, 7) yaw pitch, radius mm up to 1m dws 2m width, 7 bits free (32 ? u)            // up
+    3x10 bit up
+    1 bit start
+    1 bit free              // 32
 
-    (9, 8, 7, 8) yaw pitch, cone, depth         // lighting    0.7 degree 7 bit cone 8 bit depth
-        lerp(0, 1, (dot + cone)*.5 + .5  )
+    4x10 bit cone           // get this down to 32
+
+    //??? radius
+    // depth inside sphere 8 bits at least
+
+
+
+
+    TINY  - keep inside int4 for all data
+    3 x 16bit position             // 15 should be enough
+    16 bit material             // some bits free 10 should be enough
+
+    (9, 8, 10, 5) yaw pitch, radius mm up to 1m dws 2m width, start bit, 4 bits free            // up
+
+    (9, 8, 7, 8) yaw pitch, cone, depth         // lighting
+
+
+    // packing normal vectors
+    cubemap face 3 , x 6, y 6   16 bits roughly 1.4 degree acuracy
+
+    sincos hemisphere 8 bits, 7 bits        so extremely similar numbes, look at unpack
+    yaw, pitch, cone (8, 7, 9)  1.4 degrees, 0.4 degree cone
+    yaw, pitch, cone (9, 8, 7)  0.7 degrees, 0.8 degree cone rougly
+        sincos(yaw, z, x);
+        sincos(pitch, y, pln);
+        float3(pln * x, y, pln * z);
+        // 0.02454369260617
+
+    yaw pitch roll? -> Matrix
+    
+
+    float3 pos;
+    int A;          // start bit, leaves 31 bits unused
+    float3 right;
+    int B;          // material
+    float4 lighting;
+    float4 extra;
 };
 
 
 To world space - needed for atmosphere lookup
 World to Sun -> for lighting, so can we push cone directly to sun space, i.e. do all lighting in VS
 Tangent space -> texture normal mapping ??? can we do somethign to simplify this part, we do not need acurate normals here
-
-
-struct GSOut
-{
-    float4 pos : SV_POSITION;
-    float3 N : NORMAL;
-    float3 R : TANGENT;
-    float3 U : BINORMAL;
-
-    float2 texCoords : TEXCOORD;
-    float4 lighting;    // uv sunlight ao
-    float3 world;
-    uint4 flags : TEXCOORD1;
-    float4 lighting : TEXCOORD3;
-    float4 extra : TEXCOORD4;
-};
 */
 
 
@@ -54,32 +76,19 @@ ParameterBlock<ribbonTextures>
 textures;
 
 
-struct RV
-{
-    int4 v;
-};
 StructuredBuffer<sprite_material>   materials;
-//StructuredBuffer<ribbonVertex>      instanceBuffer;
-StructuredBuffer<RV> instanceBuffer;
+StructuredBuffer<ribbonVertex>      instanceBuffer;
 StructuredBuffer<xformed_PLANT>     instances;
 
 
 cbuffer gConstantBuffer
 {
     float4x4 viewproj;
-    float3 eyePos;
-
-    // Meshlet related ----------------------------------------------------------
-    uint fakeShadow;
-    float3 objectScale;
-
-    float treeDensity;
-    float treeScale;        // unused
-    float radiusScale;
+    float3 eye;
 };
 
 
-/*
+
 struct VSOut
 {
     float4 rootPos : ANCHOR;
@@ -102,153 +111,40 @@ struct GSOut
     float3 U : BINORMAL;
     float3 texCoords : TEXCOORD;
     uint4 flags : TEXCOORD1;
-    float3 world : TEXCOORD2;       // eye to pixel actually
+    float3 world : TEXCOORD2;
     float4 lighting : TEXCOORD3;
     float4 extra : TEXCOORD4;
 };
-*/
 
 
-
-struct PSIn
+struct GSOutCompute
 {
     float4 pos : SV_POSITION;
-    float3 normal : NORMAL;
-    float3 tangent : TANGENT;
-    float3 binormal : BINORMAL;
-    float3 diffuseLight : COLOR;
-    float3 specularLight : COLOR1;
-    float2 uv : TEXCOORD;                           // texture uv
-    float4 lighting : TEXCOORD1;                    // uv, sunlight, ao
-    nointerpolation uint4 flags : TEXCOORD2;        // material
+    float4 N : NORMAL;
+    float4 R : TANGENT;
+    float4 U : BINORMAL;
+    float4 uv : TEXCOORD;
+    uint4 flags : TEXCOORD1;
+    float3 world : TEXCOORD2;
+    float4 lighting : TEXCOORD3;    //128 bytes
+    float4 extra : TEXCOORD4;
 };
 
 
-
-
-inline float3 rot_xz(const float3 v, const float yaw)
+inline float3 rot_xz(const float3 v, const float2 r)
 {
-    float s, c; 
-    sincos(yaw, s, c);
-    return float3((v.x * c) + (v.z * s), v.y, (-v.x * s) + (v.z * c));
+    return float3((v.x * r.y) + (v.z * r.x), v.y, (-v.x * r.x) + (v.z * r.y));
 }
 
-
-inline float3 yawPitch_9_8bit(int yaw, int pitch) // 9, 8 bits 8 b
+inline float3 yawPitch_8bit(int yaw, int pitch)
 {
     float plane, x, y, z;
-    sincos((yaw - 256) * 0.01232, z, x);
-    sincos((pitch - 128) * 0.01232, y, plane);
+    sincos(yaw * 0.02454, z, x);
+    sincos((pitch - 64) * 0.02454, y, plane);
     return float3(plane * x, y, plane * z);
-}
-
-void extract(inout PSIn o, const uint4 v)
-{
-    o.pos.xyz += rot_xz(float3((v.x >> 16) & 0x3fff, v.x & 0xffff, (v.y >> 18) & 0x3fff) * objectScale - 2 * float3(8.198, 4.196, 8.192), 0);
-    o.pos.w = 1;
-    float3 eye = normalize(o.pos.xyz - eyePos);
-    o.binormal = yawPitch_9_8bit(v.z >> 23, (v.z >> 15) & 0xff);        // remember to add rotation to yaw
-    o.tangent = normalize(cross(o.binormal, eye));
-    o.normal = cross(o.binormal, o.tangent);
-    //o.diffuseLight
-    //o.specularLight
-    o.uv = float2((v.z & 0x7f) * 0.00390625, (v.y & 0xff) * 0.0625);        // allows 16 V repeats
-    o.flags.x = (v.y >> 8) & 0x2ff;         // material
-    o.flags.y = v.x >> 31;                  //start bool
-    o.flags.z = (v.z >> 7) & 0xff; // int radius
-
-    // now light it
-    const float3 sunDir = -normalize(float3(1.0, 0.7, -0.8));
-    float3 lightCone = yawPitch_9_8bit(v.w >> 23, (v.w >> 15) & 0xff);
-    float cone = (((v.w >> 8) & 0x7f) * 0.01575) - 1;
-    float d = (v.w & 0xff) * 0.00784;
-    float a = saturate(dot(normalize(lightCone + sunDir * cone * 0), sunDir));
-    float b = a * (20 - d) + d;
-    float ao = 1 - (d * 0.4f);
-    o.lighting = float4(0, 0, saturate(1 - (b * 0.5)), ao);
-}
-
-
-PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
-{
-    PSIn output = (PSIn) 0;
-    const uint P = 0; // plant.index * 128; // rename meshlet
-    float3 rootPosition = float3((iId % 10) * 50, 0, ((int) (iId / 10)) * 50) - float3(100, 0, 100);
-    const int4 v = instanceBuffer[vId].v;
-
-    output.pos.xyz =     rootPosition;
-    extract(output, v);
-    
-    return output;
-}
-
-
-[maxvertexcount(4)]
-void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
-{
-    PSIn v;
-
-    if (L[1].flags.y == 1)
-    {
-        v = L[0];
-        v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = mul(L[0].pos - float4(L[0].tangent * L[0].flags.z * radiusScale, 0), viewproj);
-        OutputStream.Append(v);
-
-        v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = mul(L[0].pos + float4(L[0].tangent * L[0].flags.z * radiusScale, 0), viewproj);
-        OutputStream.Append(v);
-
-
-        v = L[1];
-        v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = mul(L[1].pos - float4(L[1].tangent * L[1].flags.z * radiusScale, 0), viewproj);
-        OutputStream.Append(v);
-
-        v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = mul(L[1].pos + float4(L[1].tangent * L[1].flags.z * radiusScale, 0), viewproj);
-        OutputStream.Append(v);
-    }
-}
-
-
-float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
-{
-    
-        int material = vOut.flags.x;
-    if (material == 2)
-    {
-        material = 1;
-    }
-
-    float4 albedoAlpha = textures.T[material * 2 + 0].Sample(gSampler, vOut.uv.xy);
-    //clip(albedoAlpha.a - 0.7);
-
-    float3 normalTex = ((textures.T[material * 2 + 1].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;   //? from rg
-    float3 N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
-
-
-    
-    const float3 sunDir = normalize(float3(1.0, 0.7, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 1.5;
-
-    float3 color = albedoAlpha.rgb * sunColor * saturate(dot(N, sunDir)) * vOut.lighting.z;
-
-    if (material > 0)
-    {    
-        color += albedoAlpha.rgb * sunColor * float3(1, 1, 0.3) * saturate(dot(N, -sunDir)) * vOut.lighting.z;
-    }
-    
-    //env
-    float3 dir = N * float3(1, 1, -1);
-    color += gEnv.SampleLevel(gSampler, dir, 0).rgb * albedoAlpha.rgb * 0.7 * vOut.lighting.w;
-    
-    return float4(color, 1);
 
 }
 
-
-/*
 VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     VSOut output = (VSOut)0;
@@ -257,7 +153,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const uint P = 0;// plant.index * 128;
     const ribbonVertex R = instanceBuffer[vId + P];
 
-    xformed_PLANT plant;
+    xformed_PLANT plant;;
     plant.position = float3((iId % 10) * 20, 0, ((int) (iId / 10)) * 20) - float3(100, 0, 100);
     plant.rotation.x = 0;
     plant.rotation.y = 1;
@@ -268,7 +164,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     
     bool absolute = (R.B >> 16) & 0x1;
     float3 up;
-    float3 dir = normalize(eyePos - output.rootPos.xyz);
+    float3 dir = normalize(eye - output.rootPos.xyz);
     if (absolute)
     {
         output.right = float4(rot_xz(R.right, plant.rotation), 0);
@@ -366,12 +262,12 @@ void gsMain(line VSOut L[2], inout TriangleStream<GSOut> OutputStream)
     }
     
 }
-*/
 
-/*
+
+
 float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    return 0.5;
+    //return 1;
     
     
         int material = vOut.flags.y;
@@ -448,49 +344,3 @@ float4 psMain(GSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     albedoAlpha.a = 1;
     return float4(final, albedoAlpha.a);
 }
-
-*/
-/*  PIXEL SHADER
-    --------------------------------------------------------------------------------------------
-    DIFFUSE
-    SPECULAR
-    UV
-    LIGHTING (u, v, shadowDepth, ao)
-    MATERIAL
-
-    albedoTexture + clip
-    normalTexture + N
-    calc diffuse, including translucency
-    calc specular
-
-
-    TEXTURES
-    albedoAlpha
-    normal rg
-    translucency bc4 grayscale
-*/
-
-
-
-
-
-
-
-/*
-
-    // packing normal vectors
-    cubemap face 3 , x 6, y 6   16 bits roughly 1.4 degree acuracy
-
-    sincos hemisphere 8 bits, 7 bits        so extremely similar numbes, look at unpack
-    yaw, pitch, cone (8, 7, 9)  1.4 degrees, 0.4 degree cone
-    yaw, pitch, cone (9, 8, 7)  0.7 degrees, 0.8 degree cone rougly
-        sincos(yaw, z, x);
-        sincos(pitch, y, pln);
-        float3(pln * x, y, pln * z);
-        // 0.02454369260617
-
-    yaw pitch roll? -> Matrix
-
-
-
-*/

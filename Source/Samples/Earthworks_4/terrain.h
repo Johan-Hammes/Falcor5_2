@@ -186,6 +186,7 @@ struct _GroveTree
 
 
     ribbonVertex branchRibbons[1024*1024*10];
+    int4 packedRibbons[1024 * 1024 * 10];
     int numBranchRibbons;
     bool bChanged = false;
     bool includeBranchLeaves = false;
@@ -714,5 +715,6 @@ private:
         int numSegments = 2000;
 
     }vegetation;
-    
+
+    bool showGUI = true;
 };
