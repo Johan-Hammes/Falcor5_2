@@ -57,6 +57,93 @@
 using namespace Falcor;
 
 
+struct _shadowEdges
+{
+    float height[4096][4096];
+    float Nx[4095][4095];   // temp
+    //float3 norm[4095][4095];
+    unsigned char edge[4096][4096];
+
+    void load();
+};
+
+
+
+
+
+
+struct _leaf
+{
+    void renderGui(Gui* _gui);
+    void buildLeaf(float _age, float _lodPixelsize);
+    void loadTexture();
+
+    float2  stem_length = { 0.02f, 0.3f };
+    float2  stem_curve = { 0.0f, 0.3f };      // radian bend over lenth
+    bool    integrate_stem = false;
+    float2  leaf_length = { 0.1f, 0.3f };
+    float2  leaf_width = { 0.06f, 0.3f };
+    float2  width_offset = { 0.5f, 0.0f };
+    uint    colour_old = 0x25612c;
+    uint    colour_new = 0x2b9102;
+
+    std::string textureName;
+    uint material;
+
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(stem_length));
+        _archive(CEREAL_NVP(stem_curve));
+        _archive(CEREAL_NVP(integrate_stem));
+        _archive(CEREAL_NVP(leaf_length));
+        _archive(CEREAL_NVP(leaf_width));
+        _archive(CEREAL_NVP(width_offset));
+        _archive(CEREAL_NVP(colour_old));
+        _archive(CEREAL_NVP(colour_new));
+        _archive(CEREAL_NVP(textureName));
+    }
+};
+CEREAL_CLASS_VERSION(_leaf, 100);
+
+
+
+struct _twig
+{
+    void renderGui(Gui* _gui);
+    void buildLeaf(float _age, float _lodPixelsize);
+    void loadTexture();
+
+    _leaf   leaves;
+    _leaf   flower;
+    uint    numNodes;
+    bool    alternate;
+    float2  node_length = { 0.02f, 0.3f };
+    float2  node_curve = { 0.0f, 0.3f };      // radian bend over lenth
+
+    // twiggy material
+    std::string textureName;
+    uint material;              // needs to expand for lods
+
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(leaves));
+        _archive(CEREAL_NVP(flower));
+        _archive(CEREAL_NVP(numNodes));
+        _archive(CEREAL_NVP(alternate));
+        _archive(CEREAL_NVP(node_length));
+        _archive(CEREAL_NVP(node_curve));
+        _archive(CEREAL_NVP(textureName));
+    }
+};
+CEREAL_CLASS_VERSION(_twig, 100);
+
+
+
+
 
 struct _leafNode
 {
@@ -717,4 +804,6 @@ private:
     }vegetation;
 
     bool showGUI = true;
+
+    _shadowEdges shadowEdges;
 };

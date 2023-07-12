@@ -382,7 +382,7 @@ void roadNetwork::loadRoadMaterials(roadSection* _road, int _from, int _to)
 
 
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"roadlayout"} };
+    FileDialogFilterVec filters = { {"roadlayout.xml"} };
     if (openFileDialog(filters, path))
     {
         FILE* file = fopen(path.string().c_str(), "r");
@@ -1782,9 +1782,10 @@ void roadNetwork::updateDynamicRoad()
             for (int i = 0; i < currentIntersection->roadLinks.size(); i++) {
                 currentIntersection->roadLinks[i].roadPtr = &roadSectionsList.at(currentIntersection->roadLinks[i].roadGUID);
                 //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Stylized(&bezierCount);
-                //currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly, 0, 0, true, false);
+                currentIntersection->roadLinks[i].roadPtr->convertToGPU_Realistic(staticBezierData, staticIndexData, staticIndexData_BakeOnly, 0, 0, true, false);
             }
-            currentIntersection->convertToGPU(staticBezierData, staticIndexData);
+            // This is for tarmac lanes that we dont do rigthnow
+            //currentIntersection->convertToGPU(staticBezierData, staticIndexData);
         }
 
         debugNumBezier = (uint)staticBezierData.size();

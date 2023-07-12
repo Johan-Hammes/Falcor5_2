@@ -53,7 +53,7 @@ void spriteRender::onLoad()
 	bsDesc.setRtBlend(0, true).setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::One, BlendState::BlendFunc::Zero, BlendState::BlendFunc::One, BlendState::BlendFunc::Zero);
 	pNoBlendBS = BlendState::create(bsDesc);
 
-	mDiff = Texture::createFromFile("icons_diff.dds", false, true);
+	mDiff = Texture::createFromFile("F:/sprite_diff.dds", false, true);
 	mNorm = Texture::createFromFile("sprites/sprite_norm.dds", false, false);
 	mTranslucent = Texture::createFromFile("sprites/sprite_trans.dds", false, true);
 	//mDiff->generateMips();

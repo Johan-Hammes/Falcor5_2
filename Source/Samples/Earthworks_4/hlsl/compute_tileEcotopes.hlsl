@@ -76,6 +76,7 @@ void main(int2 crd : SV_DispatchThreadId)
 
     float3 permanence = gInPermanence[crd];
     if (any(permanence)) {
+    //if (permanence.b > 0.0)   {
 
         // calculate the normal
         uint2 crd_clamped = clamp(crd, 1, tile_numPixels - 2);
@@ -205,8 +206,9 @@ void main(int2 crd : SV_DispatchThreadId)
         for (i = 0; i < numEcotopes; i++)
         {
             uint density = plantIndex.Load(i * (16 * 65) + (lod * 65));
-            sum += (int)((float)density * weights[i]);
-            if (sum > rnd) {
+            sum += (int) ((float) density * weights[i] * permanence.b);
+            if ((sum * permanence.b) > rnd)
+            {
                 ecotopeForPlants = i;
                 break;
             }
@@ -240,4 +242,5 @@ void main(int2 crd : SV_DispatchThreadId)
             //gAlbedo[crd] = gInEct[1][crd].rgb;
         }
     }
+
 }

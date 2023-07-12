@@ -16,28 +16,54 @@ struct ribbonVertex
 
     (9, 8, 7, 8) yaw pitch, cone, depth         // lighting    0.7 degree 7 bit cone 8 bit depth
         lerp(0, 1, (dot + cone)*.5 + .5  )
+
+    // POSSIBLE EXPANSION 2 more uint
+    colour with translucency in alpha
+    (9, 8, 15)  yaw pitch free  tangent BUT BETTER UV
+    
 };
 
+//??? mix ribbons and orientated ribbons in one, or split -
+mixing them might be best for animation
+{
+    2           type            {ribbon, aligned ribbon, triangle list}
+    1           start bit
+    14,16,14    position        {maybe larger to work for buildings as well 16, 16, 16 - 2mm 128m big ?}
+    10          material        {more if we have space}
+    12, 12      u, v            {8 bits to 1, plus 4 bits over, ot smaller with UV scale value}
+    9, 8        bitangent/up (yaw, pitch)
+    8           radius
+    9, 8, 7, 8  lighting (yaw, pitch, cone, depth)      {can be used }
+
+    9, 8        tangent (yaw, pitch)
+    8, 8, 8, 8  colour with translucency
+
+    8           ao
+    8           shadow  ?? per vertex or per object maybe
+    8           anim_blend
+}
 
 To world space - needed for atmosphere lookup
 World to Sun -> for lighting, so can we push cone directly to sun space, i.e. do all lighting in VS
 Tangent space -> texture normal mapping ??? can we do somethign to simplify this part, we do not need acurate normals here
 
+ribbon - in 128 bits (4 uints)
+orientated ribbon - 
+    2           type            {ribbon, aligned ribbon, triangle list}
+    1           start bit
+    14,15,14    position        {maybe larger to work for buildings as well 16, 16, 16 - 2mm 128m big ?}
+    10          material        {more if we have space}
+    8, 7        u, v            {8 bits to 1, plus 4 bits over, ot smaller with UV scale value}
+    9, 8, 8     tangent frame (yaw, pitch, roll)
+    8           radius
+    9, 8, 7, 8  lighting (yaw, pitch, cone, depth)
 
-struct GSOut
-{
-    float4 pos : SV_POSITION;
-    float3 N : NORMAL;
-    float3 R : TANGENT;
-    float3 U : BINORMAL;
+    8, 8, 8, 8  colour with translucency
 
-    float2 texCoords : TEXCOORD;
-    float4 lighting;    // uv sunlight ao
-    float3 world;
-    uint4 flags : TEXCOORD1;
-    float4 lighting : TEXCOORD3;
-    float4 extra : TEXCOORD4;
-};
+    8           anim_blend
+
+
+6 uints seems inevitable, even for ribbons once we add shadows and ao
 */
 
 
@@ -78,35 +104,6 @@ cbuffer gConstantBuffer
     float radiusScale;
 };
 
-
-/*
-struct VSOut
-{
-    float4 rootPos : ANCHOR;
-    float3 N : NORMAL;
-    float3 R : TANGENT;
-    float3 U : BINORMAL;
-    float4 right : TEXCOORD;
-    uint4 flags : TEXCOORD1;
-    float3 world : TEXCOORD2;
-    float4 other : TEXCOORD3;
-    float4 lighting : TEXCOORD4;
-    float4 extra : TEXCOORD5;
-};
-
-struct GSOut
-{
-    float4 pos : SV_POSITION;
-    float3 N : NORMAL;
-    float3 R : TANGENT;
-    float3 U : BINORMAL;
-    float3 texCoords : TEXCOORD;
-    uint4 flags : TEXCOORD1;
-    float3 world : TEXCOORD2;       // eye to pixel actually
-    float4 lighting : TEXCOORD3;
-    float4 extra : TEXCOORD4;
-};
-*/
 
 
 
@@ -164,7 +161,7 @@ void extract(inout PSIn o, const uint4 v)
     float d = (v.w & 0xff) * 0.00784;
     float a = saturate(dot(normalize(lightCone + sunDir * cone * 0), sunDir));
     float b = a * (20 - d) + d;
-    float ao = 1 - (d * 0.4f);
+    float ao = 1 - (d * 0.3f);
     o.lighting = float4(0, 0, saturate(1 - (b * 0.5)), ao);
 }
 
@@ -214,7 +211,6 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    
         int material = vOut.flags.x;
     if (material == 2)
     {
@@ -241,7 +237,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     //env
     float3 dir = N * float3(1, 1, -1);
-    color += gEnv.SampleLevel(gSampler, dir, 0).rgb * albedoAlpha.rgb * 0.7 * vOut.lighting.w;
+    color += gEnv.SampleLevel(gSampler, dir, 0).rgb * albedoAlpha.rgb * 1.0 * vOut.lighting.w;
     
     return float4(color, 1);
 

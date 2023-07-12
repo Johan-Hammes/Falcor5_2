@@ -41,6 +41,177 @@ using namespace Assimp;
 
 
 
+#include <iostream>
+#include <fstream>
+void _shadowEdges::load()
+{
+    int edgeCnt = 0;
+    int shadowEdge = 0;
+
+    std::ifstream ifs;
+    ifs.open("F:\\terrains\\switserland_Steg\\gis\\_export\\root4096.bil", std::ios::binary);
+
+    if (ifs)
+    {
+        ifs.read((char*)height, 4096 * 4096 * 4);
+        ifs.close();
+
+        for (int y = 0; y < 4095; y++)
+        {
+            for (int x = 0; x < 4095; x++)
+            {
+                Nx[y][x] = (height[y][x] - height[y][x+1]) / 9.765625f;    // 10 meter between pixels SHIT NOT TRUE
+            }
+        }
+
+        
+        float angle = 0.04f;  // about 10 degrees
+        float a_min = -angle;
+        float a_max = -angle - 0.05f;
+        
+        memset(edge, 0, 4096 * 4096);
+        for (int y = 1; y < 4094; y++)
+        {
+            for (int x = 1; x < 4094; x++)
+            {
+                if (Nx[y][x] > a_min)
+                {
+                    edge[y][x] = (unsigned char)(128.f * saturate(Nx[y][x] - a_min));  // hill shade
+                }
+
+
+                if ((Nx[y][x] < a_min) && (Nx[y][x + 1] > a_max))
+                {
+                    edge[y][x] = 255;
+                    edgeCnt++;
+
+
+                    float H = height[y][x];
+                    for (int j = x - 1; j > 0; j--)
+                    {
+                        H -= angle * 9.765625f;
+                        if (H > height[y][j])
+                        {
+                            edge[y][j] = 0;
+                            //shadowEdge++;
+                            //break;
+                        }
+                        else break;
+                    }
+                }
+
+                
+
+                /*
+                float H = height[y][x+1];
+                for (int j = x + 2; j < 4095; j++)
+                {
+                    H += angle * 9.765625f;          // about 10 degrees
+                    if (H > 1500) break;
+                    if (H < height[y][j])
+                    {
+                        edge[y][x] /= 4;
+                        shadowEdge++;
+                        break;
+                    }
+                }
+                */
+                
+                
+                
+                /*
+                if (Nx[y][x] < -0.03)
+                {
+                    if ((Nx[y][x + 1] - Nx[y][x]) > 0.05f)
+                    {
+                        edge[y][x] = 255;
+
+                        // SUNRISE - is this pixel in shadow when it can also cast
+                        float H = height[y][x];
+                        for (int j = x + 1; j < 4095; j++)
+                        {
+                            H -= Nx[y][x] * 9.765625f;
+                            if (H < height[y][j])
+                            {
+                                edge[y][x] = 100;
+                                break;
+                            }
+                        }
+
+                        // sunrise how far can it cast a shadow if it all
+
+                    }
+
+                    if (edge[y][x] == 255)
+                    {
+                        // VERY EARLY MORENIGN SHASDOWN
+
+                        float H = height[y][x];
+                        for (int j = x + 1; j < 4095; j++)
+                        {
+                            //H -= Nx[y][x] * 9.765625f;
+                            H += 0.03f * 9.765625f;          // about 10 degrees
+                            if (H < height[y][j])
+                            {
+                                edge[y][x] = 50;
+                                break;
+                            }
+                        }
+
+                    }
+                }
+                */
+
+            }
+        }
+
+        std::ofstream ofs;
+        ofs.open("F:\\terrains\\switserland_Steg\\gis\\_export\\edge.raw", std::ios::binary);
+        if (ofs)
+        {
+            ofs.write((char*)edge, 4096 * 4096);
+            ofs.close();
+        }
+
+    }
+}
+
+
+
+
+
+
+
+void _leaf::renderGui(Gui* _gui)
+{
+
+}
+
+void _leaf::buildLeaf(float _age, float _lodPixelsize)
+{
+}
+
+void _leaf::loadTexture()
+{
+}
+
+
+void _twig::renderGui(Gui* _gui)
+{
+
+}
+
+void _twig::buildLeaf(float _age, float _lodPixelsize)
+{
+}
+
+void _twig::loadTexture()
+{
+}
+
+
+
+
 void _cubemap::toCube(float3 _v)
 {
     float3 vAbs = float3(fabs(_v.x), fabs(_v.y), fabs(_v.z));
@@ -267,7 +438,7 @@ void _GroveTree::renderGui(Gui* _gui)
         ImGui::Text("# side B found - %d", numSideBranchesFound);
         ImGui::Text("# dead ends - %d", numDeadEnds);
         ImGui::Text("# bad ends - %d", numBadEnds);
-        
+
 
         if (ImGui::Checkbox("branch leaves", &includeBranchLeaves)) {
             rebuildRibbons();
@@ -278,7 +449,7 @@ void _GroveTree::renderGui(Gui* _gui)
         if (ImGui::Checkbox("showOnlyUnattached", &showOnlyUnattached)) {
             rebuildRibbons();
         }
-        
+
 
         if (ImGui::DragFloat("start", &startRadius, 0.1f, 0.01f, 10.f)) {
             rebuildRibbons();
@@ -332,7 +503,7 @@ void _GroveTree::importTwig()
                     float3 v1 = float3(vin.x, vin.z + vin.x, -vin.y);
                     twig[twiglength].pos = (v0 + v1) * 0.5f;
                     twig[twiglength].right = (v1 - v0) * 0.5f;
-                    twig[twiglength].B = 1 + (1<<16);// +((i > 0) << 16);     // material + do not rotate
+                    twig[twiglength].B = 1 + (1 << 16);// +((i > 0) << 16);     // material + do not rotate
                     twig[twiglength].A = i > 0;
                     twig[twiglength].extra.y = v;
                     v += dV;
@@ -532,7 +703,7 @@ void _GroveTree::load()
     }
 }
 
-bool pointCylindar(const glm::vec3 &point, const glm::vec3& A, const glm::vec3& B, const float radius)
+bool pointCylindar(const glm::vec3& point, const glm::vec3& A, const glm::vec3& B, const float radius)
 {
     glm::vec3 dir = B - A;
     float L = glm::length(dir);
@@ -556,7 +727,7 @@ void _GroveTree::findSideBranches()
     {
         glm::vec3 P0 = branches[B].nodes[0].pos;
         float R0 = branches[B].nodes[0].radius;
-        for (int C = B-1; C >= 0; C--)   // try <B again
+        for (int C = B - 1; C >= 0; C--)   // try <B again
         {
             if (branches[B].rootBranch >= 0) continue; // have al;ready found it
 
@@ -566,7 +737,7 @@ void _GroveTree::findSideBranches()
                 {
                     //if (branches[C].nodes[n].radius < (R0 * 0.6)) break;
 
-                    if (pointCylindar(P0, branches[C].nodes[n].pos, branches[C].nodes[n+1].pos, branches[C].nodes[n].radius * 4))
+                    if (pointCylindar(P0, branches[C].nodes[n].pos, branches[C].nodes[n + 1].pos, branches[C].nodes[n].radius * 4))
                     {
                         branches[B].rootBranch = C;
                         branches[B].sideNode = n;
@@ -682,27 +853,27 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
 
                 branchRibbons[numBranchRibbons].extra.y = v;
-                
+
 
                 if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
                     numBranchRibbons++; // fixme test start
                 }
-                else if (   (branches[b].nodes[n].radius < startRadius) &&
-                            (branches[b].nodes[n].radius > endRadius) &&
-                            (glm::length(branchRibbons[numBranchRibbons].pos - branchRibbons[numBranchRibbons-1].pos) / branches[b].nodes[n].radius > stepFactor) ){
+                else if ((branches[b].nodes[n].radius < startRadius) &&
+                    (branches[b].nodes[n].radius > endRadius) &&
+                    (glm::length(branchRibbons[numBranchRibbons].pos - branchRibbons[numBranchRibbons - 1].pos) / branches[b].nodes[n].radius > stepFactor)) {
                     numBranchRibbons++;
                 }
                 /*startRadius = 1000.f;
     float endRadius = 0.f;
     float stepFactor = 2.0f;
     float bendFactor = 0.95;*/
-                
+
             }
 
         }
     }
 
-    
+
     /*
     {
         // debug cube
@@ -740,13 +911,13 @@ void _GroveTree::rebuildRibbons()
     if (includeBranchLeaves) {
         for (int b = 0; b < branchLeaves.size(); b++)
         {
-            
+
             float3 P = branchLeaves[b].pos;
             float3 D = normalize(branchLeaves[b].dir);
             float3 U = float3(0, 1, 0);
             float3 R = normalize(cross(U, D));
             U = cross(D, R);
-            
+
             for (int i = 0; i < twiglength; i++)
             {
                 branchRibbons[numBranchRibbons] = twig[i];
@@ -777,7 +948,7 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
                 numBranchRibbons++;
             }
-         
+
         }
     }
 
@@ -811,7 +982,7 @@ void _GroveTree::rebuildRibbons()
 
         packedRibbons[i].x = (start << 31) + (x14 << 16) + y16;
         packedRibbons[i].y = (z14 << 18) + (material << 8) + v;
-        packedRibbons[i].z = (yaw9 << 23) + (pitch8 << 15) + (radius8<<7) + u7;
+        packedRibbons[i].z = (yaw9 << 23) + (pitch8 << 15) + (radius8 << 7) + u7;
         packedRibbons[i].w = (coneYaw9 << 23) + (conePitch8 << 15) + (cone7 << 8) + depth8;
 
         // reverse yaw pitch
@@ -1251,7 +1422,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-
+        //shadowEdges.load();
 
 
 
@@ -1296,7 +1467,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             }
         }
         ribbonData->setBlob(testribbons, 0, 50 * 128 * sizeof(ribbonVertex));
-        
+
 
 
         FILE* f = fopen("f:\\theGrove\\ash.ribbon", "rb");
@@ -1308,14 +1479,14 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         */
 
 
-        Texture::SharedPtr tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\bark\\Oak1_albedo.dds", false, true);
+        Texture::SharedPtr tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\bark\\Oak1_albedo.dds", false, true);
         ribbonTextures.emplace_back(tex);
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\bark\\Oak1_sprite_normal.dds", false, false);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\bark\\Oak1_sprite_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
 
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\twigs\\poplar_twig1_albedo.dds", false, true);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\poplar_twig1_albedo.dds", false, true);
         ribbonTextures.emplace_back(tex);
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures_dot_com\\materials\\twigs\\poplar_twig1_normal.dds", false, false);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\poplar_twig1_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
 
 
@@ -1323,7 +1494,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);        // WHY BOTH
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
-        
+
 
         auto& block = ribbonShader.Vars()->getParameterBlock("textures");
         ShaderVar& var = block->findMember("T");
@@ -3313,7 +3484,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             //triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
         }
 
-        
+
 
         if (groveTree.bChanged)
         {
@@ -3333,7 +3504,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.State()->setBlendState(split.blendstateSplines);
         }
 
-        
+
 
         if (groveTree.numBranchRibbons > 2)
         {
@@ -3341,7 +3512,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
             ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
 
-            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons-1, 100);
+            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons - 1, 100);
         }
 
         return;
@@ -5131,7 +5302,7 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
             float borderSize = (pixelSize * 4.0f) + splineWidth;    // add splineWidth to compensate for curve
             //??? How to boos tarmac since left right that one is double
             // boost lod4 a little since I dont k ow trarmact yert
-            if (lod == 4) splineWidth *= 2.0f;
+            if (lod == 4) splineWidth *= 2.0f; // doesnt work, we need Special splines that includes runoff areas
             if ((lod == 8) || splineWidth > pixelSize)
             {
                 float xMin = __min(__min(BEZ.data[0][0].x, BEZ.data[0][3].x), __min(BEZ.data[1][0].x, BEZ.data[1][3].x)) - 80;      // 39 is the buffer size for lod4

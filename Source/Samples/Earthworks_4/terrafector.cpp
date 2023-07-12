@@ -134,7 +134,7 @@ void tileTriangleBlock::remapMaterials(uint* _map)
 
 
 
-void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh)
+void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh, bool _yup)
 {
     for (int i = 0; i < 3; i++)
     {
@@ -144,6 +144,11 @@ void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], c
             V.pos.x = _mesh->mVertices[_F[i]].x; // SWAP zy - NOT GOOD
             V.pos.y = _mesh->mVertices[_F[i]].z;
             V.pos.z = _mesh->mVertices[_F[i]].y * (-1.0f);
+            if (_yup)
+            {
+                V.pos.y = _mesh->mVertices[_F[i]].y;
+                V.pos.z = _mesh->mVertices[_F[i]].z;
+            }
 
             if (_mesh->HasTextureCoords(0))
             {
@@ -191,8 +196,9 @@ void lodTriangleMesh::remapMaterials(uint* _map)
 
 
 
-void lodTriangleMesh::prepForMesh(aiAABB _aabb, uint _size, std::string _name)
+void lodTriangleMesh::prepForMesh(aiAABB _aabb, uint _size, std::string _name, bool _yup)
 {
+    Yup = _yup;
     float halfsize = ecotopeSystem::terrainSize / 2.f;
 
     for (auto& tile : tiles) {
@@ -205,12 +211,17 @@ void lodTriangleMesh::prepForMesh(aiAABB _aabb, uint _size, std::string _name)
     xMax = (uint)__min(grid, floor((_aabb.mMax.x + halfsize) / tileSize) + 2);
     yMin = (uint)__max(0, floor((-_aabb.mMax.y + halfsize) / tileSize) - 1);
     yMax = (uint)__min(grid, floor((-_aabb.mMin.y + halfsize) / tileSize) + 2);
+    if (Yup)
+    {
+        yMin = (uint)__max(0, floor((_aabb.mMin.z + halfsize) / tileSize) - 1);
+        yMax = (uint)__min(grid, floor((_aabb.mMax.z + halfsize) / tileSize) + 2);
+    }
 
     // test for possible YZ flip issues
     float xRange = _aabb.mMax.x - _aabb.mMin.x;
     float yRange = _aabb.mMax.y - _aabb.mMin.y;
     float zRange = _aabb.mMax.z - _aabb.mMin.z;
-    if ((_aabb.mMin.z < 0) || (_aabb.mMax.z < 0))
+    if ((_aabb.mMin.z < -1) || (_aabb.mMax.z < -1))
     {
         fprintf(terrafectorSystem::_logfile, "          YZ-flip error likely: z values are negative\n");
     }
@@ -255,11 +266,16 @@ int lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], cons
                 flags[1] &= (_mesh->mVertices[_F[j]].x > right);
                 flags[2] &= (-_mesh->mVertices[_F[j]].y < bottom);
                 flags[3] &= (-_mesh->mVertices[_F[j]].y > top);
+                if (Yup)
+                {
+                    flags[2] &= (_mesh->mVertices[_F[j]].z < bottom);
+                    flags[3] &= (_mesh->mVertices[_F[j]].z > top);
+                }
             }
 
             if (!(flags[0] || flags[1] || flags[2] || flags[3]))
             {
-                tiles[y * grid + x].insertTriangle(_material, _F, _mesh);
+                tiles[y * grid + x].insertTriangle(_material, _F, _mesh, Yup);
                 count++;
             }
         }
@@ -560,18 +576,18 @@ int materialCache::find_insert_texture(const std::filesystem::path _path, bool i
     if (!std::filesystem::exists(ddsFilename))
     {
         std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
-        std::string cmdExp = "F:\\terrains\\resources\\Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + "X:\\resources\\Compressonator\\temp_mip.dds";
+        std::string cmdExp = "F:\\terrains\\_resources\\Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + "F:\\terrains\\_resources\\Compressonator\\temp_mip.dds";
 
         fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp.c_str());
         system(cmdExp.c_str());
         if (isSRGB)
         {
-            std::string cmdExp2 = "F:\\terrains\\resources\\Compressonator\\CompressonatorCLI -fd BC6H  X:\\resources\\Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            std::string cmdExp2 = "F:\\terrains\\_resources\\Compressonator\\CompressonatorCLI -fd BC6H  F:\\terrains\\_resources\\Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
             system(cmdExp2.c_str());
         }
         else
         {
-            std::string cmdExp2 = "F:\\terrains\\resources\\Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 X:\\resources\\Compressonator\\temp_mip.dds " + ddsFilename + "\"";
+            std::string cmdExp2 = "F:\\terrains\\_resources\\Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 F:\\terrains\\_resources\\Compressonator\\temp_mip.dds " + ddsFilename + "\"";
             system(cmdExp2.c_str());
         }
     }
@@ -1052,6 +1068,8 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
     const aiScene* scene = nullptr;
     scene = importer.ReadFile(_path.c_str(), flags);
 
+    
+
     if (scene)
     {
         glm::int4 index;
@@ -1060,9 +1078,11 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
         {
             aiMesh* M = scene->mMeshes[i];
 
-            lodder_2.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str());
-            lodder_4.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str());
-            lodder_6.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str());
+            fprintf(terrafectorSystem::_logfile, "BB (%f - %f,%f - %f,%f - %f) \n", M->mAABB.mMin.x, M->mAABB.mMax.x, M->mAABB.mMin.y, M->mAABB.mMax.y, M->mAABB.mMin.z, M->mAABB.mMax.z);
+
+            lodder_2.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str(), true);
+            lodder_4.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str(), true);
+            lodder_6.prepForMesh(M->mAABB, M->mNumVertices, scene->mMaterials[M->mMaterialIndex]->GetName().C_Str(), true);
             for (uint j = 0; j < M->mNumFaces; j++)
             {
                 if (!bakeOnlyOverlay && useLOD2)    num2 += lodder_2.insertTriangle(i, M->mFaces[j].mIndices, M);
@@ -1421,7 +1441,7 @@ void terrafectorEditorMaterial::eXport() {
 void terrafectorEditorMaterial::loadTexture(int idx)
 {
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"tga"}, {"exr"}, {"dds"} };
+    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"tga"}, {"exr"}, {"dds"}, {"tif"} };
     if (openFileDialog(filters, path))
     {
         std::string P = path.string();

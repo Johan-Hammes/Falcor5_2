@@ -140,21 +140,21 @@ float shevrons(float2 UV)
     if (UV.x > 0.98) return 0.9;
 
     float newU = abs(0.5 - UV.x) * 3;
-    if (newU < 0.5) {
-        float newV = frac(1 * (UV.y + newU * 0.3));
+    if (newU < 0.2) {
+        float newV = frac(3 * (UV.y + newU * 0.3));
         if (newV > 0.93) {
-            return 0.7;
+            return 0.5;
         }
     }
 
 
     if (frac(UV.y * 32) > 0.5)
     {
-        if (frac(UV.x * 2) > 0.5)return 0.1;
+        if (frac(UV.x * 2) > 0.5)return 0.04;
     }
     else
     {
-        if (frac(UV.x * 2) <= 0.5)return 0.1;
+        if (frac(UV.x * 2) <= 0.5)return 0.04;
     }
 
     return 0;
@@ -186,15 +186,15 @@ float4 editingMaterials(const uint material, const float2 uv, const float alpha,
     case MATERIAL_EDIT_GREEN:
     {
         float A = shevrons(abs(uv));
-        if (A < 0.01f) return float4(saturate((flags.z) / 150.0f - 0.5) * 10, saturate((flags.w) / 50.0f - 0.0), saturate((flags.w) / 50.0f - 0.0), 0.19 * alpha);
+        //if (A < 0.01f) return float4(saturate((flags.z) / 150.0f - 0.5) * 10, saturate((flags.w) / 50.0f - 0.0), saturate((flags.w) / 50.0f - 0.0), 0.19 * alpha);
         return float4(0.0, 0.6, 0.0, A * alpha);
     }
     break;
     case MATERIAL_EDIT_BLUE:
     {
         float A = shevrons(uv);
-        if (A < 0.01) return float4(saturate((flags.z) / 150.0f - 0.5) * 10, saturate((flags.w) / 50.0f - 0.0), saturate((flags.w) / 50.0f - 0.0), 0.19 * alpha);
-        return float4(0.0, 0.0, 0.5, A * alpha);
+        //if (A < 0.01) return float4(saturate((flags.z) / 150.0f - 0.5) * 10, saturate((flags.w) / 50.0f - 0.0), saturate((flags.w) / 50.0f - 0.0), 0.19 * alpha);
+        return float4(0.0, 0.0, 2.0, A * alpha);
     }
     break;
     case MATERIAL_EDIT_WHITEDOT:

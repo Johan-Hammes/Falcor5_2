@@ -71,7 +71,7 @@ public:
     void clear();
     void clearRemapping(uint _size);
     void remapMaterials(uint* _map);
-    void insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh);
+    void insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh, bool _yup);
 private:
 public:
     std::vector<triVertex> verts;
@@ -96,7 +96,7 @@ class lodTriangleMesh {
 public:
     void create(uint _lod);
     void remapMaterials(uint* _map);
-    void prepForMesh(aiAABB _aabb, uint _size, std::string _name);
+    void prepForMesh(aiAABB _aabb, uint _size, std::string _name, bool _yup);
     int insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh);
     void logStats();
     void save(const std::string _path);
@@ -109,6 +109,7 @@ private:
     uint grid;
     float tileSize;
     float bufferSize;
+    bool Yup = false;       // default to MAX Z up, Y north X east
     
 public:
     std::vector<tileTriangleBlock> tiles;
