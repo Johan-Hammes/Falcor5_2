@@ -46,7 +46,7 @@
 using namespace Falcor;
 
 
-
+#define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
 
 
@@ -60,20 +60,59 @@ class target
 {
 public:
     void renderGui(Gui* _gui);
-    std::string title;
+    void loadimage();
+    void loadscoreimage();
+    std::string title = "ST1";
     std::string description;
 
-    float2 size;
-    Texture::SharedPtr	        image;
+    int2 size_mm = int2(500, 500);
+    Texture::SharedPtr	        image = nullptr;
+    Texture::SharedPtr	        score = nullptr;
+    std::string texturePath;
+    std::string scorePath;
     // scoring image, maybe just raw
     int maxScore;       // to auto calcl exercise score from rounds
+    int scoreWidth = 0;
+    int scoreHeight = 0;
+    bool showGui = false;
+    
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
+        _archive(CEREAL_NVP(title));
+        _archive(CEREAL_NVP(description));
+        _archive(CEREAL_NVP(texturePath));
+        _archive(CEREAL_NVP(scorePath));
     }
 };
 CEREAL_CLASS_VERSION(target, 100);
+
+
+class targetAction
+{
+public:
+    void renderGui(Gui* _gui);
+
+    _action     action;
+    bool        dropWhenHit = false;
+    float       startTime = 0.f;
+    float       upTime = 0.f;
+    float       downTime = 0.f;
+    int         repeats = 1;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(action));
+        _archive(CEREAL_NVP(dropWhenHit));
+        _archive(CEREAL_NVP(startTime));
+        _archive(CEREAL_NVP(upTime));
+        _archive(CEREAL_NVP(downTime));
+        _archive(CEREAL_NVP(repeats));
+    }
+};
+CEREAL_CLASS_VERSION(targetAction, 100);
 
 
 class exercise
@@ -90,7 +129,9 @@ public:
     // timing
     
     int numRounds;
-    _pose pose;
+    _pose           pose;
+    target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
+    targetAction    action;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -106,15 +147,16 @@ CEREAL_CLASS_VERSION(exercise, 100);
 
 
 
-class quickRange
+class quickRange        // rename
 {
 public:
     void renderGui(Gui* _gui);
 
-    std::string title;
+    std::string title = "please rename";
     std::string description;
-    int maxScore;
     std::vector<exercise> exercises;
+    int maxScore;
+    bool showGui = false;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -127,6 +169,32 @@ public:
 };
 CEREAL_CLASS_VERSION(quickRange, 100);
 
+
+
+class _shots
+{
+public:
+    float2  position;
+    int     score;
+};
+
+
+class _scoringExercise
+{
+public:
+    target              target;
+    std::vector<_shots> shots;
+    int                 score = 0;
+};
+
+
+class _scoring
+{
+public:
+    void create(size_t numLlanes, size_t numEx);
+
+    std::vector<std::vector<_scoringExercise>> lane_exercise;
+};
 
 
 
@@ -250,16 +318,18 @@ private:
     bool    showPointGrey = false;
     bool    showCalibration = false;
 
+
     int modeCalibrate = 0;
 
     struct
     {
         float pixelsPerMeter = 800.f;
         float shootingDistance = 10.f;  // fixme move to somethign that loads or saves
-        float eyeHeights[4];
+        float eyeHeights[4] = {800, 500, 450, 200};
+        int numLanes = 5;
     } screen;
 
     // quick range
-    bool    showQuickrange = false;
     quickRange  QR;
+    target targetBuilder;
 };

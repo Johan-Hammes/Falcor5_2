@@ -30,30 +30,308 @@
 #include "imgui.h"
 #include <imgui_internal.h>
 #include "Core/Platform/MonitorInfo.h"
+#include <FreeImage.h>
 
 
 
+#pragma optimize("", off)
 
 
+
+void target::loadimage()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"dds"}, {"bmp"} };
+    if (openFileDialog(filters, path))
+    {
+        texturePath = path.string();
+        image = Texture::createFromFile(texturePath, true, true);
+    }
+}
+
+
+void target::loadscoreimage()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"dds"}, {"bmp"} };
+    if (openFileDialog(filters, path))
+    {
+        scorePath = path.string();
+        score = Texture::createFromFile(scorePath, true, true);
+
+        FREE_IMAGE_FORMAT fifFormat = FIF_UNKNOWN;
+        fifFormat = FreeImage_GetFileType(scorePath.c_str(), 0);
+        if (fifFormat == FIF_UNKNOWN)  // Can't get the format from the file. Use file extension
+        {
+            fifFormat = FreeImage_GetFIFFromFilename(scorePath.c_str());
+        }
+
+        // Check the library supports loading this image type
+        if (FreeImage_FIFSupportsReading(fifFormat))
+        {
+            // Read the DIB
+            FIBITMAP* pDib = FreeImage_Load(fifFormat, scorePath.c_str());
+            if (pDib)
+            {
+                scoreWidth = FreeImage_GetWidth(pDib);
+                scoreHeight = FreeImage_GetHeight(pDib);
+                int pitch = FreeImage_GetPitch(pDib);
+                FREE_IMAGE_COLOR_TYPE colorType = FreeImage_GetColorType(pDib);
+                BYTE* data = FreeImage_GetBits(pDib);
+                maxScore = 0;
+                
+                if (colorType == FIC_PALETTE)
+                {
+                    for (int y = 0; y < scoreHeight; y++) {
+                        for (int x = 0; x < scoreWidth; x++) {
+                            int index = (y * pitch) + x;
+                            if (data[index] > maxScore) maxScore = data[index];
+                        }
+                    }
+                }
+                FreeImage_Unload(pDib);
+                // FIXME SAVE THE ACTUAL DATA
+            }
+        }
+    }
+}
 
 void target::renderGui(Gui* _gui)
 {
+    //bool open = true;
+    Gui::Window targetPanel(_gui, "Target", showGui, { 900, 900 }, { 100, 100 });
+    if (showGui)
+    {
+        ImGui::PushFont(_gui->getFont("roboto_64"));
+        ImGui::SameLine(100);
+        char T[256];
+        sprintf(T, "%s", title.c_str());
+        if (ImGui::InputText("", T, 256)) {
+            title = T;
+        }
+        //ImGui::Text("%s", title.c_str());
+        ImGui::PopFont();
+        ImGui::NewLine();
+        ImGui::NewLine();
+
+        ImGui::PushFont(_gui->getFont("roboto_48"));
+        {
+            ImGui::BeginChildFrame(1000, ImVec2(410, 710));
+            {
+                if (image)
+                {
+                    if (targetPanel.imageButton("testImage", image, float2(400, 700)))
+                    {
+                        loadimage();
+                    }
+                }
+                else {
+                    if (ImGui::Button("Load image", ImVec2(400, 700)))
+                    {
+                        loadimage();
+                    }
+                }
+            }
+            ImGui::EndChildFrame();
+
+            ImGui::SameLine(0, 200);
+
+            ImGui::BeginChildFrame(1001, ImVec2(410, 710));
+            {
+                if (score)
+                {
+                    if (targetPanel.imageButton("scoreImage", score, float2(400, 700)))
+                    {
+                        loadscoreimage();
+                    }
+                }
+                else {
+                    if (ImGui::Button("Load score", ImVec2(400, 700)))
+                    {
+                        loadscoreimage();
+                    }
+                }
+            }
+            ImGui::EndChildFrame();
+
+            ImGui::NewLine();
+            ImGui::SameLine(610);
+            ImGui::Text("Maximum score - %d", maxScore);
+
+            ImGui::SameLine(10);
+
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragInt("width", &size_mm.x, 1, 0, 5000, "%d mm");
+            TOOLTIP("Width of the target in mm.\nThis is teh width oif the image that was loaded, please calculate if you image contains a border.")
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragInt("height", &size_mm.y, 1, 0, 5000, "%d mm");
+            TOOLTIP("Height of the target in mm.");
+            
+            //ImGui::Text("hist  (%d, %d, %d, %d, %d, %d, %d)", hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], hist[6]);
+
+            ImGui::NewLine();
+            if (ImGui::Button("load")) {
+                std::filesystem::path path;
+                FileDialogFilterVec filters = { {"target.json"} };
+                if (openFileDialog(filters, path))
+                {
+                    std::ifstream is(path);
+                    if (is.good()) {
+                        cereal::XMLInputArchive archive(is);
+                        serialize(archive, 100);
+                    }
+                }
+            }
+
+
+            ImGui::SameLine(0, 100);
+            if (ImGui::Button("save")) {
+                std::filesystem::path path;
+                FileDialogFilterVec filters = { {"target.json"} };
+                if (saveFileDialog(filters, path))
+                {
+                    std::ofstream os(path);
+                    if (os.good()) {
+                        cereal::XMLOutputArchive archive(os);
+                        serialize(archive, 100);
+                    }
+                }
+            }
+            ImGui::SameLine();
+        }
+        ImGui::PopFont();
+    }
 
 }
 
 
+
+
 void exercise::renderGui(Gui* _gui)
 {
+    ImGui::NewLine();
+    ImGui::Text("Target");
+    ImGui::Text("Action");
+    ImGui::Text("Pose");
+    ImGui::Text("is scoring");
+    if (ImGui::Button("remove")) {
 
+    }    
 }
 
 
 void quickRange::renderGui(Gui* _gui)
 {
+    Gui::Window pointgreyPanel(_gui, "Exercises", showGui, { 900, 900 }, { 100, 100 });
+    if (showGui)
+    {
+        ImGui::PushFont(_gui->getFont("roboto_48"));
+        {
+            {
+                ImGui::PushFont(_gui->getFont("roboto_64"));
+                ImGui::SameLine(10);
+                ImGui::SetNextItemWidth(700);
+                char T[256];
+                sprintf(T, "%s", title.c_str());
+                if (ImGui::InputText("", T, 256)) {
+                    title = T;
+                }
+                ImGui::SameLine(0, 500);
+                if (ImGui::Button("Start")) {
 
+                }
+                ImGui::PopFont();
+
+                
+
+                ImGui::NewLine();
+                if (ImGui::Button("load")) {
+                    std::filesystem::path path;
+                    FileDialogFilterVec filters = { {"exercises.json"} };
+                    if (openFileDialog(filters, path))
+                    {
+                        std::ifstream is(path);
+                        if (is.good()) {
+                            cereal::XMLInputArchive archive(is);
+                            serialize(archive, 100);
+                        }
+                    }
+                }
+
+
+                ImGui::SameLine(0, 100);
+                if (ImGui::Button("save")) {
+                    std::filesystem::path path;
+                    FileDialogFilterVec filters = { {"exercises.json"} };
+                    if (saveFileDialog(filters, path))
+                    {
+                        std::ofstream os(path);
+                        if (os.good()) {
+                            cereal::XMLOutputArchive archive(os);
+                            serialize(archive, 100);
+                        }
+                    }
+                }
+            }
+
+            const ImGuiStyle& style = ImGui::GetStyle();
+            ImGui::PushStyleColor(ImGuiCol_ChildWindowBg, ImVec4(1, 0, 0, 1));
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildWindowRounding, 10);
+
+            ImGui::NewLine();
+            float startY = ImGui::GetCursorPosY();
+            int x = 0;
+            int y = 0;
+
+            for (int i = 0; i < exercises.size(); i++)
+            {
+                ImGui::SetCursorPos(ImVec2(x * 550.f, startY + y * 650.f));
+                ImGui::BeginChildFrame(1376 + y*300 + x, ImVec2(500, 600));
+                {
+                    ImGui::Text("Exercise %d", i + 1);
+                    exercises[i].renderGui(_gui);
+                }
+                ImGui::EndChildFrame();
+
+                x++;
+                if (x == 4) {
+                    x = 0;
+                    y++;
+                }
+            }
+            
+            {
+                ImGui::SetCursorPos(ImVec2(x * 550.f, startY + y * 650.f));
+                ImGui::BeginChildFrame(1376 + y * 300 + x, ImVec2(500, 600));
+                {
+                    ImGui::PushFont(_gui->getFont("roboto_64"));
+                    if (ImGui::Button("+"))
+                    {
+                        exercises.emplace_back();
+                    }
+                    ImGui::PopFont();
+                    TOOLTIP("add another exercise");
+                }
+                ImGui::EndChildFrame();
+                
+            }
+            
+        }
+        ImGui::PopFont();
+    }
 }
 
 
+
+void _scoring::create(size_t _numlanes, size_t _numEx)
+{
+    lane_exercise.clear();
+    lane_exercise.resize(_numlanes);
+    for (auto& lane : lane_exercise)
+    {
+        lane.resize(_numEx);
+    }
+}
 
 
 
@@ -147,7 +425,7 @@ glm::vec3 videoToScreen::toScreen(glm::vec3 dot)
             }
         }
     }
-    return screen;        
+    return screen;
 }
 
 
@@ -162,28 +440,29 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 {
     if (ImGui::BeginMainMenuBar())
     {
-        ImGui::Text("Kolskoot          ");
-
-
-        if (ImGui::BeginMenu("Settings"))
         {
-            ImGui::Checkbox("camera", &showPointGrey);
+            ImGui::Text("Kolskoot");
+
+            ImGui::SameLine(0, 200);
+            ImGui::SetNextItemWidth(150);
+            ImGui::Selectable("Camera", &showPointGrey, 0, ImVec2(150, 0));
+
+            ImGui::SameLine(0, 20);
+            ImGui::SetNextItemWidth(150);
+            ImGui::Selectable("Screen", &showPointGrey, 0, ImVec2(150, 0));
+
+            ImGui::SameLine(0, 20);
+            ImGui::SetNextItemWidth(150);
+            ImGui::Selectable("Targets", &targetBuilder.showGui, 0, ImVec2(150, 0));
+
+            ImGui::SameLine(0, 20);
+            ImGui::SetNextItemWidth(150);
+            ImGui::Selectable("Exercises", &QR.showGui, 0, ImVec2(150, 0));
 
 
-            ImGui::EndMenu();
+            ImGui::SetCursorPos(ImVec2(screenSize.x - 30, 0));
+            if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
         }
-
-        if (ImGui::BeginMenu("Quick range"))
-        {
-            ImGui::Checkbox("new", &showQuickrange);
-            ImGui::Button("load"); 
-
-            ImGui::EndMenu();
-        }
-
-
-        ImGui::SetCursorPos(ImVec2(screenSize.x - 15, 0));
-        if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
     }
     ImGui::EndMainMenuBar();
 }
@@ -199,17 +478,19 @@ void Kolskoot::onGuiRender(Gui* _gui)
         init = false;
     }
 
-    ImGui::PushFont(_gui->getFont("roboto_20"));
+    ImGui::PushFont(_gui->getFont("roboto_32"));
     {
         onGuiMenubar(_gui);
 
-        if (showQuickrange)
+        if (QR.showGui)
         {
-            Gui::Window pointgreyPanel(_gui, "Quick range", { 900, 900 }, { 100, 100 });
-            {
-            }
+            QR.renderGui(_gui);
         }
 
+        if (targetBuilder.showGui)
+        {
+            targetBuilder.renderGui(_gui);
+        }
 
         if (showPointGrey)
         {
@@ -291,7 +572,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
 
         if (modeCalibrate > 0)
         {
-            
+
             auto& style = ImGui::GetStyle();
             style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
             style.Colors[ImGuiCol_WindowBg] = ImVec4(0.0f, 0.0f, 0.0f, 1.f);
@@ -303,11 +584,11 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 ImGui::SetWindowSize(ImVec2(screenSize.x, screenSize.y), 0);
                 //ImGui::BringWindowToDisplayFront(calibrationPanel);
 
-                
+
 
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 {
-                    
+
 
                     if (modeCalibrate == 1) {
 
@@ -328,7 +609,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                         ImGui::SetCursorPos(ImVec2(screenSize.x - 200, screenSize.y - 50));
                         ImGui::Text("Bottom right");
 
-                        ImGui::SetCursorPos(ImVec2(screenSize.x/2 + 150, screenSize.y/2 - 60));
+                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 60));
                         ImGui::Text("remove the filter");
                         ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 30));
                         ImGui::Text("zoom and focus the camera");
@@ -337,7 +618,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                         ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 + 30));
                         ImGui::Text("press 'space' when done");
                         //pointGreyCamera->setReferenceFrame(true, 1);
-                        
+
                     }
 
                     if (modeCalibrate == 2) {
@@ -409,13 +690,13 @@ void Kolskoot::onGuiRender(Gui* _gui)
 
                             pointGreyCamera->dotQueue.pop();
                         }
-                        
+
                     }
                 }
                 ImGui::PopFont();
             }
             calibrationPanel.release();
-            
+
 
             if (modeCalibrate == 4) {
                 modeCalibrate = 0;
@@ -528,7 +809,7 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
         return true;
     }
 
-    if ((modeCalibrate > 0) &&(keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Space))
+    if ((modeCalibrate > 0) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Space))
     {
         modeCalibrate++;
 
