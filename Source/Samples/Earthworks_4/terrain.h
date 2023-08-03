@@ -69,40 +69,174 @@ struct _shadowEdges
 
 
 
+struct rvPacked
+{
+    unsigned int a;
+    unsigned int b;
+    unsigned int c;
+    unsigned int d;
+    unsigned int e;
+    unsigned int f;
+};
+
+struct rvB
+{
+    rvPacked pack();
+    int     type = 0;
+    bool    startBit = false;
+    float3  position;
+    int     material;
+    float   anim_blend;
+    float2  uv;
+    float3  bitangent;
+    float3  tangent;
+    float   radius;
+
+    float4  lightCone;
+    float   lightDepth;
+    unsigned char ao = 255;
+    unsigned char shadow = 255;
+    unsigned char albedoScale = 255;
+    unsigned char translucencyScale = 255;
+};
+
+
+
+
+
+class _plantMaterial;
+
+class materialCache_plants {
+public:
+
+    uint find_insert_material(const std::string _path, const std::string _name);
+    uint find_insert_material(const std::filesystem::path _path);
+    int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
+    std::string clean(const std::string _s);
+
+    void setTextures(ShaderVar& var);
+
+    void rebuildStructuredBuffer();
+    
+    std::vector<_plantMaterial>	materialVector;
+    int selectedMaterial = -1;
+    std::vector<Texture::SharedPtr>			textureVector;
+    float texMb = 0;
+
+    void renderGui(Gui* mpGui, Gui::Window& _window);
+    void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
+    bool renderGuiSelect(Gui* mpGui);
+    
+    
+    int dispTexIndex = -1;
+    Texture::SharedPtr getDisplayTexture();
+
+    Buffer::SharedPtr sb_vegetation_Materials = nullptr;
+};
+
+
+
+class _plantMaterial
+{
+public:
+    void renderGui(Gui* _gui);
+
+    std::filesystem::path 			  fullPath;
+    std::string			  displayName = "Not set!";
+    bool				isModified = false;
+    Texture::SharedPtr	  albedo;
+    Texture::SharedPtr	  normal;
+    Texture::SharedPtr	  translucency;
+    std::string         albedoName;
+    std::string         normalName;
+    std::string         translucencyName;
+
+    void import(std::filesystem::path _path, bool _replacePath = true);
+    void import(bool _replacePath = true);
+    void save();
+    void eXport(std::filesystem::path _path);
+    void eXport();
+    void reloadTextures();
+    void loadTexture(int idx);
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(albedoName));
+        _archive(CEREAL_NVP(normalName));
+        _archive(CEREAL_NVP(translucencyName));
+    }
+
+
+    struct {
+        uint	albedoTexture = 0;
+        uint	normalTexture = 0;
+        uint	translucencyTexture = 0;
+        float   translucency;
+    } _constData;
+};
+CEREAL_CLASS_VERSION(_plantMaterial, 100);
+
 
 
 
 struct _leaf
 {
     void renderGui(Gui* _gui);
-    void buildLeaf(float _age, float _lodPixelsize);
+    void buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vertex, glm::vec3 _pos);
     void loadTexture();
 
-    float2  stem_length = { 0.02f, 0.3f };
+    // going to do all this in mm
+    float2  stem_length = { 0.f, 0.3f };
+    float   stem_width = 4.f;
     float2  stem_curve = { 0.0f, 0.3f };      // radian bend over lenth
     bool    integrate_stem = false;
-    float2  leaf_length = { 0.1f, 0.3f };
-    float2  leaf_width = { 0.06f, 0.3f };
-    float2  width_offset = { 0.5f, 0.0f };
-    uint    colour_old = 0x25612c;
-    uint    colour_new = 0x2b9102;
+    bool    rotate_leaf = false;
+    float2  leaf_length = { 100.f, 0.2f };
+    float2  leaf_width = { 60.f, 0.2f };
+    float2  stemtoleaf_curve = { 0.0f, 0.2f };      // radian bend over lenth
+    float2  leaf_curve = { 0.0f, 0.2f };      // radian bend over lenth
+    float2  leaf_twist = { 0.0f, 0.2f };      // radian bend over lenth
+    float2  width_offset = { 1.0f, 0.0f };
+    float albedoScale = 1;
+    float albedoScaleNew = 1;
+    float translucencyScale = 1;
+    float translucencyScaleNew = 1;
+
+    bool changed = false;
+
+    float LODtemp  = 0.f;
 
     std::string textureName;
     uint material;
 
+    rvB    ribbon[16384];
+    uint            ribbonLength;
+
+    // stalk offset  pos
+    // leaf start width maize etc
 
     template<class Archive>
-    void serialize(Archive& _archive, std::uint32_t const _version)
+    void serialize(Archive& archive, std::uint32_t const _version)
     {
-        _archive(CEREAL_NVP(stem_length));
-        _archive(CEREAL_NVP(stem_curve));
-        _archive(CEREAL_NVP(integrate_stem));
-        _archive(CEREAL_NVP(leaf_length));
-        _archive(CEREAL_NVP(leaf_width));
-        _archive(CEREAL_NVP(width_offset));
-        _archive(CEREAL_NVP(colour_old));
-        _archive(CEREAL_NVP(colour_new));
-        _archive(CEREAL_NVP(textureName));
+        archive_float2(stem_length);
+        archive(CEREAL_NVP(stem_width));
+        archive_float2(stem_curve);
+        archive(CEREAL_NVP(integrate_stem));
+        archive(CEREAL_NVP(rotate_leaf));
+        
+        archive_float2(leaf_length);
+        archive_float2(leaf_width);
+        archive_float2(stemtoleaf_curve);
+        archive_float2(leaf_curve);
+        archive_float2(leaf_twist);
+        archive_float2(width_offset);
+        archive(CEREAL_NVP(albedoScale));
+        archive(CEREAL_NVP(albedoScaleNew));
+        archive(CEREAL_NVP(translucencyScale));
+        archive(CEREAL_NVP(translucencyScaleNew));
+        archive(CEREAL_NVP(textureName));
+        
     }
 };
 CEREAL_CLASS_VERSION(_leaf, 100);
@@ -112,7 +246,7 @@ CEREAL_CLASS_VERSION(_leaf, 100);
 struct _twig
 {
     void renderGui(Gui* _gui);
-    void buildLeaf(float _age, float _lodPixelsize);
+    void buildTwig(float _age, float _lodPixelsize);
     void loadTexture();
 
     _leaf   leaves;
@@ -142,6 +276,69 @@ struct _twig
 CEREAL_CLASS_VERSION(_twig, 100);
 
 
+struct _weedBuilder
+{
+    void renderGui(Gui* _gui);
+    void build(float _age, float _lodPixelsize);
+
+    bool    has_stem = true;
+    float2  stem_length = float2(50.f, 0.2f);
+    float   age = 5.3f;
+    int     startSegment = 1;
+    float   stem_width = 5.f;
+    float2  stem_curve = { 0.2f, 0.3f };      // radian bend over lenth
+    bool    tipleaves = false;
+    float2  stem_stalk = float2(0.f, 1.f);
+
+    int     numLeaves = 4;  // per segment
+    float   leafRotation = 0.7f;   // like 2 leaves 90 degrees
+    float   leaf_age_power = 1.f;
+    bool    twistAway = false;      // if single leaf, activelt twist to the other side
+    _leaf   leaves;
+
+    int     numFlowers = 0;
+    bool    topFlower = false;
+    float2  stalk_Length = float2(0.25f, 0.2f);
+    float2  stalk_curve = { 0.0f, 0.3f };      // radian bend over lenth
+    _leaf   flower;
+
+
+    // stem material
+    std::string textureName;
+    uint material;              // needs to expand for lods
+
+    bool changed = false;
+    bool showLeaves;
+
+    rvB    ribbon[16384];
+    uint            ribbonLength;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(has_stem));
+        _archive(CEREAL_NVP(age));
+        _archive(CEREAL_NVP(startSegment));
+        
+        archive_float2(stem_length);
+        _archive(CEREAL_NVP(stem_width));
+        archive_float2(stem_curve);
+
+        _archive(CEREAL_NVP(numLeaves));
+        _archive(CEREAL_NVP(leafRotation));
+        _archive(CEREAL_NVP(twistAway));
+        _archive(CEREAL_NVP(leaves));
+
+        _archive(CEREAL_NVP(numFlowers));
+        _archive(CEREAL_NVP(topFlower));
+        archive_float2(stalk_Length);
+        archive_float2(stalk_curve);
+        _archive(CEREAL_NVP(flower));
+
+        _archive(CEREAL_NVP(textureName));
+    }
+};
+CEREAL_CLASS_VERSION(_weedBuilder, 100);
 
 
 
@@ -263,6 +460,8 @@ struct _GroveTree
     float3 readVertex();
     void testBranchLeaves();
     void rebuildRibbons();
+    void rebuildRibbons_Leaf();
+    void rebuildRibbons_Weed();
     void findSideBranches();
     int numSideBranchesFound;
     int numDeadEnds;
@@ -271,9 +470,11 @@ struct _GroveTree
 
     void calcLight();
 
+    float treeHeight = 0.f;
 
-    ribbonVertex branchRibbons[1024*1024*10];
-    int4 packedRibbons[1024 * 1024 * 10];
+
+    rvB branchRibbons[1024*1024*10];
+    rvPacked packedRibbons[1024 * 1024 * 10];
     int numBranchRibbons;
     bool bChanged = false;
     bool includeBranchLeaves = false;
@@ -286,8 +487,11 @@ struct _GroveTree
     float bendFactor = 0.95f;
 
 
+    _leaf leafBuilder;
+    _weedBuilder weedBuilder;
+
     // twigs
-    ribbonVertex twig[1024];
+    rvB twig[1024];
     uint twiglength = 0;
     float twigScale = 1.0f;
     void importTwig();
@@ -595,7 +799,7 @@ private:
 
     _lastFile lastfile;
     _terrainSettings settings;
-    int terrainMode = 3;
+    int terrainMode = 0;
     bool hasChanged = false;
 
     bool requestPopupSettings = false;
@@ -798,7 +1002,7 @@ private:
         Texture::SharedPtr	  envTexture;
         // sky mesh
 
-        _GroveTree groveTree;
+        //_GroveTree groveTree;
         int numSegments = 2000;
 
     }vegetation;

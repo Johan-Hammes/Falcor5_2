@@ -150,15 +150,7 @@ struct instance_PLANT
 	// and maybe position should get less and scale and rotation more bits 
 };
 
-struct ribbonVertex
-{
-    float3 pos;
-    int A;          // start bit, leaves 31 bits unused
-    float3 right;
-    int B;          // material
-    float4 lighting;
-    float4 extra;
-};
+
 
 struct triangleVertex
 {

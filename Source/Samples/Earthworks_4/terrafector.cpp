@@ -489,12 +489,13 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
     else
     {
         // Now we have to seacrh, but use the first one we find
+        std::string fullName = _name + ".terrafectorMaterial";
         std::filesystem::path rootpath = fullPath = terrafectorEditorMaterial::rootFolder + "/terrafectorMaterials";
         for (const auto& entry : std::filesystem::recursive_directory_iterator(fullPath))
         {
             std::string newPath = entry.path().string();
             replaceAll(newPath, "\\", "/");
-            if (newPath.find(_name) != std::string::npos)
+            if (newPath.find(fullName) != std::string::npos)
             {
                 logTab--;
                 return find_insert_material(newPath);

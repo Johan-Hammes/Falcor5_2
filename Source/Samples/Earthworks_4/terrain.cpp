@@ -60,15 +60,15 @@ void _shadowEdges::load()
         {
             for (int x = 0; x < 4095; x++)
             {
-                Nx[y][x] = (height[y][x] - height[y][x+1]) / 9.765625f;    // 10 meter between pixels SHIT NOT TRUE
+                Nx[y][x] = (height[y][x] - height[y][x + 1]) / 9.765625f;    // 10 meter between pixels SHIT NOT TRUE
             }
         }
 
-        
+
         float angle = 0.04f;  // about 10 degrees
         float a_min = -angle;
         float a_max = -angle - 0.05f;
-        
+
         memset(edge, 0, 4096 * 4096);
         for (int y = 1; y < 4094; y++)
         {
@@ -100,7 +100,7 @@ void _shadowEdges::load()
                     }
                 }
 
-                
+
 
                 /*
                 float H = height[y][x+1];
@@ -116,9 +116,9 @@ void _shadowEdges::load()
                     }
                 }
                 */
-                
-                
-                
+
+
+
                 /*
                 if (Nx[y][x] < -0.03)
                 {
@@ -182,32 +182,977 @@ void _shadowEdges::load()
 
 
 
+
+
+
+
+rvPacked rvB::pack()
+{
+    int x14 = ((int)(position.x * 5000 + 819)) & 0x3fff;
+    int y16 = ((int)(position.y * 5000 + 409)) & 0xffff;
+    int z14 = ((int)(position.z * 5000 + 819)) & 0x3fff;
+
+    int anim8 = (int)floor(__min(1.f, __max(0.f, anim_blend)) * 255.f);
+
+    int u7 = ((int)(uv.x * 127.f)) & 0x7f;
+    int v15 = ((int)(uv.y * 255.f)) & 0x7fff;
+    int radius8 = (__min(255, (int)(radius * 1000))) & 0xff;
+
+    float up_yaw = atan2(bitangent.z, bitangent.x) + 3.1415926535897932;
+    float up_pitch = atan2(bitangent.y, length(float2(bitangent.x, bitangent.z))) + 1.570796326794;
+    int up_yaw9 = ((int)(up_yaw * 81.487)) & 0x1ff;
+    int up_pitch8 = ((int)(up_pitch * 81.487)) & 0xff;
+
+    float left_yaw = atan2(tangent.z, tangent.x) + 3.1415926535897932;
+    float left_pitch = atan2(tangent.y, length(float2(tangent.x, tangent.z))) + 1.570796326794;
+    int left_yaw9 = ((int)(left_yaw * 81.487)) & 0x1ff;
+    int left_pitch8 = ((int)(left_pitch * 81.487)) & 0xff;
+    {
+        float plane, x, y, z;
+        z = sin((left_yaw9 - 256) * 0.01227);
+        x = cos((left_yaw9 - 256) * 0.01227);
+        y = sin((left_pitch8 - 128) * 0.01227);
+        plane = cos((left_pitch8 - 128) * 0.01227);
+        float3 reconstruct = float3(plane * x, y, plane * z);
+        if (dot(reconstruct, tangent) < 0.98)
+        {
+            bool bCm = true;
+        }
+    }
+
+
+    float coneyaw = atan2(lightCone.z, lightCone.x) + 3.1415926535897932;
+    float conepitch = atan2(lightCone.y, length(float2(lightCone.x, lightCone.z))) + 1.570796326794;
+    int coneYaw9 = ((int)(coneyaw * 81.17)) & 0x1ff;
+    int conePitch8 = ((int)(conepitch * 81.17)) & 0xff;
+    int cone7 = (int)((lightCone.w + 1.f) * 63.5f);
+    int depth8 = (int)(clamp(lightDepth, 0.f, 2.0f) * 127.5f);
+
+
+
+
+    rvPacked p;
+
+    p.a = ((type & 0x1) << 31) + (startBit << 30) + (x14 << 16) + y16;
+    p.b = (z14 << 18) + ((material & 0x3ff) << 8) + anim8;
+    p.c = (up_yaw9 << 23) + (up_pitch8 << 15) + v15;
+    p.d = (left_yaw9 << 23) + (left_pitch8 << 15) + (u7 << 8) + radius8;
+    p.e = (coneYaw9 << 23) + (conePitch8 << 15) + (cone7 << 8) + depth8;
+    p.f = (ao << 24) + (shadow << 16) + (albedoScale << 8) + translucencyScale;
+    return p;
+}
+
+
+
+
+
+std::string materialCache_plants::clean(const std::string _s)
+{
+    std::string str = _s;
+    size_t start_pos = 0;
+    while ((start_pos = str.find("\\", start_pos)) != std::string::npos) {
+        str.replace(start_pos, 2, "/");
+        start_pos += 1;
+    }
+    return str;
+}
+
+uint materialCache_plants::find_insert_material(const std::string _path, const std::string _name)
+{
+    std::filesystem::path fullPath = _path + _name + ".vegetationMaterial";
+    if (std::filesystem::exists(fullPath))
+    {
+        return find_insert_material(fullPath);
+    }
+    else
+    {
+        // Now we have to search, but use the first one we find
+        std::string fullName = _name + ".vegetationMaterial";
+        fullPath = terrafectorEditorMaterial::rootFolder + "/vegetationMaterials";
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(fullPath))
+        {
+            std::string subPath = clean(entry.path().string());
+            if (subPath.find(fullName) != std::string::npos)
+            {
+                return find_insert_material(subPath);
+            }
+        }
+    }
+
+    fprintf(terrafectorSystem::_logfile, "error : vegetation material - %s does not exist\n", _name.c_str());
+    return 0;
+}
+
+
+// force a new one? copy last and force a save ?
+uint materialCache_plants::find_insert_material(const std::filesystem::path _path)
+{
+    for (uint i = 0; i < materialVector.size(); i++)
+    {
+        if (materialVector[i].fullPath.compare(_path) == 0)
+        {
+            return i;
+        }
+    }
+
+    // else add new
+    uint materialIndex = (uint)materialVector.size();
+    _plantMaterial& material = materialVector.emplace_back();
+    material.import(_path);
+    fprintf(terrafectorSystem::_logfile, "add vegeatation material[%d] - %s\n", materialIndex, _path.filename().string().c_str());
+    return materialIndex;
+}
+
+
+
+int materialCache_plants::find_insert_texture(const std::filesystem::path _path, bool isSRGB)
+{
+    for (uint i = 0; i < textureVector.size(); i++)
+    {
+        if (textureVector[i]->getSourcePath().compare(_path) == 0)
+        {
+            return i;
+        }
+    }
+
+    Texture::SharedPtr tex = Texture::createFromFile(_path.string(), true, isSRGB);
+    if (tex)
+    {
+        tex->setSourcePath(_path);
+        tex->setName(_path.filename().string());
+        textureVector.emplace_back(tex);
+
+        float compression = 4.0f;
+        if (isSRGB) compression = 4.0f;
+
+        texMb += (float)(tex->getWidth() * tex->getHeight() * 4.0f * 1.333f) / 1024.0f / 1024.0f / compression;	// for 4:1 compression + MIPS
+
+        fprintf(terrafectorSystem::_logfile, "%s\n", tex->getName().c_str());
+
+        return (uint)(textureVector.size() - 1);
+    }
+    else
+    {
+        fprintf(terrafectorSystem::_logfile, "failed %s \n", _path.string().c_str());
+        return -1;
+    }
+}
+
+
+Texture::SharedPtr materialCache_plants::getDisplayTexture()
+{
+    if (dispTexIndex >= 0) {
+        return textureVector.at(dispTexIndex);
+    }
+    return nullptr;
+}
+
+
+
+void materialCache_plants::setTextures(ShaderVar& _var)
+{
+    for (size_t i = 0; i < textureVector.size(); i++)
+    {
+        _var[i] = textureVector[i];
+    }
+}
+
+
+// FIXME could also just do the individual one
+//terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 2048); // FIXME hardcoded
+void materialCache_plants::rebuildStructuredBuffer()
+{
+    size_t offset = 0;
+    for (auto& mat : materialVector)
+    {
+        sb_vegetation_Materials->setBlob(&mat._constData, offset, sizeof(TF_material));
+        offset += sizeof(TF_material);
+    }
+}
+
+
+
+
+
+
+void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
+{
+    auto& style = ImGui::GetStyle();
+    ImGuiStyle oldStyle = style;
+    float width = ImGui::GetWindowWidth();
+    int numColumns = __max(2, (int)floor(width / 140));
+
+    ImGui::PushItemWidth(128);
+
+    if (ImGui::Button("rebuild")) {
+        rebuildStructuredBuffer();
+    }
+
+    ImVec2 rootPos = ImGui::GetCursorPos();
+
+    struct sortDisplay
+    {
+        bool operator < (const sortDisplay& str) const
+        {
+            return (name < str.name);
+        }
+        std::string name;
+        int index;
+    };
+
+    std::vector<sortDisplay> displaySortMap;
+
+    sortDisplay S;
+    int cnt = 0;
+    for (auto& material : materialVector)
+    {
+        S.name = material.fullPath.string().substr(terrafectorEditorMaterial::rootFolder.length());
+        S.index = cnt;
+        displaySortMap.push_back(S);
+        cnt++;
+    }
+    std::sort(displaySortMap.begin(), displaySortMap.end());
+
+
+    {
+
+
+        std::string path = "";
+
+        int subCount = 0;
+        for (cnt = 0; cnt < materialVector.size(); cnt++)
+        {
+            std::string  thisPath = "other";
+            if (displaySortMap[cnt].name.find("terrafectorMaterials") != std::string::npos)
+            {
+                thisPath = displaySortMap[cnt].name.substr(21, displaySortMap[cnt].name.find_last_of("\\/") - 21);
+            }
+            if (thisPath != path) {
+                ImGui::PushFont(mpGui->getFont("roboto_32"));
+                ImGui::NewLine();
+                ImGui::Text(thisPath.c_str());
+                ImGui::PopFont();
+                path = thisPath;
+                subCount = 0;
+                rootPos = ImGui::GetCursorPos();
+            }
+            _plantMaterial& material = materialVector[displaySortMap[cnt].index];
+
+            ImGui::PushID(777 + cnt);
+            {
+                /*
+                uint x = subCount % numColumns;
+                uint y = (int)floor(subCount / numColumns);
+                ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
+
+                int size = material.displayName.size() - 19;
+                if (size >= 0)
+                {
+                    ImGui::Text((material.displayName.substr(0, 19) + "..").c_str());
+                }
+                else
+                {
+                    ImGui::Text(material.displayName.c_str());
+                }
+
+                ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
+                if (material.thumbnail) {
+                    if (_window.imageButton("testImage", material.thumbnail, float2(128, 128)))
+                    {
+                        selectedMaterial = displaySortMap[cnt].index;
+                    }
+                }
+                else
+                {
+                    style.Colors[ImGuiCol_Button] = ImVec4(material._constData.albedoScale.x, material._constData.albedoScale.y, material._constData.albedoScale.z, 1.f);
+                    if (ImGui::Button("##test", ImVec2(128, 128)))
+                    {
+                        selectedMaterial = displaySortMap[cnt].index;
+                    }
+                }
+                style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f);
+
+                if (ImGui::BeginPopupContextItem())
+                {
+                    if (ImGui::Selectable("Explorer")) {
+                        std::string cmdExp = "explorer " + material.fullPath.string();  //
+                        cmdExp = cmdExp.substr(0, cmdExp.find_last_of("\\/") + 1);
+                        replaceAll(cmdExp, "//", "/");
+                        replaceAll(cmdExp, "/", "\\");
+                        system(cmdExp.c_str());
+                    }
+
+                    ImGui::EndPopup();
+                }
+
+                if (material._constData.materialType == 1)
+                {
+                    ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + 10 + rootPos.y));
+                    ImGui::Selectable("MULTI");
+                    ImGui::LabelText("m1", "MULTI");
+                }
+
+                */
+            }
+            ImGui::PopID();
+            subCount++;
+        }
+    }
+
+
+
+
+    style = oldStyle;
+}
+
+
+
+
+
+
+
+void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
+{
+    auto& style = ImGui::GetStyle();
+    ImGuiStyle oldStyle = style;
+    float width = ImGui::GetWindowWidth();
+    int numColumns = __max(2, (int)floor(width / 140));
+
+
+    char text[1024];
+    ImGui::PushFont(mpGui->getFont("roboto_26"));
+    ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
+    ImGui::PopFont();
+
+
+    ImGui::PushFont(mpGui->getFont("roboto_20"));
+    {
+        for (uint i = 0; i < textureVector.size(); i++)
+        {
+            ImGui::NewLine();
+            ImGui::SameLine(40);
+
+            Texture* pT = textureVector[i].get();
+            sprintf(text, "%s##%d", pT->getName().c_str(), i);
+
+            if (ImGui::Selectable(text)) {}
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("%d  :  %s\n%d x %d", i, pT->getSourcePath().c_str(), pT->getWidth(), pT->getHeight());
+                terrafectorEditorMaterial::static_materials.dispTexIndex = i;
+
+                //if (ImGui::IsMouseClicked(1)) {
+                //	ImGui::OpenPopupEx(text, false);
+                //}
+            }
+
+            //if (ImGui::BeginPopup(text)) {
+            if (ImGui::BeginPopupContextItem())
+            {
+                std::string cmdExp = "explorer " + pT->getSourcePath().string();
+                std::string cmdPs = "\"C:\\Program Files\\Adobe\\Adobe Photoshop 2022\\Photoshop.exe\" " + pT->getSourcePath().string();
+                if (ImGui::Selectable("Explorer")) { system(cmdExp.c_str()); }
+                if (ImGui::Selectable("Photoshop")) { system(cmdPs.c_str()); }
+                ImGui::Separator();
+
+                /*
+                std::string texPath = pT->getSourcePath().string();
+                texPath = texPath.substr(terrafectorEditorMaterial::rootFolder.size());
+                int matCnt = 0;
+                for (auto material : materialVector)
+                {
+                    for (int j = 0; j < 9; j++)
+                    {
+                        if (material.textureNames[j].size() > 0)
+                        {
+                            if (texPath.find(material.textureNames[j]) != std::string::npos)
+                            {
+                                if (ImGui::Selectable(material.displayName.c_str())) { selectedMaterial = matCnt; }
+                            }
+                        }
+                    }
+                    matCnt++;
+                }
+                */
+                ImGui::EndPopup();
+            }
+
+        }
+    }
+    ImGui::PopFont();
+
+    style = oldStyle;
+}
+
+
+
+bool materialCache_plants::renderGuiSelect(Gui* mpGui)
+{
+    if (selectedMaterial >= 0 && selectedMaterial < materialVector.size())
+    {
+        // return materialVector[selectedMaterial].renderGUI(mpGui);
+    }
+
+    return false;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+void _plantMaterial::renderGui(Gui* _gui)
+{
+}
+void _plantMaterial::import(std::filesystem::path _path, bool _replacePath)
+{
+    std::ifstream is(_path);
+    if (is.fail()) {
+        displayName = "failed to load";
+        fullPath = _path;
+    }
+    else
+    {
+        cereal::JSONInputArchive archive(is);
+        serialize(archive, 100);
+
+        if (_replacePath) fullPath = _path;
+        reloadTextures();
+        isModified = false;
+    }
+}
+void _plantMaterial::import(bool _replacePath)
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"vegetationMaterial"} };
+    if (openFileDialog(filters, path))
+    {
+        import(path, _replacePath);
+    }
+}
+void _plantMaterial::save()
+{
+    std::ofstream os(fullPath);
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive, 100);
+}
+void _plantMaterial::eXport(std::filesystem::path _path)
+{
+    std::ofstream os(_path);
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive, 100);
+    isModified = false;
+}
+void _plantMaterial::eXport()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"vegetationMaterial"} };
+    if (saveFileDialog(filters, path))
+    {
+        eXport(path);
+    }
+}
+void _plantMaterial::reloadTextures()
+{
+    _constData.albedoTexture = terrafectorEditorMaterial::static_materials.find_insert_texture(albedoName, true);
+    _constData.normalTexture = terrafectorEditorMaterial::static_materials.find_insert_texture(normalName, false);
+    _constData.translucencyTexture = terrafectorEditorMaterial::static_materials.find_insert_texture(translucencyName, false);
+}
+void _plantMaterial::loadTexture(int idx)
+{
+    /*
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"tga"}, {"exr"}, {"dds"}, {"tif"} };
+    if (openFileDialog(filters, path))
+    {
+        std::string P = path.string();
+        replaceAll(P, "\\", "/");
+        if (P.find(rootFolder) == 0) {
+            std::string relative = P.substr(rootFolder.length());
+            textureIndex[idx] = terrafectorEditorMaterial::static_materials.find_insert_texture(P, tfSRGB[idx]);
+            textureNames[idx] = path.filename().string();
+            texturePaths[idx] = relative;
+        }
+    }
+    */
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void _leaf::renderGui(Gui* _gui)
 {
+    ImGui::NewLine();
+    ImGui::Text("leaf builder");
+
+    ImGui::NewLine();
+    ImGui::Text("stem");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##stemL", &stem_length.x, 1.f, 0, 100, "%2.fmm")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##stemR", &stem_length.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+    ImGui::SameLine(200, 0);
+
+    ImGui::NewLine();
+    ImGui::Text("stem W");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##stemW", &stem_width, 1.f, 0, 100, "%2.fmm")) changed = true;
+
+
+
+    ImGui::Text("stem crv");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##stemcrvL", &stem_curve.x, 0.01f, -0.5, 0.5, "%2.2f")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##stemcrvR", &stem_curve.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    if (ImGui::Checkbox("intergrate stem", &integrate_stem)) changed = true;
+    if (ImGui::Checkbox("rotate_leaf", &rotate_leaf)) changed = true;
+
+    ImGui::Text("leaf L");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leafL", &leaf_length.x, 1.f, 0, 1000, "%2.fmm")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leafLR", &leaf_length.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    ImGui::Text("leaf W");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leafW", &leaf_width.x, 1.f, 0, 1000, "%2.fmm")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leafWR", &leaf_width.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    ImGui::Text("offset");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##offsetW", &width_offset.x, 0.01f, 0.3f, 3, "%1.2fmm")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##offsetR", &width_offset.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    ImGui::Text("s2l crv");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##s2lcrvL", &stemtoleaf_curve.x, 0.01f, -1, 1, "%2.2f")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##s2lcrvR", &stemtoleaf_curve.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    ImGui::Text("leaf crv");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leafcrvL", &leaf_curve.x, 0.01f, -1, 1, "%2.2f")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leafcrvR", &leaf_curve.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    ImGui::Text("leaf twist");
+    ImGui::SameLine(100, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leaftwistL", &leaf_twist.x, 0.01f, -1, 1, "%2.2f")) changed = true;
+    ImGui::SameLine(200, 0);
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat("##leaftwistR", &leaf_twist.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+    if (ImGui::DragFloat("albedo", &albedoScale, 0.01f, 0, 2, "%2.2f")) changed = true;
+    if (ImGui::DragFloat("albedo new", &albedoScaleNew, 0.01f, 0, 2, "%2.2f")) changed = true;
+    if (ImGui::DragFloat("translucency", &translucencyScale, 0.01f, 0, 2, "%2.2f")) changed = true;
+    if (ImGui::DragFloat("translucency new", &translucencyScaleNew, 0.01f, 0, 2, "%2.2f")) changed = true;
+
+    if (ImGui::DragFloat("TEMP LOD", &LODtemp, 0.01f, 0, 1, "%2.2f")) changed = true;
+
+    if (ImGui::Selectable(textureName.c_str()))
+    {
+        loadTexture();
+    }
+    ImGui::Text("material index - %d", material);
+
+    if (ImGui::Button("save##leaf"))
+    {
+        std::filesystem::path path;
+        FileDialogFilterVec filters = { {"leaf"} };
+        if (saveFileDialog(filters, path))
+        {
+            std::ofstream os(path.string());
+            cereal::JSONOutputArchive archive(os);
+            serialize(archive, 100);
+        }
+    }
+    if (ImGui::Button("load##leaf"))
+    {
+        std::filesystem::path path;
+        FileDialogFilterVec filters = { {"leaf"} };
+        if (openFileDialog(filters, path))
+        {
+            std::ifstream is(path.string());
+            cereal::JSONInputArchive archive(is);
+            serialize(archive, 100);
+        }
+    }
+
+    if (ImGui::Selectable("buildLeaf")) changed = true;
+
 
 }
 
-void _leaf::buildLeaf(float _age, float _lodPixelsize)
+void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vertex, glm::vec3 _pos)
 {
+    _age = pow(_age, 0.5f);
+
+    std::mt19937 generator(_seed);
+    std::uniform_real_distribution<> distribution(-1.f, 1.f);
+
+
+    int stemCNT = 5;
+    int stemVisibleCount = 0;
+    int leafCNT = 15;
+    float stemStep = 1.0f / ((float)stemCNT - 1.f);
+    float leafStep = 1.0f / ((float)leafCNT - 1.f);
+
+
+    // stem
+    for (int i = 0; i < stemCNT; i++)
+    {
+        float stemCurve = (stem_curve.x + (distribution(generator) * stem_curve.y)) * stemStep;
+        float s_Length = (stem_length.x * (1.f + distribution(generator) * stem_length.y)) * stemStep * 0.001f * _age;
+        float t = (float)i * stemStep;
+
+        ribbon[ribbonLength].type = integrate_stem ? rotate_leaf : 0;
+        ribbon[ribbonLength].startBit = i > 0;
+        ribbon[ribbonLength].position = _pos;
+        ribbon[ribbonLength].radius = stem_width * .001f * 0.5f * _age;
+        ribbon[ribbonLength].bitangent = vertex[2];
+        ribbon[ribbonLength].tangent = vertex[0];
+        ribbon[ribbonLength].material = integrate_stem ? 1 : 0;
+        ribbon[ribbonLength].uv = float2(1.f, t);
+        if (integrate_stem)
+        {
+            ribbon[ribbonLength].uv.x = stem_width / leaf_width.x;
+            ribbon[ribbonLength].albedoScale = (unsigned char)(glm::lerp(albedoScaleNew, albedoScale, _age) * 127.f);
+            ribbon[ribbonLength].translucencyScale = (unsigned char)(glm::lerp(translucencyScaleNew, translucencyScale, _age) * 127.f);
+        }
+        //ribbonLength++;
+
+        if (i < (stemCNT - 1))
+        {
+            glm::mat4 crv = glm::rotate(glm::mat4(1.0), stemCurve, (glm::vec3)vertex[0]);
+            vertex = crv * vertex;
+
+            _pos += (glm::vec3)vertex[2] * s_Length;
+        }
+    }
+
+
+
+    // leaf
+    float Curve = stemtoleaf_curve.x * (1.f + distribution(generator) * stemtoleaf_curve.y);
+    glm::mat4 crv = glm::rotate(glm::mat4(1.0), Curve, (glm::vec3)vertex[0]);
+    vertex = crv * vertex;
+
+
+    float l_L = (leaf_length.x * (1.f + distribution(generator) * leaf_length.y)) * leafStep * 0.001f * _age;
+    float l_W = (leaf_width.x * (1.f + distribution(generator) * leaf_width.y)) * 0.001f * _age;
+
+    //float du[5] = { 0.1f, 0.8f, 1.f, 0.7f, 0.1f };
+    float l_curve = (leaf_curve.x + (distribution(generator) * leaf_curve.y)) * leafStep;
+    float l_twist = (leaf_twist.x + (distribution(generator) * leaf_twist.y)) * leafStep;
+    for (int j = 0; j < leafCNT; j++)
+    {
+        l_curve += ((distribution(generator) * leaf_curve.y)) * leafStep;
+        l_twist += ((distribution(generator) * leaf_twist.y)) * leafStep;
+
+        // test for through ground - bend upwards.
+        float3 groundTest = _pos + (glm::vec3)vertex[2] * l_L;
+        if (groundTest.y < (2 * l_L) && vertex[2][1] < 0)
+        {
+            l_curve += 4.0f * leafStep * vertex[2][1];
+        }
+        // test for becoming too uprigth bend down again - do not curl over the top
+        if (vertex[2][1] > 0.5)
+        {
+            l_curve += 0.9f * leafStep * pow(vertex[2][1], 15);
+        }
+
+
+        float t = (float)j * leafStep;
+        float du = sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y;
+        if (du > 1) du = 1;
+
+        ribbon[ribbonLength].type = !rotate_leaf;
+        ribbon[ribbonLength].startBit = j > 0;
+        ribbon[ribbonLength].position = _pos;
+        ribbon[ribbonLength].radius = l_W * 0.5f * du;
+        ribbon[ribbonLength].bitangent = vertex[2];
+        ribbon[ribbonLength].tangent = vertex[0];
+        ribbon[ribbonLength].material = 1;
+        ribbon[ribbonLength].albedoScale = (unsigned char)(glm::lerp(albedoScaleNew, albedoScale, _age) * 127.f);
+        ribbon[ribbonLength].translucencyScale = (unsigned char)(glm::lerp(translucencyScaleNew, translucencyScale, _age) * 127.f);
+        ribbon[ribbonLength].uv = float2(du, 1.f + t);
+        ribbonLength++;
+        if (integrate_stem && j == 0)
+        {
+            ribbonLength--; // discard terh forst one
+        }
+
+        //pos = pos + dir * (leaf_length.x * .25f * .001f);
+
+        glm::vec3 L = vertex[0];
+        glm::mat4 crv = glm::rotate(glm::mat4(1.0), l_curve, L);
+        vertex = crv * vertex;
+
+        glm::vec3 D = vertex[2];
+        glm::mat4 twist = glm::rotate(glm::mat4(1.0), l_twist, D);
+        vertex = twist * vertex;
+
+        _pos += D * l_L;
+    }
 }
 
 void _leaf::loadTexture()
 {
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"tga"}, {"exr"}, {"dds"}, {"tif"} };
+    if (openFileDialog(filters, path))
+    {
+        textureName = path.string();
+    }
 }
 
 
 void _twig::renderGui(Gui* _gui)
 {
-
+    ImGui::Text("twigbuilder");
 }
 
-void _twig::buildLeaf(float _age, float _lodPixelsize)
+void _twig::buildTwig(float _age, float _lodPixelsize)
 {
 }
 
 void _twig::loadTexture()
 {
 }
+
+
+
+
+void _weedBuilder::renderGui(Gui* _gui)
+{
+    ImGui::Columns(3);
+    ImGui::PushID(7701);
+    {
+        // stem
+        // #######################################################################################################
+        if (ImGui::Checkbox("has_stem", &has_stem)) changed = true;
+
+        if (ImGui::DragFloat("age", &age, 0.1f, 1.2f, 20, "%2.1f")) changed = true;
+        if (ImGui::DragInt("start", &startSegment, 1, 1, 15)) changed = true;
+        startSegment = __min(startSegment, (int)floor(age));
+
+        ImGui::Text("length");
+        ImGui::SameLine(100, 0);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("##stemwL", &stem_length.x, 1.f, 0, 500, "%2.fmm")) changed = true;
+        ImGui::SameLine(200, 0);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("##stewmR", &stem_length.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("width", &stem_width, 1.f, 0, 100, "%2.fmm")) changed = true;
+        if (ImGui::Checkbox("tipleaves", &tipleaves)) changed = true;
+
+        ImGui::Text("curve");
+        ImGui::SameLine(100, 0);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("##stemCrvL", &stem_curve.x, 0.01f, 0, 2, "%2.2f")) changed = true;
+        ImGui::SameLine(200, 0);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("##stemCrvR", &stem_curve.y, 0.01f, 0, 1, "%1.2f rnd")) changed = true;
+
+
+       
+
+        
+        ImGui::NewLine();
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragInt("numLeaves", &numLeaves, 1, 1, 15)) changed = true;
+        ImGui::SetNextItemWidth(100);
+
+        ImGui::Text("stalk angle");
+        ImGui::SameLine(100, 0);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("##stem_stalkL", &stem_stalk.x, 0.01f, 0, 2, "%2.2f")) changed = true;
+        ImGui::SameLine(200, 0);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragFloat("##stem_stalkR", &stem_stalk.y, 0.01f, 0, 1, "%1.2f rnd")) changed = true;
+
+        if (ImGui::DragFloat("leafRotation", &leafRotation, 0.01f, 0, 2, "%3.2f")) changed = true;
+        if (ImGui::DragFloat("leaf_age_power", &leaf_age_power, 0.1f, 0.1f, 10, "%3.2f")) changed = true;
+        if (ImGui::Checkbox("twistAway", &twistAway)) changed = true;
+
+        ImGui::NewLine();
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::DragInt("numFlowers", &numFlowers, 1, 1, 5)) changed = true;
+    }
+    ImGui::PopID();
+
+    ImGui::NextColumn();// leaves
+    ImGui::PushID(7702);
+    {
+        leaves.renderGui(_gui);
+        if (leaves.changed) changed = true;
+    }
+    ImGui::PopID();
+
+    ImGui::NextColumn();
+    ImGui::PushID(7703);
+    {
+        // flowers
+        // #######################################################################################################
+        
+        if (numFlowers > 0)
+        {
+            if (ImGui::Checkbox("topFlower", &topFlower)) changed = true;
+
+            ImGui::Text("stalk_Length");
+            ImGui::SameLine(100, 0);
+            ImGui::SetNextItemWidth(100);
+            if (ImGui::DragFloat("##stalk_LengthL", &stalk_Length.x, 1.f, 0, 500, "%2.fmm")) changed = true;
+            ImGui::SameLine(200, 0);
+            ImGui::SetNextItemWidth(100);
+            if (ImGui::DragFloat("##stalk_LengthR", &stalk_Length.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+
+
+            ImGui::Text("stalk_curve");
+            ImGui::SameLine(100, 0);
+            ImGui::SetNextItemWidth(100);
+            if (ImGui::DragFloat("##stalk_curveL", &stalk_curve.x, 1.f, 0, 2, "%2.f")) changed = true;
+            ImGui::SameLine(200, 0);
+            ImGui::SetNextItemWidth(100);
+            if (ImGui::DragFloat("##stalk_curveR", &stalk_curve.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
+        }
+
+        flower.renderGui(_gui);
+    }
+    ImGui::PopID();
+}
+
+
+
+void _weedBuilder::build(float _age, float _lodPixelsize)
+{
+    std::mt19937 generator(100);
+    std::uniform_real_distribution<> distribution(-1.f, 1.f);
+
+    ribbonLength = 0;
+    glm::mat4   stalk = glm::rotate(glm::mat4(1.0), -1.57079632679f, glm::vec3(1, 0, 0));
+    glm::vec3   _pos = glm::vec3(0, 0, 0);
+
+    int     stemCNT = (int)ceil(age);
+    float   stemStep = 1.0f / ((float)stemCNT - 1.f);
+    int     leafOffset = 0;
+    if (has_stem) leafOffset = stemCNT;
+    float   stemCurve = stem_curve.x * 0.1f;
+
+    for (int i = 0; i < stemCNT; i++)
+    {
+        float t = (float)i * stemStep;
+        float s_Length = (stem_length.x * (1.f + distribution(generator) * stem_length.y)) * 0.001f;
+        float leafAge = 1.f - pow( i / age, leaf_age_power);
+        stemCurve += (distribution(generator) * stem_curve.y) * stemStep;
+
+        if (has_stem)
+        {
+            ribbon[ribbonLength].type = 0;
+            ribbon[ribbonLength].startBit = i > 0;
+            ribbon[ribbonLength].position = _pos;
+            ribbon[ribbonLength].radius = stem_width * .001f * 0.5f * pow(leafAge, 0.4f);
+            ribbon[ribbonLength].bitangent = stalk[2];
+            ribbon[ribbonLength].tangent = stalk[0];
+            ribbon[ribbonLength].material = 0;
+            ribbon[ribbonLength].uv = float2(1.f, t);
+            ribbonLength++;
+        }
+
+        // leaves
+        if (i >= startSegment)
+        {
+
+            for (int l = 0; l < numLeaves; l++)
+            {
+                float rot = l * 6.14f / numLeaves + (i * leafRotation) + distribution(generator) * 0.4f;
+                glm::mat4 R = glm::rotate(glm::mat4(1.0), rot, (glm::vec3)stalk[2]);
+                glm::mat4 leaf = R * stalk;
+                float branch = stem_stalk.x + stem_stalk.y * leafAge + distribution(generator) * 0.4f;
+                glm::mat4 B = glm::rotate(glm::mat4(1.0), branch, (glm::vec3)leaf[0]);
+                leaf = B * leaf;
+
+                leaves.ribbonLength = 0;
+                leaves.buildLeaf(leafAge, 0.f, 10 + l + i * 17, leaf, _pos);
+                for (int k = 0; k < leaves.ribbonLength; k++) {
+                    ribbon[leafOffset + k] = leaves.ribbon[k];
+                }
+                leafOffset += leaves.ribbonLength;
+            }
+        }
+
+        if (i < stemCNT)
+        {
+            glm::mat4 crv = glm::rotate(glm::mat4(1.0), stemCurve, (glm::vec3)stalk[0]);
+            stalk = crv * stalk;
+            glm::mat4 crv2 = glm::rotate(glm::mat4(1.0), (float)(distribution(generator) * stem_curve.y), (glm::vec3)stalk[0]);
+            stalk = crv2 * stalk;
+
+            _pos += (glm::vec3)stalk[2] * s_Length;
+        }
+    }
+
+
+
+    ribbonLength = leafOffset;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -474,6 +1419,54 @@ void _GroveTree::renderGui(Gui* _gui)
             rebuildRibbons();
         }
 
+        ImGui::Separator();
+        /*
+        leafBuilder.renderGui(_gui);
+        if (leafBuilder.changed)
+        {
+            leafBuilder.changed = false;
+            leafBuilder.ribbonLength = 0;
+
+            for (int y = 0; y < 10; y++)
+            {
+                for (int x = 0; x < 10; x++)
+                {
+                    glm::mat4 vertex = glm::mat4(1.0);
+
+                    vertex = glm::rotate(vertex, 0.628f * (float)x + (y), glm::vec3(0, 1, 0));
+                    //vertex = glm::translate(vertex, (glm::vec3)vertex[2] * 0.02f);
+                    //vertex = glm::translate(vertex, glm::vec3(0, 0.1 * y, 0));
+
+                    leafBuilder.buildLeaf((10 - y) * 0.1f, 0.001f, y * 102 + x, vertex, glm::vec3(0, 0.1 * y, 0) + (glm::vec3)vertex[2] * 0.02f);
+                }
+
+            }
+
+            rebuildRibbons_Leaf();
+        }
+        */
+
+        Gui::Window weedPanel(_gui, "weed builder##tfPanel", { 900, 900 }, { 100, 100 });
+        {
+            ImGui::PushFont(_gui->getFont("roboto_20"));
+            weedBuilder.renderGui(_gui);
+            ImGui::PopFont();
+        }
+        weedPanel.release();
+
+
+        if (weedBuilder.changed)
+        {
+            weedBuilder.changed = false;
+            weedBuilder.ribbonLength = 0;
+
+            glm::mat4 vertex = glm::mat4(1.0);
+            //vertex = glm::rotate(vertex, 0.628f * (float)x + (y), glm::vec3(0, 1, 0));
+            weedBuilder.build(6, 0.f);
+
+            rebuildRibbons_Weed();
+        }
+
     }
     ImGui::PopFont();
 }
@@ -501,11 +1494,12 @@ void _GroveTree::importTwig()
                     float3 v0 = float3(vin.x, vin.z + vin.x, -vin.y);
                     vin = readVertex();
                     float3 v1 = float3(vin.x, vin.z + vin.x, -vin.y);
-                    twig[twiglength].pos = (v0 + v1) * 0.5f;
-                    twig[twiglength].right = (v1 - v0) * 0.5f;
-                    twig[twiglength].B = 1 + (1 << 16);// +((i > 0) << 16);     // material + do not rotate
-                    twig[twiglength].A = i > 0;
-                    twig[twiglength].extra.y = v;
+                    twig[twiglength].type = 0;
+                    twig[twiglength].startBit = i > 0;
+                    twig[twiglength].position = (v0 + v1) * 0.5f;
+                    twig[twiglength].bitangent = (v1 - v0) * 0.5f;
+                    twig[twiglength].uv = float2(1, v);
+                    twig[twiglength].material = 1;
                     v += dV;
                     twiglength++;
                 }
@@ -692,13 +1686,6 @@ void _GroveTree::load()
             calcLight();
             rebuildRibbons();
 
-            /*
-            FILE* f = fopen("f:\\theGrove\\ash.ribbon", "wb");
-            if (f) {
-                fwrite(branchRibbons, sizeof(ribbonVertex), numBranchRibbons, f);
-                fclose(f);
-            }
-            */
         }
     }
 }
@@ -759,60 +1746,71 @@ void _GroveTree::rebuildRibbons()
 
 
     {
-        // axis
-        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
-        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.1f;
-        branchRibbons[numBranchRibbons].A = 0;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        branchRibbons[numBranchRibbons].extra.y = 0.0f;
+        // X - axis
+        branchRibbons[numBranchRibbons].type = 0;
+        branchRibbons[numBranchRibbons].startBit = 0;
+        branchRibbons[numBranchRibbons].position = float3(0, 0, 0);
+        branchRibbons[numBranchRibbons].bitangent = float3(1, 0, 0);
+        branchRibbons[numBranchRibbons].radius = 0.1f;
+        branchRibbons[numBranchRibbons].material = 0;
+        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
 
-        branchRibbons[numBranchRibbons].pos = float3(10, 0, 0);
-        branchRibbons[numBranchRibbons].right = float3(1, 0, 0) * 0.2f;
-        branchRibbons[numBranchRibbons].A = 1;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        branchRibbons[numBranchRibbons].extra.y = 1.0f;
+        branchRibbons[numBranchRibbons].type = 0;
+        branchRibbons[numBranchRibbons].startBit = 1;
+        branchRibbons[numBranchRibbons].position = float3(10, 0, 0);
+        branchRibbons[numBranchRibbons].bitangent = float3(1, 0, 0);
+        branchRibbons[numBranchRibbons].radius = 0.1f;
+        branchRibbons[numBranchRibbons].material = 0;
+        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
 
 
         // Z
-        branchRibbons[numBranchRibbons].pos = float3(0, 0, 0);
-        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.3f;
-        branchRibbons[numBranchRibbons].A = 0;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        branchRibbons[numBranchRibbons].extra.y = 0.0f;
+        branchRibbons[numBranchRibbons].type = 0;
+        branchRibbons[numBranchRibbons].startBit = 0;
+        branchRibbons[numBranchRibbons].position = float3(0, 0, 0);
+        branchRibbons[numBranchRibbons].bitangent = float3(0, 0, 1);
+        branchRibbons[numBranchRibbons].radius = 0.1f;
+        branchRibbons[numBranchRibbons].material = 0;
+        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
 
-        branchRibbons[numBranchRibbons].pos = float3(0, 0, 10);
-        branchRibbons[numBranchRibbons].right = float3(0, 0, 1) * 0.01f;
-        branchRibbons[numBranchRibbons].A = 1;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        branchRibbons[numBranchRibbons].extra.y = 1.0f;
+        branchRibbons[numBranchRibbons].type = 0;
+        branchRibbons[numBranchRibbons].startBit = 1;
+        branchRibbons[numBranchRibbons].position = float3(0, 0, 10);
+        branchRibbons[numBranchRibbons].bitangent = float3(0, 0, 1);
+        branchRibbons[numBranchRibbons].radius = 0.1f;
+        branchRibbons[numBranchRibbons].material = 0;
+        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
 
 
 
         //        Human
-        branchRibbons[numBranchRibbons].pos = float3(5, 0, 5);
-        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
-        branchRibbons[numBranchRibbons].A = 0;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        branchRibbons[numBranchRibbons].extra.y = 0.0f;
+        branchRibbons[numBranchRibbons].type = 0;
+        branchRibbons[numBranchRibbons].startBit = 0;
+        branchRibbons[numBranchRibbons].position = float3(5, 0, 5);
+        branchRibbons[numBranchRibbons].bitangent = float3(0, 1, 0);
+        branchRibbons[numBranchRibbons].radius = 0.2f;
+        branchRibbons[numBranchRibbons].material = 0;
+        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
 
-        branchRibbons[numBranchRibbons].pos = float3(5, 1.8, 5);
-        branchRibbons[numBranchRibbons].right = float3(0, 1, 0) * 0.2f;
-        branchRibbons[numBranchRibbons].A = 1;
-        branchRibbons[numBranchRibbons].B = 0;
-        branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-        branchRibbons[numBranchRibbons].extra.y = 1.0f;
+        branchRibbons[numBranchRibbons].type = 0;
+        branchRibbons[numBranchRibbons].startBit = 1;
+        branchRibbons[numBranchRibbons].position = float3(5, 1.8, 5);
+        branchRibbons[numBranchRibbons].bitangent = float3(0, 1, 0);
+        branchRibbons[numBranchRibbons].radius = 0.2f;
+        branchRibbons[numBranchRibbons].material = 0;
+        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
-
     }
 
 
@@ -826,33 +1824,26 @@ void _GroveTree::rebuildRibbons()
             float v = 0.0f;
             for (int n = 0; n < branches[b].nodes.size(); n++)
             {
-                branchRibbons[numBranchRibbons].pos = branches[b].nodes[n].pos;
-                branchRibbons[numBranchRibbons].A = 1;
-                float3 D;
+
+                //float3 D;
                 if (n == 0) {
-                    branchRibbons[numBranchRibbons].A = 0;
-                    D = glm::normalize(branches[b].nodes[1].pos - branches[b].nodes[0].pos);
+                    //  D = glm::normalize(branches[b].nodes[1].pos - branches[b].nodes[0].pos);
                 }
                 else
                 {
-                    D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
+                    //D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
                     v += length(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
                 }
 
-                float offset = glm::dot(D, branches[b].nodes[n].dir);
-                if (offset < 0.9) {
-                    bool bcm = true;
-                }
-                branchRibbons[numBranchRibbons].right = branches[b].nodes[n].radius * branches[b].nodes[n].dir * 2.0f;
-                branchRibbons[numBranchRibbons].B = 0;
-                if (n == branches[b].nodes.size() - 1) {
-                    branchRibbons[numBranchRibbons].B = 1;
-                }
 
-                float A;
-                branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
-
-                branchRibbons[numBranchRibbons].extra.y = v;
+                branchRibbons[numBranchRibbons].type = 0;
+                branchRibbons[numBranchRibbons].startBit = n > 0;
+                branchRibbons[numBranchRibbons].position = branches[b].nodes[n].pos;
+                branchRibbons[numBranchRibbons].radius = branches[b].nodes[n].radius;
+                branchRibbons[numBranchRibbons].material = 0;
+                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+                branchRibbons[numBranchRibbons].uv = float2(1, v);
+                branchRibbons[numBranchRibbons].bitangent = branches[b].nodes[n].dir;
 
 
                 if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
@@ -860,54 +1851,15 @@ void _GroveTree::rebuildRibbons()
                 }
                 else if ((branches[b].nodes[n].radius < startRadius) &&
                     (branches[b].nodes[n].radius > endRadius) &&
-                    (glm::length(branchRibbons[numBranchRibbons].pos - branchRibbons[numBranchRibbons - 1].pos) / branches[b].nodes[n].radius > stepFactor)) {
-                    numBranchRibbons++;
-                }
-                /*startRadius = 1000.f;
-    float endRadius = 0.f;
-    float stepFactor = 2.0f;
-    float bendFactor = 0.95;*/
-
-            }
-
-        }
-    }
-
-
-    /*
-    {
-        // debug cube
-        for (int f = 0; f < 6; f++)
-        //int f = 1;
-        {
-            for (int y = 1; y < 17; y++)
-            {
-                for (int x = 1; x < 17; x++)
-                {
-                    float d = light.cubemap.data[f][y][x].d;
-                    float3 v = light.cubemap.toVec(f, y, x);
-                    float3 p = light.center + v * d;
-                    float3 dir = light.cubemap.data[f][y][x].dir;
-                    float c = light.cubemap.data[f][y][x].cone;
-
-                    branchRibbons[numBranchRibbons].pos = p;
-                    branchRibbons[numBranchRibbons].right = dir * 0.07f;
-                    branchRibbons[numBranchRibbons].A = 0;
-                    branchRibbons[numBranchRibbons].B = 0;
-                    branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
-                    numBranchRibbons++;
-
-                    branchRibbons[numBranchRibbons].pos = p + dir * (1.f + c);
-                    branchRibbons[numBranchRibbons].right = 0.07f * dir;
-                    branchRibbons[numBranchRibbons].A = 1;
-                    branchRibbons[numBranchRibbons].B = 0;
-                    branchRibbons[numBranchRibbons].lighting = lightPos(branchRibbons[numBranchRibbons].pos);
+                    (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / branches[b].nodes[n].radius > stepFactor)) {
                     numBranchRibbons++;
                 }
             }
         }
     }
-    */
+
+
+
     if (includeBranchLeaves) {
         for (int b = 0; b < branchLeaves.size(); b++)
         {
@@ -921,10 +1873,9 @@ void _GroveTree::rebuildRibbons()
             for (int i = 0; i < twiglength; i++)
             {
                 branchRibbons[numBranchRibbons] = twig[i];
-                branchRibbons[numBranchRibbons].pos = P + (twig[i].pos.x * D) + (twig[i].pos.y * U) + (twig[i].pos.z * R);
-                branchRibbons[numBranchRibbons].right = twig[i].right.x * D + twig[i].right.y * U + twig[i].right.z * R;
-                float A;
-                branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+                branchRibbons[numBranchRibbons].position = P + (twig[i].position.x * D) + (twig[i].position.y * U) + (twig[i].position.z * R);
+                branchRibbons[numBranchRibbons].bitangent = twig[i].bitangent.x * D + twig[i].bitangent.y * U + twig[i].bitangent.z * R;
+                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 numBranchRibbons++;
             }
         }
@@ -942,10 +1893,9 @@ void _GroveTree::rebuildRibbons()
             {
                 /// DAMN _ EK MOET DIE right vector ook roteer hier en dit geberu nooit nie
                 branchRibbons[numBranchRibbons] = twig[i];
-                branchRibbons[numBranchRibbons].pos = P + twig[i].pos.x * D + twig[i].pos.y * U + twig[i].pos.z * R;
-                branchRibbons[numBranchRibbons].right = twig[i].right.x * D + twig[i].right.y * U + twig[i].right.z * R;
-                //float A;
-                branchRibbons[numBranchRibbons].lighting = light.cubemap.light(branchRibbons[numBranchRibbons].pos, &branchRibbons[numBranchRibbons].extra.x);
+                branchRibbons[numBranchRibbons].position = P + twig[i].position.x * D + twig[i].position.y * U + twig[i].position.z * R;
+                branchRibbons[numBranchRibbons].bitangent = twig[i].bitangent.x * D + twig[i].bitangent.y * U + twig[i].bitangent.z * R;
+                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 numBranchRibbons++;
             }
 
@@ -955,52 +1905,30 @@ void _GroveTree::rebuildRibbons()
 
     for (int i = 0; i < numBranchRibbons; i++)
     {
-        int x14 = ((int)(branchRibbons[i].pos.x * 500 + 8192)) & 0x3fff;
-        int y16 = ((int)(branchRibbons[i].pos.y * 500 + 4096)) & 0xffff;
-        int z14 = ((int)(branchRibbons[i].pos.z * 500 + 8192)) & 0x3fff;
-        int start = branchRibbons[i].A & 0x1;
-
-        int material = branchRibbons[i].B & 0x3ff;
-        int v = ((int)(branchRibbons[i].extra.y * 16)) & 0xff;
-
-        float yaw = atan2(branchRibbons[i].right.z, branchRibbons[i].right.x) + 3.1415926535897932;
-        float pitch = atan2(branchRibbons[i].right.y, length(float2(branchRibbons[i].right.x, branchRibbons[i].right.z))) + 1.570796326794;
-        float radius = length(branchRibbons[i].right);
-        int yaw9 = ((int)(yaw * 81.17)) & 0x1ff;
-        int pitch8 = ((int)(pitch * 81.17)) & 0xff;
-        int radius8 = (__min(255, (int)(radius * 1000))) & 0xff;
-        int u7 = 127;
-
-        float coneyaw = atan2(branchRibbons[i].lighting.z, branchRibbons[i].lighting.x) + 3.1415926535897932;
-        float conepitch = atan2(branchRibbons[i].lighting.y, length(float2(branchRibbons[i].lighting.x, branchRibbons[i].lighting.z))) + 1.570796326794;
-        float cone = branchRibbons[i].lighting.w;
-        float depth = branchRibbons[i].extra.x;
-        int coneYaw9 = ((int)(coneyaw * 81.17)) & 0x1ff;
-        int conePitch8 = ((int)(conepitch * 81.17)) & 0xff;
-        int cone7 = (int)((cone + 1.f) * 63.5f);
-        int depth8 = (int)(clamp(depth, 0.f, 2.0f) * 127.5f);
-
-        packedRibbons[i].x = (start << 31) + (x14 << 16) + y16;
-        packedRibbons[i].y = (z14 << 18) + (material << 8) + v;
-        packedRibbons[i].z = (yaw9 << 23) + (pitch8 << 15) + (radius8 << 7) + u7;
-        packedRibbons[i].w = (coneYaw9 << 23) + (conePitch8 << 15) + (cone7 << 8) + depth8;
-
-        // reverse yaw pitch
-        {
-            float plane, x, y, z;
-            z = sin((float)(yaw9 - 256) * 0.01227);
-            x = cos((float)(yaw9 - 256) * 0.01227);
-
-            y = sin((float)(pitch8 - 128) * 0.01227);
-            plane = cos((float)(pitch8 - 128) * 0.01227);
-
-            float3 dir = float3(plane * x, y, plane * z);
-            float3 dIn = normalize(branchRibbons[i].right);
-            bool bCm = true;
-        }
+        packedRibbons[i] = branchRibbons[i].pack();
     }
 
     bChanged = true;
+}
+
+void _GroveTree::rebuildRibbons_Leaf()
+{
+    for (int i = 0; i < leafBuilder.ribbonLength; i++)
+    {
+        packedRibbons[i] = leafBuilder.ribbon[i].pack();
+    }
+    bChanged = true;
+    numBranchRibbons = leafBuilder.ribbonLength;
+}
+
+void _GroveTree::rebuildRibbons_Weed()
+{
+    for (int i = 0; i < weedBuilder.ribbonLength; i++)
+    {
+        packedRibbons[i] = weedBuilder.ribbon[i].pack();
+    }
+    bChanged = true;
+    numBranchRibbons = weedBuilder.ribbonLength;
 }
 
 
@@ -1429,54 +2357,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
-        ribbonData = Buffer::createStructured(sizeof(int4), 1024 * 1024 * 10); // just a nice amount for now
-        /*
-        ribbonVertex testribbons[50 * 128];
-        memset(testribbons, 0, 50 * 128 * sizeof(ribbonVertex)); //16x8
-        // now fill it with stuff
-        uint CNT = 0;
-        for (int grass = 0; grass < 50; grass++)
-        {
-            float scale = D2(G);
-            for (int blade = 0; blade < 10; blade++)
-            {
-                glm::vec3 start = glm::vec3(D(G), 0, D(G)) * 0.02f; // 2cm start radius
-                glm::vec3 R = glm::normalize(glm::cross(glm::vec3(0, 1, 0), start)) * 1.f * (float)D2(G);
-                glm::vec3 O = start * 0.2f * (float)D2(G);
-                float down = 0.01f;
-                float outer = glm::length(start) / 0.09f * (float)D2(G);
+        ribbonData = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
 
-                testribbons[CNT].pos = start * scale;
-                testribbons[CNT].A = 0;
-                testribbons[CNT].right = R;
-                testribbons[CNT].B = 0;
-                CNT++;
-
-                for (int segment = 1; segment < 12; segment++)
-                {
-                    start += float3(0, (0.04 * (1 - outer)) - down, 0) + O;
-                    O *= 1.2;
-                    down *= 1.2f;
-                    testribbons[CNT].pos = start * scale;
-                    testribbons[CNT].A = 1;
-                    testribbons[CNT].right = R;
-                    if (segment > 4) testribbons[CNT].right *= (12 - segment) * 0.33f;
-                    testribbons[CNT].B = 0;
-                    CNT++;
-                }
-            }
-        }
-        ribbonData->setBlob(testribbons, 0, 50 * 128 * sizeof(ribbonVertex));
-
-
-
-        FILE* f = fopen("f:\\theGrove\\ash.ribbon", "rb");
-        if (f) {
-            fread(testribbons, sizeof(ribbonVertex), 2114, f);
-            ribbonData->setBlob(testribbons, 0, 2114 * sizeof(ribbonVertex));
-            fclose(f);
-        }
-        */
 
 
         Texture::SharedPtr tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\bark\\Oak1_albedo.dds", false, true);
@@ -1484,9 +2366,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\bark\\Oak1_sprite_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
 
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\poplar_twig1_albedo.dds", false, true);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\dandelion_leaf1_albedo.dds", false, true);
         ribbonTextures.emplace_back(tex);
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\poplar_twig1_normal.dds", false, false);
+        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\dandelion_leaf1_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
 
 
@@ -2169,7 +3051,15 @@ void terrainManager::onGuiRender(Gui* _gui)
 
     switch (terrainMode)
     {
-    case 0: break;
+    case 0:
+    {
+        Gui::Window vegetationPanel(_gui, "Vegetation##tfPanel", { 900, 900 }, { 100, 100 });
+        {
+            //sdfzdfh
+        }
+        vegetationPanel.release();
+    }
+    break;
     case 1:
     {
         Gui::Window ecotopePanel(_gui, "Ecotope##tfPanel", { 900, 900 }, { 100, 100 });
@@ -3488,14 +4378,14 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         if (groveTree.bChanged)
         {
-            ribbonData->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(int4));
+            ribbonData->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(unsigned int) * 6);
             groveTree.bChanged = false;
 
             ribbonShader.State()->setFbo(_fbo);
             ribbonShader.State()->setViewport(0, _viewport, true);
 
             ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
-            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(0.002f, 0.002f, 0.002f);
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(0.0002f, 0.0002f, 0.0002f);
             ribbonShader.Vars()["gConstantBuffer"]["treeDensity"] = 0.5f;
             ribbonShader.Vars()["gConstantBuffer"]["treeScale"] = 10.f;
             ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = 0.001f;
@@ -3512,7 +4402,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
             ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
 
-            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons - 1, 100);
+            ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, 10000);
         }
 
         return;
@@ -4876,7 +5766,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         {
             float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
             mouseVegOrbit *= scale;
-            mouseVegOrbit = glm::clamp(mouseVegOrbit, 1.f, 5000.f);
+            mouseVegOrbit = glm::clamp(mouseVegOrbit, 0.1f, 5000.f);
         }
         break;
         }
@@ -4888,7 +5778,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
         camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
         _camera->setPosition(camPos * mouseVegOrbit);
-        _camera->setTarget(glm::vec3(0, 6, 0));
+        _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
         return true;
     }
     else {

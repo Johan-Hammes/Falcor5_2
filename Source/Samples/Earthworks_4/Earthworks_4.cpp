@@ -30,6 +30,8 @@
 #include "imgui.h"
 #include "Core/Platform/MonitorInfo.h"
 
+#pragma optimize("", off)
+
 FILE* logFile;
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
@@ -123,7 +125,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     //graphicsState->setViewport(0, GraphicsState::Viewport(0, 0, 1000, 1000, 0.f, 1.f), true);
 
     camera = Camera::create();
-    camera->setDepthRange(0.5f, 40000.0f);
+    camera->setDepthRange(0.1f, 40000.0f);
     camera->setAspectRatio(1920.0f / 1080.0f);
     camera->setFocalLength(15.0f);
     camera->setPosition(float3(0, 900, 0));
@@ -321,7 +323,7 @@ int main(int argc, char** argv)
     config.windowDesc.resizableWindow = false;
     config.windowDesc.mode = Window::WindowMode::Fullscreen;
     if (allScreens) {
-        config.windowDesc.mode = Window::WindowMode::AllScreens;
+        //config.windowDesc.mode = Window::WindowMode::AllScreens;
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
