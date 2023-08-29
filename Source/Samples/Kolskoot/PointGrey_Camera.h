@@ -75,7 +75,7 @@ private :
 	PointGrey_Camera();
 	virtual ~PointGrey_Camera();
 	static PointGrey_Camera *s_instance;
-	bool		m_bConnected;
+	bool		m_bConnected = false;
 
 public:
 	unsigned int	m_NumCameras;

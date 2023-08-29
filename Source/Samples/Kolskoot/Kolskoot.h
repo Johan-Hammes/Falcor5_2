@@ -55,14 +55,49 @@ enum _pose {pose_stand, pose_kneel, pose_sit, pose_prone};
 enum _action {action_static, action_popup, action_move};    // net staic vir eers
 
 
+class _setup
+{
+public:
+    float screenWidth = 3.0f;
+    float screen_pixelsX = 1000;
+    float pixelsPerMeter = 800.f;
+    float shootingDistance = 10.f;  // fixme move to somethign that loads or saves
+    float eyeHeights[4] = { 500, 800, 900, 1200 };
+    int numLanes = 5;
+    std::string dataFolder;
+
+    bool requestClose = false;
+    void renderGui(Gui* _gui, float _screenX);
+    void load();
+    void save();
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        
+        _archive(CEREAL_NVP(screenWidth));
+        _archive(CEREAL_NVP(screen_pixelsX));
+        _archive(CEREAL_NVP(pixelsPerMeter));
+        _archive(CEREAL_NVP(shootingDistance));
+        _archive(CEREAL_NVP(eyeHeights));
+        _archive(CEREAL_NVP(numLanes));
+        _archive(CEREAL_NVP(dataFolder));
+        
+    }
+};
+CEREAL_CLASS_VERSION(_setup, 100);
 
 class target
 {
 public:
     void renderGui(Gui* _gui);
     void loadimage();
+    void loadimageDialog();
     void loadscoreimage();
-    std::string title = "ST1";
+    void loadscoreimageDialog();
+    void load(std::filesystem::path _path);
+    void save(std::filesystem::path _path);
+    std::string title = "";
     std::string description;
 
     int2 size_mm = int2(500, 500);
@@ -74,7 +109,7 @@ public:
     int maxScore;       // to auto calcl exercise score from rounds
     int scoreWidth = 0;
     int scoreHeight = 0;
-    bool showGui = false;
+    //bool showGui = false;
     
 
     template<class Archive>
@@ -84,6 +119,13 @@ public:
         _archive(CEREAL_NVP(description));
         _archive(CEREAL_NVP(texturePath));
         _archive(CEREAL_NVP(scorePath));
+        _archive(CEREAL_NVP(size_mm.x));
+        _archive(CEREAL_NVP(size_mm.y));
+
+        _archive(CEREAL_NVP(maxScore));
+        _archive(CEREAL_NVP(scoreWidth));
+        _archive(CEREAL_NVP(scoreHeight));
+        
     }
 };
 CEREAL_CLASS_VERSION(target, 100);
@@ -100,6 +142,7 @@ public:
     float       upTime = 0.f;
     float       downTime = 0.f;
     int         repeats = 1;
+    float       speed = 1.0f;       // move speed
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -110,6 +153,7 @@ public:
         _archive(CEREAL_NVP(upTime));
         _archive(CEREAL_NVP(downTime));
         _archive(CEREAL_NVP(repeats));
+        _archive(CEREAL_NVP(speed));
     }
 };
 CEREAL_CLASS_VERSION(targetAction, 100);
@@ -118,11 +162,12 @@ CEREAL_CLASS_VERSION(targetAction, 100);
 class exercise
 {
 public:
-    void renderGui(Gui* _gui);
+    void renderGui(Gui* _gui, Gui::Window& _window);
 
     std::string title;
     std::string description;
     int maxScore;
+    bool isScoring = true;
 
     // target
     // target action
@@ -141,6 +186,7 @@ public:
         _archive(CEREAL_NVP(maxScore));
         _archive(CEREAL_NVP(numRounds));
         _archive(CEREAL_NVP(pose));
+        _archive(CEREAL_NVP(isScoring));
     }
 };
 CEREAL_CLASS_VERSION(exercise, 100);
@@ -150,13 +196,13 @@ CEREAL_CLASS_VERSION(exercise, 100);
 class quickRange        // rename
 {
 public:
-    void renderGui(Gui* _gui);
+    void renderGui(Gui* _gui, float2 _screenSize);
 
     std::string title = "please rename";
     std::string description;
     std::vector<exercise> exercises;
     int maxScore;
-    bool showGui = false;
+    //bool showGui = false;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -253,6 +299,7 @@ public:
 CEREAL_CLASS_VERSION(videoToScreen, 100);
 
 
+enum _guimode { gui_menu, gui_camera, gui_screen, gui_targets, gui_exercises };
 
 class Kolskoot : public IRenderer
 {
@@ -315,21 +362,20 @@ private:
 
     videoToScreen   screenMap;
 
-    bool    showPointGrey = false;
-    bool    showCalibration = false;
+    //bool    showPointGrey = false;
+    //bool    showScreen = false;
+    //bool    showCalibration = false;
+    _guimode guiMode = gui_menu;
 
 
     int modeCalibrate = 0;
-
-    struct
-    {
-        float pixelsPerMeter = 800.f;
-        float shootingDistance = 10.f;  // fixme move to somethign that loads or saves
-        float eyeHeights[4] = {800, 500, 450, 200};
-        int numLanes = 5;
-    } screen;
-
+    
     // quick range
     quickRange  QR;
     target targetBuilder;
+
+
+public:
+    static std::vector<target> targetList;
+    static _setup setupInfo;
 };
