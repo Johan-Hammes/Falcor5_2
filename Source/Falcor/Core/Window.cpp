@@ -452,6 +452,7 @@ namespace Falcor
             glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         }
 
+        //GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), monitor, nullptr);
         GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), nullptr, nullptr);
         if (!pGLFWWindow)
         {

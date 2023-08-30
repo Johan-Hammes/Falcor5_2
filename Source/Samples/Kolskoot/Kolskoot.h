@@ -90,7 +90,7 @@ CEREAL_CLASS_VERSION(_setup, 100);
 class target
 {
 public:
-    void renderGui(Gui* _gui);
+    void renderGui(Gui* _gui, Gui::Window& _window);
     void loadimage();
     void loadimageDialog();
     void loadscoreimage();
@@ -109,7 +109,7 @@ public:
     int maxScore;       // to auto calcl exercise score from rounds
     int scoreWidth = 0;
     int scoreHeight = 0;
-    //bool showGui = false;
+    char *scoreData;
     
 
     template<class Archive>
@@ -138,9 +138,9 @@ public:
 
     _action     action;
     bool        dropWhenHit = false;
-    float       startTime = 0.f;
-    float       upTime = 0.f;
-    float       downTime = 0.f;
+    float       startTime = 5.f;
+    float       upTime = 5.f;
+    float       downTime = 2.f;
     int         repeats = 1;
     float       speed = 1.0f;       // move speed
 
@@ -173,7 +173,7 @@ public:
     // target action
     // timing
     
-    int numRounds;
+    int numRounds = 2;
     _pose           pose;
     target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
     targetAction    action;
@@ -196,13 +196,12 @@ CEREAL_CLASS_VERSION(exercise, 100);
 class quickRange        // rename
 {
 public:
-    void renderGui(Gui* _gui, float2 _screenSize);
+    void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
 
     std::string title = "please rename";
     std::string description;
     std::vector<exercise> exercises;
     int maxScore;
-    //bool showGui = false;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -362,17 +361,12 @@ private:
 
     videoToScreen   screenMap;
 
-    //bool    showPointGrey = false;
-    //bool    showScreen = false;
-    //bool    showCalibration = false;
     _guimode guiMode = gui_menu;
-
-
     int modeCalibrate = 0;
     
     // quick range
     quickRange  QR;
-    target targetBuilder;
+    target      targetBuilder;
 
 
 public:

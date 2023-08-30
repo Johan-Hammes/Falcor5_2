@@ -39,7 +39,7 @@
 
 std::vector<target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
-
+float2 mouseScreen;
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -104,7 +104,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
 
 
-        ImGui::SetCursorPos(ImVec2(screen_pixelsX - 200, 10));
+        ImGui::SetCursorPos(ImVec2(screen_pixelsX - 200, 200));
         ImGui::SetNextItemWidth(200);
         if (ImGui::Selectable("save & close")) { save(); requestClose = true; }
 
@@ -240,17 +240,19 @@ void target::loadscoreimage()
             BYTE* data = FreeImage_GetBits(pDib);
             maxScore = 0;
 
+            scoreData = new char[scoreWidth * scoreHeight];
             if (colorType == FIC_PALETTE)
             {
                 for (int y = 0; y < scoreHeight; y++) {
                     for (int x = 0; x < scoreWidth; x++) {
                         int index = (y * pitch) + x;
                         if (data[index] > maxScore) maxScore = data[index];
+                        int indexFlip = ((scoreHeight - y - 1) * pitch) + x;
+                        scoreData[index] = data[indexFlip];
                     }
                 }
             }
             FreeImage_Unload(pDib);
-            // FIXME SAVE THE ACTUAL DATA
         }
     }
 }
@@ -286,10 +288,11 @@ void target::save(std::filesystem::path _path)
     }
 }
 
-void target::renderGui(Gui* _gui)
+
+void target::renderGui(Gui* _gui, Gui::Window& _window)
 {
     //bool open = true;
-    Gui::Window targetPanel(_gui, "Target", { 900, 900 }, { 100, 100 });
+
     //if (showGui)
     {
         ImGui::PushFont(_gui->getFont("roboto_64"));
@@ -336,43 +339,63 @@ void target::renderGui(Gui* _gui)
             ImGui::NewLine();
 
             {
-                ImGui::BeginChildFrame(1000, ImVec2(410, 710));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+                float W = 400;
+                float H = W * scoreHeight / scoreWidth;
+                ImGui::BeginChildFrame(1000, ImVec2(W, H));
                 {
+                    ImVec2 w = ImGui::GetWindowPos();
+                    ImVec2 p = ImGui::GetCursorScreenPos();
                     if (image)
                     {
-                        if (targetPanel.imageButton("testImage", image, float2(400, 700)))
+                        ImVec2 q = ImGui::GetCursorPos();
+
+                        if (_window.imageButton("testImage", image, float2(W, H)))
                         {
                             loadimageDialog();
                         }
+                        if (ImGui::IsItemHovered())
+                        {
+                            ImGuiIO& io = ImGui::GetIO();
+                            int mouseX = (int)(io.MousePos.x - w.x);
+                            int mouseY = (int)(io.MousePos.y - w.y);
+                            int scoreX = (int)(mouseX * scoreWidth / W);
+                            int scoreY = (int)(mouseY * scoreHeight / H);
+                            int score = scoreData[(scoreY * scoreWidth) + scoreX];
+                            ImGui::SetTooltip("%d", score);
+                        }
                     }
                     else {
-                        if (ImGui::Button("Load image", ImVec2(400, 700)))
+                        if (ImGui::Button("Load image", ImVec2(W, H)))
                         {
                             loadimageDialog();
                         }
                     }
                 }
                 ImGui::EndChildFrame();
+
 
                 ImGui::SameLine(0, 200);
 
-                ImGui::BeginChildFrame(1001, ImVec2(410, 710));
+                ImGui::BeginChildFrame(1001, ImVec2(W, H));
                 {
                     if (score)
                     {
-                        if (targetPanel.imageButton("scoreImage", score, float2(400, 700)))
+                        if (_window.imageButton("scoreImage", score, float2(W, H)))
                         {
                             loadscoreimageDialog();
                         }
                     }
                     else {
-                        if (ImGui::Button("Load score", ImVec2(400, 700)))
+                        if (ImGui::Button("Load score", ImVec2(W, H)))
                         {
                             loadscoreimageDialog();
                         }
                     }
                 }
                 ImGui::EndChildFrame();
+
+                ImGui::PopStyleVar();
 
                 ImGui::NewLine();
                 ImGui::NewLine();
@@ -405,12 +428,13 @@ void target::renderGui(Gui* _gui)
 
 void targetAction::renderGui(Gui* _gui)
 {
-    ImGui::SetNextItemWidth(290);
+    ImGui::SetNextItemWidth(390);
     ImGui::Combo("###actionSelector", (int*)&action, "static\0popup\0move\0");
 
     ImGui::Checkbox("drop", &dropWhenHit);
     TOOLTIP("Does the target drop down when hit");
 
+    ImGui::NewLine();
     ImGui::SetNextItemWidth(110);
     ImGui::DragInt("repeats", &repeats, 1, 1, 15);
     if (repeats > 1)
@@ -437,9 +461,21 @@ void targetAction::renderGui(Gui* _gui)
 
 void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 {
-    ImGui::NewLine();
-    ImGui::Checkbox("scoring", &isScoring);
-    TOOLTIP("Does this exercise count towards the total score");
+    ImGui::SameLine(0, 0);
+    char T[256];
+    sprintf(T, "%s", title.c_str());
+    if (ImGui::InputText("", T, 256)) {
+        title = T;
+    }
+
+
+    ImGui::PushFont(_gui->getFont("roboto_32"));
+    {
+        ImGui::NewLine();
+        ImGui::Checkbox("scoring", &isScoring);
+        TOOLTIP("Does this exercise count towards the total score");
+    }
+    ImGui::PopFont();
 
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
@@ -449,28 +485,52 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
     ImGui::PopFont();
 
     ImGui::NewLine();
-    ImGui::SameLine(50);
-    if (_window.imageButton("scoreImage", Kolskoot::targetList[0].image, float2(200, 300)))
+    ImGui::SameLine(20);
+    if (_window.imageButton("scoreImage", Kolskoot::targetList[0].image, float2(150, 100)))     // Just width acurate and large heigth t
     {
+        //ImGui::OpenPopup("ThePopup");
     }
-    ImGui::SetNextItemWidth(290);
+    /*
+    if (ImGui::BeginPopupModal("ThePopup")) {
+        // Draw popup contents.
+        ImGui::Text("show targets here");
+        ImGui::EndPopup();
+    }*/
+
+    if (ImGui::BeginCombo("##custom combo", current_item, ImGuiComboFlags_NoArrowButton))
+    {
+        for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+        {
+            bool is_selected = (current_item == items[n]);
+            if (ImGui::Selectable(items[n], is_selected))
+                current_item = items[n];
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::SetNextItemWidth(390);
     ImGui::Combo("###modeSelector", (int*)&pose, "standing\0kneeling\0sitting\0prone\0");
 
+    ImGui::NewLine();
+    ImGui::Separator();
+    ImGui::SetNextItemWidth(110);
+    ImGui::DragInt("rounds", &numRounds, 1, 1, 15);
+    TOOLTIP("number of rounds per repeat\ni.e. 2 rounds with 5 popup repeats will result in a total of 10 rounds");
 
+    
     action.renderGui(_gui);
 
 }
 
 
-void quickRange::renderGui(Gui* _gui, float2 _screenSize)
+void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 {
-    Gui::Window pointgreyPanel(_gui, "Exercises", { 900, 900 }, { 100, 100 });
-    //if (showGui)
     {
         ImGui::PushFont(_gui->getFont("roboto_48"));
         {
             {
-                ImGui::PushFont(_gui->getFont("roboto_64"));
                 ImGui::SameLine(10);
                 ImGui::SetNextItemWidth(700);
                 char T[256];
@@ -508,31 +568,24 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize)
                     }
                 }
 
+                ImGui::SameLine(0, 100);
+                ImGui::SetNextItemWidth(100);
+                int numX = exercises.size();
+                if (ImGui::DragInt("# exercises", &numX, 1, 0, 20))
+                {
+                    exercises.resize(numX);
+                }
+
+
                 ImGui::SameLine(_screenSize.x - 200, 0);
                 if (ImGui::Button("Start")) {
 
                 }
-                ImGui::PopFont();
-
-
-
-
-
             }
 
             ImGuiStyle& style = ImGui::GetStyle();
             ImGuiStyle styleOld = style;
-            /*
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(1, 0, 0, 1));
 
-            //ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1, 1, 0, 1));
-            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 10);
-            ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 3);
-
-            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0.1f, 1));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6);
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 3);
-            */
             ImGui::NewLine();
             float startY = ImGui::GetCursorPosY();
             int x = 0;
@@ -540,46 +593,19 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize)
 
             for (auto it = exercises.begin(); it != exercises.end(); ++it)
             {
-                ImGui::SetCursorPos(ImVec2(x * 300.f, startY + y * 650.f));
-                ImGui::BeginChildFrame(1376 + y * 300 + x, ImVec2(290, 1100));
+                ImGui::SetCursorPos(ImVec2(x * 400.f, startY));
+                ImGui::BeginChildFrame(1376 + y * 300 + x, ImVec2(390, 1100));
                 {
-                    ImGui::Text("Exercise %d", x + 1);
-                    it->renderGui(_gui, pointgreyPanel);
-                    ImGui::SetCursorPos(ImVec2(460, 0));
-                    if (ImGui::Selectable("X"))
-                    {
-                        it = exercises.erase(it);
-                        break;
-                    }
+                    ImGui::Text("%d :  ", x + 1);
+                    it->renderGui(_gui, _window);
                 }
                 ImGui::EndChildFrame();
 
                 x++;
-                //if (x == 4) {
-                //    x = 0;
-                //    y++;
-                //}
             }
 
 
             style = styleOld;
-
-            {
-                ImGui::SetCursorPos(ImVec2(x * 300.f, startY + y * 650.f));
-                //ImGui::BeginChildFrame(1376 + y * 300 + x, ImVec2(500, 600));
-                {
-                    ImGui::PushFont(_gui->getFont("roboto_64"));
-                    if (ImGui::Button("+"))
-                    {
-                        exercises.emplace_back();
-                    }
-                    ImGui::PopFont();
-                    TOOLTIP("add another exercise");
-                }
-                //ImGui::EndChildFrame();
-
-            }
-
         }
         ImGui::PopFont();
     }
@@ -773,10 +799,10 @@ void Kolskoot::onGuiRender(Gui* _gui)
 
         case gui_screen:
         {
-            Gui::Window screenPanel(_gui, "Screen", { screenSize.x, screenSize.y - 60 }, { 0, 60 }, Falcor::Gui::WindowFlags::NoResize);
+            Gui::Window screenPanel(_gui, "Screen", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
             {
-                screenPanel.windowSize((int)screenSize.x, (int)screenSize.y - 32);
-                screenPanel.windowPos(0, 32);
+                screenPanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
+                screenPanel.windowPos(0, 40);
                 setupInfo.renderGui(_gui, screenSize.x);
                 if (setupInfo.requestClose)
                 {
@@ -786,25 +812,74 @@ void Kolskoot::onGuiRender(Gui* _gui)
             }
             screenPanel.release();
         }
-            break;
+        break;
 
         case gui_targets:
-            targetBuilder.renderGui(_gui);
-            break;
+        {
+            Gui::Window targetPicker(_gui, "Target picker", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
+            targetPicker.windowSize((int)screenSize.x / 2, (int)screenSize.y - 40);
+            targetPicker.windowPos(0, 40);
+            {
+                ImGui::PushFont(_gui->getFont("roboto_32"));
+                int W = (int)floor(screenSize.x / 2 / 240);
+                //for (int i = 0; i < targetList.size(); i++)
+                for (int i = 0; i < 14; i++)
+                {
+                    float x = (float)(i % W);
+                    float y = (float)(i / W);
+                    ImGui::SetCursorPos(ImVec2(20 + x * 240, 40 + y * 400));
+                    ImGui::Text(targetList[0].title.c_str());
+
+                    ImGui::SetCursorPos(ImVec2(20 + x * 240, 40 + 32 + y * 400));
+                    //if (targetPicker.imageButton(targetList[i].title.c_str(), targetList[i].image, float2(200, 350) ) )
+                    if (targetPicker.imageButton(targetList[0].title.c_str(), targetList[0].image, float2(200, 350)))
+                    {
+                    }
+
+
+                }
+                ImGui::PopFont();
+            }
+            targetPicker.release();
+
+            Gui::Window targetPanel(_gui, "Target", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
+            targetPanel.windowSize((int)screenSize.x / 2, (int)screenSize.y - 40);
+            targetPanel.windowPos((int)screenSize.x / 2, 40);
+            targetBuilder.renderGui(_gui, targetPanel);
+            targetPanel.release();
+        }
+        break;
 
         case gui_exercises:
-            QR.renderGui(_gui, screenSize);
-            break;
+        {
+            Gui::Window exercisePanel(_gui, "Excercises", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
+            exercisePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
+            exercisePanel.windowPos(0, 40);
+            QR.renderGui(_gui, screenSize, exercisePanel);
+            exercisePanel.release();
+
         }
+        break;
+        }
+
+
+
+
 
 
         if (guiMode == gui_camera)
         {
-            Gui::Window pointgreyPanel(_gui, "PointGrey", { 900, 900 }, { 100, 100 });
+            Gui::Window pointgreyPanel(_gui, "PointGrey", { 900, 900 }, { 100, 100 }, Falcor::Gui::WindowFlags::NoResize);
+            pointgreyPanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
+            pointgreyPanel.windowPos(0, 40);
             {
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 {
-                    if (pointGreyCamera->isConnected())
+                    if (!pointGreyCamera->isConnected())
+                    {
+                        ImGui::Text("Camera not connected");
+                    }
+                    else
                     {
                         ImGui::Text("serial  %d", pointGreyCamera->getSerialNumber());
                         ImGui::Text("%d x %d", (int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y);
@@ -1169,6 +1244,7 @@ bool Kolskoot::onMouseEvent(const MouseEvent& mouseEvent)
     {
         if (mouseEvent.type == MouseEvent::Type::Move)
         {
+            mouseScreen = mouseEvent.screenPos;
             if (ImGui::IsMouseDown(0))
             {
                 //screenInfo.eyeHeights[screenInfo.dragSelect] = mouseEvent.pos.y;
@@ -1177,7 +1253,8 @@ bool Kolskoot::onMouseEvent(const MouseEvent& mouseEvent)
         }
     }
 
-    return mpScene ? mpScene->onMouseEvent(mouseEvent) : false;
+    return false;
+    //return mpScene ? mpScene->onMouseEvent(mouseEvent) : false;
 }
 
 
@@ -1243,10 +1320,11 @@ void Kolskoot::guiStyle()
 
 
 
-    style.FrameRounding = 4.0f;
+    style.FrameRounding = 0.0f;
 
     style.ScrollbarSize = 10;
     style.FrameBorderSize = 0;
+    //style.FramePadding = ImVec2(0, 0);
 
 }
 

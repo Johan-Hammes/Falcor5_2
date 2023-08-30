@@ -571,6 +571,11 @@ namespace Falcor
     {
         mpApiData->pSwapChain = createDxgiSwapChain(mpApiData->pDxgiFactory, mpWindow.get(), getCommandQueueHandle(LowLevelContextData::CommandQueueType::Direct, 0), colorFormat, kSwapChainBuffersCount);
         if (mpApiData->pSwapChain == nullptr) return false;
+      /*  HRESULT hr = mpApiData->pSwapChain->SetFullscreenState(true, nullptr);
+        if (hr != S_OK)
+        {
+            bool bcm = true;
+        }*/
         return true;
     }
 
