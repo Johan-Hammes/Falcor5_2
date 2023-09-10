@@ -208,6 +208,8 @@ namespace Falcor
         pGui->addFont("roboto_14_bold", "Framework/Fonts/Roboto-Bold.ttf");
         pGui->addFont("roboto_14_italic", "Framework/Fonts/Roboto-Italic.ttf");
 
+        pGui->addFont("roboto_18", "Framework/Fonts/Roboto-Regular.ttf", 18);
+
         pGui->addFont("roboto_20", "Framework/Fonts/Roboto-Regular.ttf", 20);
         pGui->addFont("roboto_20_bold", "Framework/Fonts/Roboto-Bold.ttf", 20);
 
@@ -379,6 +381,7 @@ namespace Falcor
         ImGui::SetNextWindowSize(fSize, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowPos(fPos, ImGuiCond_FirstUseEver);
         int imguiFlags = 0;
+        imguiFlags |= ImGuiWindowFlags_HorizontalScrollbar;
         if (!is_set(flags, Gui::WindowFlags::ShowTitleBar)) imguiFlags |= ImGuiWindowFlags_NoTitleBar;
         if (!is_set(flags, Gui::WindowFlags::AllowMove))  imguiFlags |= ImGuiWindowFlags_NoMove;
         if (!is_set(flags, Gui::WindowFlags::SetFocus)) imguiFlags |= ImGuiWindowFlags_NoFocusOnAppearing;

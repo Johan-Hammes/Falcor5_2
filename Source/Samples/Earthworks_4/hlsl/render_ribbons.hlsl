@@ -156,15 +156,15 @@ inline float3 rot_xz(const float3 v, const float yaw)
 inline float3 yawPitch_9_8bit(int yaw, int pitch, const float r) // 9, 8 bits 8 b
 {
     float plane, x, y, z;
-    sincos((yaw - 256) * 0.01227 + r, z, x);
+    sincos((yaw - 256) * 0.01227 - r, z, x);
     sincos((pitch - 128) * 0.01227, y, plane);
     return float3(plane * x, y, plane * z);
 }
 
 
-inline void extractPosition(inout PSIn o, const RV6 v, const float scale, const float rotation)
+inline void extractPosition(inout PSIn o, const RV6 v, const float scale, const float rotation, const float3 root)
 {
-    o.pos.xyz = rot_xz(float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale * scale - 1 * float3(0.8198, 0.04096, 0.8192), rotation);
+    o.pos.xyz = root + rot_xz(float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale * scale - 1 * float3(0.1638, 0.0818, 0.1638), rotation);
     o.pos.w = 1;
     o.eye = normalize(o.pos.xyz - eyePos);
 }
@@ -190,9 +190,9 @@ inline void extractUVRibbon(inout PSIn o, const RV6 v)
 
 inline void extractFlags(inout PSIn o, const RV6 v)
 {
-    o.flags.x = (v.b >> 8) & 0x2ff;     // material
-    o.flags.y = (v.a >> 30) & 0x1; //start bool
-    o.flags.z = (v.d & 0xff);           // int radius
+    o.flags.x = (v.b >> 8) & 0x2ff;     //  material
+    o.flags.y =     (v.a >> 30) & 0x1; //  start bool
+    o.flags.z = (v.d & 0xff);           //  int radius
 }
 
 inline void extractColor(inout PSIn o, const RV6 v)
@@ -205,41 +205,14 @@ inline void extractColor(inout PSIn o, const RV6 v)
 inline void light(inout PSIn o, const RV6 v, const float rotation)
 {
     const float3 sunDir = -normalize(float3(1.0, 0.7, -0.8));
-    float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, 0);
+    float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, rotation);
     float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1;
     float d = (v.e & 0xff) * 0.00784;
-    float a = saturate(dot(normalize(lightCone + sunDir * cone * 0), sunDir));
-    float b = a * (20 - d) + d;
+    float a = saturate(dot(normalize(lightCone + sunDir * (-0.2)), sunDir)); //cone * 0
+    float b = a * (3 - d) + d;
     float ao = 1 - (d * 0.3f);
     o.lighting = float4(0, 0, saturate(1 - (b * 0.5)), ao);
 }
-/*
-void extract(inout PSIn o, const uint4 v)
-{
-    o.pos.xyz += rot_xz(float3((v.x >> 16) & 0x3fff, v.x & 0xffff, (v.y >> 18) & 0x3fff) * objectScale - 2 * float3(8.198, 4.096, 8.192), 0);
-    o.pos.w = 1;
-    float3 eye = normalize(o.pos.xyz - eyePos);
-    o.binormal = yawPitch_9_8bit(v.z >> 23, (v.z >> 15) & 0xff);        // remember to add rotation to yaw
-    o.tangent = normalize(cross(o.binormal, eye));
-    o.normal = cross(o.binormal, o.tangent);
-    //o.diffuseLight
-    //o.specularLight
-    o.uv = float2((v.z & 0x7f) * 0.00390625, (v.y & 0xff) * 0.0625);        // allows 16 V repeats
-    o.flags.x = (v.y >> 8) & 0x2ff;         // material
-    o.flags.y = v.x >> 31;                  //start bool
-    o.flags.z = (v.z >> 7) & 0xff; // int radius
-
-    // now light it
-    const float3 sunDir = -normalize(float3(1.0, 0.7, -0.8));
-    float3 lightCone = yawPitch_9_8bit(v.w >> 23, (v.w >> 15) & 0xff);
-    float cone = (((v.w >> 8) & 0x7f) * 0.01575) - 1;
-    float d = (v.w & 0xff) * 0.00784;
-    float a = saturate(dot(normalize(lightCone + sunDir * cone * 0), sunDir));
-    float b = a * (20 - d) + d;
-    float ao = 1 - (d * 0.3f);
-    o.lighting = float4(0, 0, saturate(1 - (b * 0.5)), ao);
-}
-*/
 
 float rand_1_05(in float2 uv)
 {
@@ -253,11 +226,17 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const uint P = 0; // plant.index * 128; // rename meshlet
     float3 rootPosition = float3((iId % 100) * 0.15f, 0, ((int) (iId / 100)) * 0.15f) - float3(5, 0, 5);
     rootPosition += 0.7f * float3(  rand_1_05(float2(iId * 0.92356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.2356, iId * 1.003568)));
-    float scale = 0.8f + 0.6f * rand_1_05(float2(iId * 1.2356, iId * 2.303568));
-    float rotation =     3.14f * rand_1_05(float2(iId * 2.2356, iId * 1.703568));
+    float scale = 0.5f + 0.5f * rand_1_05(float2(iId * 1.2356, iId * 2.303568));
+    float rotation =  3.14f * rand_1_05(float2(iId * 2.2356, iId * 1.703568));
     const RV6 v = instanceBuffer[vId];
 
-    extractPosition(output, v, scale, rotation);
+#if defined(_BAKE)
+    rootPosition = float3(0, 0, 0);
+    scale = 1;
+    rotation = 0;
+#endif
+    
+    extractPosition(output, v, scale, rotation, rootPosition);
     if (v.a >> 31)
     {
         extractTangentFlat(output, v, rotation);
@@ -270,12 +249,10 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractFlags(output, v);
     extractColor(output, v);
     light(output, v, rotation);
-
-
-    output.pos.xyz += rootPosition;
-    
+        
     return output;
 }
+
 
 
 [maxvertexcount(4)]
@@ -283,12 +260,37 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 {
     PSIn v;
 
+//    float4 Pmid = 0.5 * (L[0].pos + L[1].pos);
+//    Pmid.xyz += normalize(L[0].normal + L[1].normal) * 0.15;    // just 5 cm shift JUST curve
+     
     if (L[1].flags.y == 1)
     {
+  /*      
+        float t = 0;
+        for (int i = 0; i <= 10; i++)
+        {
+            t += 0.11f;
+            // bezier interpolate
+            float4 Pa = lerp(L[0].pos, Pmid, t);
+            float4 Pb = lerp(Pmid, L[1].pos, t);
+            float4 P = lerp(Pa, Pb, t);
+            //float4 P = lerp(L[0].pos, Pmid, t);
+            v = L[0];
+            v.tangent = lerp(L[0].tangent, L[1].tangent, t);
+            v.binormal = normalize(Pb - Pa).xyz;
+            v.uv.y = t;
 
+            v.uv.x = 0;//            0.5 + v.uv.x;
+            v.pos = mul(P - float4(v.tangent * L[0].flags.z * radiusScale, 0), viewproj);
+            OutputStream.Append(v);
+
+            v.uv.x = 1;//            0.5 + v.uv.x;
+            v.pos = mul(P + float4(v.tangent * L[0].flags.z * radiusScale, 0), viewproj);
+            OutputStream.Append(v);
+        }
+        */
 
         
-
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
         v.pos = mul(L[0].pos - float4(L[0].tangent * L[0].flags.z * radiusScale, 0), viewproj);
@@ -313,70 +315,141 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         v.pos = mul(L[1].pos + float4(L[1].tangent * L[1].flags.z * radiusScale, 0), viewproj);
         OutputStream.Append(v);
 
+
     }
 }
 
+
+
+
+
+
+#if defined(_BAKE)
+
+struct PS_OUTPUT_Bake
+{
+    float4 albedo: SV_Target0;
+    float4 normal: SV_Target1;
+    float4 normal_8: SV_Target2;
+    float4 pbr: SV_Target3;
+    float4 extra: SV_Target4;
+};
+
+PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
+{
+    PS_OUTPUT_Bake output = (PS_OUTPUT_Bake)0;
+
+    sprite_material MAT = materials[vOut.flags.x];
+
+
+    float alpha = 1;
+    if (MAT.alphaTexture >= 0)
+    {
+        alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
+        clip(alpha - 0.5);
+    }
+    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb * vOut.colour.x;
+    output.albedo = float4(pow(color, 1.0 / 2.2), 1);
+    
+    float3 N = vOut.normal;
+    if (MAT.normalTexture >= 0)
+    {
+        float3 n = (textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb * 2) - 1;
+        N = (-n.r * vOut.tangent) + (n.g * vOut.binormal) + (n.b * vOut.normal);
+    }
+    N *= (isFrontFace * 2 - 1);
+
+
+    
+
+    float3 NAdjusted = N;
+    NAdjusted.r = -N.r * 0.5 + 0.5;
+    NAdjusted.g = -N.g * 0.5 + 0.5;
+    NAdjusted.b = N.b * 0.5 + 0.5;
+    output.normal = float4(NAdjusted, 1);       // FIXME has to convert to camera space, cant eb too hard , uprigthmaybe, and 0-1 space
+    output.normal_8 = float4(NAdjusted, 1);
+
+    
+
+    float trans = vOut.colour.y * MAT.translucency;
+    {
+        if (MAT.translucencyTexture >= 0)
+        {
+            trans *= dot(float3(0.3, 0.4, 0.3), textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).rgb);
+        }
+    }
+    trans = saturate(trans);
+    output.extra = float4(0, 0, 0, 1-trans);
+
+    return output;
+}
+
+#else
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    //return 1; this douvle speed even oif no pixels aredraw
-    int material = vOut.flags.x;
- //   if (material == 2)
- //   {
- //       material = 1;
- //   }
-
-    // works but saves almost nothing
- //   if ((abs(ddx(vOut.uv.x)) + abs(ddy(vOut.uv.x))) < 0.1)
- //   {
- //       return float4(0, 0, 0, 1);
- //   }
-
-    float alpha = textures.T[material * 2 + 0].Sample(gSampler, vOut.uv.xy).a;  // replace later
-    //if (alpha < 0.7)
-    //    return float4(1.0,0, 0, 0.4);
-    //clip(alpha - 0.5);
+    //return 1;
+    //return float4(vOut.flags.y, frac(vOut.uv.x), frac(vOut.uv.y), 1);
+    //return float4(frac(vOut.uv.y), frac(vOut.uv.y), isFrontFace, 1);
+    //return 1; //this douvle speed even oif no pixels aredraw
     
-    float3 albedo = textures.T[material * 2 + 0].Sample(gSampler, vOut.uv.xy).rgb * vOut.colour.x;
-    
+    sprite_material MAT = materials[vOut.flags.x];
 
-    //float3 normalTex = ((textures.T[material * 2 + 1].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;   //? from rg
-    float3 normalTex = ((textures.T[material * 2 + 1].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
-    float3 N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
+
+    float alpha = 1;
+    if (MAT.alphaTexture >= 0)
+    {
+        alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
+        //if (alpha < 0.5)            return float4(1, 0, 0, 1);
+        clip(alpha - 0.5);
+    }
+    //return 1;
+    
+    float3 N = vOut.normal;
+    if (MAT.normalTexture >= 0)
+    {
+        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        N = (normalTex.g * vOut.tangent) + (-normalTex.r * vOut.binormal) + (normalTex.b * vOut.normal);
+
+        //if ((normalTex.r > -0.01) && (normalTex.r < 0.01))
+        //if ((normalTex.r > 0.5))
+          //  return float4(1, 0, 0, 1);
+    }
     N *= (isFrontFace * 2 - 1);
 
     
-
-    const float3 sunDir = normalize(float3(1.0, 0.7, -0.8));
+    
+        const float3 sunDir = normalize(float3(1.0, 0.9, -0.8));
     const float3 sunColor = float3(1.2, 1.0, 0.7) * 1.5;
-    float ndotv = saturate(dot(N, vOut.eye));
+    //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(sunDir - vOut.eye)));
-    float sun = saturate(dot(N, sunDir)) * vOut.lighting.z;
-    float back = saturate(dot(N, -sunDir)) * vOut.lighting.z * vOut.colour.y;
-    float spec = pow(ndoth, 20);
-
-    
+    float ndots = dot(N, sunDir) * vOut.lighting.z;
     
 
-    float3 color = albedo * sunColor * sun ;
-    
+    float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
 
-    if (material > 0)
-    {    
-        color += albedo * sunColor * float3(1, 1, 0.3) * back;
-    }
+    float3 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;
+    //diffuse env
+    color *=  albedo * vOut.colour.x;
+
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo * vOut.lighting.w;
     
     // specular sun
-    color += pow(ndoth, 25) * 0.4;
-    
+    color += pow(ndoth, 12) * 0.3 *  vOut.lighting.z;
     // specular env???, or just single
-    
-    //diffuse env
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo * vOut.lighting.w;
-    
-    
-    
-    
-    return float4(color, 1);
 
+    float3 trans = saturate(-ndots * 2) * vOut.colour.y * float3(2, 2, 0.5) * MAT.translucency;
+    {
+        //if (MAT.translucencyTexture >= 0)
+        {
+            trans *= textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;
+        }
+    }
+    color += trans;
+
+    
+    
+    return float4(color, saturate(alpha + 0.2)) ;
 }
+
+#endif

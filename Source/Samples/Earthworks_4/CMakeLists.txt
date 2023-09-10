@@ -56,6 +56,8 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/compute_terrain_under_mouse.hlsl
     hlsl/compute_clipLodAnimatePlants.hlsl
 
+    hlsl/compute_bakeFloodfill.hlsl
+
     hlsl/render_meshTerrafector.hlsl
     hlsl/render_splineTerrafector.hlsl
     hlsl/render_spline.hlsl

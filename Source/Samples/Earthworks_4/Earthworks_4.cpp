@@ -150,6 +150,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     aboutTex = Texture::createFromFile("earthworks_4/about.dds", false, true);
 
     tonemapper.load("Samples/Earthworks_4/hlsl/compute_tonemapper.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+
 }
 
 
@@ -181,6 +182,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     }
 
     Texture::SharedPtr tex = terrafectorEditorMaterial::static_materials.getDisplayTexture();
+    if (!tex) tex = _plantMaterial::static_materials_veg.getDisplayTexture();
     if (!tex) {
         tex = roadNetwork::displayThumbnail;
     }
@@ -193,13 +195,21 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
         glm::vec4 dstRect = glm::vec4(1000, 30, 1000, 30) + glm::vec4(0, 0, w / scale, h / scale);
         _renderContext->blit(tex->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
         terrafectorEditorMaterial::static_materials.dispTexIndex = -1;
+        _plantMaterial::static_materials_veg.dispTexIndex = -1;
     }
 
     
 
     if (changed) slowTimer = 10;
     slowTimer--;
-    if (refresh.minimal && (slowTimer < 0))    Sleep(60);      // aim for 15fps in this mode
+    if (refresh.minimal && (slowTimer < 0))
+    {
+        Sleep(30);      // aim for 15fps in this mode
+    }
+    else
+    {
+        //Sleep(5);
+    }
 }
 
 

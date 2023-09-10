@@ -329,10 +329,15 @@ struct GC_feedback			// to log and read back to debug and test the process
 
 struct sprite_material
 {
-    uint albedoTexture;
-    uint normalTexture;
-    uint pbrTexture;
-    uint buf_01;
+    int alphaTexture = -1; // a
+    int albedoTexture = -1; // rgb
+    int normalTexture = -1;
+    int pbrTexture = -1;
+
+    //???
+    int translucencyTexture = -1;
+    float translucency;
+    
 };
 
 

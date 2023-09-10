@@ -127,11 +127,14 @@ public:
     void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
     bool renderGuiSelect(Gui* mpGui);
     
-    
+public:
     int dispTexIndex = -1;
     Texture::SharedPtr getDisplayTexture();
 
     Buffer::SharedPtr sb_vegetation_Materials = nullptr;
+
+    bool modified = false;
+    bool modifiedData = false;
 };
 
 
@@ -141,15 +144,21 @@ class _plantMaterial
 public:
     void renderGui(Gui* _gui);
 
+    static materialCache_plants static_materials_veg;
+
     std::filesystem::path 			  fullPath;
     std::string			  displayName = "Not set!";
     bool				isModified = false;
-    Texture::SharedPtr	  albedo;
-    Texture::SharedPtr	  normal;
-    Texture::SharedPtr	  translucency;
+
     std::string         albedoName;
     std::string         normalName;
     std::string         translucencyName;
+    std::string         alphaName;
+
+    std::string         albedoPath;
+    std::string         normalPath;
+    std::string         translucencyPath;
+    std::string         alphaPath;
 
     void import(std::filesystem::path _path, bool _replacePath = true);
     void import(bool _replacePath = true);
@@ -163,17 +172,20 @@ public:
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
         _archive(CEREAL_NVP(albedoName));
+        _archive(CEREAL_NVP(alphaName));
         _archive(CEREAL_NVP(normalName));
         _archive(CEREAL_NVP(translucencyName));
+
+        _archive(CEREAL_NVP(albedoPath));
+        _archive(CEREAL_NVP(alphaPath));
+        _archive(CEREAL_NVP(normalPath));
+        _archive(CEREAL_NVP(translucencyPath));
+
+        _archive(CEREAL_NVP(_constData.translucency));
     }
 
 
-    struct {
-        uint	albedoTexture = 0;
-        uint	normalTexture = 0;
-        uint	translucencyTexture = 0;
-        float   translucency;
-    } _constData;
+    sprite_material _constData;
 };
 CEREAL_CLASS_VERSION(_plantMaterial, 100);
 
@@ -183,7 +195,7 @@ CEREAL_CLASS_VERSION(_plantMaterial, 100);
 struct _leaf
 {
     void renderGui(Gui* _gui);
-    void buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vertex, glm::vec3 _pos);
+    void buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vertex, glm::vec3 _pos, int _mat = 0, int _matStem = 0);
     void loadTexture();
 
     // going to do all this in mm
@@ -243,43 +255,20 @@ CEREAL_CLASS_VERSION(_leaf, 100);
 
 
 
+
+
+
 struct _twig
 {
     void renderGui(Gui* _gui);
-    void buildTwig(float _age, float _lodPixelsize);
-    void loadTexture();
-
-    _leaf   leaves;
-    _leaf   flower;
-    uint    numNodes;
-    bool    alternate;
-    float2  node_length = { 0.02f, 0.3f };
-    float2  node_curve = { 0.0f, 0.3f };      // radian bend over lenth
-
-    // twiggy material
-    std::string textureName;
-    uint material;              // needs to expand for lods
-
-
-    template<class Archive>
-    void serialize(Archive& _archive, std::uint32_t const _version)
-    {
-        _archive(CEREAL_NVP(leaves));
-        _archive(CEREAL_NVP(flower));
-        _archive(CEREAL_NVP(numNodes));
-        _archive(CEREAL_NVP(alternate));
-        _archive(CEREAL_NVP(node_length));
-        _archive(CEREAL_NVP(node_curve));
-        _archive(CEREAL_NVP(textureName));
-    }
-};
-CEREAL_CLASS_VERSION(_twig, 100);
-
-
-struct _weedBuilder
-{
-    void renderGui(Gui* _gui);
     void build(float _age, float _lodPixelsize);
+    void load();
+    void save();
+    void saveas();
+    void loadStemMaterial();
+
+    std::string filename = "";
+    std::string filepath = "";
 
     bool    has_stem = true;
     float2  stem_length = float2(50.f, 0.2f);
@@ -287,6 +276,7 @@ struct _weedBuilder
     int     startSegment = 1;
     float   stem_width = 5.f;
     float2  stem_curve = { 0.2f, 0.3f };      // radian bend over lenth
+    float   stem_phototropism = 0.0f;
     bool    tipleaves = false;
     float2  stem_stalk = float2(0.f, 1.f);
 
@@ -302,43 +292,71 @@ struct _weedBuilder
     float2  stalk_curve = { 0.0f, 0.3f };      // radian bend over lenth
     _leaf   flower;
 
+    void reloadMaterials();
 
     // stem material
-    std::string textureName;
-    uint material;              // needs to expand for lods
+    struct _mat {
+        std::string name;
+        std::string displayname;
+        int index = -1;              // needs to expand for lods
+
+        template<class Archive>
+        void serialize(Archive& archive)
+        {
+            archive(CEREAL_NVP(name));
+            archive(CEREAL_NVP(displayname));
+        }
+    };
+    _mat stemMaterial;
+    std::vector<_mat> materialList;         // deprecate
+    std::vector<_mat> leafmaterialList;     // deprecate
 
     bool changed = false;
+    bool changedForSaving = false;
     bool showLeaves;
 
     rvB    ribbon[16384];
     uint            ribbonLength;
+    float3 extents;
 
     template<class Archive>
-    void serialize(Archive& _archive, std::uint32_t const _version)
+    void serialize(Archive& archive, std::uint32_t const _version)
     {
-        _archive(CEREAL_NVP(has_stem));
-        _archive(CEREAL_NVP(age));
-        _archive(CEREAL_NVP(startSegment));
+        archive(CEREAL_NVP(has_stem));
+        archive(CEREAL_NVP(age));
+        archive(CEREAL_NVP(startSegment));
         
         archive_float2(stem_length);
-        _archive(CEREAL_NVP(stem_width));
+        archive(CEREAL_NVP(stem_width));
         archive_float2(stem_curve);
 
-        _archive(CEREAL_NVP(numLeaves));
-        _archive(CEREAL_NVP(leafRotation));
-        _archive(CEREAL_NVP(twistAway));
-        _archive(CEREAL_NVP(leaves));
+        archive(CEREAL_NVP(numLeaves));
+        archive(CEREAL_NVP(leafRotation));
+        archive(CEREAL_NVP(twistAway));
+        archive(CEREAL_NVP(leaves));
 
-        _archive(CEREAL_NVP(numFlowers));
-        _archive(CEREAL_NVP(topFlower));
+        archive(CEREAL_NVP(numFlowers));
+        archive(CEREAL_NVP(topFlower));
         archive_float2(stalk_Length);
         archive_float2(stalk_curve);
-        _archive(CEREAL_NVP(flower));
+        archive(CEREAL_NVP(flower));
 
-        _archive(CEREAL_NVP(textureName));
+        archive(CEREAL_NVP(materialList));
+        archive(CEREAL_NVP(leafmaterialList));
+
+        //stemMaterial
+        if (_version > 100)
+        {
+            archive(CEREAL_NVP(stemMaterial));
+            archive(CEREAL_NVP(stem_phototropism));
+        }
+        
+
+        reloadMaterials();
     }
 };
-CEREAL_CLASS_VERSION(_weedBuilder, 100);
+#define _TWIG_VERSION 101
+CEREAL_CLASS_VERSION(_twig, _TWIG_VERSION);
 
 
 
@@ -474,6 +492,7 @@ struct _GroveTree
 
 
     rvB branchRibbons[1024*1024*10];
+    float3 extents;
     rvPacked packedRibbons[1024 * 1024 * 10];
     int numBranchRibbons;
     bool bChanged = false;
@@ -488,7 +507,7 @@ struct _GroveTree
 
 
     _leaf leafBuilder;
-    _weedBuilder weedBuilder;
+    _twig weedBuilder;
 
     // twigs
     rvB twig[1024];
@@ -581,6 +600,12 @@ struct _lastFile
     std::string fbx = "";
     std::string EVO = "C:/Kunos/acevo_content/content";
 
+    std::string weed = "F:/terrains/_resources/vegetation_weeds/";
+    std::string twig = "F:/terrains/_resources/vegetation_twigs/";
+    std::string leaves = "F:/terrains/_resources/vegetation_leaves/";
+    std::string trees = "F:/terrains/_resources/vegetation_trees/";
+    std::string vegMaterial = "F:/terrains/_resources/vegetation_trees/";
+
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -592,9 +617,17 @@ struct _lastFile
         _archive(CEREAL_NVP(texture));
         _archive(CEREAL_NVP(fbx));
         _archive(CEREAL_NVP(EVO));
+        if (_version > 100)
+        {
+            _archive(CEREAL_NVP(weed));
+            _archive(CEREAL_NVP(twig));
+            _archive(CEREAL_NVP(leaves));
+            _archive(CEREAL_NVP(trees));
+            _archive(CEREAL_NVP(vegMaterial));
+        }
     }
 };
-CEREAL_CLASS_VERSION(_lastFile, 100);
+CEREAL_CLASS_VERSION(_lastFile, 101);
 
 
 struct _terrainSettings
@@ -737,6 +770,8 @@ public:
     void setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution);
     bool update(RenderContext* pRenderContext);
 
+    static _lastFile lastfile;
+
 private:
     void testForSurfaceMain();
     void testForSurfaceEnv();
@@ -791,13 +826,19 @@ private:
     Texture::SharedPtr	  spriteTexture = nullptr;
 
     pixelShader ribbonShader;
-    Buffer::SharedPtr       ribbonMaterials;
+    pixelShader ribbonShader_Bake;
     Buffer::SharedPtr       ribbonData;
-    std::vector< Texture::SharedPtr> ribbonTextures;
+    //std::vector< Texture::SharedPtr> ribbonTextures;        // remove becomes part of the cache
     pixelShader triangleShader;
     Buffer::SharedPtr       triangleData;
+    Fbo::SharedPtr		bakeFbo_plants;
+    GraphicsState::Viewport     viewportVegbake;
+    //bool bakeOneVeg = false;
+    BlendState::SharedPtr           blendstateVegBake;
+    void bakeVegetation();
+    computeShader		compute_bakeFloodfill;
 
-    _lastFile lastfile;
+    
     _terrainSettings settings;
     int terrainMode = 0;
     bool hasChanged = false;
@@ -993,6 +1034,8 @@ private:
 
     bool requestPopupTree = false;
     _GroveTree groveTree;
+//public:
+    //static materialCache_plants    vegetationMaterialCache;
 
 
     struct

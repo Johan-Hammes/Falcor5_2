@@ -425,15 +425,17 @@ namespace Falcor
         pDialog->SetOptions(options | FOS_FORCEFILESYSTEM);
         pDialog->SetFileTypes((uint32_t)fs.size(), fs.data());
         pDialog->SetDefaultExtension(fs.data()->pszSpec);
+        
 
         if (path.string().size() > 0)
         {
-            PIDLIST_ABSOLUTE pidl;
+            PIDLIST_ABSOLUTE pidl = NULL;
             std::wstring wpath = path.wstring();
-            wpath = wpath.substr(0, wpath.find_last_of(L"/\\") + 1);
+            wpath = wpath.substr(0, wpath.find_last_of(L"/\\") );
             WCHAR pPath[256];
             swprintf(pPath, 256, L"%s", wpath.c_str());
-            HRESULT hresult = SHParseDisplayName(pPath, 0, &pidl, SFGAO_FOLDER, 0);
+            SFGAOF out;
+            HRESULT hresult = SHParseDisplayName(pPath, 0, &pidl, SFGAO_FOLDER, &out);
             if (SUCCEEDED(hresult))
             {
                 IShellItem* psi;
@@ -444,6 +446,32 @@ namespace Falcor
                 }
                 ILFree(pidl);
             }
+
+
+            IShellItem* pCurFolder = NULL;
+            HRESULT hr = SHCreateItemFromParsingName(pPath, NULL, IID_PPV_ARGS(&pCurFolder));
+            //HRESULT hr = SHCreateItemFromParsingName(L"f:\\terrains", NULL, IID_PPV_ARGS(&pCurFolder));
+            if (SUCCEEDED(hr))
+            {
+                pDialog->SetFolder(pCurFolder);
+            }
+            /*
+            PIDLIST_ABSOLUTE pidlB = NULL;
+            DWORD w;
+            SHILCreateFromPath(pPath, &pidlB, &w);
+            if (pidlB)
+            {
+                IShellItem* psi;
+                hresult = ::SHCreateShellItem(NULL, NULL, pidlB, &psi);
+                if (SUCCEEDED(hresult))
+                {
+                    pDialog->SetFolder(psi);
+                }
+
+                ILFree(pidlB);
+            }
+              */  
+            
         }
 
         if (pDialog->Show(nullptr) == S_OK)
