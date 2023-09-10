@@ -488,15 +488,18 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
     ImGui::SameLine(20);
     if (_window.imageButton("scoreImage", Kolskoot::targetList[0].image, float2(150, 100)))     // Just width acurate and large heigth t
     {
-        //ImGui::OpenPopup("ThePopup");
+        ImGui::OpenPopup("Targets");
     }
-    /*
-    if (ImGui::BeginPopupModal("ThePopup")) {
+    
+    if (ImGui::BeginPopup("Targets")) {
         // Draw popup contents.
         ImGui::Text("show targets here");
+        if (ImGui::Button("close")) {
+            ImGui::CloseCurrentPopup();
+        }
         ImGui::EndPopup();
-    }*/
-
+    }
+    /*
     if (ImGui::BeginCombo("##custom combo", current_item, ImGuiComboFlags_NoArrowButton))
     {
         for (int n = 0; n < IM_ARRAYSIZE(items); n++)
@@ -509,6 +512,10 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
         }
         ImGui::EndCombo();
     }
+    */
+    //ImGui::SetNextItemWidth(110);
+    ImGui::DragFloat("##distance", &targetDistance, 1.0f, 3, 300, "%3.1f m");
+    TOOLTIP("distance to the target");
 
     ImGui::SetNextItemWidth(390);
     ImGui::Combo("###modeSelector", (int*)&pose, "standing\0kneeling\0sitting\0prone\0");

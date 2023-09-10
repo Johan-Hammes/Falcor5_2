@@ -168,6 +168,7 @@ public:
     std::string description;
     int maxScore;
     bool isScoring = true;
+    float targetDistance = 10.f;
 
     // target
     // target action
@@ -187,6 +188,7 @@ public:
         _archive(CEREAL_NVP(numRounds));
         _archive(CEREAL_NVP(pose));
         _archive(CEREAL_NVP(isScoring));
+        _archive(CEREAL_NVP(targetDistance));
     }
 };
 CEREAL_CLASS_VERSION(exercise, 100);
