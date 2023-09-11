@@ -163,6 +163,8 @@ class exercise
 {
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
+    bool renderTargetPopup(Gui* _gui);
+    
 
     std::string title;
     std::string description;
@@ -199,6 +201,8 @@ class quickRange        // rename
 {
 public:
     void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
+    void load();
+    void save();
 
     std::string title = "please rename";
     std::string description;

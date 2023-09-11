@@ -40,6 +40,7 @@
 std::vector<target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
 float2 mouseScreen;
+static bool targetPopupOpen = false;
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -62,12 +63,26 @@ void _setup::renderGui(Gui* _gui, float _screenX)
     */
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
+
+        if (ImGui::Button("...")) {
+            std::filesystem::path _path;
+            if (chooseFolderDialog(_path))
+            {
+                dataFolder = _path.string();
+            }
+        }
+
+        ImGui::SameLine(0, 10);
+
         ImGui::SetNextItemWidth(600);
         char T[256];
         sprintf(T, "%s", dataFolder.c_str());
         if (ImGui::InputText("root folder", T, 256)) {
             dataFolder = T;
         }
+        
+       
+        
 
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("pixels per meter", &screenWidth, 0.01f, 1.0f, 10.0f, "%3.2f m");
@@ -459,6 +474,24 @@ void targetAction::renderGui(Gui* _gui)
 
 
 
+
+bool exercise::renderTargetPopup(Gui* _gui)
+{
+    for (auto& T : Kolskoot::targetList)
+    {
+        if (ImGui::Button(T.title.c_str(), ImVec2(200, 0)))     // Just width acurate and large heigth t
+        {
+            target = T;
+            targetPopupOpen = false;
+            return true;
+        }
+    }
+
+
+    return false;
+}
+
+
 void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 {
     ImGui::SameLine(0, 0);
@@ -484,21 +517,41 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
     }
     ImGui::PopFont();
 
+    
     ImGui::NewLine();
     ImGui::SameLine(20);
     if (_window.imageButton("scoreImage", Kolskoot::targetList[0].image, float2(150, 100)))     // Just width acurate and large heigth t
     {
         ImGui::OpenPopup("Targets");
+        //targetPopupOpen = true;
     }
     
     if (ImGui::BeginPopup("Targets")) {
         // Draw popup contents.
-        ImGui::Text("show targets here");
-        if (ImGui::Button("close")) {
+
+        if (renderTargetPopup(_gui))
+        {
             ImGui::CloseCurrentPopup();
         }
+        /*if (ImGui::Button("close")) {
+            ImGui::CloseCurrentPopup();
+        }*/
         ImGui::EndPopup();
     }
+
+    /*
+    if (targetPopupOpen)
+    {
+        Gui::Window targetPanel(_window, "TargetsK", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize | Falcor::Gui::WindowFlags::SetFocus);
+        {
+            ImVec2 P = ImGui::GetCursorScreenPos();
+            targetPanel.windowSize((int)800, 800);
+            //targetPanel.windowPos((int)P.x, (int)P.y);
+            //renderTargetPopup(_gui, targetPanel);
+        }
+        targetPanel.release();
+    } */
+
     /*
     if (ImGui::BeginCombo("##custom combo", current_item, ImGuiComboFlags_NoArrowButton))
     {
@@ -532,6 +585,38 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 }
 
 
+
+
+void quickRange::load()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"exercises.json"} };
+    if (openFileDialog(filters, path))
+    {
+        std::ifstream is(path);
+        if (is.good()) {
+            cereal::XMLInputArchive archive(is);
+            serialize(archive, 100);
+        }
+    }
+}
+
+
+void quickRange::save()
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"exercises.json"} };
+    if (saveFileDialog(filters, path))
+    {
+        std::ofstream os(path);
+        if (os.good()) {
+            cereal::XMLOutputArchive archive(os);
+            serialize(archive, 100);
+        }
+    }
+}
+
+
 void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 {
     {
@@ -548,31 +633,13 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
                 ImGui::SameLine(0, 100);
                 if (ImGui::Button("load")) {
-                    std::filesystem::path path;
-                    FileDialogFilterVec filters = { {"exercises.json"} };
-                    if (openFileDialog(filters, path))
-                    {
-                        std::ifstream is(path);
-                        if (is.good()) {
-                            cereal::XMLInputArchive archive(is);
-                            serialize(archive, 100);
-                        }
-                    }
+                    load();
                 }
 
 
                 ImGui::SameLine(0, 100);
                 if (ImGui::Button("save")) {
-                    std::filesystem::path path;
-                    FileDialogFilterVec filters = { {"exercises.json"} };
-                    if (saveFileDialog(filters, path))
-                    {
-                        std::ofstream os(path);
-                        if (os.good()) {
-                            cereal::XMLOutputArchive archive(os);
-                            serialize(archive, 100);
-                        }
-                    }
+                    save();
                 }
 
                 ImGui::SameLine(0, 100);
@@ -1135,7 +1202,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     setupInfo.load();
 
     // targets
-    for (const auto& entry : std::filesystem::directory_iterator("F://kolskoot//targets"))
+    
+    for (const auto& entry : std::filesystem::directory_iterator(setupInfo.dataFolder + "/targets"))
     {
         if (!entry.is_directory())
         {
@@ -1216,7 +1284,13 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
 
     if ((keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Escape))
     {
-        guiMode = gui_menu;
+        if (targetPopupOpen) {
+            targetPopupOpen = false;
+        }
+        else
+        {
+            guiMode = gui_menu;
+        }
         return true;
     }
 
