@@ -62,8 +62,16 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
     float3 dir = normalize(vOut.world.xyz);
+
+    //return float4(dir, 1);
+ //   if (dir.z > 0.99)
+  //      return float4(0, 0, 1, 1);
+
+    //if (dir.x > 0.99)
+      //  return float4(1, 0, 0, 1);
+
     
-    dir.z *= -1;
+        //dir.z *= -1;
     return gSky.SampleLevel(gSampler, dir, 0);
     //return float4(normalize(vOut.world.xyz) * 0.5 + 0.5, 1);
     

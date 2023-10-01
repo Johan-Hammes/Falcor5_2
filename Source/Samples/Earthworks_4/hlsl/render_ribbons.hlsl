@@ -118,10 +118,22 @@ cbuffer gConstantBuffer
     // Meshlet related ----------------------------------------------------------
     uint fakeShadow;
     float3 objectScale;
+    float3 objectOffset;
 
-    float treeDensity;
-    float treeScale;        // unused
+
     float radiusScale;
+
+    float3  offset;
+    float   repeatScale;
+
+    int numSide;
+
+    // lighting
+    float Ao_depthScale;
+    float sunTilt;
+    float bDepth;
+    float bScale;
+    
 };
 
 
@@ -164,7 +176,8 @@ inline float3 yawPitch_9_8bit(int yaw, int pitch, const float r) // 9, 8 bits 8 
 
 inline void extractPosition(inout PSIn o, const RV6 v, const float scale, const float rotation, const float3 root)
 {
-    o.pos.xyz = root + rot_xz(float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale * scale - 1 * float3(0.1638, 0.0818, 0.1638), rotation);
+    float3 p = float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale - objectOffset;//    float3(8.192, 4.096, 8.192); //    objectOffset;
+    o.pos.xyz = root + rot_xz( p, rotation) * scale;
     o.pos.w = 1;
     o.eye = normalize(o.pos.xyz - eyePos);
 }
@@ -186,6 +199,8 @@ inline void extractTangentFlat(inout PSIn o, const RV6 v, const float rotation)
 inline void extractUVRibbon(inout PSIn o, const RV6 v)
 {
     o.uv = float2(((v.d >> 8) & 0x7f) * 0.00390625, ((v.c) & 0x7fff) * 0.00390625); // allows 16 V repeats scales are wrong decide
+    o.uv.y = 1 - o.uv.y;
+
 }
 
 inline void extractFlags(inout PSIn o, const RV6 v)
@@ -204,30 +219,30 @@ inline void extractColor(inout PSIn o, const RV6 v)
 
 inline void light(inout PSIn o, const RV6 v, const float rotation)
 {
-    const float3 sunDir = -normalize(float3(1.0, 0.7, -0.8));
+    const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
     float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, rotation);
-    float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1;
-    float d = (v.e & 0xff) * 0.00784;
-    float a = saturate(dot(normalize(lightCone + sunDir * (-0.2)), sunDir)); //cone * 0
-    float b = a * (3 - d) + d;
-    float ao = 1 - (d * 0.3f);
-    o.lighting = float4(0, 0, saturate(1 - (b * 0.5)), ao);
+    float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1;   //cone7
+    float d = (v.e & 0xff) * 0.00784;                   //depth8
+    float a = saturate(dot(normalize(lightCone + sunDir * sunTilt), sunDir)); //cone * 0
+    float b = a * (bDepth - d) + d;
+    float ao = 1 - saturate(d * Ao_depthScale);
+    o.lighting = float4(0, 0, saturate(1 - (b * bScale)), ao);
 }
 
 float rand_1_05(in float2 uv)
 {
     float2 noise = (frac(sin(dot(uv, float2(12.9898, 78.233) * 2.0)) * 43758.5453));
-    return abs(noise.x + noise.y) * 0.5;
+    return frac(noise.x + noise.y);
 }
 
 PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     PSIn output = (PSIn) 0;
     const uint P = 0; // plant.index * 128; // rename meshlet
-    float3 rootPosition = float3((iId % 100) * 0.15f, 0, ((int) (iId / 100)) * 0.15f) - float3(5, 0, 5);
-    rootPosition += 0.7f * float3(  rand_1_05(float2(iId * 0.92356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.2356, iId * 1.003568)));
-    float scale = 0.5f + 0.5f * rand_1_05(float2(iId * 1.2356, iId * 2.303568));
-    float rotation =  3.14f * rand_1_05(float2(iId * 2.2356, iId * 1.703568));
+    float3 rootPosition = float3(iId % numSide, 0, (int) (iId / numSide)) * repeatScale    +offset;
+    rootPosition += (-0.5 * repeatScale) + 0.9f * repeatScale * float3(rand_1_05(float2(iId * 0.0092356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.002356, iId * 0.003568)));
+    float scale =    0.8f + 0.4f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
+    float rotation =    2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
     const RV6 v = instanceBuffer[vId];
 
 #if defined(_BAKE)
@@ -342,14 +357,16 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     sprite_material MAT = materials[vOut.flags.x];
 
 
-    float alpha = 1;
+    float alpha = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).a;
     if (MAT.alphaTexture >= 0)
     {
         alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
-        clip(alpha - 0.5);
+        //
     }
+    clip(alpha - 0.5);
+
     float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb * vOut.colour.x;
-    output.albedo = float4(pow(color, 1.0 / 2.2), 1);
+    output.albedo = float4(pow(color, 1.0 / 2.2), alpha);
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
@@ -378,7 +395,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= dot(float3(0.3, 0.4, 0.3), textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).rgb);
         }
     }
-    trans = saturate(trans);
+    trans = saturate(pow(trans, 1.0 / 2.2));
     output.extra = float4(0, 0, 0, 1-trans);
 
     return output;
@@ -397,19 +414,26 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 
     float alpha = 1;
+
+    float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
+    alpha = albedo.a;
+    
     if (MAT.alphaTexture >= 0)
     {
         alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
-        //if (alpha < 0.5)            return float4(1, 0, 0, 1);
-        clip(alpha - 0.5);
     }
-    //return 1;
+    alpha = pow(alpha, MAT.alphaPow);
+//    if (alpha < 0.5)
+//        return float4(1, 0, 0, 0.1);
+    clip(alpha - 0.3);
+    
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
         float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
-        N = (normalTex.g * vOut.tangent) + (-normalTex.r * vOut.binormal) + (normalTex.b * vOut.normal);
+        //N = (-normalTex.g * vOut.tangent) + (normalTex.r * vOut.binormal) + (normalTex.b * vOut.normal);
+        N = (-normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
 
         //if ((normalTex.r > -0.01) && (normalTex.r < 0.01))
         //if ((normalTex.r > 0.5))
@@ -417,37 +441,49 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     N *= (isFrontFace * 2 - 1);
 
+
     
     
-        const float3 sunDir = normalize(float3(1.0, 0.9, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 1.5;
+    const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
+    const float3 sunColor = float3(1.2, 1.0, 0.7) * 5.0;
     //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(sunDir - vOut.eye)));
-    float ndots = dot(N, sunDir) * vOut.lighting.z;
+    float ndots = dot(N, sunDir); // * vOut.lighting.z;
+    if (MAT.translucency > 0.98)
+    {
+        ndots = 0.5;
+    }
     
 
-    float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
+        float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
 
-    float3 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;
+    
     //diffuse env
-    color *=  albedo * vOut.colour.x;
+    color *= albedo.rgb * vOut.colour.x * vOut.lighting.z;
 
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo * vOut.lighting.w;
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
     
     // specular sun
-    color += pow(ndoth, 12) * 0.3 *  vOut.lighting.z;
+    color += pow(ndoth, 30) * 0.9 *  vOut.lighting.z;
     // specular env???, or just single
 
-    float3 trans = saturate(-ndots * 2) * vOut.colour.y * float3(2, 2, 0.5) * MAT.translucency;
+    float3 trans = 2 * saturate(-ndots * 1) * vOut.colour.y * float3(2, 2, 2) * MAT.translucency * vOut.lighting.z;
     {
-        //if (MAT.translucencyTexture >= 0)
+        if (MAT.translucencyTexture >= 0)
         {
-            trans *= textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;
+            trans *= pow(textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r, 1);
         }
     }
-    color += trans;
+    color += trans * albedo.rgb * 4; // * vOut.colour.x * 4;
 
-    
+
+    //color = saturate(-ndots * 2) * vOut.colour.y * float3(2, 2, 0.5) * MAT.translucency * vOut.lighting.z;
+
+    //color.rgb = N.y;// * 0.5 + 0.5;
+
+    //color = vOut.lighting.z;
+    //color = gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
+    //color = vOut.lighting.w;
     
     return float4(color, saturate(alpha + 0.2)) ;
 }

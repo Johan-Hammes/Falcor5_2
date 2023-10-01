@@ -337,6 +337,7 @@ struct sprite_material
     //???
     int translucencyTexture = -1;
     float translucency;
+    float alphaPow;
     
 };
 
