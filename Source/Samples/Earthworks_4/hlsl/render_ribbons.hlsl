@@ -105,9 +105,9 @@ struct RV6
     int e;
     int f;
 };
-StructuredBuffer<sprite_material>   materials;
+StructuredBuffer<sprite_material> materials;
 StructuredBuffer<RV6> instanceBuffer;
-StructuredBuffer<xformed_PLANT>     instances;
+StructuredBuffer<xformed_PLANT> instances;
 
 
 cbuffer gConstantBuffer
@@ -123,8 +123,8 @@ cbuffer gConstantBuffer
 
     float radiusScale;
 
-    float3  offset;
-    float   repeatScale;
+    float3 offset;
+    float repeatScale;
 
     int numSide;
 
@@ -145,21 +145,53 @@ struct PSIn
     float3 normal : NORMAL;
     float3 tangent : TANGENT;
     float3 binormal : BINORMAL;
-    float3 diffuseLight : COLOR;
-    float3 specularLight : COLOR1;
-    float2 uv : TEXCOORD;                           // texture uv
-    float4 lighting : TEXCOORD1;                    // uv, sunlight, ao
-    nointerpolation uint4 flags : TEXCOORD2;        // material
-    float3 eye : TEXCOORD3;
+    //float3 diffuseLight : COLOR;
+    //float3 specularLight : COLOR1;
+    float2 uv : TEXCOORD; // texture uv
+    float4 lighting : TEXCOORD1; // uv, sunlight, ao
+    nointerpolation uint4 flags : TEXCOORD2; // material
+    float3 eye : TEXCOORD3;                 // can this become SVPR  or per plant somehow, feels overkill here per vertex
     float3 colour : TEXCOORD4;
+    //float4 control : TEXCOORD5; // teh lod control values  place in flags.w for now
 };
 
 
+float3 lighting(const float3 N, const float3 eye, const float3 colour, const float4 lighting, const int matIndex)
+{
+    const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
+    const float3 sunColor = float3(1.2, 1.0, 0.7) * 5.0;
+    float ndoth = saturate(dot(N, normalize(sunDir - eye)));
+    float ndots = dot(N, sunDir);
+    //if (MAT.translucency > 0.98)
+    //{
+    //    ndots = 0.5;
+    //}
+
+    sprite_material MAT = materials[matIndex];
+
+    float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
+
+    float3 tempAlbedo = float3(3.03, 0.1, 0.02);
+    
+    //diffuse env
+    color *= tempAlbedo * colour.x * lighting.z;
+
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * tempAlbedo * colour.x * lighting.w;
+    
+    // specular sun
+    color += pow(ndoth, 15) * 0.3 * lighting.z;
+
+    float3 trans = 2 * saturate(-ndots * 1) * colour.y * float3(1, 2, 0.4) * MAT.translucency * lighting.z;
+    color += trans * tempAlbedo * 2;
+
+
+    return color;
+}
 
 
 inline float3 rot_xz(const float3 v, const float yaw)
 {
-    float s, c; 
+    float s, c;
     sincos(yaw, s, c);
     return float3((v.x * c) + (v.z * s), v.y, (-v.x * s) + (v.z * c));
 }
@@ -176,8 +208,8 @@ inline float3 yawPitch_9_8bit(int yaw, int pitch, const float r) // 9, 8 bits 8 
 
 inline void extractPosition(inout PSIn o, const RV6 v, const float scale, const float rotation, const float3 root)
 {
-    float3 p = float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale - objectOffset;//    float3(8.192, 4.096, 8.192); //    objectOffset;
-    o.pos.xyz = root + rot_xz( p, rotation) * scale;
+    float3 p = float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale - objectOffset; //    float3(8.192, 4.096, 8.192); //    objectOffset;
+    o.pos.xyz = root + rot_xz(p, rotation) * scale;
     o.pos.w = 1;
     o.eye = normalize(o.pos.xyz - eyePos);
 }
@@ -205,24 +237,28 @@ inline void extractUVRibbon(inout PSIn o, const RV6 v)
 
 inline void extractFlags(inout PSIn o, const RV6 v)
 {
-    o.flags.x = (v.b >> 8) & 0x2ff;     //  material
-    o.flags.y =     (v.a >> 30) & 0x1; //  start bool
-    o.flags.z = (v.d & 0xff);           //  int radius
+    o.flags.x = (v.b >> 8) & 0x2ff; //  material
+    o.flags.y = (v.a >> 30) & 0x1; //  start bool
+    o.flags.z = (v.d & 0xff); //  int radius
 }
 
 inline void extractColor(inout PSIn o, const RV6 v)
 {
-    o.colour.x = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
-    o.colour.y = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
-    o.colour.z = 0.5;
+    o.colour.r = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
+    o.colour.g = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
+    //o.colour.b = 0.5;
+
+    o.colour.b = saturate((v.d & 0xff) * radiusScale / length(o.pos.xyz - eyePos) * 200);
+    o.colour.b = saturate((o.colour.b - 0.5) * 50);
+    
 }
 
 inline void light(inout PSIn o, const RV6 v, const float rotation)
 {
     const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
     float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, rotation);
-    float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1;   //cone7
-    float d = (v.e & 0xff) * 0.00784;                   //depth8
+    float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
+    float d = (v.e & 0xff) * 0.00784; //depth8
     float a = saturate(dot(normalize(lightCone + sunDir * sunTilt), sunDir)); //cone * 0
     float b = a * (bDepth - d) + d;
     float ao = 1 - saturate(d * Ao_depthScale);
@@ -239,10 +275,11 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     PSIn output = (PSIn) 0;
     const uint P = 0; // plant.index * 128; // rename meshlet
-    float3 rootPosition = float3(iId % numSide, 0, (int) (iId / numSide)) * repeatScale    +offset;
+    float3 rootPosition = float3(iId % numSide, 0, (int) (iId / numSide)) * repeatScale + offset;
     rootPosition += (-0.5 * repeatScale) + 0.9f * repeatScale * float3(rand_1_05(float2(iId * 0.0092356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.002356, iId * 0.003568)));
-    float scale =    0.8f + 0.4f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
-    float rotation =    2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
+    rootPosition.y = 0;
+    float scale = 0.8f + 0.4f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
+    float rotation = 2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
     const RV6 v = instanceBuffer[vId];
 
 #if defined(_BAKE)
@@ -259,78 +296,91 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     else
     {
         extractTangent(output, v, rotation);
-    }        
+    }
     extractUVRibbon(output, v);
     extractFlags(output, v);
     extractColor(output, v);
     light(output, v, rotation);
-        
+
+    //output.diffuseLight = lighting(output.normal, output.eye, output.colour, output.lighting, output.flags.x);
+
+    float d = length(output.pos.xyz - eyePos);
+    output.flags.w = output.flags.z * radiusScale / d * 10000;
+
+            
     return output;
 }
 
-
-
-[maxvertexcount(4)]
-void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
+/*
+PSIn lerpVert(const PSIn L[2], float x)
 {
     PSIn v;
 
-//    float4 Pmid = 0.5 * (L[0].pos + L[1].pos);
-//    Pmid.xyz += normalize(L[0].normal + L[1].normal) * 0.15;    // just 5 cm shift JUST curve
-     
-    if (L[1].flags.y == 1)
+    float3 del = L[1].pos.xyz - L[0].pos.xyz;
+    float Len = length(del);
+    v.pos = lerp(L[0].pos, L[1].pos, x);
+    v.pos.xyz += (L[0].binormal - L[1].binormal) * 0.5 * Len * (x) * (1 - x);
+
+    
+    v.normal = lerp(L[0].normal, L[1].normal, x);
+    v.tangent = lerp(L[0].tangent, L[1].tangent, x);
+    v.binormal = lerp(L[0].binormal, L[1].binormal, x);
+    v.diffuseLight = lerp(L[0].diffuseLight, L[1].diffuseLight, x);
+    v.specularLight = lerp(L[0].specularLight, L[1].specularLight, x);
+    v.uv = lerp(L[0].uv, L[1].uv, x);
+    v.lighting = lerp(L[0].lighting, L[1].lighting, x);
+    v.flags = L[0].flags;
+    v.eye = lerp(L[0].eye, L[1].eye, x);
+    v.colour = lerp(L[0].colour, L[1].colour, x);
+    v.control = lerp(L[0].control, L[1].control, x);
+    
+    return v;
+}
+*/
+
+// HOLY fukcing shit, this is bad anythign above 6
+// at 6 I can still get gain out of this
+[maxvertexcount(6)]
+void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
+{
+    
+    PSIn v;
+    
+    if ((L[1].flags.y == 1) && (L[0].flags.w > 1))
+    //if ((L[1].flags.y == 1))
     {
-  /*      
-        float t = 0;
-        for (int i = 0; i <= 10; i++)
-        {
-            t += 0.11f;
-            // bezier interpolate
-            float4 Pa = lerp(L[0].pos, Pmid, t);
-            float4 Pb = lerp(Pmid, L[1].pos, t);
-            float4 P = lerp(Pa, Pb, t);
-            //float4 P = lerp(L[0].pos, Pmid, t);
-            v = L[0];
-            v.tangent = lerp(L[0].tangent, L[1].tangent, t);
-            v.binormal = normalize(Pb - Pa).xyz;
-            v.uv.y = t;
-
-            v.uv.x = 0;//            0.5 + v.uv.x;
-            v.pos = mul(P - float4(v.tangent * L[0].flags.z * radiusScale, 0), viewproj);
-            OutputStream.Append(v);
-
-            v.uv.x = 1;//            0.5 + v.uv.x;
-            v.pos = mul(P + float4(v.tangent * L[0].flags.z * radiusScale, 0), viewproj);
-            OutputStream.Append(v);
-        }
-        */
-
-        
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = mul(L[0].pos - float4(L[0].tangent * L[0].flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[0].pos - float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
         OutputStream.Append(v);
 
+        v.uv.x = 0.5 - L[0].uv.x;
+        v.pos = mul(L[0].pos + float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+        OutputStream.Append(v);
+        
+        if (L[0].flags.w > 10)      // but we can do the test rigth here from radius
+        {
+            float l1 = length(L[1].pos.xyz - L[0].pos.xyz);
+            float4 posBezier = float4(((L[0].pos.xyz + L[1].pos.xyz) * 0.5) + ((L[0].binormal - L[1].binormal) * l1 * 0.125), 1);
 
+            v.uv.y = (L[0].uv.y + L[1].uv.y) * 0.5;
+            v.uv.x = 0.5 + L[0].uv.x;
+            v.pos = mul(posBezier - float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+            OutputStream.Append(v);
+
+            v.uv.x = 0.5 - L[0].uv.x;
+            v.pos = mul(posBezier + float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+            OutputStream.Append(v);
+        }
+        
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = mul(L[1].pos - float4(L[1].tangent * L[1].flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[1].pos - float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
         OutputStream.Append(v);
 
-        
-
-
-        v = L[0];
-        v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = mul(L[0].pos + float4(L[0].tangent * L[0].flags.z * radiusScale, 0), viewproj);
-        OutputStream.Append(v);
-
-        v = L[1];
         v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = mul(L[1].pos + float4(L[1].tangent * L[1].flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[1].pos + float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
         OutputStream.Append(v);
-
-
     }
 }
 
@@ -405,10 +455,25 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    //return 1;
+//    bool v_VLight = (vOut.flags.w < 10);
+    //uint s_firstLaneVLight = WaveReadLaneFirst(v_VLight);
+    //uint4 laneMask = WaveActiveBallot(v_VLight == s_firstLaneVLight);
+//    bool fastPath = false;//    WaveActiveAllTrue(v_VLight);
+    //(laneMask == WaveActiveBallot(true));
+
+    // if (v_VLight)
+    /*
+        if (fastPath)
+        {
+    
+            return float4(vOut.diffuseLight, 1);
+        }
+*/
+   // return 1;
     //return float4(vOut.flags.y, frac(vOut.uv.x), frac(vOut.uv.y), 1);
     //return float4(frac(vOut.uv.y), frac(vOut.uv.y), isFrontFace, 1);
     //return 1; //this douvle speed even oif no pixels aredraw
+
     
     sprite_material MAT = materials[vOut.flags.x];
 
@@ -425,7 +490,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     alpha = pow(alpha, MAT.alphaPow);
 //    if (alpha < 0.5)
 //        return float4(1, 0, 0, 0.1);
-    clip(alpha - 0.3);
+    clip(alpha - 0.4);
     
     
     float3 N = vOut.normal;
@@ -448,23 +513,23 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     const float3 sunColor = float3(1.2, 1.0, 0.7) * 5.0;
     //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(sunDir - vOut.eye)));
-    float ndots = dot(N, sunDir); // * vOut.lighting.z;
+    float ndots = dot(N, -sunDir); // * vOut.lighting.z;
     if (MAT.translucency > 0.98)
     {
         ndots = 0.5;
     }
     
 
-        float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
+    float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
 
     
     //diffuse env
-    color *= albedo.rgb * vOut.colour.x * vOut.lighting.z;
+    color *= albedo.rgb * vOut.colour.x * vOut.lighting.z * 1;
 
     color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
     
     // specular sun
-    color += pow(ndoth, 30) * 0.9 *  vOut.lighting.z;
+    color += pow(ndoth, 6) * 0.5 * vOut.lighting.z;
     // specular env???, or just single
 
     float3 trans = 2 * saturate(-ndots * 1) * vOut.colour.y * float3(2, 2, 2) * MAT.translucency * vOut.lighting.z;
@@ -484,8 +549,12 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     //color = vOut.lighting.z;
     //color = gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
     //color = vOut.lighting.w;
-    
-    return float4(color, saturate(alpha + 0.2)) ;
+
+    //color = vOut.colour.b;
+
+    float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
+    alpha = min(alpha, alphaV);
+    return float4(color, saturate(alpha + 0.2));
 }
 
 #endif

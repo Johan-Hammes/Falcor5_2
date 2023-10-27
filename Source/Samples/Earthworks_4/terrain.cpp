@@ -184,8 +184,8 @@ void _shadowEdges::load()
 
 
 
-float objectScale = 0.001f;
-float radiusScale = objectScale / 10.0f;
+float objectScale = 0.002f;
+float radiusScale = objectScale / 2.0f;
 float O = 16384.0f * objectScale * 0.5f;
 float3 objectOffset = float3(O, O * 0.5f, O);
  
@@ -208,7 +208,7 @@ rvPacked rvB::pack()
 
     int u7 = ((int)(uv.x * 127.f)) & 0x7f;
     int v15 = ((int)(uv.y * 255.f)) & 0x7fff;
-    int radius8 = (__min(255, (int)(radius  / radiusScale))) & 0xff;
+    int radius8 = (__min(255, (int)(radius  / radiusScale))) & 0xff;        // FIXME POW for better distribution
 
     float up_yaw = atan2(bitangent.z, bitangent.x) + 3.1415926535897932;
     float up_pitch = atan2(bitangent.y, length(float2(bitangent.x, bitangent.z))) + 1.570796326794;
@@ -269,7 +269,7 @@ std::string materialCache_plants::clean(const std::string _s)
     return str;
 }
 
-uint materialCache_plants::find_insert_material(const std::string _path, const std::string _name)
+int materialCache_plants::find_insert_material(const std::string _path, const std::string _name)
 {
     std::filesystem::path fullPath = _path + _name + ".vegetationMaterial";
     if (std::filesystem::exists(fullPath))
@@ -292,12 +292,12 @@ uint materialCache_plants::find_insert_material(const std::string _path, const s
     }
 
     fprintf(terrafectorSystem::_logfile, "error : vegetation material - %s does not exist\n", _name.c_str());
-    return 0;
+    return -1;
 }
 
 
 // force a new one? copy last and force a save ?
-uint materialCache_plants::find_insert_material(const std::filesystem::path _path)
+int materialCache_plants::find_insert_material(const std::filesystem::path _path)
 {
     for (uint i = 0; i < materialVector.size(); i++)
     {
@@ -308,11 +308,16 @@ uint materialCache_plants::find_insert_material(const std::filesystem::path _pat
     }
 
     // else add new
-    uint materialIndex = (uint)materialVector.size();
-    _plantMaterial& material = materialVector.emplace_back();
-    material.import(_path);
-    fprintf(terrafectorSystem::_logfile, "add vegeatation material[%d] - %s\n", materialIndex, _path.filename().string().c_str());
-    return materialIndex;
+    if (std::filesystem::exists(_path))
+    {
+        uint materialIndex = (uint)materialVector.size();
+        _plantMaterial& material = materialVector.emplace_back();
+        material.import(_path);
+        fprintf(terrafectorSystem::_logfile, "add vegeatation material[%d] - %s\n", materialIndex, _path.filename().string().c_str());
+        return materialIndex;
+    }
+
+    return -1;
 }
 
 
@@ -837,7 +842,7 @@ void _leaf::load()
     {
         std::ifstream is(path.string());
         cereal::JSONInputArchive archive(is);
-        serialize(archive, 100);
+        serialize(archive, _LEAF_VERSION);
         terrainManager::lastfile.leaves = path.string();
     }
 }
@@ -850,7 +855,7 @@ void _leaf::save()
     {
         std::ofstream os(path.string());
         cereal::JSONOutputArchive archive(os);
-        serialize(archive, 100);
+        serialize(archive, _LEAF_VERSION);
         terrainManager::lastfile.leaves = path.string();
     }
 }
@@ -1147,7 +1152,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
     for (int j = 0; j <= leafCNT; j++)
     {
         float t = (float)j * leafStep;
-        float du = sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y;
+        float du =  sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y;
         if (du > 1) du = 1;
         //du = 1;
 
@@ -1257,6 +1262,8 @@ void _twigLod::save()
 
 void _twig::reloadMaterials()
 {
+    stem_Material.index = _plantMaterial::static_materials_veg.find_insert_material(stem_Material.name);
+    sprite_Material.index = _plantMaterial::static_materials_veg.find_insert_material(sprite_Material.name);
     /*
     for (int m = 0; m < materialList.size(); m++)
     {
@@ -1279,7 +1286,7 @@ void _twig::load()
     {
         std::ifstream is(path.string());
         cereal::JSONInputArchive archive(is);
-        serialize(archive, 100);
+        serialize(archive, _TWIG_VERSION);
         changed = true;
         filename = path.filename().string();
         filepath = path.string();
@@ -1713,7 +1720,7 @@ void _twigCollection::renderGui(Gui* _gui)
     ImGui::Text("radius");
     ImGui::SameLine(80, 0);
     ImGui::SetNextItemWidth(80);
-    if (ImGui::DragFloat("##radius", &radius, 0.01f, 0.01f, 2.f)) changed = true;
+    if (ImGui::DragFloat("##radius", &radius, 0.001f, 0.001f, 2.f)) changed = true;
 
     ImGui::Text("radiusAngle");
     ImGui::SameLine(80, 0);
@@ -1824,7 +1831,7 @@ void _weed::renderGui(Gui* _gui)
 
     if (visibleTwig >= 0)
     {
-        twigs.at(visibleTwig).renderGui(_gui);
+        //twigs.at(visibleTwig).renderGui(_gui);
 
         //ImGui::NextColumn();
         //twigs.at(visibleTwig).twig.renderGui(_gui);
@@ -1970,15 +1977,44 @@ void _weed::build(float _age, float _lodPixelsize)
 
 void _weed::load()
 {
+    std::filesystem::path path = terrainManager::lastfile.weed;
+    FileDialogFilterVec filters = { {"weed"} };
+    if (openFileDialog(filters, path))
+    {
+        std::ifstream is(path.string());
+        cereal::JSONInputArchive archive(is);
+        serialize(archive, _WEED_VERSION);
+        changed = true;
+        filename = path.filename().string();
+        filepath = path.string();
+        terrainManager::lastfile.weed = filepath;
+        visibleTwig = twigs.size() - 1; 
+    }
 }
-
 
 void _weed::save()
 {
+    std::ofstream os(filepath);
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive, _WEED_VERSION);
+    changedForSaving = false;
 }
+
 
 void _weed::saveas()
 {
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"weed"} };
+    if (saveFileDialog(filters, path))
+    {
+        std::ofstream os(path.string());
+        cereal::JSONOutputArchive archive(os);
+        serialize(archive, _WEED_VERSION);
+
+        filename = path.filename().string();
+        filepath = path.string();
+        terrainManager::lastfile.weed = filepath;
+    }
 }
 
 
@@ -2197,57 +2233,29 @@ void _GroveBranch::reset()
 
 
 
+void _GroveTree::loadStemMaterial()
+{
+    std::filesystem::path path = terrainManager::lastfile.vegMaterial;
+    FileDialogFilterVec filters = { {"vegetationMaterial"} };
+    if (openFileDialog(filters, path))
+    {
+        branch_Material.index = _plantMaterial::static_materials_veg.find_insert_material(path);
+        branch_Material.name = path.string();       // FIXME dont liek this,. should be relative
+        branch_Material.displayname = path.filename().string().substr(0, path.filename().string().length() - 19);
+        terrainManager::lastfile.vegMaterial = path.string();
+    }
+}
+
+void _GroveTree::reloadMaterials()
+{
+    branch_Material.index = _plantMaterial::static_materials_veg.find_insert_material(branch_Material.name);
+}
+
 void _GroveTree::renderGui(Gui* _gui)
 {
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
-        ImGui::DragInt("##size", &numFour, 1, 0, 100);
-        if (ImGui::Button("load")) {
-            load();
-        }
-        ImGui::Text("branches - %d", branches.size());
-        ImGui::Text("branch leaves - %d", branchLeaves.size());
-        ImGui::Text("# ribbons - %d", numBranchRibbons);
-        ImGui::Text("# side B found - %d", numSideBranchesFound);
-        ImGui::Text("# dead ends - %d", numDeadEnds);
-        ImGui::Text("# bad ends - %d", numBadEnds);
-
-
-        if (ImGui::Checkbox("branch leaves", &includeBranchLeaves)) {
-            rebuildRibbons();
-        }
-        if (ImGui::Checkbox("tip leaves", &includeEndLeaves)) {
-            rebuildRibbons();
-        }
-        if (ImGui::Checkbox("showOnlyUnattached", &showOnlyUnattached)) {
-            rebuildRibbons();
-        }
-
-
-        if (ImGui::DragFloat("start", &startRadius, 0.1f, 0.01f, 10.f)) {
-            rebuildRibbons();
-        }
-        if (ImGui::DragFloat("end", &endRadius, 0.003f, 0.0f, 1.f)) {
-            rebuildRibbons();
-        }
-        if (ImGui::DragFloat("step", &stepFactor, 0.1f, 0.1f, 5.f)) {
-            rebuildRibbons();
-        }
-        if (ImGui::DragFloat("bend", &bendFactor, 0.01f, 0.9f, 1.f)) {
-            rebuildRibbons();
-        }
-
-        ImGui::Separator();
-        ImGui::Text("Twigs");
-        if (ImGui::DragFloat("twig scale", &twigScale, 0.01f, 0.001f, 1.f)) {
-            rebuildRibbons();
-        }
-        if (ImGui::Button("import twig")) {
-            importTwig();
-            rebuildRibbons();
-        }
-
-        ImGui::Separator();
+        
         /*
         leafBuilder.renderGui(_gui);
         if (leafBuilder.changed)
@@ -2290,6 +2298,70 @@ void _GroveTree::renderGui(Gui* _gui)
             switch (rootMode)
             {
             case mode_grove:
+                ImGui::DragInt("##size", &numFour, 1, 0, 100);
+                if (ImGui::Button("load")) {
+                    load();
+                }
+                ImGui::Text("branches - %d", branches.size());
+                ImGui::Text("branch leaves - %d", branchLeaves.size());
+                ImGui::Text("# ribbons - %d", numBranchRibbons);
+                ImGui::Text("# side B found - %d", numSideBranchesFound);
+                ImGui::Text("# dead ends - %d", numDeadEnds);
+                ImGui::Text("# bad ends - %d", numBadEnds);
+
+
+                if (ImGui::Checkbox("branch leaves", &includeBranchLeaves)) {
+                    rebuildRibbons();
+                }
+                if (ImGui::Checkbox("tip leaves", &includeEndLeaves)) {
+                    rebuildRibbons();
+                }
+                if (ImGui::Checkbox("showOnlyUnattached", &showOnlyUnattached)) {
+                    rebuildRibbons();
+                }
+
+
+                if (ImGui::DragFloat("start", &startRadius, 0.1f, 0.01f, 10.f)) {
+                    rebuildRibbons();
+                }
+                if (ImGui::DragFloat("end", &endRadius, 0.001f, 0.001f, 0.1f)) {
+                    rebuildRibbons();
+                }
+                if (ImGui::DragFloat("step", &stepFactor, 0.1f, 1.0f, 15.f)) {
+                    rebuildRibbons();
+                }
+                if (ImGui::DragFloat("bend", &bendFactor, 0.01f, 0.6f, 1.f)) {
+                    rebuildRibbons();
+                }
+
+                if (ImGui::Button(branch_Material.displayname.c_str(), ImVec2(170, 0)))
+                {
+                    loadStemMaterial();
+                    rebuildRibbons();
+                }
+                TOOLTIP(branch_Material.displayname.c_str());
+
+                ImGui::NewLine();
+                ImGui::Text("Twigs");
+                if (ImGui::DragFloat("twig scale", &twigScale, 0.01f, 0.001f, 1.f)) {
+                    rebuildRibbons();
+                }
+
+                if (ImGui::DragFloat("brnachAge", &branchTwigsAge, 0.1f, 0.1f, 10.f)) {
+                    rebuildRibbons();
+                }
+                if (ImGui::DragFloat("tipAge", &tipTwigsAge, 0.1f, 0.1f, 10.f)) {
+                    rebuildRibbons();
+                }
+
+
+                ImGui::NextColumn();
+                tipTwigs.renderGui(_gui);
+                if (tipTwigs.changed) {
+                    rebuildRibbons();
+                    tipTwigs.changed = false;
+                }
+
                 break;
             case mode_weed:
                 weedBuilder.renderGui(_gui);
@@ -2684,6 +2756,8 @@ void _GroveTree::rebuildRibbons()
     }
 
 
+    
+
     for (int b = 0; b < branches.size(); b++)
     {
         if (showOnlyUnattached && branches[b].rootBranch >= 0) continue;
@@ -2710,20 +2784,45 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].startBit = n > 0;
                 branchRibbons[numBranchRibbons].position = branches[b].nodes[n].pos;
                 branchRibbons[numBranchRibbons].radius = branches[b].nodes[n].radius;
-                branchRibbons[numBranchRibbons].material = 0;
+                branchRibbons[numBranchRibbons].material = branch_Material.index;
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 branchRibbons[numBranchRibbons].uv = float2(1, v);
                 branchRibbons[numBranchRibbons].bitangent = branches[b].nodes[n].dir;
 
 
-                if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
-                    numBranchRibbons++; // fixme test start
+                // Look forward, what is left till endrradius
+                /*
+                int nodesLeft = 0;
+                for (int k = n+1; k < branches[b].nodes.size(); k++)
+                {
+                    if (branches[b].nodes[k].radius > endRadius)
+                    {
+                        nodesLeft++;
+                    }
                 }
-                else if ((branches[b].nodes[n].radius < startRadius) &&
-                    (branches[b].nodes[n].radius > endRadius) &&
-                    (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / branches[b].nodes[n].radius > stepFactor)) {
+                */
+
+                /*if (nodesLeft == 0)
+                {
                     numBranchRibbons++;
                 }
+                else*/
+                {
+
+                    float stepThis = stepFactor * pow((endRadius / branches[b].nodes[n].radius), 0.3);/// 0.2 IS TE ERG
+                    if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
+                        numBranchRibbons++; // fixme test start
+                    }
+                    else if ((branches[b].nodes[n].radius < startRadius) &&
+                        (branches[b].nodes[n].radius > endRadius) &&
+                        (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / branches[b].nodes[n].radius > stepThis) 
+                        ) {
+                        numBranchRibbons++;
+                    }
+                }
+
+                // add bendfactor, and then combine very short last steps
+                //also have to remove tiny branches where we only inserted the tsrat
             }
         }
     }
@@ -2734,12 +2833,26 @@ void _GroveTree::rebuildRibbons()
         for (int b = 0; b < branchLeaves.size(); b++)
         {
 
-            float3 P = branchLeaves[b].pos;
+            
             float3 D = normalize(branchLeaves[b].dir);
             float3 U = float3(0, 1, 0);
             float3 R = normalize(cross(U, D));
             U = cross(D, R);
 
+            glm::mat4 S;
+            S[0] = float4(R, 0);
+            S[1] = float4(U, 0);
+            S[2] = float4(D, 0);
+            S[3] = float4(branchLeaves[b].pos, 0);
+            tipTwigs.build(branchTwigsAge, 0.f, S, 0);
+
+            for (int k = 0; k < tipTwigs.ribbonLength; k++) {
+                branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
+                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+                numBranchRibbons++;
+            }
+
+            /*
             for (int i = 0; i < twiglength; i++)
             {
                 branchRibbons[numBranchRibbons] = twig[i];
@@ -2748,6 +2861,7 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 numBranchRibbons++;
             }
+            */
         }
     }
 
@@ -2759,6 +2873,20 @@ void _GroveTree::rebuildRibbons()
             float3 U = float3(0, 1, 0);
             float3 R = normalize(cross(U, D));
             U = cross(D, R);
+
+            glm::mat4 S;
+            S[0] = float4(R, 0);
+            S[1] = float4(U, 0);
+            S[2] = float4(D, 0);
+            S[3] = float4(branchLeaves[b].pos, 0);
+            tipTwigs.build(tipTwigsAge, 0.f, S, 0);
+
+            for (int k = 0; k < tipTwigs.ribbonLength; k++) {
+                branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
+                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+                numBranchRibbons++;
+            }
+            /*
             for (int i = 0; i < twiglength; i++)
             {
                 /// DAMN _ EK MOET DIE right vector ook roteer hier en dit geberu nooit nie
@@ -2767,7 +2895,7 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].bitangent = twig[i].bitangent.x * D + twig[i].bitangent.y * U + twig[i].bitangent.z * R;
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 numBranchRibbons++;
-            }
+            }*/
 
         }
     }
@@ -5563,6 +5691,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["offset"] = float3(-ribbonInstanceNumber * spacing * 0.5f, 0, -ribbonInstanceNumber * spacing * 0.5f);
             ribbonShader.Vars()["gConstantBuffer"]["repeatScale"] = spacing;
             ribbonShader.Vars()["gConstantBuffer"]["numSide"] = ribbonInstanceNumber;
+
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
 
             // lighting
             ribbonShader.Vars()["gConstantBuffer"]["Ao_depthScale"] = static_Ao_depthScale;

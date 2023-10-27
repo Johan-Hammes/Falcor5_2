@@ -109,8 +109,8 @@ class _plantMaterial;
 class materialCache_plants {
 public:
 
-    uint find_insert_material(const std::string _path, const std::string _name);
-    uint find_insert_material(const std::filesystem::path _path);
+    int find_insert_material(const std::string _path, const std::string _name);
+    int find_insert_material(const std::filesystem::path _path);
     int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
     std::string clean(const std::string _s);
 
@@ -284,10 +284,16 @@ struct _leaf
         archive(CEREAL_NVP(translucencyScale));
         archive(CEREAL_NVP(translucencyScaleNew));
 
+        if (_version > 100) {
+            archive(CEREAL_NVP(minVerts));
+            archive(CEREAL_NVP(maxVerts));
+        }
+
         reloadMaterials();
     }
 };
-CEREAL_CLASS_VERSION(_leaf, 100);
+#define _LEAF_VERSION 101
+CEREAL_CLASS_VERSION(_leaf, _LEAF_VERSION);
 
 
 #define RIBBON_BLOCK_SIZE 32
@@ -384,10 +390,16 @@ struct _twig
         archive(CEREAL_NVP(twistAway));
         archive(CEREAL_NVP(leaves));
 
+        if (_version > 100) {
+            archive(CEREAL_NVP(tipleaves));
+            archive_float2(stem_stalk);
+            archive(CEREAL_NVP(leaf_age_power));
+        }
+
         reloadMaterials();
     }
 };
-#define _TWIG_VERSION 100
+#define _TWIG_VERSION 101
 CEREAL_CLASS_VERSION(_twig, _TWIG_VERSION);
 
 
@@ -468,13 +480,13 @@ struct _weed
 
     int     rndSeed = 0;
     float   age = 5.3f;
-    _leaf   leaves;
+    //_leaf   leaves;
     std::vector<_twigCollection> twigs;
 
     bool changed = false;
     bool changedForSaving = false;
 
-    rvB     ribbon[16384];
+    rvB     ribbon[16384]; 
     uint    ribbonLength;
     float3  extents;
     int     lod = 3;
@@ -487,6 +499,8 @@ struct _weed
     {
         archive(CEREAL_NVP(rndSeed));
         archive(CEREAL_NVP(age));
+
+        archive(CEREAL_NVP(twigs));
     }
 };
 #define _WEED_VERSION 100
@@ -637,10 +651,16 @@ struct _GroveTree
 
     // optimize, move to a lod calss
     float startRadius = 1000.f;
-    float endRadius = 0.f;
-    float stepFactor = 2.0f;
+    float endRadius = 0.005f;
+    float stepFactor = 15.0f;
     float bendFactor = 0.95f;
 
+
+    _twig branchTwigs;
+    _twig tipTwigs;
+    float tipTwigsAge = 4.5f;
+    float branchTwigsAge = 4.5f;
+    _vegetationMaterial branch_Material;
 
     _leaf leafBuilder;
     _twig twigBuilder;
@@ -671,9 +691,20 @@ struct _GroveTree
         _archive(CEREAL_NVP(numFour));
         _archive(CEREAL_NVP(scale));
         _archive(CEREAL_NVP(branches));
+
+        _archive(CEREAL_NVP(branchTwigs));
+        _archive(CEREAL_NVP(tipTwigs));
+        _archive(CEREAL_NVP(branch_Material));
+        _archive(CEREAL_NVP(tipTwigsAge));
+        _archive(CEREAL_NVP(branchTwigsAge));
+        
+
+        reloadMaterials();
     }
 
     void renderGui(Gui* _gui);
+    void loadStemMaterial();
+    void reloadMaterials();
     void load();
 };
 CEREAL_CLASS_VERSION(_GroveTree, 100);
