@@ -83,6 +83,7 @@ Tangent space -> texture normal mapping ??? can we do somethign to simplify this
 SamplerState gSampler;
 Texture2D gAlbedo : register(t0);
 TextureCube gEnv : register(t1);
+Texture2D gHalfBuffer : register(t2);
 
 struct ribbonTextures
 {
@@ -477,8 +478,11 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     sprite_material MAT = materials[vOut.flags.x];
 
+    //if (vOut.flags.x == 1)
+     //   return 0.5;
 
-    float alpha = 1;
+
+        float alpha = 1;
 
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
     alpha = albedo.a;
@@ -490,19 +494,14 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     alpha = pow(alpha, MAT.alphaPow);
 //    if (alpha < 0.5)
 //        return float4(1, 0, 0, 0.1);
-    clip(alpha - 0.4);
+    clip(alpha - 0.2);
     
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
         float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
-        //N = (-normalTex.g * vOut.tangent) + (normalTex.r * vOut.binormal) + (normalTex.b * vOut.normal);
         N = (-normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
-
-        //if ((normalTex.r > -0.01) && (normalTex.r < 0.01))
-        //if ((normalTex.r > 0.5))
-          //  return float4(1, 0, 0, 1);
     }
     N *= (isFrontFace * 2 - 1);
 
@@ -510,13 +509,13 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 5.0;
+    const float3 sunColor = float3(1.2, 1.0, 0.7) * 3.0;
     //float ndotv = saturate(dot(N, vOut.eye));
-    float ndoth = saturate(dot(N, normalize(sunDir - vOut.eye)));
+    float ndoth = saturate(dot(N, normalize(-sunDir + vOut.eye)));
     float ndots = dot(N, -sunDir); // * vOut.lighting.z;
     if (MAT.translucency > 0.98)
     {
-        ndots = 0.5;
+        //ndots = 0.5;
     }
     
 
@@ -524,22 +523,24 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     
     //diffuse env
-    color *= albedo.rgb * vOut.colour.x * vOut.lighting.z * 1;
+    color *= albedo.rgb * vOut.colour.x * vOut.lighting.z;
 
     color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
+
+    
     
     // specular sun
-    color += pow(ndoth, 6) * 0.5 * vOut.lighting.z;
-    // specular env???, or just single
+    color += pow(ndoth, 5) * 0.2 * vOut.lighting.z;
+   
 
-    float3 trans = 2 * saturate(-ndots * 1) * vOut.colour.y * float3(2, 2, 2) * MAT.translucency * vOut.lighting.z;
+    float3 trans = saturate(-ndots) * vOut.colour.y * float3(2, 2, 2) * MAT.translucency * vOut.lighting.z;
     {
         if (MAT.translucencyTexture >= 0)
         {
             trans *= pow(textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r, 1);
         }
     }
-    color += trans * albedo.rgb * 4; // * vOut.colour.x * 4;
+    color += trans * albedo.rgb * 15  * vOut.colour.x;
 
 
     //color = saturate(-ndots * 2) * vOut.colour.y * float3(2, 2, 0.5) * MAT.translucency * vOut.lighting.z;
@@ -552,9 +553,25 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     //color = vOut.colour.b;
 
+    
+
     float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
+    alpha = smoothstep(0.2, 1, alpha);
     alpha = min(alpha, alphaV);
-    return float4(color, saturate(alpha + 0.2));
+
+    if (alpha < 0.99)
+    {
+        float2 uv = vOut.pos.xy / float2(2560, 1440);
+        //uv.y = 1 - uv.y;
+        float3 prev = gHalfBuffer.Sample(gSampler, uv).rgb;
+        //int3 sample = vOut.pos.xyz / 2;
+        //sample.z = 0;
+        //float3 prev = gHalfBuffer.Load(sample).rgb;
+        color = lerp(prev, color, alpha);
+    }
+    
+    //return float4(color, saturate(alpha + 0.2));
+    return float4(color, 1);
 }
 
 #endif

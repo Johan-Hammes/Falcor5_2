@@ -331,7 +331,7 @@ CEREAL_CLASS_VERSION(_twigLod, 100);
 struct _twig
 {
     void renderGui(Gui* _gui);
-    void build(float _age, float _lodPixelsize, glm::mat4 start, int rndSeed = 100, int overrideLod = -1);
+    void build(float _age, float _lodPixelsize, glm::mat4 start, int rndSeed = 100, int overrideLod = -1, float scale = 1.0f);
     void load();
     void save();
     void saveas();
@@ -582,6 +582,7 @@ struct _GroveBranch
     std::vector<int> sideBranches;
     int rootBranch = -1;
     int sideNode = 0;
+    bool isDead = false;
     
 
     template<class Archive>
@@ -631,11 +632,13 @@ struct _GroveTree
     void rebuildRibbons_Twig();
     void rebuildRibbons_Weed();
     void findSideBranches();
+    void propagateDead(int root);
     int numSideBranchesFound;
     int numDeadEnds;
     int numBadEnds;
     bool showOnlyUnattached = false;
 
+    _weedLight L;
     void calcLight();
 
     float treeHeight = 0.f;
@@ -923,7 +926,7 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiMenubar(Gui* pGui);
-    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport);
+    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
     bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera);
     bool onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);

@@ -171,7 +171,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
     graphicsState->setFbo(pTargetFbo);
 
-    terrain.onFrameRender(_renderContext, hdrFbo, camera, graphicsState, viewport3d);
+    terrain.onFrameRender(_renderContext, hdrFbo, camera, graphicsState, viewport3d, hdrHalfCopy);
 
     {
         FALCOR_PROFILE("tonemapper");
@@ -198,6 +198,10 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
         _plantMaterial::static_materials_veg.dispTexIndex = -1;
     }
 
+    {
+        FALCOR_PROFILE("HDR half copy");
+        _renderContext->blit( hdrFbo->getColorTexture(0)->getSRV(0, 1, 0, 1), hdrHalfCopy->getRTV() );
+    }
     
 
     if (changed) slowTimer = 10;
@@ -275,7 +279,7 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
     hdrFbo = Fbo::create2D(_width, _height, desc);
     graphicsState->setFbo(hdrFbo);
 
-    hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 7, nullptr, Falcor::Resource::BindFlags::RenderTarget);
+    hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 7, nullptr, Falcor::Resource::BindFlags::AllColorViews);
 }
 
 

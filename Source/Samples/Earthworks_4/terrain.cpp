@@ -1154,7 +1154,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
         float t = (float)j * leafStep;
         float du =  sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y;
         if (du > 1) du = 1;
-        //du = 1;
+        if (leafCNT < 3) du = 1;
 
         ribbon[ribbonLength].type = !rotate;
         ribbon[ribbonLength].startBit = !firstleafVertex;
@@ -1387,7 +1387,7 @@ void _twig::renderGui(Gui* _gui)
         ImGui::Text("age");
         ImGui::SameLine(80, 0);
         ImGui::SetNextItemWidth(80);
-        if (ImGui::DragInt("##start", &startSegment, 1, 1, 15)) changed = true;
+        if (ImGui::DragInt("##start", &startSegment, 1, 0, 15)) changed = true;
         TOOLTIP("first segment with leaves");
 
         ImGui::SetNextItemWidth(80);
@@ -1537,15 +1537,21 @@ void _twig::renderGui(Gui* _gui)
 
 
 
-void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed, int overrideLod)
+void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed, int overrideLod, float _scale)
 {
     std::mt19937 generator(rndSeed);
     std::uniform_real_distribution<> distribution(-1.f, 1.f);
 
+    if (overrideLod >= 0) { lod = overrideLod; }
     float maxRadiusLod0 = 0;
     ribbonLength = 0;
     glm::mat4   stalk = _start;// glm::rotate(glm::mat4(1.0), -1.57079632679f, glm::vec3(1, 0, 0));
     glm::vec3   _pos = _start[3];// glm::vec3(0, 0, 0);
+
+    // roatate the stals upwards
+    float uprotTheta = atan2(_start[1][1], _start[0][1]) + distribution(generator) * 0.4f;
+    glm::mat4 UPstalk = glm::rotate(glm::mat4(1.0), uprotTheta, (glm::vec3)_start[2]);
+    stalk = UPstalk * _start;
 
     if (_age == 0) _age = this->age;
     int     stemCNT = (int)ceil(_age);
@@ -1559,12 +1565,12 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
     for (int i = 0; i < stemCNT; i++)
     {
         float t = (float)i * stemStep;
-        float s_Length = (stem_length.x * (1.f + distribution(generator) * stem_length.y)) * 0.001f;
+        float s_Length = (stem_length.x * (1.f + distribution(generator) * stem_length.y)) * 0.001f * _scale;
         float leafAge = 1.f - pow(i / _age, leaf_age_power);
         if (tipleaves) leafAge = 1;
         stemCurve += (distribution(generator) * stem_curve.y) * stemStep;
 
-        if (has_stem)
+        if (has_stem || (lod == 0))
         {
             ribbon[ribbonLength].type = 0;
             ribbon[ribbonLength].startBit = i > 0;
@@ -1585,12 +1591,18 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
                 for (int l = 0; l < numLeaves; l++)
                 {
-                    float rot = l * 6.14f / numLeaves + (i * leafRotation) + distribution(generator) * 0.4f + randStartLeafRotation;
+                    
+                    float rot = l * 6.14f / numLeaves + (i * leafRotation) + distribution(generator) * 0.05f;// +randStartLeafRotation;
                     glm::mat4 R = glm::rotate(glm::mat4(1.0), rot, (glm::vec3)stalk[2]);
                     glm::mat4 leaf = R * stalk;
                     float branch = stem_stalk.x + stem_stalk.y * leafAge + distribution(generator) * 0.4f;
                     glm::mat4 B = glm::rotate(glm::mat4(1.0), branch, (glm::vec3)leaf[0]);
                     leaf = B * leaf;
+
+                    // rpatte these with RND so they roughly face upwards
+                    float uprotTheta = atan2(leaf[1][1], leaf[0][1]) + distribution(generator) * 0.4f - 1.57f + 0.5f;
+                    glm::mat4 UP = glm::rotate(glm::mat4(1.0), uprotTheta, (glm::vec3)leaf[2]);
+                    leaf = UP * leaf;
 
                     leaves.ribbonLength = 0;
                     int matIndex = 0;// leafmaterialList.size() > 0 ? leafmaterialList[0].index : 0;
@@ -1609,9 +1621,8 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
                     }
                     else
                     {
-                        ribbon[ribbonLength - 1].radius = leaves.maxDistanceFromStem / 1.8;       // FIXE use this in bake width if I can 
-                        maxRadiusLod0 = __max(maxRadiusLod0, leaves.maxDistanceFromStem / 1.8);
-                        //ribbon[ribbonLength].material = sprite_Material.index;
+                        ribbon[ribbonLength - 1].radius = leaves.maxDistanceFromStem / 2.0f;       // FIXE use this in bake width if I can 
+                        maxRadiusLod0 = __max(maxRadiusLod0, leaves.maxDistanceFromStem / 2.0f);
                     }
                 }
             }
@@ -1648,7 +1659,23 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
         }*/
     }
 
-    
+    if (lod == 0)
+    {
+        ribbon[0].radius = maxRadiusLod0 * _scale;
+        ribbon[0].uv = float2(1, 0);
+        
+
+        ribbon[1] = ribbon[ribbonLength - 1];
+        ribbon[1].radius = maxRadiusLod0 * _scale;
+        ribbon[1].position += ribbon[1].bitangent * (maxRadiusLod0 * 0.5f);
+        ribbon[1].uv = float2(1, 1);
+
+        //ribbon[2] = ribbon[1];
+        //ribbon[3] = ribbon[1];
+
+        leafOffset = 2;
+    }
+   /*
     if (lod == 0)
     {
         // simplify the shape
@@ -1678,6 +1705,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
         // and move the last one higher to include th top leaves
         ribbon[current - 1].position.y = extents.y;
     }
+    */
 
     ribbonLength = leafOffset;
 
@@ -2305,6 +2333,7 @@ void _GroveTree::renderGui(Gui* _gui)
                 ImGui::Text("branches - %d", branches.size());
                 ImGui::Text("branch leaves - %d", branchLeaves.size());
                 ImGui::Text("# ribbons - %d", numBranchRibbons);
+                ImGui::Text("# tipleaves - %d", endLeaves.size());
                 ImGui::Text("# side B found - %d", numSideBranchesFound);
                 ImGui::Text("# dead ends - %d", numDeadEnds);
                 ImGui::Text("# bad ends - %d", numBadEnds);
@@ -2354,6 +2383,40 @@ void _GroveTree::renderGui(Gui* _gui)
                     rebuildRibbons();
                 }
 
+
+                ImGui::Text("density");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##density", &L.density, 0.01f, 0.1f, 10.0f));
+
+                ImGui::Text("cos(theta)");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##CT1", &L.cosTop, 0.01f, 0.1f, 10.0f));
+                ImGui::SameLine(0, 20);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##CT2", &L.cosBottom, 0.01f, 0.1f, 10.0f));
+
+
+                ImGui::Text("Ao_depthScale");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##Ao_depthScale", &static_Ao_depthScale, 0.01f, 0.001f, 1.0f));
+
+                ImGui::Text("sunTilt");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##sunTilt", &static_sunTilt, 0.01f, -1.0f, 1.0f));
+
+                ImGui::Text("bDepth");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##bDepth", &static_bDepth, 0.1f, 0.1f, 50.0f));
+
+                ImGui::Text("bScale");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##bScale", &static_bScale, 0.01f, 0.01f, 1.0f));
 
                 ImGui::NextColumn();
                 tipTwigs.renderGui(_gui);
@@ -2534,7 +2597,7 @@ void _GroveTree::testBranchLeaves()
         }
     }
 
-    // we dont, this is the start of the next branc, and we have 3 already
+    // we dont, this is the start of the next branch, and we have 3 already
     branchMode = true;
     branches.emplace_back();
     currentBranch = &branches.back();
@@ -2584,11 +2647,13 @@ void _GroveTree::load()
                     float radius = 0.19f * (l1 + l2 + l3);
 
                     if (oldNumVerts < numVerts) {
-                        if (numVerts == 8) {
+                        if ((numVerts == 8) && (!currentBranch->isDead)) {
                             // so when the verts increase we have hit the endcap of a branch
+                            /*
                             endLeaves.emplace_back();
                             endLeaves.back().pos = center;
                             endLeaves.back().dir = nodeDir;
+                            */
                         }
                         else if (numVerts == 5) {
                             numDeadEnds++;
@@ -2611,6 +2676,13 @@ void _GroveTree::load()
                     BN.dir = nodeDir;
                     currentBranch->nodes.push_back(BN);
 
+                    /*
+                    if (branches.size() > 30 && branches.size() <  1830)
+                    {
+                        currentBranch->isDead = true;
+                    }
+                    */
+
                     verts[0] = verts[numVerts - 1];
                     read2();
                 }
@@ -2625,6 +2697,7 @@ void _GroveTree::load()
 
 
             findSideBranches();
+            propagateDead(3);
             calcLight();
             rebuildRibbons();
 
@@ -2649,6 +2722,11 @@ bool pointCylindar(const glm::vec3& point, const glm::vec3& A, const glm::vec3& 
     return false;
 }
 
+void _GroveTree::propagateDead(int _root)
+{
+}
+
+
 void _GroveTree::findSideBranches()
 {
     numSideBranchesFound = 0;
@@ -2670,12 +2748,26 @@ void _GroveTree::findSideBranches()
                     {
                         branches[B].rootBranch = C;
                         branches[B].sideNode = n;
+                        if (branches[C].isDead)
+                        {
+                            branches[B].isDead = true;
+                        }
                         branches[C].sideBranches.push_back(B);
                         numSideBranchesFound++;
                         break;
                     }
                 }
             }
+        }
+    }
+
+    for (int B = 0; B < branches.size(); B++)
+    {
+        if (!branches[B].isDead)
+        {
+            endLeaves.emplace_back();
+            endLeaves.back().pos = branches[B].nodes.back().pos;
+            endLeaves.back().dir = branches[B].nodes.back().dir;
         }
     }
 }
@@ -2686,7 +2778,7 @@ void _GroveTree::rebuildRibbons()
 {
     numBranchRibbons = 0;
 
-
+    /*
     {
         // X - axis
         branchRibbons[numBranchRibbons].type = 0;
@@ -2754,6 +2846,7 @@ void _GroveTree::rebuildRibbons()
         branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
         numBranchRibbons++;
     }
+    */
 
 
     
@@ -2786,7 +2879,7 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].radius = branches[b].nodes[n].radius;
                 branchRibbons[numBranchRibbons].material = branch_Material.index;
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                branchRibbons[numBranchRibbons].uv = float2(1, v);
+                branchRibbons[numBranchRibbons].uv = float2(1, v*2);
                 branchRibbons[numBranchRibbons].bitangent = branches[b].nodes[n].dir;
 
 
@@ -2830,10 +2923,8 @@ void _GroveTree::rebuildRibbons()
 
 
     if (includeBranchLeaves) {
-        for (int b = 0; b < branchLeaves.size(); b++)
+        for (int b = 0; b < branchLeaves.size(); b+=3)
         {
-
-            
             float3 D = normalize(branchLeaves[b].dir);
             float3 U = float3(0, 1, 0);
             float3 R = normalize(cross(U, D));
@@ -2843,30 +2934,19 @@ void _GroveTree::rebuildRibbons()
             S[0] = float4(R, 0);
             S[1] = float4(U, 0);
             S[2] = float4(D, 0);
-            S[3] = float4(branchLeaves[b].pos, 0);
-            tipTwigs.build(branchTwigsAge, 0.f, S, 0);
+            S[3] = float4(branchLeaves[b].pos, 0) - (S[2] * 1.2f); // 20cm backwards if scaled
+            tipTwigs.build(branchTwigsAge, 0.f, S, 0, 2, 1.0f);
 
             for (int k = 0; k < tipTwigs.ribbonLength; k++) {
                 branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 numBranchRibbons++;
             }
-
-            /*
-            for (int i = 0; i < twiglength; i++)
-            {
-                branchRibbons[numBranchRibbons] = twig[i];
-                branchRibbons[numBranchRibbons].position = P + (twig[i].position.x * D) + (twig[i].position.y * U) + (twig[i].position.z * R);
-                branchRibbons[numBranchRibbons].bitangent = twig[i].bitangent.x * D + twig[i].bitangent.y * U + twig[i].bitangent.z * R;
-                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                numBranchRibbons++;
-            }
-            */
         }
     }
 
     if (includeEndLeaves) {
-        for (int b = 0; b < endLeaves.size(); b++)
+        for (int b = 0; b < endLeaves.size(); b+=1)
         {
             float3 P = endLeaves[b].pos;
             float3 D = normalize(endLeaves[b].dir);
@@ -2878,25 +2958,14 @@ void _GroveTree::rebuildRibbons()
             S[0] = float4(R, 0);
             S[1] = float4(U, 0);
             S[2] = float4(D, 0);
-            S[3] = float4(branchLeaves[b].pos, 0);
-            tipTwigs.build(tipTwigsAge, 0.f, S, 0);
+            S[3] = float4(P, 0) - (S[2] * 0.5f); // 20cm backwards if scaled
+            tipTwigs.build(tipTwigsAge, 0.f, S, 0, 2, 1.0f);
 
             for (int k = 0; k < tipTwigs.ribbonLength; k++) {
                 branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
                 numBranchRibbons++;
             }
-            /*
-            for (int i = 0; i < twiglength; i++)
-            {
-                /// DAMN _ EK MOET DIE right vector ook roteer hier en dit geberu nooit nie
-                branchRibbons[numBranchRibbons] = twig[i];
-                branchRibbons[numBranchRibbons].position = P + twig[i].position.x * D + twig[i].position.y * U + twig[i].position.z * R;
-                branchRibbons[numBranchRibbons].bitangent = twig[i].bitangent.x * D + twig[i].bitangent.y * U + twig[i].bitangent.z * R;
-                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                numBranchRibbons++;
-            }*/
-
         }
     }
 
@@ -5602,7 +5671,7 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
 
 
 
-void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport)
+void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy)
 {
     //gisReload(_camera->getPosition());
 
@@ -5677,7 +5746,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
 
-        if (groveTree.numBranchRibbons > 2)
+        if (groveTree.numBranchRibbons > 1)
         {
             FALCOR_PROFILE("ribbonShader");
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
@@ -5702,6 +5771,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["bDepth"] = static_bDepth;
             ribbonShader.Vars()["gConstantBuffer"]["bScale"] = static_bScale;
 
+            ribbonShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
             
 
             ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber);
