@@ -185,7 +185,7 @@ void _shadowEdges::load()
 
 
 float objectScale = 0.002f;
-float radiusScale = objectScale / 2.0f;
+float radiusScale = 2.0f;//  so biggest radius now objectScale / 2.0f;
 float O = 16384.0f * objectScale * 0.5f;
 float3 objectOffset = float3(O, O * 0.5f, O);
  
@@ -208,7 +208,9 @@ rvPacked rvB::pack()
 
     int u7 = ((int)(uv.x * 127.f)) & 0x7f;
     int v15 = ((int)(uv.y * 255.f)) & 0x7fff;
-    int radius8 = (__min(255, (int)(radius  / radiusScale))) & 0xff;        // FIXME POW for better distribution
+    //int radius8 = (__min(255, (int)(radius  / radiusScale))) & 0xff;        // FIXME POW for better distribution
+    //floar Rtemp = radius / radiusScale;
+    int radius8 = (int)(pow(__min(1.0f, radius / radiusScale), 0.5f) * 255.f)    & 0xff;        // square
 
     float up_yaw = atan2(bitangent.z, bitangent.x) + 3.1415926535897932;
     float up_pitch = atan2(bitangent.y, length(float2(bitangent.x, bitangent.z))) + 1.570796326794;
@@ -1608,7 +1610,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
                     int matIndex = 0;// leafmaterialList.size() > 0 ? leafmaterialList[0].index : 0;
                     int leaflod = (overrideLod >=0) ? overrideLod : lod;
                     if (lod == 0) leaflod = 3;
-                    leaves.buildLeaf(leafAge, 0.f, 10 + l + i * 17, leaf, _pos, (glm::vec3)stalk[2], leaflod);
+                    leaves.buildLeaf(leafAge, 0.f, 10 + l + i * 17 + rndSeed, leaf, _pos, (glm::vec3)stalk[2], leaflod);
                     if (lod > 0)
                     {
                         if (!tipleaves || (l==0 && i== stemCNT-1) )
@@ -1663,12 +1665,15 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
     {
         ribbon[0].radius = maxRadiusLod0 * _scale;
         ribbon[0].uv = float2(1, 0);
-        
+        ribbon[0].albedoScale = (unsigned char)(leaves.albedoScale * 127.f);
+        ribbon[0].translucencyScale = (unsigned char)(leaves.translucencyScale * 127.f);
 
         ribbon[1] = ribbon[ribbonLength - 1];
         ribbon[1].radius = maxRadiusLod0 * _scale;
         ribbon[1].position += ribbon[1].bitangent * (maxRadiusLod0 * 0.5f);
         ribbon[1].uv = float2(1, 1);
+        ribbon[1].albedoScale = (unsigned char)(leaves.albedoScale * 127.f);
+        ribbon[1].translucencyScale = (unsigned char)(leaves.translucencyScale * 127.f);
 
         //ribbon[2] = ribbon[1];
         //ribbon[3] = ribbon[1];
@@ -1859,12 +1864,7 @@ void _weed::renderGui(Gui* _gui)
 
     if (visibleTwig >= 0)
     {
-        //twigs.at(visibleTwig).renderGui(_gui);
-
-        //ImGui::NextColumn();
-        //twigs.at(visibleTwig).twig.renderGui(_gui);
-
-        //changed |= twigs.at(visibleTwig).twig.changed;
+        twigs.at(visibleTwig).renderGui(_gui);
     }
 
     ImGui::NewLine();
@@ -1973,7 +1973,7 @@ void _weed::build(float _age, float _lodPixelsize)
             S = R * S;
 
             float ageRange = 0.5f + 0.5f * ((1 -  outside) * T.radiusAgeScale);
-            float A = age * (1.0f + T.rnd * (distribution(generator))) * ageRange;
+            float A = age;// *(1.0f + T.rnd * (distribution(generator)))* ageRange;
 
             S[3] = glm::vec4(startPos, 0);
 
@@ -2379,7 +2379,14 @@ void _GroveTree::renderGui(Gui* _gui)
                 if (ImGui::DragFloat("brnachAge", &branchTwigsAge, 0.1f, 0.1f, 10.f)) {
                     rebuildRibbons();
                 }
-                if (ImGui::DragFloat("tipAge", &tipTwigsAge, 0.1f, 0.1f, 10.f)) {
+               
+
+
+                if (ImGui::DragFloat("tip Age", &tipTwigsAge, 0.1f, 0.1f, 10.f)) {
+                    rebuildRibbons();
+                }
+
+                if (ImGui::DragFloat("branch Skip", &twigSkip, 0.01f, 0.f, 30.f)) {
                     rebuildRibbons();
                 }
 
@@ -2849,7 +2856,11 @@ void _GroveTree::rebuildRibbons()
     */
 
 
-    
+
+    std::mt19937 generator(100);
+    std::uniform_real_distribution<> distribution(-1.f, 1.f);
+    std::uniform_real_distribution<> dist_0_1(0.f, 1.f);
+
 
     for (int b = 0; b < branches.size(); b++)
     {
@@ -2923,7 +2934,9 @@ void _GroveTree::rebuildRibbons()
 
 
     if (includeBranchLeaves) {
-        for (int b = 0; b < branchLeaves.size(); b+=3)
+        float skip = twigSkip * twigSkip * 2.0f;
+        int step = __max((int)skip, 1);
+        for (int b = 0; b < branchLeaves.size(); b+= step)
         {
             float3 D = normalize(branchLeaves[b].dir);
             float3 U = float3(0, 1, 0);
@@ -2934,8 +2947,26 @@ void _GroveTree::rebuildRibbons()
             S[0] = float4(R, 0);
             S[1] = float4(U, 0);
             S[2] = float4(D, 0);
-            S[3] = float4(branchLeaves[b].pos, 0) - (S[2] * 1.2f); // 20cm backwards if scaled
-            tipTwigs.build(branchTwigsAge, 0.f, S, 0, 2, 1.0f);
+            S[3] = float4(branchLeaves[b].pos, 0);// -(S[2] * 0.0f); // 20cm backwards if scaled
+
+
+            float scale = pow((float)step, 0.5);
+            if (step > 1)
+            {
+                S[3] += S[2] * (1-scale) * 0.2f;
+                tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 0, scale);
+            }
+            else
+            {
+                if (dist_0_1(generator) < skip)
+                {
+                    tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 0, 1.0f);
+                }
+                else {
+                    tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 2, 1.0f);
+                }
+                
+            }
 
             for (int k = 0; k < tipTwigs.ribbonLength; k++) {
                 branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
@@ -2946,7 +2977,9 @@ void _GroveTree::rebuildRibbons()
     }
 
     if (includeEndLeaves) {
-        for (int b = 0; b < endLeaves.size(); b+=1)
+        float skip = twigSkip * twigSkip * 2.0f;
+        int step = __max((int)skip, 1);
+        for (int b = 0; b < endLeaves.size(); b+= step)
         {
             float3 P = endLeaves[b].pos;
             float3 D = normalize(endLeaves[b].dir);
@@ -2958,8 +2991,26 @@ void _GroveTree::rebuildRibbons()
             S[0] = float4(R, 0);
             S[1] = float4(U, 0);
             S[2] = float4(D, 0);
-            S[3] = float4(P, 0) - (S[2] * 0.5f); // 20cm backwards if scaled
-            tipTwigs.build(tipTwigsAge, 0.f, S, 0, 2, 1.0f);
+            S[3] = float4(P, 0);// -(S[2] * 0.0f); // 20cm backwards if scaled
+
+            float scale = pow((float)step, 0.5);
+            if (step > 1)
+            {
+                S[3] += S[2] * (1-scale) * 0.2f;
+                tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 0, scale);
+            }
+            else
+            {
+                if (dist_0_1(generator) < skip)
+                {
+                    tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 0, 1.0f);
+                }
+                else
+                {
+                    tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 2, 1.0f);
+                }
+            }
+
 
             for (int k = 0; k < tipTwigs.ribbonLength; k++) {
                 branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
@@ -4884,6 +4935,7 @@ bool terrainManager::update(RenderContext* _renderContext)
     }
 
 
+    
 
     FALCOR_PROFILE("update");
     bool dirty = false;
@@ -5687,6 +5739,20 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
     }
 
+
+    {
+     /*
+        mouseVegYaw += 0.002f;
+
+        glm::vec3 camPos;
+        camPos.y = sin(mouseVegPitch);
+        camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
+        camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
+        _camera->setPosition(camPos * mouseVegOrbit);
+        _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
+       */ 
+    }
+
     if (terrainMode == 0)
     {
 
@@ -5770,6 +5836,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["sunTilt"] = static_sunTilt;
             ribbonShader.Vars()["gConstantBuffer"]["bDepth"] = static_bDepth;
             ribbonShader.Vars()["gConstantBuffer"]["bScale"] = static_bScale;
+
+            static float time = 0.0f;
+            time += 0.01f;  // FIXME I NEED A Timer
+            ribbonShader.Vars()["gConstantBuffer"]["time"] = time;
 
             ribbonShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
             

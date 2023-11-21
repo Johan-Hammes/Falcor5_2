@@ -134,6 +134,8 @@ cbuffer gConstantBuffer
     float sunTilt;
     float bDepth;
     float bScale;
+
+    float time;
     
 };
 
@@ -272,6 +274,85 @@ float rand_1_05(in float2 uv)
     return frac(noise.x + noise.y);
 }
 
+float3x3 AngleAxis3x3(float angle, float3 axis)
+{
+    float c, s;
+    sincos(angle, s, c);
+
+    float t = 1 - c;
+    float x = axis.x;
+    float y = axis.y;
+    float z = axis.z;
+
+    return float3x3(
+        t * x * x + c, t * x * y - s * z, t * x * z + s * y,
+        t * x * y + s * z, t * y * y + c, t * y * z - s * x,
+        t * x * z - s * y, t * y * z + s * x, t * z * z + c
+    );
+}
+
+float windstrength(float D, float R, float strength, float variance)
+{
+    float value = sin(D * 0.6 - time * 0.85);
+    return strength + (value * variance);
+}
+
+float sway(float D, float strength, float variance)
+{
+    float value = sin(D * 2.1 - time * 1.5);
+    return strength + (value * variance);
+}
+
+float twist(float D, float strength, float variance)
+{
+    float value = sin(D * 3.1 - time * 3.5);
+    return strength + (value * variance);
+}
+
+void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
+{
+    float3 root = float3(0, 0, 0);
+    float3 dir = float3(0, 1, 0);
+    float dirL = 0.8f;
+
+    float3 relative = vertex.pos.xyz - plantRoot - root;
+    float dL = saturate(dot(relative, dir) / dirL);
+    float dL2 = pow(dL, 1.5);
+
+    float3 windDir = float3(1, 0, 0);
+    float3 windRight = normalize(cross(windDir, dir));
+    float windStrength = windstrength(dot(windDir, vertex.pos.xyz), dot(windRight, vertex.pos.xyz), 0.2, 0.1); // already converted to radians - figure out how
+
+    float W = windStrength * dL2 * 1 * sway(rand_1_05(plantRoot.xz), 0.6, 0.093);
+    float3x3 rot = mul(AngleAxis3x3(-W, windRight), AngleAxis3x3(-W * 2, dir));
+
+    float Wside = windStrength * dL2 * sway(rand_1_05(plantRoot.xz), 0.0, 0.043);
+    rot = mul(rot, AngleAxis3x3(Wside, windDir));
+
+    
+    float3 newV = mul(rot, relative);
+
+    float scale = pow(rcp(abs(1 + W)), 0.2);
+    vertex.pos.xyz = plantRoot + root + newV * scale;
+
+    vertex.binormal = mul(rot, vertex.binormal);
+    vertex.normal = mul(rot, vertex.normal );
+    /*
+    if (_rotate)
+    {
+        vertex.tangent = mul(rot, vertex.tangent);
+    }
+    else
+    {
+        vertex.tangent = normalize(cross(vertex.binormal, vertex.eye));
+    }
+    */
+    vertex.tangent = normalize(cross(vertex.binormal, vertex.eye));
+    
+
+}
+
+
 PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     PSIn output = (PSIn) 0;
@@ -279,7 +360,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     float3 rootPosition = float3(iId % numSide, 0, (int) (iId / numSide)) * repeatScale + offset;
     rootPosition += (-0.5 * repeatScale) + 0.9f * repeatScale * float3(rand_1_05(float2(iId * 0.0092356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.002356, iId * 0.003568)));
     rootPosition.y = 0;
-    float scale = 0.8f + 0.4f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
+    float scale = 0.9f + 0.2f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
     float rotation = 2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
     const RV6 v = instanceBuffer[vId];
 
@@ -303,8 +384,14 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractColor(output, v);
     light(output, v, rotation);
 
+    // Now do wind animation
+    // maybe before lighting, although for now it doesnt seem to matter
+    // --------------------------------------------------------------------------------------------------------
+    windAnimate(output, rootPosition, v.a >> 31);
+
     //output.diffuseLight = lighting(output.normal, output.eye, output.colour, output.lighting, output.flags.x);
 
+    // thsi value determines if it splits into 2 or 4 during the geometry shader
     float d = length(output.pos.xyz - eyePos);
     output.flags.w = output.flags.z * radiusScale / d * 10000;
 
@@ -352,11 +439,11 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     {
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = mul(L[0].pos - float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[0].pos - float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = mul(L[0].pos + float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[0].pos + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
         OutputStream.Append(v);
         
         if (L[0].flags.w > 10)      // but we can do the test rigth here from radius
@@ -366,21 +453,21 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 
             v.uv.y = (L[0].uv.y + L[1].uv.y) * 0.5;
             v.uv.x = 0.5 + L[0].uv.x;
-            v.pos = mul(posBezier - float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+            v.pos = mul(posBezier - float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
             OutputStream.Append(v);
 
             v.uv.x = 0.5 - L[0].uv.x;
-            v.pos = mul(posBezier + float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+            v.pos = mul(posBezier + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
             OutputStream.Append(v);
         }
         
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = mul(L[1].pos - float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[1].pos - float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = mul(L[1].pos + float4(v.tangent * v.flags.z * radiusScale, 0), viewproj);
+        v.pos = mul(L[1].pos + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
         OutputStream.Append(v);
     }
 }
@@ -470,7 +557,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             return float4(vOut.diffuseLight, 1);
         }
 */
-   // return 1;
+    //return 1;
     //return float4(vOut.flags.y, frac(vOut.uv.x), frac(vOut.uv.y), 1);
     //return float4(frac(vOut.uv.y), frac(vOut.uv.y), isFrontFace, 1);
     //return 1; //this douvle speed even oif no pixels aredraw
@@ -509,7 +596,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 3.0;
+    const float3 sunColor = float3(1.2, 1.0, 0.7) * 1.5 ;
     //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(-sunDir + vOut.eye)));
     float ndots = dot(N, -sunDir); // * vOut.lighting.z;
@@ -530,7 +617,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     
     // specular sun
-    color += pow(ndoth, 5) * 0.2 * vOut.lighting.z;
+    color += pow(ndoth, 7) * 0.1 * vOut.lighting.z;
    
 
     float3 trans = saturate(-ndots) * vOut.colour.y * float3(2, 2, 2) * MAT.translucency * vOut.lighting.z;
@@ -540,7 +627,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= pow(textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r, 1);
         }
     }
-    color += trans * albedo.rgb * 15  * vOut.colour.x;
+    color += trans * albedo.rgb * 18  * vOut.colour.x;
+    //color = trans * 1 * vOut.colour.x;
 
 
     //color = saturate(-ndots * 2) * vOut.colour.y * float3(2, 2, 0.5) * MAT.translucency * vOut.lighting.z;

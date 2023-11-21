@@ -663,6 +663,7 @@ struct _GroveTree
     _twig tipTwigs;
     float tipTwigsAge = 4.5f;
     float branchTwigsAge = 4.5f;
+    float twigSkip = 0.f;
     _vegetationMaterial branch_Material;
 
     _leaf leafBuilder;
@@ -676,6 +677,7 @@ struct _GroveTree
     rvB twig[1024];
     uint twiglength = 0;
     float twigScale = 1.0f;
+
     void importTwig();
 
     struct {
@@ -700,6 +702,7 @@ struct _GroveTree
         _archive(CEREAL_NVP(branch_Material));
         _archive(CEREAL_NVP(tipTwigsAge));
         _archive(CEREAL_NVP(branchTwigsAge));
+        _archive(CEREAL_NVP(twigSkip));
         
 
         reloadMaterials();
