@@ -125,7 +125,9 @@ public:
         _archive(CEREAL_NVP(maxScore));
         _archive(CEREAL_NVP(scoreWidth));
         _archive(CEREAL_NVP(scoreHeight));
-        
+
+        loadimage();
+        loadscoreimage();
     }
 };
 CEREAL_CLASS_VERSION(target, 100);
@@ -159,6 +161,10 @@ public:
 CEREAL_CLASS_VERSION(targetAction, 100);
 
 
+
+
+
+
 class exercise
 {
 public:
@@ -181,6 +187,7 @@ public:
     target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
     targetAction    action;
 
+
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
@@ -191,35 +198,18 @@ public:
         _archive(CEREAL_NVP(pose));
         _archive(CEREAL_NVP(isScoring));
         _archive(CEREAL_NVP(targetDistance));
+        _archive(CEREAL_NVP(target.title));
+
+        for (auto& T : Kolskoot::targetList)
+        {
+            if (T.title == target.title)
+            {
+                target = T;
+            }
+        }
     }
 };
 CEREAL_CLASS_VERSION(exercise, 100);
-
-
-
-class quickRange        // rename
-{
-public:
-    void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
-    void load();
-    void save();
-
-    std::string title = "please rename";
-    std::string description;
-    std::vector<exercise> exercises;
-    int maxScore;
-
-    template<class Archive>
-    void serialize(Archive& _archive, std::uint32_t const _version)
-    {
-        _archive(CEREAL_NVP(title));
-        _archive(CEREAL_NVP(description));
-        _archive(CEREAL_NVP(maxScore));
-        _archive(CEREAL_NVP(exercises));        
-    }
-};
-CEREAL_CLASS_VERSION(quickRange, 100);
-
 
 
 class _shots
@@ -246,6 +236,44 @@ public:
 
     std::vector<std::vector<_scoringExercise>> lane_exercise;
 };
+
+enum _liveStage { live_intro, live_live, live_scores };
+class quickRange        // rename
+{
+public:
+    void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
+    void renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup);
+    void renderLiveMenubar(Gui* _gui);
+    void load();
+    void save();
+    void mouseShot(float x, float y, _setup setup);
+    bool liveNext();
+
+    std::string title = "please rename";
+    std::string description;
+    std::vector<exercise> exercises;
+    int maxScore;
+
+    // playback data
+    int currentExercise;
+    _liveStage currentStage = live_intro;
+
+    _scoring score;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(title));
+        _archive(CEREAL_NVP(description));
+        _archive(CEREAL_NVP(maxScore));
+        _archive(CEREAL_NVP(exercises));        
+    }
+};
+CEREAL_CLASS_VERSION(quickRange, 100);
+
+
+
+
 
 
 
@@ -304,7 +332,7 @@ public:
 CEREAL_CLASS_VERSION(videoToScreen, 100);
 
 
-enum _guimode { gui_menu, gui_camera, gui_screen, gui_targets, gui_exercises };
+enum _guimode { gui_menu, gui_camera, gui_screen, gui_targets, gui_exercises, gui_live };
 
 class Kolskoot : public IRenderer
 {

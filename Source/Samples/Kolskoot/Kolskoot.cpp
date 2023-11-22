@@ -41,6 +41,7 @@ std::vector<target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
 float2 mouseScreen;
 static bool targetPopupOpen = false;
+bool requestLive = false;
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -80,9 +81,9 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         if (ImGui::InputText("root folder", T, 256)) {
             dataFolder = T;
         }
-        
-       
-        
+
+
+
 
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("pixels per meter", &screenWidth, 0.01f, 1.0f, 10.0f, "%3.2f m");
@@ -141,7 +142,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         ImGui::Selectable("  standing");
         if (ImGui::IsItemHovered() && ImGui::IsMouseDown(0))
         {
-            eyeHeights[0] = ImGui::GetMousePos().y - 15;
+            eyeHeights[0] = ImGui::GetMousePos().y - 15 - 40;
         }
         ImGui::Separator();
 
@@ -149,7 +150,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         ImGui::Selectable("  kneeling");
         if (ImGui::IsItemHovered() && ImGui::IsMouseDown(0))
         {
-            eyeHeights[1] = ImGui::GetMousePos().y - 15;
+            eyeHeights[1] = ImGui::GetMousePos().y - 15 - 40;
         }
         ImGui::Separator();
 
@@ -157,7 +158,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         ImGui::Selectable("  sitting");
         if (ImGui::IsItemHovered() && ImGui::IsMouseDown(0))
         {
-            eyeHeights[2] = ImGui::GetMousePos().y - 15;
+            eyeHeights[2] = ImGui::GetMousePos().y - 15 - 40;
         }
         ImGui::Separator();
 
@@ -165,7 +166,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         ImGui::Selectable("  prone");
         if (ImGui::IsItemHovered() && ImGui::IsMouseDown(0))
         {
-            eyeHeights[3] = ImGui::GetMousePos().y - 15;
+            eyeHeights[3] = ImGui::GetMousePos().y - 15 - 40;
         }
         ImGui::Separator();
 
@@ -365,7 +366,7 @@ void target::renderGui(Gui* _gui, Gui::Window& _window)
                     {
                         ImVec2 q = ImGui::GetCursorPos();
 
-                        if (_window.imageButton("testImage", image, float2(W, H)))
+                        if (_window.imageButton("testImage", image, float2(W, H), false))
                         {
                             loadimageDialog();
                         }
@@ -396,7 +397,7 @@ void target::renderGui(Gui* _gui, Gui::Window& _window)
                 {
                     if (score)
                     {
-                        if (_window.imageButton("scoreImage", score, float2(W, H)))
+                        if (_window.imageButton("scoreImage", score, float2(W, H), false))
                         {
                             loadscoreimageDialog();
                         }
@@ -475,6 +476,13 @@ void targetAction::renderGui(Gui* _gui)
 
 
 
+
+
+
+
+
+
+
 bool exercise::renderTargetPopup(Gui* _gui)
 {
     for (auto& T : Kolskoot::targetList)
@@ -517,15 +525,24 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
     }
     ImGui::PopFont();
 
-    
+
     ImGui::NewLine();
     ImGui::SameLine(20);
-    if (_window.imageButton("scoreImage", Kolskoot::targetList[0].image, float2(150, 100)))     // Just width acurate and large heigth t
+    if (target.image)
     {
-        ImGui::OpenPopup("Targets");
-        //targetPopupOpen = true;
+        if (_window.imageButton("scoreImage", target.image, float2(150, 100)))     // Just width acurate and large heigth t
+        {
+            ImGui::OpenPopup("Targets");
+        }
     }
-    
+    else
+    {
+        if (ImGui::Button("target", ImVec2(150, 100)))
+        {
+            ImGui::OpenPopup("Targets");
+        }
+    }
+
     if (ImGui::BeginPopup("Targets")) {
         // Draw popup contents.
 
@@ -579,10 +596,12 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
     ImGui::DragInt("rounds", &numRounds, 1, 1, 15);
     TOOLTIP("number of rounds per repeat\ni.e. 2 rounds with 5 popup repeats will result in a total of 10 rounds");
 
-    
+
     action.renderGui(_gui);
 
 }
+
+
 
 
 
@@ -653,7 +672,10 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
                 ImGui::SameLine(_screenSize.x - 200, 0);
                 if (ImGui::Button("Start")) {
-
+                    requestLive = true;
+                    currentExercise = 0;
+                    currentStage = live_intro;
+                    score.create(5, exercises.size());      // FIXME needs numlanes
                 }
             }
 
@@ -685,6 +707,125 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
     }
 }
 
+
+
+void quickRange::renderLiveMenubar(Gui* _gui)
+{
+    ImGui::Text("%s       :       Exercise %d       :       %s", title.c_str(), currentExercise+1, exercises[currentExercise].title.c_str());
+}
+
+void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup)
+{
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        ImGuiStyle styleOld = style;
+        ImGui::PushFont(_gui->getFont("roboto_48"));
+        {
+            if (currentExercise < exercises.size())
+            {
+                switch (currentStage)
+                {
+                case live_intro:
+                    exercises[currentExercise].renderGui(_gui, _window);
+                    break;
+                case live_live:
+                    ImGui::BeginColumns("lanes", setup.numLanes);
+                    for (int lane = 0; lane < setup.numLanes; lane++)
+                    {
+                        
+
+                        
+                        float tw = 0.001f * exercises[currentExercise].target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / exercises[currentExercise].targetDistance;
+                        float th = tw * exercises[currentExercise].target.size_mm.y / exercises[currentExercise].target.size_mm.x;
+                        float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / 5 * lane);
+                        float py = (setup.eyeHeights[exercises[currentExercise].pose]) -(th  * 0.5f);
+
+                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes / 2) -10 + (setup.screen_pixelsX / 5 * lane), 20));
+                        ImGui::Text("%d", lane + 1);
+                        ImGui::Text("%d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
+                        ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+
+                        if (score.lane_exercise.at(lane).at(currentExercise).shots.size() > 0) {
+                            ImGui::Text("%f, %f, %d", score.lane_exercise.at(lane).at(currentExercise).shots.back().position.x, score.lane_exercise.at(lane).at(currentExercise).shots.back().position.y, score.lane_exercise.at(lane).at(currentExercise).shots.back().score);
+                        }
+
+
+                        ImGui::SetCursorPos(ImVec2(px, py-40));
+                        _window.image("testImage", exercises[currentExercise].target.image, float2(tw, th), false);
+                        
+
+
+                        ImGui::NextColumn();
+                    }
+                    ImGui::EndColumns();
+                    break;
+                case live_scores:   // not sure about this
+                    ImGui::Text("scores page");
+                    break;
+                }
+            }
+        }
+        ImGui::PopFont();
+        style = styleOld;
+    }
+}
+
+
+void quickRange::mouseShot(float x, float y, _setup setup)
+{
+    int lane = (int)floor(x * setup.numLanes / setup.screen_pixelsX);
+
+    // move all of this to target
+    float tw = 0.001f * exercises[currentExercise].target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / exercises[currentExercise].targetDistance;
+    float th = tw * exercises[currentExercise].target.size_mm.y / exercises[currentExercise].target.size_mm.x;
+    float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / 5 * lane);
+    float py = (setup.eyeHeights[exercises[currentExercise].pose]) - (th * 0.5f);
+
+    float shotX = (x - px) / tw;    // 0-1 texture space
+    float shotY = (y - py) / th;
+
+    // translate to scoring space
+    int scoreX = (int)(shotX * exercises[currentExercise].target.scoreWidth);
+    int scoreY = (int)(shotY * exercises[currentExercise].target.scoreHeight);
+    int shotScore = 0;
+    if (scoreX >= 0 && scoreX < exercises[currentExercise].target.scoreWidth &&
+        scoreY >= 0 && scoreY < exercises[currentExercise].target.scoreHeight)
+    {
+        int scoreIndex = (scoreY * exercises[currentExercise].target.scoreWidth) + scoreX;
+        shotScore = exercises[currentExercise].target.scoreData[scoreIndex];
+    }
+
+    score.lane_exercise.at(lane).at(currentExercise).score += shotScore;
+    score.lane_exercise.at(lane).at(currentExercise).shots.emplace_back();
+    score.lane_exercise.at(lane).at(currentExercise).shots.back().score = shotScore;
+    score.lane_exercise.at(lane).at(currentExercise).shots.back().position = float2(shotX, shotY);
+    score.lane_exercise.at(lane).at(currentExercise).target = exercises[currentExercise].target;
+}
+
+
+bool quickRange::liveNext()
+{
+    switch (currentStage) {
+    case live_intro:
+        currentStage = live_live;
+        break;
+    case live_live:
+        currentStage = live_scores;
+        break;
+    case live_scores:
+        currentStage = live_intro;
+        currentExercise++;
+        if (currentExercise >= exercises.size())  // we are done, return to quick range view
+        {
+            return true;
+        }
+        break;
+    }
+
+    
+
+    return false;
+}
 
 
 void _scoring::create(size_t _numlanes, size_t _numEx)
@@ -810,34 +951,43 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 
             ImGui::SameLine(0, 200);
             ImGui::SetNextItemWidth(150);
-            ImGui::Selectable("Camera", &selected, 0, ImVec2(150, 0));
-            if (selected) {
-                guiMode = gui_camera;
-                selected = false;
-            }
+           
 
-            ImGui::SameLine(0, 20);
-            ImGui::SetNextItemWidth(150);
-            ImGui::Selectable("Screen", &selected, 0, ImVec2(150, 0));
-            if (selected) {
-                guiMode = gui_screen;
-                selected = false;
+            if (guiMode == gui_live)
+            {
+                QR.renderLiveMenubar(_gui);
             }
+            else
+            {
+                ImGui::Selectable("Camera", &selected, 0, ImVec2(150, 0));
+                if (selected) {
+                    guiMode = gui_camera;
+                    selected = false;
+                }
 
-            ImGui::SameLine(0, 20);
-            ImGui::SetNextItemWidth(150);
-            ImGui::Selectable("Targets", &selected, 0, ImVec2(150, 0));
-            if (selected) {
-                guiMode = gui_targets;
-                selected = false;
-            }
+                ImGui::SameLine(0, 20);
+                ImGui::SetNextItemWidth(150);
+                ImGui::Selectable("Screen", &selected, 0, ImVec2(150, 0));
+                if (selected) {
+                    guiMode = gui_screen;
+                    selected = false;
+                }
 
-            ImGui::SameLine(0, 20);
-            ImGui::SetNextItemWidth(150);
-            ImGui::Selectable("Exercises", &selected, 0, ImVec2(150, 0));
-            if (selected) {
-                guiMode = gui_exercises;
-                selected = false;
+                ImGui::SameLine(0, 20);
+                ImGui::SetNextItemWidth(150);
+                ImGui::Selectable("Targets", &selected, 0, ImVec2(150, 0));
+                if (selected) {
+                    guiMode = gui_targets;
+                    selected = false;
+                }
+
+                ImGui::SameLine(0, 20);
+                ImGui::SetNextItemWidth(150);
+                ImGui::Selectable("Exercises", &selected, 0, ImVec2(150, 0));
+                if (selected) {
+                    guiMode = gui_exercises;
+                    selected = false;
+                }
             }
 
 
@@ -931,6 +1081,23 @@ void Kolskoot::onGuiRender(Gui* _gui)
             exercisePanel.windowPos(0, 40);
             QR.renderGui(_gui, screenSize, exercisePanel);
             exercisePanel.release();
+
+            if (requestLive)
+            {
+                requestLive = false;
+                Kolskoot::guiMode = gui_live;
+            }
+
+        }
+        break;
+
+        case gui_live:
+        {
+            Gui::Window livePanel(_gui, "Live", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
+            livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
+            livePanel.windowPos(0, 40);
+            QR.renderLive(_gui, screenSize, livePanel, setupInfo);
+            livePanel.release();
 
         }
         break;
@@ -1202,7 +1369,7 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     setupInfo.load();
 
     // targets
-    
+
     for (const auto& entry : std::filesystem::directory_iterator(setupInfo.dataFolder + "/targets"))
     {
         if (!entry.is_directory())
@@ -1246,6 +1413,16 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
     pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     mpGraphicsState->setFbo(pTargetFbo);
+
+
+
+    if ((guiMode == gui_live) && (ImGui::IsMouseClicked(0)))
+    {
+        ImVec2 mouse = ImGui::GetMousePos();
+        // insert a mouse shot
+        QR.mouseShot(mouse.x, mouse.y, setupInfo);
+    }
+
 
     if (mpScene)
     {
@@ -1312,6 +1489,18 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
         }
     }
 
+    if ((guiMode == gui_live) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Space))
+    {
+        if (QR.liveNext())
+        {
+            guiMode = gui_exercises;
+        }
+    }
+    if ((guiMode == gui_live) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Escape))
+    {
+        guiMode = gui_exercises;
+    }
+
     return false;
 }
 
@@ -1319,23 +1508,23 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
 
 bool Kolskoot::onMouseEvent(const MouseEvent& mouseEvent)
 {
-
-
-    //if (screenInfo.dragSelect >= 0)
+    if (mouseEvent.type == MouseEvent::Type::Move)
     {
-        if (mouseEvent.type == MouseEvent::Type::Move)
+        mouseScreen = mouseEvent.screenPos;
+        if (ImGui::IsMouseDown(0))
         {
-            mouseScreen = mouseEvent.screenPos;
-            if (ImGui::IsMouseDown(0))
-            {
-                //screenInfo.eyeHeights[screenInfo.dragSelect] = mouseEvent.pos.y;
-                setupInfo.eyeHeights[0] = mouseEvent.pos.y * screenSize.y;
-            }
+            //screenInfo.eyeHeights[screenInfo.dragSelect] = mouseEvent.pos.y;
+            setupInfo.eyeHeights[0] = mouseEvent.pos.y * screenSize.y;
         }
     }
 
+    if ((guiMode == gui_live) && (mouseEvent.type == MouseEvent::Type::ButtonDown))
+    {
+        // insert a mouse shot
+        QR.mouseShot((mouseEvent.pos.x * screenSize.y), (mouseEvent.pos.y * screenSize.y), setupInfo);
+    }
+
     return false;
-    //return mpScene ? mpScene->onMouseEvent(mouseEvent) : false;
 }
 
 
@@ -1399,7 +1588,10 @@ void Kolskoot::guiStyle()
 
     style.Colors[ImGuiCol_ModalWindowDimBg] = DARKLIME(0.3f);
 
-
+    // FIXME only for live
+    style.Colors[ImGuiCol_Button] = ImVec4(0.00f, 0.0f, 0.0f, 0.f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.00f, 0.0f, 0.0f, 0.f);
+    //style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.00f, 0.0f, 0.0f, 0.f);
 
     style.FrameRounding = 0.0f;
 
