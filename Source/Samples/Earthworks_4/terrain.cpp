@@ -188,7 +188,7 @@ float objectScale = 0.002f;
 float radiusScale = 2.0f;//  so biggest radius now objectScale / 2.0f;
 float O = 16384.0f * objectScale * 0.5f;
 float3 objectOffset = float3(O, O * 0.5f, O);
- 
+
 float static_Ao_depthScale = 0.3f;
 float static_sunTilt = -0.2f;
 float static_bDepth = 20.0f;
@@ -210,7 +210,7 @@ rvPacked rvB::pack()
     int v15 = ((int)(uv.y * 255.f)) & 0x7fff;
     //int radius8 = (__min(255, (int)(radius  / radiusScale))) & 0xff;        // FIXME POW for better distribution
     //floar Rtemp = radius / radiusScale;
-    int radius8 = (int)(pow(__min(1.0f, radius / radiusScale), 0.5f) * 255.f)    & 0xff;        // square
+    int radius8 = (int)(pow(__min(1.0f, radius / radiusScale), 0.5f) * 255.f) & 0xff;        // square
 
     float up_yaw = atan2(bitangent.z, bitangent.x) + 3.1415926535897932;
     float up_pitch = atan2(bitangent.y, length(float2(bitangent.x, bitangent.z))) + 1.570796326794;
@@ -903,11 +903,11 @@ void _leaf::renderGui(Gui* _gui)
     {
         save();
     }
-   
+
     ImGui::Text("lod");
     ImGui::SameLine(80, 0);
     ImGui::SetNextItemWidth(170);
-    if(ImGui::SliderInt("##lod", &lod, 0, 3)) changed = true;
+    if (ImGui::SliderInt("##lod", &lod, 0, 3)) changed = true;
 
 
     ImGui::NewLine();
@@ -919,7 +919,7 @@ void _leaf::renderGui(Gui* _gui)
     ImGui::SameLine(0, 10);
     ImGui::SetNextItemWidth(80);
     if (ImGui::DragFloat("##stemR", &stem_length.y, 0.1f, 0, 1, "%1.2f rnd")) changed = true;
-    
+
 
     if (stem_length.x > 0)
     {
@@ -1006,7 +1006,7 @@ void _leaf::renderGui(Gui* _gui)
     ImGui::SameLine(80, 0);
     ImGui::SetNextItemWidth(80);
     if (ImGui::DragFloat("##gravitrophy", &gravitrophy, 0.01f, -3, 3)) changed = true;
-    
+
 
 
     ImGui::NewLine();
@@ -1027,9 +1027,9 @@ void _leaf::renderGui(Gui* _gui)
     }
     ImGui::Text("material index - %d", material);
     */
-    
 
-    
+
+
 
 }
 
@@ -1040,9 +1040,9 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
 
     maxDistanceFromStem = 0;
     float3 stemPos = _pos;
-    
 
-    if (overrideLod >= 0) {     lod = overrideLod;      }
+
+    if (overrideLod >= 0) { lod = overrideLod; }
     _age = pow(_age, 0.5f);
     float minWidth = 0;
     bool rotate = cameraFacing;
@@ -1079,7 +1079,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
     }
 
     // Lets go fixed steps, and then skip some  - just enough
-    
+
     int stemVisibleCount = 0;
     float stemStep = 1.0f / (float)stemCNT;
     float leafStep = 1.0f / (float)leafCNT;
@@ -1126,7 +1126,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
                 sumAngle += abs(stemCurve);
             }
 
-           
+
         }
     }
 
@@ -1154,7 +1154,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
     for (int j = 0; j <= leafCNT; j++)
     {
         float t = (float)j * leafStep;
-        float du =  sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y;
+        float du = sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y;
         if (du > 1) du = 1;
         if (leafCNT < 3) du = 1;
 
@@ -1177,7 +1177,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
             firstleafVertex = false;
         }
 
-        if (integrate_stem && j == 0 && (ribbonLength>0))
+        if (integrate_stem && j == 0 && (ribbonLength > 0))
         {
             ribbonLength--; // discard terh first one
         }
@@ -1216,7 +1216,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
         glm::vec3 L = vertex[0];
         glm::mat4 crv = glm::rotate(glm::mat4(1.0), l_curve, L);
         vertex = crv * vertex;
-        
+
         glm::mat4 twist = glm::rotate(glm::mat4(1.0), l_twist, D);
         vertex = twist * vertex;
 
@@ -1341,9 +1341,9 @@ void _twig::loadStemMaterial()
 
 void _twig::renderGui(Gui* _gui)
 {
-    
 
-    
+
+
     float W = ImGui::GetWindowWidth() / 3.f;
     ImGui::PushID(7701);
     {
@@ -1428,7 +1428,7 @@ void _twig::renderGui(Gui* _gui)
         if (ImGui::DragFloat("##stemGraviPhoto", &stem_phototropism, 0.01f, -1, 1, "%2.2f")) changed = true;
         TOOLTIP("negative - add gravity\n positive add phototropism");
 
-        
+
 
         if (ImGui::Button(stem_Material.displayname.c_str(), ImVec2(W, 0)))
         {
@@ -1438,7 +1438,7 @@ void _twig::renderGui(Gui* _gui)
 
         if (ImGui::Checkbox("show stem", &has_stem)) changed = true;
 
-        
+
 
         ImGui::NewLine();
         ImGui::Text("# leaves");
@@ -1474,8 +1474,8 @@ void _twig::renderGui(Gui* _gui)
         ImGui::SameLine(0, 10);
         if (ImGui::Checkbox("tipleaves", &tipleaves));
         TOOLTIP("is there a special cluster of leaves right at the tip");
-        
-        
+
+
 
         /*
         ImGui::NewLine();
@@ -1530,7 +1530,7 @@ void _twig::renderGui(Gui* _gui)
     ImGui::NextColumn();
     ImGui::PushID(7703);
     {
-        
+
     }
     ImGui::PopID();
 
@@ -1593,7 +1593,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
                 for (int l = 0; l < numLeaves; l++)
                 {
-                    
+
                     float rot = l * 6.14f / numLeaves + (i * leafRotation) + distribution(generator) * 0.05f;// +randStartLeafRotation;
                     glm::mat4 R = glm::rotate(glm::mat4(1.0), rot, (glm::vec3)stalk[2]);
                     glm::mat4 leaf = R * stalk;
@@ -1608,12 +1608,12 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
                     leaves.ribbonLength = 0;
                     int matIndex = 0;// leafmaterialList.size() > 0 ? leafmaterialList[0].index : 0;
-                    int leaflod = (overrideLod >=0) ? overrideLod : lod;
+                    int leaflod = (overrideLod >= 0) ? overrideLod : lod;
                     if (lod == 0) leaflod = 3;
                     leaves.buildLeaf(leafAge, 0.f, 10 + l + i * 17 + rndSeed, leaf, _pos, (glm::vec3)stalk[2], leaflod);
                     if (lod > 0)
                     {
-                        if (!tipleaves || (l==0 && i== stemCNT-1) )
+                        if (!tipleaves || (l == 0 && i == stemCNT - 1))
                         {
                             for (int k = 0; k < leaves.ribbonLength; k++) {
                                 ribbon[leafOffset + k] = leaves.ribbon[k];
@@ -1680,37 +1680,37 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
         leafOffset = 2;
     }
-   /*
-    if (lod == 0)
-    {
-        // simplify the shape
-        int current = 1;
-        float step = stemStep * startSegment;
-        for (int i = startSegment; i < ribbonLength; i++)
-        {
-            if (step > ribbon[i].radius * 2 || (i == ribbonLength-1))
-            {
-                ribbon[current] = ribbon[i];
-                current++;
-                step = 0;
-            }
-            step += stemStep;
-        }
+    /*
+     if (lod == 0)
+     {
+         // simplify the shape
+         int current = 1;
+         float step = stemStep * startSegment;
+         for (int i = startSegment; i < ribbonLength; i++)
+         {
+             if (step > ribbon[i].radius * 2 || (i == ribbonLength-1))
+             {
+                 ribbon[current] = ribbon[i];
+                 current++;
+                 step = 0;
+             }
+             step += stemStep;
+         }
 
-        // fix up first width since thias l is likely original stem width and will cut things off
-        ribbon[0].radius = (ribbon[0].radius + ribbon[1].radius) / 2.0f;
-        leafOffset = current;
-        
-        // and fix dU
-        for (int i = 0; i < ribbonLength; i++)
-        {
-            ribbon[i].uv.x = ribbon[i].radius / maxRadiusLod0;
-        }
+         // fix up first width since thias l is likely original stem width and will cut things off
+         ribbon[0].radius = (ribbon[0].radius + ribbon[1].radius) / 2.0f;
+         leafOffset = current;
 
-        // and move the last one higher to include th top leaves
-        ribbon[current - 1].position.y = extents.y;
-    }
-    */
+         // and fix dU
+         for (int i = 0; i < ribbonLength; i++)
+         {
+             ribbon[i].uv.x = ribbon[i].radius / maxRadiusLod0;
+         }
+
+         // and move the last one higher to include th top leaves
+         ribbon[current - 1].position.y = extents.y;
+     }
+     */
 
     ribbonLength = leafOffset;
 
@@ -1958,11 +1958,11 @@ void _weed::build(float _age, float _lodPixelsize)
             {
                 startPos = glm::vec3(distribution(generator), 0, distribution(generator));
             }
-            
+
             float outside = glm::length(startPos);
             startPos *= T.radius;
 
-            
+
 
             glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), startPos));
 
@@ -1972,13 +1972,13 @@ void _weed::build(float _age, float _lodPixelsize)
             glm::mat4 R = glm::rotate(glm::mat4(1.0), rotateOutwards, right);
             S = R * S;
 
-            float ageRange = 0.5f + 0.5f * ((1 -  outside) * T.radiusAgeScale);
+            float ageRange = 0.5f + 0.5f * ((1 - outside) * T.radiusAgeScale);
             float A = age;// *(1.0f + T.rnd * (distribution(generator)))* ageRange;
 
             S[3] = glm::vec4(startPos, 0);
 
             T.twig.build(A, 0.f, S, i);
-            
+
             for (int k = 0; k < T.twig.ribbonLength; k++) {
                 ribbon[ribbonLength + k] = T.twig.ribbon[k];
             }
@@ -2016,7 +2016,7 @@ void _weed::load()
         filename = path.filename().string();
         filepath = path.string();
         terrainManager::lastfile.weed = filepath;
-        visibleTwig = twigs.size() - 1; 
+        visibleTwig = twigs.size() - 1;
     }
 }
 
@@ -2243,8 +2243,14 @@ void _cubemap::solve()
 
 float4 _cubemap::light(float3 _p, float* _depth)
 {
-    toCube(_p - center);
-    *_depth = data[face][y][x].d - length(_p - center);
+    float3 virtualCenter = center;
+    if (_p.y < center.y)
+    {
+        _p.y = glm::lerp(_p.y, center.y, 0.5f);
+    }
+
+    toCube(_p - virtualCenter);
+    *_depth = data[face][y][x].d - length(_p - virtualCenter);
     return float4(data[face][y][x].dir, data[face][y][x].cone);
 }
 
@@ -2283,7 +2289,7 @@ void _GroveTree::renderGui(Gui* _gui)
 {
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
-        
+
         /*
         leafBuilder.renderGui(_gui);
         if (leafBuilder.changed)
@@ -2312,7 +2318,7 @@ void _GroveTree::renderGui(Gui* _gui)
 
         Gui::Window weedPanel(_gui, "weed builder##tfPanel", { 900, 900 }, { 100, 100 });
         {
-            
+
             ImGui::PushFont(_gui->getFont("roboto_18"));
             ImGui::PushItemWidth(170);
             if (ImGui::Combo("###modeSelector", (int*)&rootMode, "Grove tree\0Weed\0Twig\0Leaf\0")) { ; }
@@ -2379,7 +2385,7 @@ void _GroveTree::renderGui(Gui* _gui)
                 if (ImGui::DragFloat("brnachAge", &branchTwigsAge, 0.1f, 0.1f, 10.f)) {
                     rebuildRibbons();
                 }
-               
+
 
 
                 if (ImGui::DragFloat("tip Age", &tipTwigsAge, 0.1f, 0.1f, 10.f)) {
@@ -2447,7 +2453,7 @@ void _GroveTree::renderGui(Gui* _gui)
 
 
 
-            
+
             ImGui::PopFont();
         }
         weedPanel.release();
@@ -2595,6 +2601,7 @@ void _GroveTree::testBranchLeaves()
             L.pos = currentBranch->nodes[j].pos;
             L.dir = nodeDir;
             L.branchNode = j;
+            L.branchIndex = branches.size() - 1;
             branchLeaves.push_back(L);
             currentBranch->leaves.push_back(L);
 
@@ -2683,12 +2690,45 @@ void _GroveTree::load()
                     BN.dir = nodeDir;
                     currentBranch->nodes.push_back(BN);
 
+                    
+                    static bool testOnce = true;
+                    if (currentBranch->nodes.size() == 1)
+                    {
+                        if (testOnce && (currentBranch->nodes.size() == 1) && (radius > 0.3))   // catch first branch
+                        {
+                            testOnce = false;
+                            currentBranch->isVisible = true;
+                        }
+                        else
+                        {
+                            currentBranch->isVisible = false;
+                        }
+                    }
+
+                    if ((abs(center.x) > 2) || (center.z < -2))
+                    {
+                        //currentBranch->isVisible = false;
+                    }
+
+                    
+                    //if ((center.z > -2) || (abs(center.x) > 2))
+                    if ((center.z < -2) || (abs(center.x) < 2))
+                    {
+                        //currentBranch->isVisible = false;
+                    }
+
+                    if (center.y > 9)
+                    {
+                    //    currentBranch->isVisible = false;
+                    }
+
                     /*
                     if (branches.size() > 30 && branches.size() <  1830)
                     {
                         currentBranch->isDead = true;
                     }
                     */
+
 
                     verts[0] = verts[numVerts - 1];
                     read2();
@@ -2711,6 +2751,29 @@ void _GroveTree::load()
         }
     }
 }
+
+void _GroveTree::rebuildVisibility()
+{
+    for (int B = 0; B < branches.size(); B++)
+    {
+        if (vis.coreRadius > 0)
+        {
+            // do radius tests to extract the core
+        }
+        for (int C = B - 1; C >= 0; C--)   // try <B again
+        {
+            if (vis.expandToRoot && branches[C].isVisible && (branches[C].nodes[branches[B].sideNode].radius < vis.radiusCutoff))
+            {
+                branches[B].isVisible = true;
+            }
+            if (vis.expandToRoot && branches[B].isVisible)  // the reverse
+            {
+                branches[C].isVisible = true;
+            }
+        }
+    }
+}
+
 
 bool pointCylindar(const glm::vec3& point, const glm::vec3& A, const glm::vec3& B, const float radius)
 {
@@ -2775,6 +2838,7 @@ void _GroveTree::findSideBranches()
             endLeaves.emplace_back();
             endLeaves.back().pos = branches[B].nodes.back().pos;
             endLeaves.back().dir = branches[B].nodes.back().dir;
+            endLeaves.back().branchIndex = B;
         }
     }
 }
@@ -2867,7 +2931,7 @@ void _GroveTree::rebuildRibbons()
         if (showOnlyUnattached && branches[b].rootBranch >= 0) continue;
         if (showOnlyUnattached && b == 0) continue;
 
-        if (branches[b].nodes.size() > 1)
+        if (branches[b].nodes.size() > 1 && (branches[b].isVisible))
         {
             float v = 0.0f;
             for (int n = 0; n < branches[b].nodes.size(); n++)
@@ -2890,7 +2954,7 @@ void _GroveTree::rebuildRibbons()
                 branchRibbons[numBranchRibbons].radius = branches[b].nodes[n].radius;
                 branchRibbons[numBranchRibbons].material = branch_Material.index;
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                branchRibbons[numBranchRibbons].uv = float2(1, v*2);
+                branchRibbons[numBranchRibbons].uv = float2(1, v * 2);
                 branchRibbons[numBranchRibbons].bitangent = branches[b].nodes[n].dir;
 
 
@@ -2919,7 +2983,7 @@ void _GroveTree::rebuildRibbons()
                     }
                     else if ((branches[b].nodes[n].radius < startRadius) &&
                         (branches[b].nodes[n].radius > endRadius) &&
-                        (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / branches[b].nodes[n].radius > stepThis) 
+                        (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / branches[b].nodes[n].radius > stepThis)
                         ) {
                         numBranchRibbons++;
                     }
@@ -2936,86 +3000,93 @@ void _GroveTree::rebuildRibbons()
     if (includeBranchLeaves) {
         float skip = twigSkip * twigSkip * 2.0f;
         int step = __max((int)skip, 1);
-        for (int b = 0; b < branchLeaves.size(); b+= step)
+        for (int b = 0; b < branchLeaves.size(); b += step)
         {
-            float3 D = normalize(branchLeaves[b].dir);
-            float3 U = float3(0, 1, 0);
-            float3 R = normalize(cross(U, D));
-            U = cross(D, R);
-
-            glm::mat4 S;
-            S[0] = float4(R, 0);
-            S[1] = float4(U, 0);
-            S[2] = float4(D, 0);
-            S[3] = float4(branchLeaves[b].pos, 0);// -(S[2] * 0.0f); // 20cm backwards if scaled
-
-
-            float scale = pow((float)step, 0.5);
-            if (step > 1)
+            if (branches[branchLeaves[b].branchIndex].isVisible)
             {
-                S[3] += S[2] * (1-scale) * 0.2f;
-                tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 0, scale);
-            }
-            else
-            {
-                if (dist_0_1(generator) < skip)
+                float3 D = normalize(branchLeaves[b].dir);
+                float3 U = float3(0, 1, 0);
+                float3 R = normalize(cross(U, D));
+                U = cross(D, R);
+
+                glm::mat4 S;
+                S[0] = float4(R, 0);
+                S[1] = float4(U, 0);
+                S[2] = float4(D, 0);
+                S[3] = float4(branchLeaves[b].pos, 0);// -(S[2] * 0.0f); // 20cm backwards if scaled
+
+
+                float scale = pow((float)step, 0.5);
+                if (step > 1)
                 {
-                    tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 0, 1.0f);
+                    S[3] += S[2] * (1 - scale) * 0.2f;
+                    tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 0, scale);
                 }
-                else {
-                    tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 2, 1.0f);
-                }
-                
-            }
+                else
+                {
+                    if (dist_0_1(generator) < skip)
+                    {
+                        tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 0, 1.0f);
+                    }
+                    else {
+                        tipTwigs.build(branchTwigsAge + distribution(generator), 0.f, S, b, 2, 1.0f);
+                    }
 
-            for (int k = 0; k < tipTwigs.ribbonLength; k++) {
-                branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
-                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                numBranchRibbons++;
+                }
+
+                for (int k = 0; k < tipTwigs.ribbonLength; k++) {
+                    branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
+                    branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+                    numBranchRibbons++;
+                }
             }
         }
     }
 
     if (includeEndLeaves) {
+
         float skip = twigSkip * twigSkip * 2.0f;
         int step = __max((int)skip, 1);
-        for (int b = 0; b < endLeaves.size(); b+= step)
+        for (int b = 0; b < endLeaves.size(); b += step)
         {
-            float3 P = endLeaves[b].pos;
-            float3 D = normalize(endLeaves[b].dir);
-            float3 U = float3(0, 1, 0);
-            float3 R = normalize(cross(U, D));
-            U = cross(D, R);
-
-            glm::mat4 S;
-            S[0] = float4(R, 0);
-            S[1] = float4(U, 0);
-            S[2] = float4(D, 0);
-            S[3] = float4(P, 0);// -(S[2] * 0.0f); // 20cm backwards if scaled
-
-            float scale = pow((float)step, 0.5);
-            if (step > 1)
+            if (branches[endLeaves[b].branchIndex].isVisible)
             {
-                S[3] += S[2] * (1-scale) * 0.2f;
-                tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 0, scale);
-            }
-            else
-            {
-                if (dist_0_1(generator) < skip)
+                float3 P = endLeaves[b].pos;
+                float3 D = normalize(endLeaves[b].dir);
+                float3 U = float3(0, 1, 0);
+                float3 R = normalize(cross(U, D));
+                U = cross(D, R);
+
+                glm::mat4 S;
+                S[0] = float4(R, 0);
+                S[1] = float4(U, 0);
+                S[2] = float4(D, 0);
+                S[3] = float4(P, 0);// -(S[2] * 0.0f); // 20cm backwards if scaled
+
+                float scale = pow((float)step, 0.5);
+                if (step > 1)
                 {
-                    tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 0, 1.0f);
+                    S[3] += S[2] * (1 - scale) * 0.2f;
+                    tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 0, scale);
                 }
                 else
                 {
-                    tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 2, 1.0f);
+                    if (dist_0_1(generator) < skip)
+                    {
+                        tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 0, 1.0f);
+                    }
+                    else
+                    {
+                        tipTwigs.build(tipTwigsAge + distribution(generator), 0.f, S, b, 2, 1.0f);
+                    }
                 }
-            }
 
 
-            for (int k = 0; k < tipTwigs.ribbonLength; k++) {
-                branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
-                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                numBranchRibbons++;
+                for (int k = 0; k < tipTwigs.ribbonLength; k++) {
+                    branchRibbons[numBranchRibbons] = tipTwigs.ribbon[k];
+                    branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+                    numBranchRibbons++;
+                }
             }
         }
     }
@@ -3075,7 +3146,7 @@ void _GroveTree::rebuildRibbons_Weed()
         weedBuilder.ribbon[i].lightCone = weedBuilder.L.lightVertex(weedBuilder.ribbon[i].position, &weedBuilder.ribbon[i].lightDepth);
         //float3 Ldir = glm::normalize(weedBuilder.ribbon[i].position - float3(0, 0.1f, 0));
         //weedBuilder.ribbon[i].lightCone = float4(Ldir, 0);
-         packedRibbons[i] = weedBuilder.ribbon[i].pack();
+        packedRibbons[i] = weedBuilder.ribbon[i].pack();
     }
     bChanged = true;
     numBranchRibbons = weedBuilder.ribbonLength;
@@ -3135,7 +3206,10 @@ void _GroveTree::calcLight()
         light.Min = glm::min(light.Min, endLeaves[b].pos);
         light.Max = glm::max(light.Max, endLeaves[b].pos);
     }
-    light.center /= cnt;
+    if (cnt > 0)
+    {
+        light.center /= cnt;
+    }
     glm::vec3 extents = light.Max - light.Min;
     light.scale = 2.0f / extents;
 
@@ -3147,7 +3221,7 @@ void _GroveTree::calcLight()
 
     for (int b = 0; b < cnt; b++)
     {
-        light.cubemap.writeDistance(endLeaves[b].pos + endLeaves[b].dir * 0.15f);
+        light.cubemap.writeDistance(endLeaves[b].pos + endLeaves[b].dir * 0.5f);
     }
 
     for (int b = 0; b < branchLeaves.size(); b++)
@@ -4062,7 +4136,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::DragInt("# instances", &ribbonInstanceNumber, 1, 1, 1000);
             ImGui::DragFloat("spacing", &ribbonSpacing, 0.01f, 0.1f, 10);
             ImGui::Checkbox("from extents", &spacingFromExtents);
-            
+
             ImGui::Text("%d inst x %d x 2 = %3.1f M tris", ribbonInstanceNumber * ribbonInstanceNumber, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber * groveTree.numBranchRibbons * 2.0f / 1000000.0f);
             groveTree.renderGui(_gui);
             break;
@@ -4776,7 +4850,7 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::m
 
 void terrainManager::bakeVegetation()
 {
-    int superSample = 4;
+    int superSample = 8;
     int baseSize = 64;
     int numBuffer = 32;
 
@@ -4855,6 +4929,12 @@ void terrainManager::bakeVegetation()
     ribbonShader_Bake.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
     ribbonShader_Bake.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
 
+    // lighting
+    ribbonShader_Bake.Vars()["gConstantBuffer"]["Ao_depthScale"] = static_Ao_depthScale;
+    ribbonShader_Bake.Vars()["gConstantBuffer"]["sunTilt"] = static_sunTilt;
+    ribbonShader_Bake.Vars()["gConstantBuffer"]["bDepth"] = static_bDepth;
+    ribbonShader_Bake.Vars()["gConstantBuffer"]["bScale"] = static_bScale;
+
     ribbonShader_Bake.State()->setRasterizerState(split.rasterstateSplines);
     ribbonShader_Bake.State()->setBlendState(blendstateVegBake);//blendstateSplines
 
@@ -4874,8 +4954,8 @@ void terrainManager::bakeVegetation()
         compute_bakeFloodfill.dispatch(bake.renderContext, iW / 4, iH / 4);
     }
 
-    
-    
+
+
 
 
     std::filesystem::path path = terrainManager::lastfile.vegMaterial;
@@ -4891,13 +4971,13 @@ void terrainManager::bakeVegetation()
         std::string shortPath = path.parent_path().string() + "\\";
         std::string shortNameExt = path.filename().string();
         std::string shortName = shortNameExt.substr(0, shortNameExt.length() - 19);
-        
+
         char outName[512];
         sprintf(outName, "%s%s_albedo.png", shortPath.c_str(), shortName.c_str());
         fbo->getColorTexture(0).get()->captureToFile(0, 0, outName, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
         Mat.normalPath = shortPath + shortName + "_albedo.dds";
         Mat.normalName = shortName + "_albedo.dds";
-        
+
         //sprintf(outName, "%s%s_normal_16.exr", shortPath.c_str(), shortName.c_str());
         //fbo->getColorTexture(1).get()->captureToFile(0, 0, outName, Bitmap::FileFormat::ExrFile, Bitmap::ExportFlags::None);
         //Mat.normalPath = shortPath + shortName + "_normal_16.dds";
@@ -4915,7 +4995,7 @@ void terrainManager::bakeVegetation()
         Mat.translucencyName = shortName + "_translucency.dds";
 
 
-        
+
 
         Mat.serialize(archive, _PLANTMATERIALVERSION);
 
@@ -4935,7 +5015,7 @@ bool terrainManager::update(RenderContext* _renderContext)
     }
 
 
-    
+
 
     FALCOR_PROFILE("update");
     bool dirty = false;
@@ -5741,16 +5821,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
     {
-     /*
-        mouseVegYaw += 0.002f;
+        /*
+           mouseVegYaw += 0.002f;
 
-        glm::vec3 camPos;
-        camPos.y = sin(mouseVegPitch);
-        camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
-        camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
-        _camera->setPosition(camPos * mouseVegOrbit);
-        _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
-       */ 
+           glm::vec3 camPos;
+           camPos.y = sin(mouseVegPitch);
+           camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
+           camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
+           _camera->setPosition(camPos * mouseVegOrbit);
+           _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
+          */
     }
 
     if (terrainMode == 0)
@@ -5842,7 +5922,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["time"] = time;
 
             ribbonShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
-            
+
 
             ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber);
         }

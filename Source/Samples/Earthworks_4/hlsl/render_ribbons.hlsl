@@ -266,6 +266,10 @@ inline void light(inout PSIn o, const RV6 v, const float rotation)
     float b = a * (bDepth - d) + d;
     float ao = 1 - saturate(d * Ao_depthScale);
     o.lighting = float4(0, 0, saturate(1 - (b * bScale)), ao);
+
+#if defined(_BAKE)
+    o.lighting.rgb = lightCone;
+#endif
 }
 
 float rand_1_05(in float2 uv)
@@ -360,6 +364,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     float3 rootPosition = float3(iId % numSide, 0, (int) (iId / numSide)) * repeatScale + offset;
     rootPosition += (-0.5 * repeatScale) + 0.9f * repeatScale * float3(rand_1_05(float2(iId * 0.0092356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.002356, iId * 0.003568)));
     rootPosition.y = 0;
+    rootPosition = 0;
     float scale = 0.9f + 0.2f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
     float rotation = 2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
     const RV6 v = instanceBuffer[vId];
@@ -384,15 +389,27 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractColor(output, v);
     light(output, v, rotation);
 
+    /*
+    float3 Rpos = output.pos.xyz;
+    Rpos.y = 0;
+    if (Rpos.z > 0)
+        Rpos.z = 0;
+        if (length(Rpos) > 1.0f)
+        {
+            output.flags.y = 0;
+        }
+    */
+    //output.lighting.w = 0.5f;
+
     // Now do wind animation
     // maybe before lighting, although for now it doesnt seem to matter
     // --------------------------------------------------------------------------------------------------------
-    windAnimate(output, rootPosition, v.a >> 31);
+    //windAnimate(output, rootPosition, v.a >> 31);
 
     //output.diffuseLight = lighting(output.normal, output.eye, output.colour, output.lighting, output.flags.x);
 
     // thsi value determines if it splits into 2 or 4 during the geometry shader
-    float d = length(output.pos.xyz - eyePos);
+        float d = length(output.pos.xyz - eyePos);
     output.flags.w = output.flags.z * radiusScale / d * 10000;
 
             
@@ -503,8 +520,9 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     clip(alpha - 0.5);
 
-    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb * vOut.colour.x;
-    output.albedo = float4(pow(color, 1.0 / 2.2), alpha);
+    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb * vOut.colour.x * pow(vOut.lighting.w, 2);
+
+    output.albedo = float4(pow(color, 1.0 / 2.2), 1);   // previous alpha, doesnt work form bake
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
@@ -518,9 +536,18 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
 
     float3 NAdjusted = N;
-    NAdjusted.r = -N.r * 0.5 + 0.5;
-    NAdjusted.g = -N.g * 0.5 + 0.5;
-    NAdjusted.b = N.b * 0.5 + 0.5;
+    
+    NAdjusted.r = N.r * 0.5 + 0.5;
+    NAdjusted.g = N.g * 0.5 + 0.5;
+    NAdjusted.b = -N.b * 0.5 + 0.5;
+
+NAdjusted = vOut.lighting.xyz * 0.5 + 0.5;
+NAdjusted.b = 1 - NAdjusted.b;
+
+
+//float instance_PLANT = saturate(dot(vOut.lighting.xyz, normalize(float3(0.8, 0.4, 0.4))));
+//output.albedo *= instance_PLANT * 0.3 + 0.7;
+
     output.normal = float4(NAdjusted, 1);       // FIXME has to convert to camera space, cant eb too hard , uprigthmaybe, and 0-1 space
     output.normal_8 = float4(NAdjusted, 1);
 
@@ -596,7 +623,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 1.5 ;
+    const float3 sunColor = float3(1.2, 1.0, 0.7) * 2.5;
     //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(-sunDir + vOut.eye)));
     float ndots = dot(N, -sunDir); // * vOut.lighting.z;

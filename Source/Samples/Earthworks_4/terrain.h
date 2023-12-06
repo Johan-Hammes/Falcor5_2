@@ -514,6 +514,7 @@ struct _leafNode
     float3 pos;
     float3 dir;
     int branchNode;
+    int branchIndex;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -582,6 +583,7 @@ struct _GroveBranch
     std::vector<int> sideBranches;
     int rootBranch = -1;
     int sideNode = 0;
+    bool isVisible = true;
     bool isDead = false;
     
 
@@ -600,6 +602,15 @@ struct _GroveBranch
 CEREAL_CLASS_VERSION(_GroveBranch, 100);
 
 
+struct treeVis
+{
+    bool expandToLeaves = false;
+    bool expandToRoot = false;
+    float radiusCutoff = 100;
+    float coreRadius = 0.f;
+    bool SmallerThan = true;
+    float TestSize = 1000;
+};
 
 struct _GroveTree
 {
@@ -637,6 +648,11 @@ struct _GroveTree
     int numDeadEnds;
     int numBadEnds;
     bool showOnlyUnattached = false;
+
+    // Visibility
+    void rebuildVisibility();
+    treeVis vis;        // expand for lods so we can save it
+    
 
     _weedLight L;
     void calcLight();
