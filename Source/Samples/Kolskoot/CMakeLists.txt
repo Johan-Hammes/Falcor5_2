@@ -9,6 +9,8 @@ target_sources(Kolskoot PRIVATE
     Kolskoot.h
     PointGrey_Camera.cpp
     PointGrey_Camera.h
+    SerialComms.cpp
+    SerialComms.h
 
     #FlyCapture/FlyCapture2.h
     #FlyCapture/Error.h

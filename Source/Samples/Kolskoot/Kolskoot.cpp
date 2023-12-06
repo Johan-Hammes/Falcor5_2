@@ -39,6 +39,7 @@
 
 std::vector<target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
+ballisticsSetup Kolskoot::ballistics;
 float2 mouseScreen;
 static bool targetPopupOpen = false;
 bool requestLive = false;
@@ -100,6 +101,9 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
         ImGui::SetNextItemWidth(200);
         ImGui::DragInt("lanes", &numLanes, 1, 1, 15);
+
+        ImGui::SetNextItemWidth(200);
+        ImGui::InputInt("zigbeeCom", &zigbeeCOM, 1);
 
         ImGui::SetCursorPos(ImVec2(800, 50));
         ImGui::SetNextItemWidth(200);
@@ -207,6 +211,76 @@ void _setup::save()
     serialize(archive, 100);
 }
 
+
+
+
+
+
+
+
+void ballisticsSetup::load()
+{
+    if (std::filesystem::exists("ballistics_offsets.json"))
+    {
+        std::ifstream is("ballistics_offsets.json");
+        cereal::JSONInputArchive archive(is);
+        serialize(archive, 100);
+    }
+}
+void ballisticsSetup::save()
+{
+    std::ofstream os("ballistics_offsets.json");
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive, 100);
+}
+
+
+float2 ballisticsSetup::offset(int _lane)
+{
+    return screen_offsets[currentAmmo][_lane];
+}
+
+
+float2 ballisticsSetup::adjustOffset(int _lane, float2 error)
+{
+    screen_offsets[currentAmmo][_lane] += error;
+    return screen_offsets[currentAmmo][_lane];
+}
+
+void ballisticsSetup::clearOffsets(int _lane)
+{
+    screen_offsets[currentAmmo][_lane] += float2(0, 0);
+}
+
+//https://ballisticscalculator.winchester.com/#!/result
+// for now just pow(x, 2) but do betetr to accoutn for slowing down
+float ballisticsSetup::bulletDrop(float distance, float apex, float apexHeight, float drop100)
+{
+    float dd = abs(apex - distance);
+    float P = pow(dd / 100.f, 2);
+    return apexHeight - (P * drop100);
+}
+float ballisticsSetup::bulletDrop(float distance)
+{
+    switch (currentAmmo)
+    {
+    case ammo_9mm:
+        return bulletDrop(distance, 7.0f, 0.00018f, 0.292f);
+        break;
+    case ammo_556:
+        return bulletDrop(distance, 78.0f, 0.00508f, 0.084f);   // breek effe na 200m
+        break;
+    case ammo_762:
+        return bulletDrop(distance, 78.0f, 0.00508f, 0.076f);   // breek effe na 200m
+        break;
+    }
+    return 0;
+}
+
+void ballisticsSetup::renderGuiAmmo(Gui* _gui)
+{
+    ImGui::Combo("###ammoSelector", (int*)&currentAmmo, " 9mm\0 5.56\0 7.62\0");
+}
 
 
 
@@ -445,7 +519,7 @@ void target::renderGui(Gui* _gui, Gui::Window& _window)
 void targetAction::renderGui(Gui* _gui)
 {
     ImGui::SetNextItemWidth(390);
-    ImGui::Combo("###actionSelector", (int*)&action, "static\0popup\0move\0");
+    ImGui::Combo("###actionSelector", (int*)&action, "static\0popup\0move\0sight");
 
     ImGui::Checkbox("drop", &dropWhenHit);
     TOOLTIP("Does the target drop down when hit");
@@ -711,10 +785,10 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
 void quickRange::renderLiveMenubar(Gui* _gui)
 {
-    ImGui::Text("%s       :       Exercise %d       :       %s", title.c_str(), currentExercise+1, exercises[currentExercise].title.c_str());
+    ImGui::Text("%s       :       Exercise %d       :       %s", title.c_str(), currentExercise + 1, exercises[currentExercise].title.c_str());
 }
 
-void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup)
+void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole)
 {
     {
         ImGuiStyle& style = ImGui::GetStyle();
@@ -732,28 +806,60 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                     ImGui::BeginColumns("lanes", setup.numLanes);
                     for (int lane = 0; lane < setup.numLanes; lane++)
                     {
-                        
+                        float centerX = (setup.screen_pixelsX / setup.numLanes / 2) + (setup.screen_pixelsX / 5 * lane);
+                        float centerY = setup.eyeHeights[exercises[currentExercise].pose] - 40;
+                        float mToPix = setup.screen_pixelsX / setup.screenWidth * setup.shootingDistance / exercises[currentExercise].targetDistance;
 
-                        
-                        float tw = 0.001f * exercises[currentExercise].target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / exercises[currentExercise].targetDistance;
-                        float th = tw * exercises[currentExercise].target.size_mm.y / exercises[currentExercise].target.size_mm.x;
-                        float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / 5 * lane);
-                        float py = (setup.eyeHeights[exercises[currentExercise].pose]) -(th  * 0.5f);
 
-                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes / 2) -10 + (setup.screen_pixelsX / 5 * lane), 20));
+                        float tw = mToPix * 0.001f * exercises[currentExercise].target.size_mm.x;
+                        float th = mToPix * 0.001f * exercises[currentExercise].target.size_mm.y;
+                        float px = centerX - (tw / 2);
+                        float py = centerY - (th * 0.5f);
+
+                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes / 2) - 10 + (setup.screen_pixelsX / 5 * lane), 20));
                         ImGui::Text("%d", lane + 1);
                         ImGui::Text("%d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
                         ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                        ImGui::Text("drop : %d mm", (int)(bulletDrop * 1000));
+                        ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
+                        //
 
-                        if (score.lane_exercise.at(lane).at(currentExercise).shots.size() > 0) {
-                            ImGui::Text("%f, %f, %d", score.lane_exercise.at(lane).at(currentExercise).shots.back().position.x, score.lane_exercise.at(lane).at(currentExercise).shots.back().position.y, score.lane_exercise.at(lane).at(currentExercise).shots.back().score);
+
+
+
+                        ImGui::SetCursorPos(ImVec2(px, py));
+                        _window.image("testImage", exercises[currentExercise].target.image, float2(tw, th), false);
+
+                        for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
+                        {
+                            float2 pos = score.lane_exercise.at(lane).at(currentExercise).shots.at(s).position_relative;
+                            float px = centerX + (tw * (pos.x - 0.5f));
+                            float py = centerY + (th * (pos.y - 0.5f));
+
+                            float bulletSize = mToPix * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
+
+                            ImGui::SetCursorPos(ImVec2(px - (bulletSize / 2), py - (bulletSize / 2)));
+                            _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize), false);
+                            //_bulletHole
                         }
 
 
-                        ImGui::SetCursorPos(ImVec2(px, py-40));
-                        _window.image("testImage", exercises[currentExercise].target.image, float2(tw, th), false);
-                        
+                        if (exercises[currentExercise].action.action == action_adjust && (score.lane_exercise.at(lane).at(currentExercise).shots.size() >= exercises[currentExercise].numRounds))
+                        {
+                            // adjusst the shots
+                            // DMAN REALLY SAVE position in meters on the target as well - MUCH easierto work with
+                            float2 avs = float2(0, 0);
+                            for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
+                            {
+                                avs += score.lane_exercise.at(lane).at(currentExercise).shots[s].position;
+                            }
+                            avs /= score.lane_exercise.at(lane).at(currentExercise).shots.size();
+                            //avs.y += bulletDrop;
+                            //avs *= mToPix;
 
+                            Kolskoot::ballistics.adjustOffset(lane, avs);
+                            score.lane_exercise.at(lane).at(currentExercise).shots.clear();
+                        }
 
                         ImGui::NextColumn();
                     }
@@ -775,6 +881,9 @@ void quickRange::mouseShot(float x, float y, _setup setup)
 {
     int lane = (int)floor(x * setup.numLanes / setup.screen_pixelsX);
 
+    x -= Kolskoot::ballistics.offset(lane).x;
+    y -= Kolskoot::ballistics.offset(lane).y;
+
     // move all of this to target
     float tw = 0.001f * exercises[currentExercise].target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / exercises[currentExercise].targetDistance;
     float th = tw * exercises[currentExercise].target.size_mm.y / exercises[currentExercise].target.size_mm.x;
@@ -783,6 +892,9 @@ void quickRange::mouseShot(float x, float y, _setup setup)
 
     float shotX = (x - px) / tw;    // 0-1 texture space
     float shotY = (y - py) / th;
+
+    float absX = (shotX - 0.5f) * tw;    // meters relativeto center
+    float absY = (shotY - 0.5f) * th;
 
     // translate to scoring space
     int scoreX = (int)(shotX * exercises[currentExercise].target.scoreWidth);
@@ -798,7 +910,8 @@ void quickRange::mouseShot(float x, float y, _setup setup)
     score.lane_exercise.at(lane).at(currentExercise).score += shotScore;
     score.lane_exercise.at(lane).at(currentExercise).shots.emplace_back();
     score.lane_exercise.at(lane).at(currentExercise).shots.back().score = shotScore;
-    score.lane_exercise.at(lane).at(currentExercise).shots.back().position = float2(shotX, shotY);
+    score.lane_exercise.at(lane).at(currentExercise).shots.back().position = float2(absX, absY);
+    score.lane_exercise.at(lane).at(currentExercise).shots.back().position_relative = float2(shotX, shotY);
     score.lane_exercise.at(lane).at(currentExercise).target = exercises[currentExercise].target;
 }
 
@@ -808,9 +921,11 @@ bool quickRange::liveNext()
     switch (currentStage) {
     case live_intro:
         currentStage = live_live;
+        bulletDrop = Kolskoot::ballistics.bulletDrop(exercises[currentExercise].targetDistance);
         break;
     case live_live:
         currentStage = live_scores;
+        bulletDrop = Kolskoot::ballistics.bulletDrop(exercises[currentExercise].targetDistance);    // just incase first one misses
         break;
     case live_scores:
         currentStage = live_intro;
@@ -822,7 +937,7 @@ bool quickRange::liveNext()
         break;
     }
 
-    
+
 
     return false;
 }
@@ -951,7 +1066,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 
             ImGui::SameLine(0, 200);
             ImGui::SetNextItemWidth(150);
-           
+
 
             if (guiMode == gui_live)
             {
@@ -988,6 +1103,10 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                     guiMode = gui_exercises;
                     selected = false;
                 }
+
+                ImGui::SameLine(0, 20);
+                ImGui::SetNextItemWidth(150);
+                ballistics.renderGuiAmmo(_gui);
             }
 
 
@@ -1096,7 +1215,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             Gui::Window livePanel(_gui, "Live", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
             livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
             livePanel.windowPos(0, 40);
-            QR.renderLive(_gui, screenSize, livePanel, setupInfo);
+            QR.renderLive(_gui, screenSize, livePanel, setupInfo, bulletHole);
             livePanel.release();
 
         }
@@ -1310,6 +1429,11 @@ void Kolskoot::onGuiRender(Gui* _gui)
                             glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
                             draw_list->AddCircle(ImVec2(screen.x, screen.y), 18, col32, 30, 6);
 
+                            for (int i = 0; i < setupInfo.numLanes; i++)
+                            {
+                                zigbeeRounds(i, 100);
+                            }
+
                             pointGreyCamera->dotQueue.pop();
                         }
 
@@ -1367,6 +1491,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     camera->setTarget(float3(0, 900, 100));
 
     setupInfo.load();
+    ballistics.load();
+    bulletHole = Texture::createFromFile(setupInfo.dataFolder + "/targets/bullet.dds", true, true);
 
     // targets
 
@@ -1382,6 +1508,11 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
         }
     }
 
+    int ret = ZIGBEE.OpenPort((eComPort)setupInfo.zigbeeCOM, br_38400, 8, ptNONE, sbONE);
+    if (ret != 0)
+    {
+        // log zigbee failed
+    }
 
     graphicsState = GraphicsState::create();
 
@@ -1393,6 +1524,13 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
 void Kolskoot::onShutdown()
 {
     PointGrey_Camera::FreeSingleton();
+
+    if (ZIGBEE.IsOpen())
+    {
+        zigbeeRounds(0, 0, true);
+        Sleep(100);
+        ZIGBEE.ClosePort();
+    }
 }
 
 
@@ -1424,6 +1562,25 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     }
 
 
+    // live fire shooting
+    if (guiMode == gui_live)
+    {
+        while (pointGreyCamera->dotQueue.size()) {
+            glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
+
+            for (int i = 0; i < setupInfo.numLanes; i++)
+            {
+                zigbeeRounds(i, 100);
+                QR.mouseShot(screen.x, screen.y, setupInfo);
+                zigbeeFire(lane);
+            }
+            pointGreyCamera->dotQueue.pop();
+        }
+
+        for (int i = 0; i < setupInfo.numLanes; i++) zigbeeRounds(i, QR.getRoundsLeft(i));
+    }
+
+
     if (mpScene)
     {
         mpScene->update(pRenderContext, gpFramework->getGlobalClock().getTime());
@@ -1446,6 +1603,8 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     }
 
     TextRenderer::render(pRenderContext, mModelString, pTargetFbo, float2(10, 30));
+
+    Sleep(10);
 }
 
 
@@ -1467,6 +1626,7 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
         else
         {
             guiMode = gui_menu;
+            zigbeeRounds(0, 0, true);		// turn all air off
         }
         return true;
     }
@@ -1494,11 +1654,13 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
         if (QR.liveNext())
         {
             guiMode = gui_exercises;
+            zigbeeRounds(0, 0, true);		// turn all air off
         }
     }
     if ((guiMode == gui_live) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Escape))
     {
         guiMode = gui_exercises;
+        zigbeeRounds(0, 0, true);		// turn all air off
     }
 
     return false;
@@ -1601,6 +1763,232 @@ void Kolskoot::guiStyle()
 
 }
 
+
+
+
+void   Kolskoot::zigbeePaperMove()
+{
+    if (!ZIGBEE.IsOpen()) return;
+    unsigned char channels = 1 << 4;		// set this to true
+
+    unsigned char STR[13];			// veelvoude van 10
+    unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
+    Sleep(30);
+
+    unsigned char ANS[13];
+    switch (setupInfo.zigbeePacketVersion)
+    {
+    case 0:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x00;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = 0x00;	//own id
+        ANS[5] = 0x01;
+        ANS[6] = 0x0d;	//lenght - all bytes
+        ANS[7] = 0x16;	//command
+        ANS[8] = 0x00;	// body
+        ANS[9] = 0x00;
+        ANS[10] = channels;
+        ANS[11] = 0x00; // status
+        ANS[12] = 0xDE - channels;
+        ZIGBEE.Write(ANS, 13);
+        break;
+    case 1:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x0b;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = zigbeeID_h;	//own id
+        ANS[5] = zigbeeID_l;
+        ANS[6] = 0x16;	//lenght - all bytes
+        ANS[7] = 0x00;	//command
+        ANS[8] = channels;
+        ANS[9] = 0x00; // status
+        int checksum = 0x100;
+        for (int i = 0; i < 10; i++)  checksum -= ANS[i];
+        ANS[10] = checksum & 0xff;  //0xB6 - (1 << lane);
+        ZIGBEE.Write(ANS, 11);
+        break;
+    }
+}
+
+void   Kolskoot::zigbeePaperStop()
+{
+    if (!ZIGBEE.IsOpen()) return;
+    unsigned char channels = 0;
+
+    unsigned char STR[13];			// veelvoude van 10
+    unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
+    Sleep(30);
+
+    unsigned char ANS[13];
+    switch (setupInfo.zigbeePacketVersion)
+    {
+    case 0:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x00;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = 0x00;	//own id
+        ANS[5] = 0x01;
+        ANS[6] = 0x0d;	//lenght - all bytes
+        ANS[7] = 0x16;	//command
+        ANS[8] = 0x00;	// body
+        ANS[9] = 0x00;
+        ANS[10] = channels;
+        ANS[11] = 0x00; // status
+        ANS[12] = 0xDE - channels;
+        ZIGBEE.Write(ANS, 13);
+        break;
+    case 1:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x0b;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = zigbeeID_h;	//own id
+        ANS[5] = zigbeeID_l;
+        ANS[6] = 0x16;	//lenght - all bytes
+        ANS[7] = 0x00;	//command
+        ANS[8] = channels;
+        ANS[9] = 0x00; // status
+        int checksum = 0x100;
+        for (int i = 0; i < 10; i++)  checksum -= ANS[i];
+        ANS[10] = checksum & 0xff;  //0xB6 - (1 << lane);
+        ZIGBEE.Write(ANS, 11);
+        break;
+    }
+}
+
+
+void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
+{
+    if (!ZIGBEE.IsOpen()) return;
+
+
+    // test ammo for air cycled and return
+    if ((!bStop) && (Kolskoot::ballistics.currentAmmo != ammo_9mm)) return;
+
+    static unsigned char channels = 0;
+    unsigned char newchannels = channels;
+    if (R > 0)	newchannels |= 1 << lane;		// set this to true
+    else		newchannels &= ~(1 << lane);	// clear this bit
+
+    if (bStop) newchannels = 0;		// on stop command clear it all
+
+    if (bStop || (channels != newchannels))
+    {
+        channels = newchannels;
+
+        unsigned char STR[13];			// veelvoude van 10
+        unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
+        Sleep(30);
+
+
+        unsigned char ANS[13];
+
+        switch (setupInfo.zigbeePacketVersion)
+        {
+        case 0:
+            ANS[0] = 0xff;
+            ANS[1] = 0xff;
+            ANS[2] = 0x00;	// device ID
+            ANS[3] = 0x00;
+            ANS[4] = 0x00;	//own id
+            ANS[5] = 0x01;
+            ANS[6] = 0x0d;	//lenght - all bytes
+            ANS[7] = 0x16;	//command
+            ANS[8] = 0x00;	// body
+            ANS[9] = 0x00;
+            ANS[10] = channels;
+            ANS[11] = 0x00; // status
+            ANS[12] = 0xDE - channels;
+
+            ZIGBEE.Write(ANS, 13);
+            break;
+
+        case 1:
+            ANS[0] = 0xff;
+            ANS[1] = 0xff;
+            ANS[2] = 0x0b;	// device ID
+            ANS[3] = 0x00;
+            ANS[4] = zigbeeID_h;	//own id
+            ANS[5] = zigbeeID_l;
+            ANS[6] = 0x16;	//lenght - all bytes
+            ANS[7] = 0x00;	//command
+            ANS[8] = channels;
+            ANS[9] = 0x00; // status
+
+            int checksum = 0x100;
+            for (int i = 0; i < 10; i++)  checksum -= ANS[i];
+
+            ANS[10] = checksum & 0xff;  //0xB6 - (1 << lane);
+            ZIGBEE.Write(ANS, 11);
+
+            //ANS[10] = 0xE3 - channels;
+
+            ZIGBEE.Write(ANS, 11);
+            break;
+        }
+
+
+        //m_pLogger->Log( LOG_INFO, L"zigbee (%d, %d, %d) - %.2X%.2X %.2X%.2X %.2X%.2X %.2X%.2X %.2X%.2X %.2X%.2X %.2X", lane, R, channels, ANS[0], ANS[1], ANS[2], ANS[3], ANS[4], ANS[5], ANS[6], ANS[7], ANS[8], ANS[9], ANS[10], ANS[11], ANS[12] );
+    }
+}
+
+void  Kolskoot::zigbeeFire(unsigned int lane)       //R4 and AK
+{
+    if (!ZIGBEE.IsOpen()) return;
+    if (Kolskoot::ballistics.currentAmmo == ammo_9mm) return;
+
+
+    // test R for change and return - write to zigbee
+
+    unsigned char STR[50];			// veelvoude van 10
+    memset(STR, 0, 50);			// clear
+    unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
+
+    unsigned char ANS[13];
+
+    switch (setupInfo.zigbeePacketVersion)
+    {
+    case 0:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x00;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = 0x00;	//own id
+        ANS[5] = 0x01;
+        ANS[6] = 0x0d;	//lenght - all bytes
+        ANS[7] = 0x18;	//command
+        ANS[8] = 0x00;	// body
+        ANS[9] = 0x00;
+        ANS[10] = 1 << lane;
+        ANS[11] = 0x00; // status
+        ANS[12] = 0xDC - (1 << lane);
+        ZIGBEE.Write(ANS, 13);
+        break;
+
+    case 1:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x0b;	// lengte van oakkie
+        ANS[3] = 0x00;
+        ANS[4] = zigbeeID_h;//0x69;	//ID from config file  FIXME
+        ANS[5] = zigbeeID_l;//0xc0;
+        ANS[6] = 0x18;	//cammand 
+        ANS[7] = 0x00;	//command
+        ANS[8] = 1 << lane;
+        ANS[9] = 0x00; // status
+
+        int checksum = 0x100;
+        for (int i = 0; i < 10; i++)  checksum -= ANS[i];
+
+        ANS[10] = checksum & 0xff;  //0xB6 - (1 << lane);
+        ZIGBEE.Write(ANS, 11);
+        break;
+    }
+}
 
 
 

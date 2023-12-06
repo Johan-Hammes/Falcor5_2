@@ -28,6 +28,7 @@
 #pragma once
 #include "Falcor.h"
 #include "PointGrey_Camera.h"
+#include "SerialComms.h"
 
 #include "cereal/archives/binary.hpp"
 #include "cereal/archives/xml.hpp"
@@ -52,7 +53,7 @@ using namespace Falcor;
 
 
 enum _pose {pose_stand, pose_kneel, pose_sit, pose_prone};
-enum _action {action_static, action_popup, action_move};    // net staic vir eers
+enum _action {action_static, action_popup, action_move, action_adjust};    // net staic vir eers
 
 
 class _setup
@@ -71,6 +72,9 @@ public:
     void load();
     void save();
 
+    int zigbeePacketVersion = 1;	// new type packets
+    int zigbeeCOM = 0;
+
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
@@ -82,10 +86,56 @@ public:
         _archive(CEREAL_NVP(eyeHeights));
         _archive(CEREAL_NVP(numLanes));
         _archive(CEREAL_NVP(dataFolder));
+
+        if (_version > 100)
+        {
+            _archive(CEREAL_NVP(zigbeePacketVersion));
+            _archive(CEREAL_NVP(zigbeeCOM));
+        }
         
     }
 };
-CEREAL_CLASS_VERSION(_setup, 100);
+CEREAL_CLASS_VERSION(_setup, 101);
+
+
+enum _ammunition { ammo_9mm, ammo_556, ammo_762 };
+class ballisticsSetup
+{
+public:
+    void load();
+    void save();
+    float bulletDrop(float distance, float apex, float apexHeight, float drop);
+    float bulletDrop(float distance);        // just call once at start of exercise and apply consistent, dont simulate
+
+    float2 offset(int _lane);
+    float2 adjustOffset(int _lane, float2 error);
+    void clearOffsets(int _lane);
+    void renderGuiAmmo(Gui* _gui);
+
+    _ammunition currentAmmo;
+
+private:
+    
+    std::array<std::array<float2, 15>, 3> screen_offsets;       // 15 lanes shpuld be enough for the future, question is ammo, and how this breaks serialize
+
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive(CEREAL_NVP((int)currentAmmo));
+        //_archive(CEREAL_NVP(screen_offsets));
+        //archive_float3(videoEdge[0]);
+        for (int a = 0; a < 3; a++)
+        {
+            for (int l = 0; l < 15; l++)
+            {
+                archive_float2(screen_offsets[a][l]);
+            }
+        }
+    }
+};
+CEREAL_CLASS_VERSION(ballisticsSetup, 100);
+
 
 class target
 {
@@ -216,6 +266,7 @@ class _shots
 {
 public:
     float2  position;
+    float2  position_relative;
     int     score;
 };
 
@@ -242,7 +293,7 @@ class quickRange        // rename
 {
 public:
     void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
-    void renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup);
+    void renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole);
     void renderLiveMenubar(Gui* _gui);
     void load();
     void save();
@@ -259,6 +310,8 @@ public:
     _liveStage currentStage = live_intro;
 
     _scoring score;
+    float bulletDrop = 0;
+    
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -402,8 +455,19 @@ private:
     quickRange  QR;
     target      targetBuilder;
 
+    Texture::SharedPtr	        bulletHole = nullptr;
+
+    CCommunication ZIGBEE;		// vir AIR beheer
+    unsigned char zigbeeID_h;
+    unsigned char zigbeeID_l;
+    
+    void  zigbeePaperMove();
+    void  zigbeePaperStop();
+    void  zigbeeRounds(unsigned int lane, int R, bool bStop = false);
+    void  zigbeeFire(unsigned int lane);
 
 public:
     static std::vector<target> targetList;
     static _setup setupInfo;
+    static ballisticsSetup ballistics;
 };
