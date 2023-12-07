@@ -1572,12 +1572,12 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
             {
                 zigbeeRounds(i, 100);
                 QR.mouseShot(screen.x, screen.y, setupInfo);
-                zigbeeFire(lane);
+                //FIXME zigbeeFire(lane);
             }
             pointGreyCamera->dotQueue.pop();
         }
 
-        for (int i = 0; i < setupInfo.numLanes; i++) zigbeeRounds(i, QR.getRoundsLeft(i));
+        //FIXME for (int i = 0; i < setupInfo.numLanes; i++) zigbeeRounds(i, QR.getRoundsLeft(i));
     }
 
 
