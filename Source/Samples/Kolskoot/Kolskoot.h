@@ -87,15 +87,12 @@ public:
         _archive(CEREAL_NVP(numLanes));
         _archive(CEREAL_NVP(dataFolder));
 
-        if (_version > 100)
-        {
-            _archive(CEREAL_NVP(zigbeePacketVersion));
-            _archive(CEREAL_NVP(zigbeeCOM));
-        }
+        _archive(CEREAL_NVP(zigbeePacketVersion));
+        _archive(CEREAL_NVP(zigbeeCOM));
         
     }
 };
-CEREAL_CLASS_VERSION(_setup, 101);
+CEREAL_CLASS_VERSION(_setup, 100);
 
 
 enum _ammunition { ammo_9mm, ammo_556, ammo_762 };
