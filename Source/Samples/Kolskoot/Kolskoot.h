@@ -222,7 +222,6 @@ class exercise
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
     bool renderTargetPopup(Gui* _gui);
-    
 
     std::string title;
     std::string description;
@@ -230,10 +229,6 @@ public:
     bool isScoring = true;
     float targetDistance = 10.f;
 
-    // target
-    // target action
-    // timing
-    
     int numRounds = 2;
     _pose           pose;
     target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
@@ -252,6 +247,11 @@ public:
         _archive(CEREAL_NVP(targetDistance));
         _archive(CEREAL_NVP(target.title));
 
+        if (_version > 100)
+        {
+            _archive(CEREAL_NVP(action));
+        }
+
         for (auto& T : Kolskoot::targetList)
         {
             if (T.title == target.title)
@@ -261,7 +261,7 @@ public:
         }
     }
 };
-CEREAL_CLASS_VERSION(exercise, 100);
+CEREAL_CLASS_VERSION(exercise, 101);
 
 
 class _shots
