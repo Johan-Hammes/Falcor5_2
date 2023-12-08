@@ -40,6 +40,7 @@
 std::vector<target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
 ballisticsSetup Kolskoot::ballistics;
+CCommunication Kolskoot::ZIGBEE;		// vir AIR beheer
 float2 mouseScreen;
 static bool targetPopupOpen = false;
 bool requestLive = false;
@@ -104,6 +105,26 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
         ImGui::SetNextItemWidth(200);
         ImGui::InputInt("zigbeeCom", &zigbeeCOM, 1);
+        ImGui::SameLine();
+        if (Kolskoot::ZIGBEE.IsOpen())
+        {
+            ImGui::Text("zigbee port is open");
+        }
+        else
+        {
+            ImGui::Text("failed to open");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Re - open")) {
+            if (Kolskoot::ZIGBEE.IsOpen())
+            {
+                Sleep(100);
+                Kolskoot::ZIGBEE.ClosePort();
+            }
+            int ret = Kolskoot::ZIGBEE.OpenPort((eComPort)zigbeeCOM, br_38400, 8, ptNONE, sbONE);
+        }
+        
+        
 
         ImGui::SetCursorPos(ImVec2(800, 50));
         ImGui::SetNextItemWidth(200);

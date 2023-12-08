@@ -456,7 +456,7 @@ private:
 
     Texture::SharedPtr	        bulletHole = nullptr;
 
-    CCommunication ZIGBEE;		// vir AIR beheer
+    
     unsigned char zigbeeID_h;
     unsigned char zigbeeID_l;
     
@@ -469,4 +469,5 @@ public:
     static std::vector<target> targetList;
     static _setup setupInfo;
     static ballisticsSetup ballistics;
+    static CCommunication ZIGBEE;		// vir AIR beheer
 };
