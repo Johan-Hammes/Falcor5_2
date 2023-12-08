@@ -310,17 +310,17 @@ void target::loadscoreimage(std::string _root)
     score = Texture::createFromFile(_root + scorePath, true, true);
 
     FREE_IMAGE_FORMAT fifFormat = FIF_UNKNOWN;
-    fifFormat = FreeImage_GetFileType(scorePath.c_str(), 0);
+    fifFormat = FreeImage_GetFileType((_root + scorePath).c_str(), 0);
     if (fifFormat == FIF_UNKNOWN)  // Can't get the format from the file. Use file extension
     {
-        fifFormat = FreeImage_GetFIFFromFilename(scorePath.c_str());
+        fifFormat = FreeImage_GetFIFFromFilename((_root + scorePath).c_str());
     }
 
     // Check the library supports loading this image type
     if (FreeImage_FIFSupportsReading(fifFormat))
     {
         // Read the DIB
-        FIBITMAP* pDib = FreeImage_Load(fifFormat, scorePath.c_str());
+        FIBITMAP* pDib = FreeImage_Load(fifFormat, (_root + scorePath).c_str());
         if (pDib)
         {
             scoreWidth = FreeImage_GetWidth(pDib);
