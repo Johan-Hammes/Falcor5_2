@@ -1604,7 +1604,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
 
     // live fire shooting
-    if (guiMode == gui_live)
+    if (guiMode == gui_live && QR.currentStage == live_live)
     {
         while (pointGreyCamera->dotQueue.size()) {
             glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
@@ -1613,12 +1613,23 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
             {
                 zigbeeRounds(i, 100);
                 QR.mouseShot(screen.x, screen.y, setupInfo);
-                //FIXME zigbeeFire(lane);
+                //FIXME zigbeeFire(lane);   // R4 / AK
             }
             pointGreyCamera->dotQueue.pop();
         }
 
-        //FIXME for (int i = 0; i < setupInfo.numLanes; i++) zigbeeRounds(i, QR.getRoundsLeft(i));
+        for (int i = 0; i < setupInfo.numLanes; i++)
+        {
+            //zigbeeRounds(i, QR.getRoundsLeft(i));
+            zigbeeRounds(i, 5);
+        }
+    }
+    else if (guiMode == gui_live)
+    {
+        for (int i = 0; i < setupInfo.numLanes; i++)
+        {
+            zigbeeRounds(i, 0, true);
+        }
     }
 
 
