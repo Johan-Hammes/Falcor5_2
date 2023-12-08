@@ -160,6 +160,8 @@ public:
     int scoreWidth = 0;
     int scoreHeight = 0;
     char *scoreData;
+
+    std::string fullPath;
     
 
     template<class Archive>

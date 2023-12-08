@@ -367,6 +367,7 @@ void target::load(std::filesystem::path _path)
         serialize(archive, 100);
         loadimage(_path.parent_path().string() + "/");
         loadscoreimage(_path.parent_path().string() + "/");
+        fullPath = _path.string();
     }
 }
 
@@ -1188,7 +1189,6 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 int W = (int)floor(screenSize.x / 2 / 240);
                 for (int i = 0; i < targetList.size(); i++)
-                //for (int i = 0; i < 14; i++)
                 {
                     float x = (float)(i % W);
                     float y = (float)(i / W);
@@ -1196,12 +1196,10 @@ void Kolskoot::onGuiRender(Gui* _gui)
                     ImGui::Text(targetList[i].title.c_str());
 
                     ImGui::SetCursorPos(ImVec2(20 + x * 240, 40 + 32 + y * 400));
-                    //if (targetPicker.imageButton(targetList[i].title.c_str(), targetList[i].image, float2(200, 350) ) )
                     if (targetPicker.imageButton(targetList[i].title.c_str(), targetList[i].image, float2(200, 150)))
                     {
+                        targetBuilder.load(targetList[i].fullPath);
                     }
-
-
                 }
                 ImGui::PopFont();
             }
