@@ -141,9 +141,9 @@ class target
 {
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
-    void loadimage();
+    void loadimage(std::string _root);
     void loadimageDialog();
-    void loadscoreimage();
+    void loadscoreimage(std::string _root);
     void loadscoreimageDialog();
     void load(std::filesystem::path _path);
     void save(std::filesystem::path _path);
@@ -176,8 +176,8 @@ public:
         _archive(CEREAL_NVP(scoreWidth));
         _archive(CEREAL_NVP(scoreHeight));
 
-        loadimage();
-        loadscoreimage();
+        loadimage(Kolskoot::setupInfo.dataFolder + "/targets/");
+        loadscoreimage(Kolskoot::setupInfo.dataFolder + "/targets/");
     }
 };
 CEREAL_CLASS_VERSION(target, 100);

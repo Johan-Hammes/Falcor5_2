@@ -288,9 +288,9 @@ void ballisticsSetup::renderGuiAmmo(Gui* _gui)
 
 
 
-void target::loadimage()
+void target::loadimage(std::string _root)
 {
-    image = Texture::createFromFile(texturePath, true, true);
+    image = Texture::createFromFile(_root + texturePath, true, true);
 }
 
 void target::loadimageDialog()
@@ -299,15 +299,15 @@ void target::loadimageDialog()
     FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"dds"}, {"bmp"} };
     if (openFileDialog(filters, path))
     {
-        texturePath = path.string();
-        loadimage();
+        texturePath = path.filename().string();
+        loadimage(path.parent_path().string() + "/targets/");
     }
 }
 
 
-void target::loadscoreimage()
+void target::loadscoreimage(std::string _root)
 {
-    score = Texture::createFromFile(scorePath, true, true);
+    score = Texture::createFromFile(_root + scorePath, true, true);
 
     FREE_IMAGE_FORMAT fifFormat = FIF_UNKNOWN;
     fifFormat = FreeImage_GetFileType(scorePath.c_str(), 0);
@@ -353,19 +353,20 @@ void target::loadscoreimageDialog()
     FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"dds"}, {"bmp"} };
     if (openFileDialog(filters, path))
     {
-        scorePath = path.string();
-        loadscoreimage();
+        scorePath = path.filename().string();
+        loadscoreimage(path.parent_path().string() + "/");
     }
 }
 
 void target::load(std::filesystem::path _path)
 {
+    
     std::ifstream is(_path);
     if (is.good()) {
         cereal::XMLInputArchive archive(is);
         serialize(archive, 100);
-        loadimage();
-        loadscoreimage();
+        loadimage(_path.parent_path().string() + "/");
+        loadscoreimage(_path.parent_path().string() + "/");
     }
 }
 
@@ -1074,6 +1075,26 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
             }
             else
             {
+                ImGui::SetNextItemWidth(150);
+                if(ImGui::BeginMenu("Settings"))
+                {
+                    if (ImGui::MenuItem("Camera"))
+                    {
+                        guiMode = gui_camera;
+                    }
+                    if (ImGui::MenuItem("Screen"))
+                    {
+                        guiMode = gui_screen;
+                    }
+                    if (ImGui::MenuItem("Targets"))
+                    {
+                        guiMode = gui_targets;
+                    }
+                    ImGui::EndMenu();
+                }
+                
+
+                /*
                 ImGui::Selectable("Camera", &selected, 0, ImVec2(150, 0));
                 if (selected) {
                     guiMode = gui_camera;
@@ -1095,6 +1116,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                     guiMode = gui_targets;
                     selected = false;
                 }
+                */
 
                 ImGui::SameLine(0, 20);
                 ImGui::SetNextItemWidth(150);
@@ -1165,17 +1187,17 @@ void Kolskoot::onGuiRender(Gui* _gui)
             {
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 int W = (int)floor(screenSize.x / 2 / 240);
-                //for (int i = 0; i < targetList.size(); i++)
-                for (int i = 0; i < 14; i++)
+                for (int i = 0; i < targetList.size(); i++)
+                //for (int i = 0; i < 14; i++)
                 {
                     float x = (float)(i % W);
                     float y = (float)(i / W);
                     ImGui::SetCursorPos(ImVec2(20 + x * 240, 40 + y * 400));
-                    ImGui::Text(targetList[0].title.c_str());
+                    ImGui::Text(targetList[i].title.c_str());
 
                     ImGui::SetCursorPos(ImVec2(20 + x * 240, 40 + 32 + y * 400));
                     //if (targetPicker.imageButton(targetList[i].title.c_str(), targetList[i].image, float2(200, 350) ) )
-                    if (targetPicker.imageButton(targetList[0].title.c_str(), targetList[0].image, float2(200, 350)))
+                    if (targetPicker.imageButton(targetList[i].title.c_str(), targetList[i].image, float2(200, 150)))
                     {
                     }
 
