@@ -751,7 +751,7 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
 
                 ImGui::SameLine(_screenSize.x - 200, 0);
-                if (ImGui::Button("Start")) {
+                if (ImGui::Button("Test")) {
                     requestLive = true;
                     currentExercise = 0;
                     currentStage = live_intro;
@@ -875,6 +875,7 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                     ImGui::Text("scores page");
                     break;
                 }
+                
             }
         }
         ImGui::PopFont();
@@ -1249,6 +1250,29 @@ void Kolskoot::onGuiRender(Gui* _gui)
             livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
             livePanel.windowPos(0, 40);
             QR.renderLive(_gui, screenSize, livePanel, setupInfo, bulletHole);
+
+
+            ImGui::PushFont(_gui->getFont("roboto_48"));
+            {
+                ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 100));
+                if (ImGui::Button("Next"))
+                {
+                    if (QR.liveNext())
+                    {
+                        guiMode = gui_exercises;
+                        zigbeeRounds(0, 0, true);		// turn all air off
+                    }
+                }
+
+                ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 100));
+                if (ImGui::Button("Menu"))
+                {
+                    guiMode = gui_exercises;
+                    zigbeeRounds(0, 0, true);		// turn all air off
+                }
+            }
+            ImGui::PopFont();
+
             livePanel.release();
 
         }
