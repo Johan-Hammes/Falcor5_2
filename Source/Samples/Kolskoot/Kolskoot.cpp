@@ -1301,6 +1301,13 @@ void Kolskoot::onGuiRender(Gui* _gui)
                             guiMode = gui_menu;
                         }
 
+                        ImGui::SameLine();
+                        if (ImGui::Button("Test")) {
+                            modeCalibrate = 3;
+                            guiMode = gui_menu;
+                        }
+
+
 
                         ImVec2 C = ImGui::GetCursorPos();
                         if (pointGreyBuffer)
@@ -1315,6 +1322,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
                             pointGreyBuffer = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1, pointGreyCamera->bufferData);
                         }
 
+                        C.x += (int)pointGreyCamera->bufferSize.x + 50;
+                        ImGui::SetCursorPos(C);
                         if (pointGreyDiffBuffer)
                         {
                             pointgreyPanel.imageButton("testImage", pointGreyDiffBuffer, pointGreyCamera->bufferSize);
@@ -1572,7 +1581,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 {
     gpDevice->toggleVSync(true);
 
-    if (guiMode == gui_camera)
+    if (guiMode == gui_camera || guiMode == gui_menu)
     {
         if (pointGreyBuffer)
         {
