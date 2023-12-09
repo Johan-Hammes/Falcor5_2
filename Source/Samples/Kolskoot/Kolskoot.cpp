@@ -1599,10 +1599,10 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         if (ImGui::IsMouseClicked(0))       // insert a mouse shot
         {
             ImVec2 mouse = ImGui::GetMousePos();
-            QR.mouseShot(mouse.x, mouse.y, setupInfo);
             int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
             if (QR.getRoundsLeft(lane) > 0)
             {
+                QR.mouseShot(mouse.x, mouse.y, setupInfo);
                 zigbeeFire(lane);                   // R4 / AK
             }
         }
@@ -1628,7 +1628,6 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         for (int i = 0; i < setupInfo.numLanes; i++)
         {
             zigbeeRounds(i, QR.getRoundsLeft(i));
-            //zigbeeRounds(i, 5);
         }
     }
     else if (guiMode == gui_live)
