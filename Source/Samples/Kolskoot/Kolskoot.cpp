@@ -105,24 +105,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
         ImGui::SetNextItemWidth(200);
         ImGui::InputInt("zigbeeCom", &zigbeeCOM, 1);
-        ImGui::SameLine();
-        if (Kolskoot::ZIGBEE.IsOpen())
-        {
-            ImGui::Text("zigbee port is open");
-        }
-        else
-        {
-            ImGui::Text("failed to open");
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Re - open")) {
-            if (Kolskoot::ZIGBEE.IsOpen())
-            {
-                Sleep(100);
-                Kolskoot::ZIGBEE.ClosePort();
-            }
-            int ret = Kolskoot::ZIGBEE.OpenPort((eComPort)zigbeeCOM, br_38400, 8, ptNONE, sbONE);
-        }
+        
         
         
 
@@ -1574,19 +1557,22 @@ void Kolskoot::onShutdown()
     }
 }
 
-
+// FIXME make an update function even if i call it from eher or onUpate
 
 void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
     gpDevice->toggleVSync(true);
 
-    if (pointGreyBuffer)
+    if (guiMode == gui_camera)
     {
-        pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
-    }
-    if (pointGreyDiffBuffer)
-    {
-        pRenderContext->updateTextureData(pointGreyDiffBuffer.get(), pointGreyCamera->bufferThreshold);
+        if (pointGreyBuffer)
+        {
+            pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
+        }
+        if (pointGreyDiffBuffer)
+        {
+            pRenderContext->updateTextureData(pointGreyDiffBuffer.get(), pointGreyCamera->bufferThreshold);
+        }
     }
 
     const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
@@ -1609,15 +1595,13 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         while (pointGreyCamera->dotQueue.size()) {
             glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
 
-            for (int i = 0; i < setupInfo.numLanes; i++)
-            {
-                zigbeeRounds(i, 100);
-                QR.mouseShot(screen.x, screen.y, setupInfo);
-                //FIXME zigbeeFire(lane);   // R4 / AK
-            }
+            int lane = (int)floor(screen.x / (screenSize.x / setupInfo.numLanes));
+            QR.mouseShot(screen.x, screen.y, setupInfo);
+            zigbeeFire(lane);                   // R4 / AK
             pointGreyCamera->dotQueue.pop();
         }
 
+        // turn air on for pistols if there are rounds left
         for (int i = 0; i < setupInfo.numLanes; i++)
         {
             //zigbeeRounds(i, QR.getRoundsLeft(i));
@@ -1628,7 +1612,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     {
         for (int i = 0; i < setupInfo.numLanes; i++)
         {
-            zigbeeRounds(i, 0, true);
+            zigbeeRounds(i, 0, true);       // turn air off
         }
     }
 
