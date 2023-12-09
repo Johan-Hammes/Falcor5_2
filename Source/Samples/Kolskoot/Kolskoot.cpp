@@ -822,7 +822,7 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                         float px = centerX - (tw / 2);
                         float py = centerY - (th * 0.5f);
 
-                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes / 2) - 10 + (setup.screen_pixelsX / 5 * lane), 20));
+                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes / 2) - 10 + (setup.screen_pixelsX / setup.numLanes * lane), 20));
                         ImGui::Text("%d", lane + 1);
                         ImGui::Text("%d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
                         ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
@@ -893,7 +893,7 @@ void quickRange::mouseShot(float x, float y, _setup setup)
     // move all of this to target
     float tw = 0.001f * exercises[currentExercise].target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / exercises[currentExercise].targetDistance;
     float th = tw * exercises[currentExercise].target.size_mm.y / exercises[currentExercise].target.size_mm.x;
-    float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / 5 * lane);
+    float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / setup.numLanes * lane);
     float py = (setup.eyeHeights[exercises[currentExercise].pose]) - (th * 0.5f);
 
     float shotX = (x - px) / tw;    // 0-1 texture space
@@ -1601,7 +1601,10 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
             ImVec2 mouse = ImGui::GetMousePos();
             QR.mouseShot(mouse.x, mouse.y, setupInfo);
             int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
-            zigbeeFire(lane);                   // R4 / AK
+            if (QR.getRoundsLeft(lane) > 0)
+            {
+                zigbeeFire(lane);                   // R4 / AK
+            }
         }
 
 
@@ -1612,8 +1615,11 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
             if (!(screen.x == 0 && screen.y == 0))
             {
                 int lane = (int)floor(screen.x / (screenSize.x / setupInfo.numLanes));
-                QR.mouseShot(screen.x, screen.y, setupInfo);
-                zigbeeFire(lane);                   // R4 / AK
+                if (QR.getRoundsLeft(lane) > 0)
+                {
+                    QR.mouseShot(screen.x, screen.y, setupInfo);
+                    zigbeeFire(lane);                   // R4 / AK
+                }
             }
             pointGreyCamera->dotQueue.pop();
         }
