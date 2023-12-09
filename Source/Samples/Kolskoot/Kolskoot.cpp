@@ -1536,8 +1536,18 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     ballistics.load();
     bulletHole = Texture::createFromFile(setupInfo.dataFolder + "/targets/bullet.dds", true, true);
 
-    // targets
 
+    if (std::filesystem::exists("kolskootCamera.xml"))
+    {
+        std::ifstream is("kolskootCamera.xml");
+        if (is.good()) {
+            cereal::XMLInputArchive archive(is);
+            screenMap.serialize(archive, 100);
+        }
+    }
+
+
+    // targets
     for (const auto& entry : std::filesystem::directory_iterator(setupInfo.dataFolder + "/targets"))
     {
         if (!entry.is_directory())
