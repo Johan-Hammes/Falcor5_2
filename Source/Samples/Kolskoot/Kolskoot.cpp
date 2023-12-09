@@ -812,7 +812,7 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                     ImGui::BeginColumns("lanes", setup.numLanes);
                     for (int lane = 0; lane < setup.numLanes; lane++)
                     {
-                        float centerX = (setup.screen_pixelsX / setup.numLanes / 2) + (setup.screen_pixelsX / 5 * lane);
+                        float centerX = (setup.screen_pixelsX / setup.numLanes / 2) + (setup.screen_pixelsX / setup.numLanes * lane);
                         float centerY = setup.eyeHeights[exercises[currentExercise].pose] - 40;
                         float mToPix = setup.screen_pixelsX / setup.screenWidth * setup.shootingDistance / exercises[currentExercise].targetDistance;
 
@@ -1590,17 +1590,22 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
 
 
-    if ((guiMode == gui_live) && (ImGui::IsMouseClicked(0)))
-    {
-        ImVec2 mouse = ImGui::GetMousePos();
-        // insert a mouse shot
-        QR.mouseShot(mouse.x, mouse.y, setupInfo);
-    }
+    
 
 
     // live fire shooting
     if (guiMode == gui_live && QR.currentStage == live_live)
     {
+        if (ImGui::IsMouseClicked(0))       // insert a mouse shot
+        {
+            ImVec2 mouse = ImGui::GetMousePos();
+            QR.mouseShot(mouse.x, mouse.y, setupInfo);
+            int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
+            zigbeeFire(lane);                   // R4 / AK
+        }
+
+
+
         while (pointGreyCamera->dotQueue.size()) {
             glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
 
