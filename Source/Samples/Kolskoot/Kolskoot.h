@@ -298,6 +298,7 @@ public:
     void save();
     void mouseShot(float x, float y, _setup setup);
     bool liveNext();
+    int getRoundsLeft(int _lane);
 
     std::string title = "please rename";
     std::string description;

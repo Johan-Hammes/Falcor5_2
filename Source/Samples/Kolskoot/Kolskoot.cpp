@@ -949,6 +949,15 @@ bool quickRange::liveNext()
 }
 
 
+int quickRange::getRoundsLeft(int _lane)
+{
+    int total = exercises[currentExercise].numRounds * exercises[currentExercise].action.repeats;
+    int left = total - score.lane_exercise.at(_lane).at(currentExercise).shots.size();
+    return  __max(0, left);
+}
+
+
+
 void _scoring::create(size_t _numlanes, size_t _numEx)
 {
     lane_exercise.clear();
@@ -1595,17 +1604,20 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         while (pointGreyCamera->dotQueue.size()) {
             glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
 
-            int lane = (int)floor(screen.x / (screenSize.x / setupInfo.numLanes));
-            QR.mouseShot(screen.x, screen.y, setupInfo);
-            zigbeeFire(lane);                   // R4 / AK
+            if (!(screen.x == 0 && screen.y == 0))
+            {
+                int lane = (int)floor(screen.x / (screenSize.x / setupInfo.numLanes));
+                QR.mouseShot(screen.x, screen.y, setupInfo);
+                zigbeeFire(lane);                   // R4 / AK
+            }
             pointGreyCamera->dotQueue.pop();
         }
 
         // turn air on for pistols if there are rounds left
         for (int i = 0; i < setupInfo.numLanes; i++)
         {
-            //zigbeeRounds(i, QR.getRoundsLeft(i));
-            zigbeeRounds(i, 5);
+            zigbeeRounds(i, QR.getRoundsLeft(i));
+            //zigbeeRounds(i, 5);
         }
     }
     else if (guiMode == gui_live)
