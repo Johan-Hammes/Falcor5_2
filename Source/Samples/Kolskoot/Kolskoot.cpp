@@ -1119,7 +1119,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 if (selected) {
                     guiMode = gui_exercises;
                     selected = false;
-                    QR.exercises.clear();
+                    QR.clear();
                 }
 
                 ImGui::SameLine(0, 20);
