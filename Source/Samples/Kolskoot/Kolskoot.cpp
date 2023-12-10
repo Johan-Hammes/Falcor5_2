@@ -1484,15 +1484,14 @@ void Kolskoot::onGuiRender(Gui* _gui)
                         const ImU32 col32 = ImColor(col);
 
 
+                        for (int i = 0; i < setupInfo.numLanes; i++)
+                        {
+                            zigbeeRounds(i, 100);
+                        }
+
                         while (pointGreyCamera->dotQueue.size()) {
                             glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
                             draw_list->AddCircle(ImVec2(screen.x, screen.y), 18, col32, 30, 6);
-
-                            for (int i = 0; i < setupInfo.numLanes; i++)
-                            {
-                                zigbeeRounds(i, 100);
-                            }
-
                             pointGreyCamera->dotQueue.pop();
                         }
 
