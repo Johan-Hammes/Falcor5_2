@@ -302,6 +302,14 @@ public:
     bool liveNext();
     int getRoundsLeft(int _lane);
 
+    void clear() {
+        exercises.clear();
+        description.clear();
+        title.clear();
+        maxScore = 0;
+        currentExercise = 0;
+    }
+
     std::string title = "please rename";
     std::string description;
     std::vector<exercise> exercises;
