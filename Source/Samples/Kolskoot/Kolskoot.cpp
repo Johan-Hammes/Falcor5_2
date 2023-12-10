@@ -236,6 +236,7 @@ void ballisticsSetup::save()
     std::ofstream os("ballistics_offsets.json");
     cereal::JSONOutputArchive archive(os);
     serialize(archive, 100);
+    hasChanged = false;
 }
 
 
@@ -247,12 +248,14 @@ float2 ballisticsSetup::offset(int _lane)
 
 float2 ballisticsSetup::adjustOffset(int _lane, float2 error)
 {
+    hasChanged = true;
     screen_offsets[currentAmmo][_lane] += error;
     return screen_offsets[currentAmmo][_lane];
 }
 
 void ballisticsSetup::clearOffsets(int _lane)
 {
+    hasChanged = true;
     screen_offsets[currentAmmo][_lane] += float2(0, 0);
 }
 
@@ -1109,41 +1112,31 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 }
                 
 
-                /*
-                ImGui::Selectable("Camera", &selected, 0, ImVec2(150, 0));
-                if (selected) {
-                    guiMode = gui_camera;
-                    selected = false;
-                }
-
-                ImGui::SameLine(0, 20);
-                ImGui::SetNextItemWidth(150);
-                ImGui::Selectable("Screen", &selected, 0, ImVec2(150, 0));
-                if (selected) {
-                    guiMode = gui_screen;
-                    selected = false;
-                }
-
-                ImGui::SameLine(0, 20);
-                ImGui::SetNextItemWidth(150);
-                ImGui::Selectable("Targets", &selected, 0, ImVec2(150, 0));
-                if (selected) {
-                    guiMode = gui_targets;
-                    selected = false;
-                }
-                */
-
+       
                 ImGui::SameLine(0, 20);
                 ImGui::SetNextItemWidth(150);
                 ImGui::Selectable("Exercises", &selected, 0, ImVec2(150, 0));
                 if (selected) {
                     guiMode = gui_exercises;
                     selected = false;
+                    QR.exercises.clear();
                 }
 
                 ImGui::SameLine(0, 20);
                 ImGui::SetNextItemWidth(150);
                 ballistics.renderGuiAmmo(_gui);
+
+
+
+                if (ballistics.hasChanged)
+                {
+                    ImGui::SameLine(0, 20);
+                    if (ImGui::Button("Boresight was modified, click to save"))
+                    {
+                        ballistics.save();
+                    }
+                }
+                
             }
 
 

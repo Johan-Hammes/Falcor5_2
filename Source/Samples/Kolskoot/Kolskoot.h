@@ -111,6 +111,8 @@ public:
 
     _ammunition currentAmmo;
 
+    bool hasChanged = false;
+
 private:
     
     std::array<std::array<float2, 15>, 3> screen_offsets;       // 15 lanes shpuld be enough for the future, question is ammo, and how this breaks serialize
