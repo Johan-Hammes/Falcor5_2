@@ -310,7 +310,7 @@ public:
         currentExercise = 0;
     }
 
-    std::string title = "please rename";
+    std::string title = "please rename";        // DO NOT EDIT from filename
     std::string description;
     std::vector<exercise> exercises;
     int maxScore;
@@ -432,7 +432,7 @@ private:
     DepthStencilState::SharedPtr mpNoDepthDS = nullptr;
     DepthStencilState::SharedPtr mpDepthTestDS = nullptr;
 
-    std::string mModelString;
+    //std::string mModelString;
 
     //PointGrey
     PointGrey_Camera*   pointGreyCamera;

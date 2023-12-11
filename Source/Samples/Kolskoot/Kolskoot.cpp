@@ -699,6 +699,7 @@ void quickRange::load()
         if (is.good()) {
             cereal::XMLInputArchive archive(is);
             serialize(archive, 100);
+            title = path.filename().string();
         }
     }
 }
@@ -729,12 +730,13 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 ImGui::SetNextItemWidth(700);
                 char T[256];
                 sprintf(T, "%s", title.c_str());
-                if (ImGui::InputText("", T, 256)) {
-                    title = T;
-                }
+                ImGui::Text(title.c_str());
+                //if (ImGui::InputText("", T, 256)) {
+                //    title = T;
+                //}
 
                 ImGui::SameLine(0, 100);
-                if (ImGui::Button("load")) {
+                if (ImGui::Button("edit")) {
                     load();
                 }
 
@@ -1139,6 +1141,9 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 
             }
 
+
+            ImGui::SetCursorPos(ImVec2(screenSize.x - 150, 0));
+            ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
 
             ImGui::SetCursorPos(ImVec2(screenSize.x - 30, 0));
             if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
@@ -1676,7 +1681,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         }
     }
 
-
+    /*
     if (mpScene)
     {
         mpScene->update(pRenderContext, gpFramework->getGlobalClock().getTime());
@@ -1699,8 +1704,9 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     }
 
     TextRenderer::render(pRenderContext, mModelString, pTargetFbo, float2(10, 30));
-
+    */
     Sleep(10);
+    
 }
 
 
