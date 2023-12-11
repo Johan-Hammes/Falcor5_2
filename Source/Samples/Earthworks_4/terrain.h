@@ -564,7 +564,7 @@ struct _branchnode
     float3 pos;
     float radius;
     float3 dir;
-    bool isVisible = true;  // dont save this is temporary
+    bool isNodeVisible = true;  // dont save this is temporary
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)

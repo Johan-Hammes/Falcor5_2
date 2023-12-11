@@ -2735,46 +2735,6 @@ void _GroveTree::load()
                     BN.dir = nodeDir;
                     currentBranch->nodes.push_back(BN);
 
-
-                    static bool testOnce = true;
-                    if (currentBranch->nodes.size() == 1)
-                    {
-                        if (testOnce && (currentBranch->nodes.size() == 1) && (radius > 0.3))   // catch first branch
-                        {
-                            testOnce = false;
-                            currentBranch->isVisible = true;
-                        }
-                        else
-                        {
-                            //currentBranch->isVisible = false;
-                        }
-                    }
-
-                    if ((abs(center.x) > 2) || (center.z < -2))
-                    {
-                        //currentBranch->isVisible = false;
-                    }
-
-
-                    //if ((center.z > -2) || (abs(center.x) > 2))
-                    if ((center.z < -2) || (abs(center.x) < 2))
-                    {
-                        //currentBranch->isVisible = false;
-                    }
-
-                    if (center.y > 9)
-                    {
-                        //    currentBranch->isVisible = false;
-                    }
-
-                    /*
-                    if (branches.size() > 30 && branches.size() <  1830)
-                    {
-                        currentBranch->isDead = true;
-                    }
-                    */
-
-
                     verts[0] = verts[numVerts - 1];
                     read2();
                 }
@@ -2799,33 +2759,52 @@ void _GroveTree::load()
 
 void _GroveTree::rebuildVisibility()
 {
-    int numVis = 0;
     for (auto& branch : branches)
     {
         branch.isVisible = false;
 
         if (vis.coreRadius > 0)
         {
-            auto& leaves = branch.nodes.back();
-            if ((abs(leaves.pos.x) < vis.coreRadius) &&
-                ((leaves.pos.z > -vis.coreRadius) || (leaves.pos.y > extents.y - 2 * vis.coreRadius)))
+            bool anyVisible = false;
+
+            for (auto& node : branch.nodes)
             {
-                branch.isVisible = true;
-                numVis++;
+                node.isNodeVisible = false;
+
+                if ((abs(node.pos.x) < vis.coreRadius) &&
+                    ((node.pos.z > -vis.coreRadius) || (node.pos.y > extents.y - vis.coreRadius)))
+                {
+                    node.isNodeVisible = true;
+                    anyVisible |= node.isNodeVisible;
+                }
             }
+            branch.isVisible = anyVisible;
         }
         else
         {
             if (vis.SmallerThan)
             {
-                branch.isVisible = branch.nodes[0].radius < vis.radiusCutoff;
+                bool anyVisible = false;
+                for (auto& node : branch.nodes)
+                {
+                    node.isNodeVisible = node.radius < vis.radiusCutoff;
+                    anyVisible |= node.isNodeVisible;
+                }
+                branch.isVisible = anyVisible;
             }
 
-
+            /*
             if (!vis.SmallerThan)
             {
-                branch.isVisible = branch.nodes[0].radius > vis.radiusCutoff;
+                bool anyVisible = false;
+                for (auto& node : branch.nodes)
+                {
+                    node.isVisible = node.radius > vis.radiusCutoff;
+                    anyVisible |= node.isVisible;
+                }
+                branch.isVisible = anyVisible;
             }
+            */
         }
 
     }
@@ -2954,43 +2933,47 @@ void _GroveTree::rebuildRibbons()
         if (showOnlyUnattached && branch.rootBranch >= 0) continue;
         //if (showOnlyUnattached && b == 0) continue;
 
-        if (branch.isVisible && branch.nodes.size() > 1)
+        if (branch.isVisible && branch.nodes.size() > 1)        // FIXME remocve branches with too few nodes at insert time
         {
             float v = 0.0f;
             auto& prev = branch.nodes.front();
 
+            bool notFirst = false;
             for (auto& node : branch.nodes)
             {
                 v += length(node.pos - prev.pos) * 2.5f;
-                bool first = (prev.pos == node.pos);
 
-                branchRibbons[numBranchRibbons].type = 0;
-                branchRibbons[numBranchRibbons].startBit = first;
-                branchRibbons[numBranchRibbons].position = node.pos;
-                branchRibbons[numBranchRibbons].bitangent = node.dir;
-                branchRibbons[numBranchRibbons].radius = node.radius;
-                branchRibbons[numBranchRibbons].material = branch_Material.index;
-                branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                branchRibbons[numBranchRibbons].uv = float2(1, v);
-
-                // now see if we are goingt to keep it or overwrite it
+                if (node.isNodeVisible)
                 {
-                    if (first && ((node.radius > endRadius))) {             // test for the start
-                        numBranchRibbons++;
-                    }
-                    else
-                    {
-                        float stepThis = stepFactor * pow((endRadius / node.radius), 0.3);/// 0.2 IS TE ERG
+                    branchRibbons[numBranchRibbons].type = 0;
+                    branchRibbons[numBranchRibbons].startBit = notFirst;
+                    branchRibbons[numBranchRibbons].position = node.pos;
+                    branchRibbons[numBranchRibbons].bitangent = node.dir;
+                    branchRibbons[numBranchRibbons].radius = node.radius;
+                    branchRibbons[numBranchRibbons].material = branch_Material.index;
+                    branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
+                    branchRibbons[numBranchRibbons].uv = float2(1, v);
 
-                        if ((node.radius < startRadius) &&
-                            (node.radius > endRadius) &&
-                            (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / node.radius > stepThis))
+
+                    // now see if we are goingt to keep it or overwrite it
+                    {
+                        if (notFirst)
                         {
+                            float stepThis = stepFactor * pow((endRadius / node.radius), 0.3);/// 0.2 IS TE ERG
+
+                            if ((node.radius < startRadius) &&
+                                (node.radius > endRadius) &&
+                                (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / node.radius > stepThis))
+                            {
+                                numBranchRibbons++;
+                            }
+                        }
+                        else if (node.radius > endRadius) {             // test for the start
                             numBranchRibbons++;
+                            notFirst = true;
                         }
                     }
                 }
-
                 prev = node;
             }
         }
@@ -3003,7 +2986,7 @@ void _GroveTree::rebuildRibbons()
         int step = __max((int)skip, 1);
         for (int b = 0; b < branchLeaves.size(); b += step)
         {
-            if (branches[branchLeaves[b].branchIndex].isVisible)
+            if (branches[branchLeaves[b].branchIndex].nodes[branchLeaves[b].branchNode].isNodeVisible)
             {
                 float3 D = normalize(branchLeaves[b].dir);
                 float3 U = float3(0, 1, 0);
@@ -3050,7 +3033,8 @@ void _GroveTree::rebuildRibbons()
         int step = __max((int)skip, 1);
         for (int b = 0; b < endLeaves.size(); b += step)
         {
-            if (branches[endLeaves[b].branchIndex].isVisible)
+            auto& branch = branches[endLeaves[b].branchIndex];
+            if (branch.isVisible && branch.nodes.back().isNodeVisible)
             {
                 float3 P = endLeaves[b].pos;
                 float3 D = normalize(endLeaves[b].dir);
