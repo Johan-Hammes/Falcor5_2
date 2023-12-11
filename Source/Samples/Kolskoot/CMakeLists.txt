@@ -19,7 +19,7 @@ target_sources(Kolskoot PRIVATE
 
 
 include_directories("${PROJECT_SOURCE_DIR}/FlyCapture")
-target_link_libraries(Kolskoot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/FlyCapture/FlyCapture2_v140.lib")
+target_link_libraries(Kolskoot PUBLIC winmm.lib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/FlyCapture/FlyCapture2_v140.lib")
 ##target_link_libraries(Kolskoot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/FlyCapture/FlyCapture2d_v140.lib")
 
 

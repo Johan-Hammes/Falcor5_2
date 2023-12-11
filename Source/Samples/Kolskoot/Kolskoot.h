@@ -408,6 +408,8 @@ public:
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
     void onGuiRender(Gui* pGui) override;
     void onGuiMenubar(Gui* _gui);
+    void menuButton();
+    void nextButton();
     void guiStyle();
 
 private:

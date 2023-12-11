@@ -31,6 +31,8 @@
 #include <imgui_internal.h>
 #include "Core/Platform/MonitorInfo.h"
 #include <FreeImage.h>
+#include <windows.h>
+#include <mmsystem.h>
 
 
 
@@ -66,7 +68,10 @@ void _setup::renderGui(Gui* _gui, float _screenX)
     */
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
+        ImVec2 cursor = ImGui::GetCursorPos();
+        screen_pixelsX = _screenX;
 
+        ImGui::SetCursorPosX(screen_pixelsX - 600);
         if (ImGui::Button("...")) {
             std::filesystem::path _path;
             if (chooseFolderDialog(_path))
@@ -77,31 +82,40 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
         ImGui::SameLine(0, 10);
 
-        ImGui::SetNextItemWidth(600);
+        ImGui::SetNextItemWidth(500);
         char T[256];
         sprintf(T, "%s", dataFolder.c_str());
         if (ImGui::InputText("root folder", T, 256)) {
             dataFolder = T;
         }
 
+        //ImGui::SameLine();
+        ImGui::SetCursorPosX(screen_pixelsX - 200);
+        ImGui::SetNextItemWidth(200);
+        if (ImGui::Selectable("save & close")) { save(); requestClose = true; }
+
+        ImGui::SetCursorPosX(screen_pixelsX - 200);
+        ImGui::SetNextItemWidth(200);
+        if (ImGui::Selectable("menu")) { requestClose = true; }
 
 
+        
+        ImGui::SetCursorPos(cursor);
 
         ImGui::SetNextItemWidth(200);
-        ImGui::DragFloat("pixels per meter", &screenWidth, 0.01f, 1.0f, 10.0f, "%3.2f m");
-        TOOLTIP("horizontal width of the screen in meters");
-        screen_pixelsX = _screenX;
+        ImGui::DragFloat("screen size", &screenWidth, 0.01f, 1.0f, 10.0f, "%3.2f m");
+        TOOLTIP("horizontal width of the screen in meters\n");
         pixelsPerMeter = screen_pixelsX / screenWidth;
-        ImGui::PushFont(_gui->getFont("roboto_20"));
-        ImGui::Text("     %3.2f screen of %d pixels = %3.2f pixels per meter", screenWidth, (int)screen_pixelsX, pixelsPerMeter);
-        ImGui::PopFont();
+        //ImGui::PushFont(_gui->getFont("roboto_20"));
+        //ImGui::Text("     %3.2f screen of %d pixels = %3.2f pixels per meter", screenWidth, (int)screen_pixelsX, pixelsPerMeter);
+        //ImGui::PopFont();
 
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("distance", &shootingDistance, 0.1f, 1, 100, "%3.2f m");
         TOOLTIP("Measure the distance from the screen to the shooting line");
 
         ImGui::SetNextItemWidth(200);
-        ImGui::DragInt("lanes", &numLanes, 1, 1, 15);
+        ImGui::DragInt("lanes", &numLanes, 0.04f, 1, 15);
 
         ImGui::SetNextItemWidth(200);
         ImGui::InputInt("zigbeeCom", &zigbeeCOM, 1);
@@ -109,33 +123,31 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         
         
 
-        ImGui::SetCursorPos(ImVec2(800, 50));
+        ImGui::SetCursorPos(ImVec2(600, cursor.y));
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("stand", &eyeHeights[0], 1, 100, 2000);
 
-        ImGui::SetCursorPos(ImVec2(800, 100));
+        ImGui::SetCursorPosX(600);
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("kneel", &eyeHeights[1], 1, 100, 2000);
 
-        ImGui::SetCursorPos(ImVec2(800, 150));
+        ImGui::SetCursorPosX(600);
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("sit", &eyeHeights[2], 1, 100, 2000);
 
-        ImGui::SetCursorPos(ImVec2(800, 200));
+        ImGui::SetCursorPosX(600);
         ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("prone##1", &eyeHeights[3], 1, 100, 2000);
 
 
 
 
-        ImGui::SetCursorPos(ImVec2(screen_pixelsX - 200, 200));
-        ImGui::SetNextItemWidth(200);
-        if (ImGui::Selectable("save & close")) { save(); requestClose = true; }
+        
 
 
 
-        //ImGui::NewLine();
-        ImGui::SetCursorPos(ImVec2(0, 350));
+        ImGui::NewLine();
+        //ImGui::SetCursorPos(ImVec2(0, 350));
         ImGui::Columns(numLanes);
         for (int i = 0; i < numLanes; i++)
         {
@@ -699,7 +711,7 @@ void quickRange::load()
         if (is.good()) {
             cereal::XMLInputArchive archive(is);
             serialize(archive, 100);
-            title = path.filename().string();
+            title = path.filename().string().substr(0, path.filename().string().length() - 15);
         }
     }
 }
@@ -731,17 +743,14 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 char T[256];
                 sprintf(T, "%s", title.c_str());
                 ImGui::Text(title.c_str());
-                //if (ImGui::InputText("", T, 256)) {
-                //    title = T;
-                //}
 
-                ImGui::SameLine(0, 100);
-                if (ImGui::Button("edit")) {
+                ImGui::SameLine(900, 0);
+                if (ImGui::Button("load")) {
                     load();
                 }
 
 
-                ImGui::SameLine(0, 100);
+                ImGui::SameLine(0, 40);
                 if (ImGui::Button("save")) {
                     save();
                 }
@@ -749,18 +758,18 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 ImGui::SameLine(0, 100);
                 ImGui::SetNextItemWidth(100);
                 int numX = exercises.size();
-                if (ImGui::DragInt("# exercises", &numX, 1, 0, 20))
+                if (ImGui::DragInt("# exercises", &numX, 0.04f, 0, 10))
                 {
                     exercises.resize(numX);
                 }
 
 
-                ImGui::SameLine(_screenSize.x - 200, 0);
+                ImGui::SameLine(_screenSize.x - 150, 0);
                 if (ImGui::Button("Test")) {
                     requestLive = true;
                     currentExercise = 0;
                     currentStage = live_intro;
-                    score.create(5, exercises.size());      // FIXME needs numlanes
+                    score.create(Kolskoot::setupInfo.numLanes, exercises.size());      // FIXME needs numlanes
                 }
             }
 
@@ -796,7 +805,7 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
 void quickRange::renderLiveMenubar(Gui* _gui)
 {
-    ImGui::Text("%s       :       Exercise %d       :       %s", title.c_str(), currentExercise + 1, exercises[currentExercise].title.c_str());
+    ImGui::Text("%s                    exercise %d  -  %s", title.c_str(), currentExercise + 1, exercises[currentExercise].title.c_str());
 }
 
 void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole)
@@ -1082,19 +1091,22 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
     if (ImGui::BeginMainMenuBar())
     {
         {
-            bool selected = false;
-            ImGui::Text("Kolskoot");
-
-            ImGui::SameLine(0, 200);
-            ImGui::SetNextItemWidth(150);
-
-
             if (guiMode == gui_live)
             {
                 QR.renderLiveMenubar(_gui);
+
+                ImGui::SameLine(800, 0);
             }
             else
             {
+                bool selected = false;
+                ImGui::Text("Kolskoot");
+
+                ImGui::SameLine(0, 200);
+                ImGui::SetNextItemWidth(150);
+
+
+                //int x = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(150);
                 if(ImGui::BeginMenu("Settings"))
                 {
@@ -1115,16 +1127,15 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 
 
        
-                ImGui::SameLine(0, 20);
-                ImGui::SetNextItemWidth(150);
-                ImGui::Selectable("Exercises", &selected, 0, ImVec2(150, 0));
+                ImGui::SameLine(0, 80);
+                ImGui::Selectable("Exercise builder", &selected, 0, ImVec2(200, 0));
                 if (selected) {
                     guiMode = gui_exercises;
                     selected = false;
                     QR.clear();
                 }
 
-                ImGui::SameLine(0, 20);
+                ImGui::SameLine(0, 80);
                 ImGui::SetNextItemWidth(150);
                 ballistics.renderGuiAmmo(_gui);
 
@@ -1133,7 +1144,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 if (ballistics.hasChanged)
                 {
                     ImGui::SameLine(0, 20);
-                    if (ImGui::Button("Boresight was modified, click to save"))
+                    if (ImGui::Button("Save modified boresight"))
                     {
                         ballistics.save();
                     }
@@ -1141,8 +1152,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 
             }
 
-
-            ImGui::SetCursorPos(ImVec2(screenSize.x - 150, 0));
+            ImGui::SetCursorPos(ImVec2(screenSize.x - 180, 0));
             ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
 
             ImGui::SetCursorPos(ImVec2(screenSize.x - 30, 0));
@@ -1153,9 +1163,36 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 }
 
 
+void Kolskoot::nextButton()
+{
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 100));
+    if (ImGui::Button("Next"))
+    {
+        if (QR.liveNext())
+        {
+            guiMode = gui_exercises;
+            zigbeeRounds(0, 0, true);		// turn all air off
+        }
+    }
+    TOOLTIP("space");
+}
+
+void Kolskoot::menuButton()
+{
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 100));
+    if (ImGui::Button("Menu"))
+    {
+        guiMode = gui_exercises;
+        zigbeeRounds(0, 0, true);		// turn all air off
+    }
+    TOOLTIP("esc");
+}
+
+
 
 void Kolskoot::onGuiRender(Gui* _gui)
 {
+
     static bool init = true;
     if (init)
     {
@@ -1173,6 +1210,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             break;
 
         case gui_camera:
+            menuButton();
             break;
 
         case gui_screen:
@@ -1189,6 +1227,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 }
             }
             screenPanel.release();
+            menuButton();
         }
         break;
 
@@ -1222,6 +1261,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             targetPanel.windowPos((int)screenSize.x / 2, 40);
             targetBuilder.renderGui(_gui, targetPanel);
             targetPanel.release();
+            menuButton();
         }
         break;
 
@@ -1238,7 +1278,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 requestLive = false;
                 Kolskoot::guiMode = gui_live;
             }
-
+            menuButton();
         }
         break;
 
@@ -1248,29 +1288,12 @@ void Kolskoot::onGuiRender(Gui* _gui)
             livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
             livePanel.windowPos(0, 40);
             QR.renderLive(_gui, screenSize, livePanel, setupInfo, bulletHole);
-
-
-            ImGui::PushFont(_gui->getFont("roboto_48"));
+            ImGui::PushFont(_gui->getFont("roboto_32"));
             {
-                ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 100));
-                if (ImGui::Button("Next"))
-                {
-                    if (QR.liveNext())
-                    {
-                        guiMode = gui_exercises;
-                        zigbeeRounds(0, 0, true);		// turn all air off
-                    }
-                }
-
-                ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 100));
-                if (ImGui::Button("Menu"))
-                {
-                    guiMode = gui_exercises;
-                    zigbeeRounds(0, 0, true);		// turn all air off
-                }
+                nextButton();
+                menuButton();
             }
             ImGui::PopFont();
-
             livePanel.release();
 
         }
@@ -1639,13 +1662,15 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         if (ImGui::IsMouseClicked(0))       // insert a mouse shot
         {
             ImVec2 mouse = ImGui::GetMousePos();
-            if (mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
+            if ((mouse.y > 100) && mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
             {
                 int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
                 if (QR.getRoundsLeft(lane) > 0)
                 {
                     QR.mouseShot(mouse.x, mouse.y, setupInfo);
                     zigbeeFire(lane);                   // R4 / AK
+                    
+                    PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
                 }
             }
         }
@@ -1662,6 +1687,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
                 {
                     QR.mouseShot(screen.x, screen.y, setupInfo);
                     zigbeeFire(lane);                   // R4 / AK
+                    PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
                 }
             }
             pointGreyCamera->dotQueue.pop();
@@ -1853,8 +1879,8 @@ void Kolskoot::guiStyle()
     style.Colors[ImGuiCol_ModalWindowDimBg] = DARKLIME(0.3f);
 
     // FIXME only for live
-    style.Colors[ImGuiCol_Button] = ImVec4(0.00f, 0.0f, 0.0f, 0.f);
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.00f, 0.0f, 0.0f, 0.f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.03f, 0.8f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.2f, 0.2f, 0.2f, 0.8f);
     //style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.00f, 0.0f, 0.0f, 0.f);
 
     style.FrameRounding = 0.0f;
