@@ -564,6 +564,7 @@ struct _branchnode
     float3 pos;
     float radius;
     float3 dir;
+    bool isVisible = true;  // dont save this is temporary
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -1030,7 +1031,7 @@ private:
     BlendState::SharedPtr           blendstateVegBake;
     void bakeVegetation();
     computeShader		compute_bakeFloodfill;
-    int ribbonInstanceNumber = 100;
+    int ribbonInstanceNumber = 1;
     float ribbonSpacing = 3.0f;             // the size fo the extents
     bool spacingFromExtents = true;
 

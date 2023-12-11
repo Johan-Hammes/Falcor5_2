@@ -644,17 +644,17 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     
     // specular sun
-    color += pow(ndoth, 7) * 0.1 * vOut.lighting.z;
+    color += pow(ndoth, 9) * 0.51 * vOut.lighting.z;
    
 
-    float3 trans = saturate(-ndots) * vOut.colour.y * float3(2, 2, 2) * MAT.translucency * vOut.lighting.z;
+    float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * float3(2, 3, 1) * MAT.translucency * vOut.lighting.z;
     {
         if (MAT.translucencyTexture >= 0)
         {
             trans *= pow(textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r, 1);
         }
     }
-    color += trans * albedo.rgb * 18  * vOut.colour.x;
+    color += trans * albedo.rgb * 7  * vOut.colour.x;
     //color = trans * 1 * vOut.colour.x;
 
 

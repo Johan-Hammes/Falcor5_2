@@ -2431,6 +2431,51 @@ void _GroveTree::renderGui(Gui* _gui)
                 ImGui::SetNextItemWidth(80);
                 if (ImGui::DragFloat("##bScale", &static_bScale, 0.01f, 0.01f, 1.0f));
 
+
+                //Visibility rules
+                ImGui::NewLine();
+
+                ImGui::Text("Visibility");
+
+                ImGui::Text("toRoot");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::Checkbox("##vis_root", &vis.expandToRoot));
+
+                ImGui::Text("toTip");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::Checkbox("##visTip", &vis.expandToLeaves));
+
+                ImGui::Text("smallerThan");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::Checkbox("##visSamller", &vis.SmallerThan));
+
+                ImGui::Text("radius");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##visRadius", &vis.radiusCutoff, 0.01f, 0.01f, 1.0f));
+
+                ImGui::Text("core");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##visCore", &vis.coreRadius, 0.01f, 0.f, 5.0f));
+
+                ImGui::Text("test");
+                ImGui::SameLine(80, 0);
+                ImGui::SetNextItemWidth(80);
+                if (ImGui::DragFloat("##visTest", &vis.TestSize, 0.01f, 0.01f, 1.0f));
+
+                if (ImGui::Button("rebuild Vis"))
+                {
+                    rebuildVisibility();
+                }
+
+
+
+
+
                 ImGui::NextColumn();
                 tipTwigs.renderGui(_gui);
                 if (tipTwigs.changed) {
@@ -2690,7 +2735,7 @@ void _GroveTree::load()
                     BN.dir = nodeDir;
                     currentBranch->nodes.push_back(BN);
 
-                    
+
                     static bool testOnce = true;
                     if (currentBranch->nodes.size() == 1)
                     {
@@ -2701,7 +2746,7 @@ void _GroveTree::load()
                         }
                         else
                         {
-                            currentBranch->isVisible = false;
+                            //currentBranch->isVisible = false;
                         }
                     }
 
@@ -2710,7 +2755,7 @@ void _GroveTree::load()
                         //currentBranch->isVisible = false;
                     }
 
-                    
+
                     //if ((center.z > -2) || (abs(center.x) > 2))
                     if ((center.z < -2) || (abs(center.x) < 2))
                     {
@@ -2719,7 +2764,7 @@ void _GroveTree::load()
 
                     if (center.y > 9)
                     {
-                    //    currentBranch->isVisible = false;
+                        //    currentBranch->isVisible = false;
                     }
 
                     /*
@@ -2754,24 +2799,73 @@ void _GroveTree::load()
 
 void _GroveTree::rebuildVisibility()
 {
-    for (int B = 0; B < branches.size(); B++)
+    int numVis = 0;
+    for (auto& branch : branches)
     {
+        branch.isVisible = false;
+
         if (vis.coreRadius > 0)
         {
-            // do radius tests to extract the core
-        }
-        for (int C = B - 1; C >= 0; C--)   // try <B again
-        {
-            if (vis.expandToRoot && branches[C].isVisible && (branches[C].nodes[branches[B].sideNode].radius < vis.radiusCutoff))
+            auto& leaves = branch.nodes.back();
+            if ((abs(leaves.pos.x) < vis.coreRadius) &&
+                ((leaves.pos.z > -vis.coreRadius) || (leaves.pos.y > extents.y - 2 * vis.coreRadius)))
             {
-                branches[B].isVisible = true;
+                branch.isVisible = true;
+                numVis++;
             }
-            if (vis.expandToRoot && branches[B].isVisible)  // the reverse
+        }
+        else
+        {
+            if (vis.SmallerThan)
             {
-                branches[C].isVisible = true;
+                branch.isVisible = branch.nodes[0].radius < vis.radiusCutoff;
+            }
+
+
+            if (!vis.SmallerThan)
+            {
+                branch.isVisible = branch.nodes[0].radius > vis.radiusCutoff;
+            }
+        }
+
+    }
+
+
+
+
+    if (vis.expandToRoot)
+    {
+        for (auto& branch : branches)
+        {
+            if (branch.isVisible)
+            {
+                int root = branch.rootBranch;
+                while (root >= 0)
+                {
+                    branches[root].isVisible = true;
+                    root = branches[root].rootBranch;
+                }
             }
         }
     }
+
+
+    if (vis.expandToLeaves)
+    {
+        for (int B = 0; B < branches.size(); B++)
+        {
+            auto& root = branches[branches[B].rootBranch];
+
+            if (root.isVisible && (root.nodes[branches[B].sideNode].radius < vis.radiusCutoff))
+            {
+                branches[B].isVisible = true;
+            }
+        }
+    }
+
+
+
+    rebuildRibbons();
 }
 
 
@@ -2847,150 +2941,57 @@ void _GroveTree::findSideBranches()
 
 void _GroveTree::rebuildRibbons()
 {
-    numBranchRibbons = 0;
-
-    /*
-    {
-        // X - axis
-        branchRibbons[numBranchRibbons].type = 0;
-        branchRibbons[numBranchRibbons].startBit = 0;
-        branchRibbons[numBranchRibbons].position = float3(0, 0, 0);
-        branchRibbons[numBranchRibbons].bitangent = float3(1, 0, 0);
-        branchRibbons[numBranchRibbons].radius = 0.1f;
-        branchRibbons[numBranchRibbons].material = 0;
-        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
-        numBranchRibbons++;
-
-        branchRibbons[numBranchRibbons].type = 0;
-        branchRibbons[numBranchRibbons].startBit = 1;
-        branchRibbons[numBranchRibbons].position = float3(10, 0, 0);
-        branchRibbons[numBranchRibbons].bitangent = float3(1, 0, 0);
-        branchRibbons[numBranchRibbons].radius = 0.1f;
-        branchRibbons[numBranchRibbons].material = 0;
-        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
-        numBranchRibbons++;
-
-
-        // Z
-        branchRibbons[numBranchRibbons].type = 0;
-        branchRibbons[numBranchRibbons].startBit = 0;
-        branchRibbons[numBranchRibbons].position = float3(0, 0, 0);
-        branchRibbons[numBranchRibbons].bitangent = float3(0, 0, 1);
-        branchRibbons[numBranchRibbons].radius = 0.1f;
-        branchRibbons[numBranchRibbons].material = 0;
-        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
-        numBranchRibbons++;
-
-        branchRibbons[numBranchRibbons].type = 0;
-        branchRibbons[numBranchRibbons].startBit = 1;
-        branchRibbons[numBranchRibbons].position = float3(0, 0, 10);
-        branchRibbons[numBranchRibbons].bitangent = float3(0, 0, 1);
-        branchRibbons[numBranchRibbons].radius = 0.1f;
-        branchRibbons[numBranchRibbons].material = 0;
-        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
-        numBranchRibbons++;
-
-
-
-        //        Human
-        branchRibbons[numBranchRibbons].type = 0;
-        branchRibbons[numBranchRibbons].startBit = 0;
-        branchRibbons[numBranchRibbons].position = float3(5, 0, 5);
-        branchRibbons[numBranchRibbons].bitangent = float3(0, 1, 0);
-        branchRibbons[numBranchRibbons].radius = 0.2f;
-        branchRibbons[numBranchRibbons].material = 0;
-        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
-        numBranchRibbons++;
-
-        branchRibbons[numBranchRibbons].type = 0;
-        branchRibbons[numBranchRibbons].startBit = 1;
-        branchRibbons[numBranchRibbons].position = float3(5, 1.8, 5);
-        branchRibbons[numBranchRibbons].bitangent = float3(0, 1, 0);
-        branchRibbons[numBranchRibbons].radius = 0.2f;
-        branchRibbons[numBranchRibbons].material = 0;
-        branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-        branchRibbons[numBranchRibbons].uv = float2(1, 0.0f);
-        numBranchRibbons++;
-    }
-    */
-
-
-
     std::mt19937 generator(100);
     std::uniform_real_distribution<> distribution(-1.f, 1.f);
     std::uniform_real_distribution<> dist_0_1(0.f, 1.f);
 
+    numBranchRibbons = 0;
 
-    for (int b = 0; b < branches.size(); b++)
+    // add the branches
+    //for (int b = 0; b < branches.size(); b++)
+    for (auto& branch : branches)
     {
-        if (showOnlyUnattached && branches[b].rootBranch >= 0) continue;
-        if (showOnlyUnattached && b == 0) continue;
+        if (showOnlyUnattached && branch.rootBranch >= 0) continue;
+        //if (showOnlyUnattached && b == 0) continue;
 
-        if (branches[b].nodes.size() > 1 && (branches[b].isVisible))
+        if (branch.isVisible && branch.nodes.size() > 1)
         {
             float v = 0.0f;
-            for (int n = 0; n < branches[b].nodes.size(); n++)
+            auto& prev = branch.nodes.front();
+
+            for (auto& node : branch.nodes)
             {
-
-                //float3 D;
-                if (n == 0) {
-                    //  D = glm::normalize(branches[b].nodes[1].pos - branches[b].nodes[0].pos);
-                }
-                else
-                {
-                    //D = glm::normalize(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
-                    v += length(branches[b].nodes[n].pos - branches[b].nodes[n - 1].pos);
-                }
-
+                v += length(node.pos - prev.pos) * 2.5f;
+                bool first = (prev.pos == node.pos);
 
                 branchRibbons[numBranchRibbons].type = 0;
-                branchRibbons[numBranchRibbons].startBit = n > 0;
-                branchRibbons[numBranchRibbons].position = branches[b].nodes[n].pos;
-                branchRibbons[numBranchRibbons].radius = branches[b].nodes[n].radius;
+                branchRibbons[numBranchRibbons].startBit = first;
+                branchRibbons[numBranchRibbons].position = node.pos;
+                branchRibbons[numBranchRibbons].bitangent = node.dir;
+                branchRibbons[numBranchRibbons].radius = node.radius;
                 branchRibbons[numBranchRibbons].material = branch_Material.index;
                 branchRibbons[numBranchRibbons].lightCone = light.cubemap.light(branchRibbons[numBranchRibbons].position, &branchRibbons[numBranchRibbons].lightDepth);
-                branchRibbons[numBranchRibbons].uv = float2(1, v * 2);
-                branchRibbons[numBranchRibbons].bitangent = branches[b].nodes[n].dir;
+                branchRibbons[numBranchRibbons].uv = float2(1, v);
 
-
-                // Look forward, what is left till endrradius
-                /*
-                int nodesLeft = 0;
-                for (int k = n+1; k < branches[b].nodes.size(); k++)
+                // now see if we are goingt to keep it or overwrite it
                 {
-                    if (branches[b].nodes[k].radius > endRadius)
-                    {
-                        nodesLeft++;
-                    }
-                }
-                */
-
-                /*if (nodesLeft == 0)
-                {
-                    numBranchRibbons++;
-                }
-                else*/
-                {
-
-                    float stepThis = stepFactor * pow((endRadius / branches[b].nodes[n].radius), 0.3);/// 0.2 IS TE ERG
-                    if (n == 0 && ((branches[b].nodes[n].radius > endRadius))) {
-                        numBranchRibbons++; // fixme test start
-                    }
-                    else if ((branches[b].nodes[n].radius < startRadius) &&
-                        (branches[b].nodes[n].radius > endRadius) &&
-                        (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / branches[b].nodes[n].radius > stepThis)
-                        ) {
+                    if (first && ((node.radius > endRadius))) {             // test for the start
                         numBranchRibbons++;
                     }
+                    else
+                    {
+                        float stepThis = stepFactor * pow((endRadius / node.radius), 0.3);/// 0.2 IS TE ERG
+
+                        if ((node.radius < startRadius) &&
+                            (node.radius > endRadius) &&
+                            (glm::length(branchRibbons[numBranchRibbons].position - branchRibbons[numBranchRibbons - 1].position) / node.radius > stepThis))
+                        {
+                            numBranchRibbons++;
+                        }
+                    }
                 }
 
-                // add bendfactor, and then combine very short last steps
-                //also have to remove tiny branches where we only inserted the tsrat
+                prev = node;
             }
         }
     }
