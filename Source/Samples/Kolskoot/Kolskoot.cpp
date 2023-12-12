@@ -763,13 +763,15 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                     exercises.resize(numX);
                 }
 
-
-                ImGui::SameLine(_screenSize.x - 150, 0);
-                if (ImGui::Button("Test")) {
-                    requestLive = true;
-                    currentExercise = 0;
-                    currentStage = live_intro;
-                    score.create(Kolskoot::setupInfo.numLanes, exercises.size());      // FIXME needs numlanes
+                if (exercises.size() > 0)
+                {
+                    ImGui::SameLine(_screenSize.x - 150, 0);
+                    if (ImGui::Button("Test")) {
+                        requestLive = true;
+                        currentExercise = 0;
+                        currentStage = live_intro;
+                        score.create(Kolskoot::setupInfo.numLanes, exercises.size());      // FIXME needs numlanes
+                    }
                 }
             }
 
@@ -813,7 +815,7 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
     {
         ImGuiStyle& style = ImGui::GetStyle();
         ImGuiStyle styleOld = style;
-        ImGui::PushFont(_gui->getFont("roboto_48"));
+        ImGui::PushFont(_gui->getFont("roboto_64"));
         {
             if (currentExercise < exercises.size())
             {
@@ -836,13 +838,28 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                         float px = centerX - (tw / 2);
                         float py = centerY - (th * 0.5f);
 
-                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes / 2) - 10 + (setup.screen_pixelsX / setup.numLanes * lane), 20));
+                        ImGui::SetCursorPos(ImVec2(40 + (setup.screen_pixelsX / setup.numLanes * lane), 20));
                         ImGui::Text("%d", lane + 1);
-                        ImGui::Text("%d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
+
+                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 270, 54));
+                        ImGui::PushFont(_gui->getFont("roboto_20"));
+                        ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
+                        ImGui::PopFont();
+
+                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 170, 54));
+                        ImGui::PushFont(_gui->getFont("roboto_20"));
+                        ImGui::Text("score");
+                        ImGui::PopFont();
+
+                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane+1)) - 120, 20));
                         ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
-                        ImGui::Text("drop : %d mm", (int)(bulletDrop * 1000));
-                        ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
-                        //
+                        //ImGui::Text("drop : %d mm", (int)(bulletDrop * 1000));
+                        if (exercises[currentExercise].action.action == action_adjust)
+                        {
+                            ImGui::PushFont(_gui->getFont("roboto_48"));
+                            ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
+                            ImGui::PopFont();
+                        }
 
 
 
