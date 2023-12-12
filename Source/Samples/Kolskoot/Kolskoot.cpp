@@ -1105,6 +1105,8 @@ glm::vec3 videoToScreen::toScreen(glm::vec3 dot)
 
 void Kolskoot::onGuiMenubar(Gui* _gui)
 {
+    FALCOR_PROFILE("onGuiMenubar");
+
     if (ImGui::BeginMainMenuBar())
     {
         {
@@ -1301,6 +1303,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
 
         case gui_live:
         {
+            FALCOR_PROFILE("gui_live");
             Gui::Window livePanel(_gui, "Live", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
             livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
             livePanel.windowPos(0, 40);
@@ -1654,6 +1657,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
     if (guiMode == gui_camera || guiMode == gui_menu)
     {
+        FALCOR_PROFILE("pointGreyBuffer");
         if (pointGreyBuffer)
         {
             pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
@@ -1724,31 +1728,8 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         }
     }
 
-    /*
-    if (mpScene)
-    {
-        mpScene->update(pRenderContext, gpFramework->getGlobalClock().getTime());
 
-        // Set render state
-        if (mDrawWireframe)
-        {
-            mpGraphicsState->setDepthStencilState(mpNoDepthDS);
-            mpProgramVars["PerFrameCB"]["gConstColor"] = true;
-
-            mpScene->rasterize(pRenderContext, mpGraphicsState.get(), mpProgramVars.get(), mpWireframeRS, mpWireframeRS);
-        }
-        else
-        {
-            mpGraphicsState->setDepthStencilState(mpDepthTestDS);
-            mpProgramVars["PerFrameCB"]["gConstColor"] = false;
-
-            mpScene->rasterize(pRenderContext, mpGraphicsState.get(), mpProgramVars.get(), mCullMode);
-        }
-    }
-
-    TextRenderer::render(pRenderContext, mModelString, pTargetFbo, float2(10, 30));
-    */
-    Sleep(10);
+    //Sleep(10);
     
 }
 
