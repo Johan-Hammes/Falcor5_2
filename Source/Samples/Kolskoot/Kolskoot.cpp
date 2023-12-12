@@ -1586,7 +1586,7 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     mpLinearSampler = Sampler::create(samplerDesc);
 
     pointGreyCamera = PointGrey_Camera::GetSingleton();
-    gpDevice->toggleVSync(true);
+    gpDevice->toggleVSync(false);
 
 
     camera = Falcor::Camera::create();
@@ -1653,24 +1653,30 @@ void Kolskoot::onShutdown()
 
 void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    gpDevice->toggleVSync(true);
+    //gpDevice->toggleVSync(true);
 
-    if (guiMode == gui_camera || guiMode == gui_menu)
     {
         FALCOR_PROFILE("pointGreyBuffer");
-        if (pointGreyBuffer)
+        if (guiMode == gui_camera || guiMode == gui_menu)
         {
-            pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
-        }
-        if (pointGreyDiffBuffer)
-        {
-            pRenderContext->updateTextureData(pointGreyDiffBuffer.get(), pointGreyCamera->bufferThreshold);
+            
+            if (pointGreyBuffer)
+            {
+                pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
+            }
+            if (pointGreyDiffBuffer)
+            {
+                pRenderContext->updateTextureData(pointGreyDiffBuffer.get(), pointGreyCamera->bufferThreshold);
+            }
         }
     }
 
-    const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
-    pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
-    mpGraphicsState->setFbo(pTargetFbo);
+    {
+        FALCOR_PROFILE("clear");
+        const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
+        pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+        mpGraphicsState->setFbo(pTargetFbo);
+    }
 
 
 
