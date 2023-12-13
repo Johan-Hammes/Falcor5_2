@@ -42,6 +42,7 @@
 std::vector<target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
 ballisticsSetup Kolskoot::ballistics;
+laneAirEnable Kolskoot::airToggle;
 CCommunication Kolskoot::ZIGBEE;		// vir AIR beheer
 float2 mouseScreen;
 static bool targetPopupOpen = false;
@@ -301,6 +302,27 @@ void ballisticsSetup::renderGuiAmmo(Gui* _gui)
     ImGui::Combo("###ammoSelector", (int*)&currentAmmo, " 9mm\0 5.56\0 7.62\0");
 }
 
+
+
+
+
+
+void laneAirEnable::load()
+{
+    if (std::filesystem::exists("air_toggle.json"))
+    {
+        std::ifstream is("air_toggle.json");
+        cereal::JSONInputArchive archive(is);
+        serialize(archive, 100);
+    }
+}
+
+void laneAirEnable::save()
+{
+    std::ofstream os("air_toggle.json");
+    cereal::JSONOutputArchive archive(os);
+    serialize(archive, 100);
+}
 
 
 
@@ -841,61 +863,69 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                         ImGui::SetCursorPos(ImVec2(40 + (setup.screen_pixelsX / setup.numLanes * lane), 20));
                         ImGui::Text("%d", lane + 1);
 
-                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 270, 54));
-                        ImGui::PushFont(_gui->getFont("roboto_20"));
-                        ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
-                        ImGui::PopFont();
+                        ImGui::SameLine();
+                        char AirName[256];
+                        sprintf(AirName, "##air_%d", lane);
+                        ImGui::Checkbox(AirName, &Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane]);
 
-                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 170, 54));
-                        ImGui::PushFont(_gui->getFont("roboto_20"));
-                        ImGui::Text("score");
-                        ImGui::PopFont();
-
-                        ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane+1)) - 120, 20));
-                        ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
-                        //ImGui::Text("drop : %d mm", (int)(bulletDrop * 1000));
-                        if (exercises[currentExercise].action.action == action_adjust)
+                        if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
                         {
-                            ImGui::PushFont(_gui->getFont("roboto_48"));
-                            ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
+                            ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 270, 54));
+                            ImGui::PushFont(_gui->getFont("roboto_20"));
+                            ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
                             ImGui::PopFont();
-                        }
+
+                            ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 170, 54));
+                            ImGui::PushFont(_gui->getFont("roboto_20"));
+                            ImGui::Text("score");
+                            ImGui::PopFont();
+
+                            ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 120, 20));
+                            ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                            //ImGui::Text("drop : %d mm", (int)(bulletDrop * 1000));
+                            if (exercises[currentExercise].action.action == action_adjust)
+                            {
+                                ImGui::PushFont(_gui->getFont("roboto_48"));
+                                ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
+                                ImGui::PopFont();
+                            }
 
 
 
 
-                        ImGui::SetCursorPos(ImVec2(px, py));
-                        _window.image("testImage", exercises[currentExercise].target.image, float2(tw, th), false);
+                            ImGui::SetCursorPos(ImVec2(px, py));
+                            _window.image("testImage", exercises[currentExercise].target.image, float2(tw, th), false);
 
-                        for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
-                        {
-                            float2 pos = score.lane_exercise.at(lane).at(currentExercise).shots.at(s).position_relative;
-                            float px = centerX + (tw * (pos.x - 0.5f));
-                            float py = centerY + (th * (pos.y - 0.5f));
-
-                            float bulletSize = mToPix * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
-
-                            ImGui::SetCursorPos(ImVec2(px - (bulletSize / 2), py - (bulletSize / 2)));
-                            _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize), false);
-                            //_bulletHole
-                        }
-
-
-                        if (exercises[currentExercise].action.action == action_adjust && (score.lane_exercise.at(lane).at(currentExercise).shots.size() >= exercises[currentExercise].numRounds))
-                        {
-                            // adjusst the shots
-                            // DMAN REALLY SAVE position in meters on the target as well - MUCH easierto work with
-                            float2 avs = float2(0, 0);
                             for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
                             {
-                                avs += score.lane_exercise.at(lane).at(currentExercise).shots[s].position;
-                            }
-                            avs /= score.lane_exercise.at(lane).at(currentExercise).shots.size();
-                            //avs.y += bulletDrop;
-                            //avs *= mToPix;
+                                float2 pos = score.lane_exercise.at(lane).at(currentExercise).shots.at(s).position_relative;
+                                float px = centerX + (tw * (pos.x - 0.5f));
+                                float py = centerY + (th * (pos.y - 0.5f));
 
-                            Kolskoot::ballistics.adjustOffset(lane, avs);
-                            score.lane_exercise.at(lane).at(currentExercise).shots.clear();
+                                float bulletSize = mToPix * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
+
+                                ImGui::SetCursorPos(ImVec2(px - (bulletSize / 2), py - (bulletSize / 2)));
+                                _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize), false);
+                                //_bulletHole
+                            }
+
+
+                            if (exercises[currentExercise].action.action == action_adjust && (score.lane_exercise.at(lane).at(currentExercise).shots.size() >= exercises[currentExercise].numRounds))
+                            {
+                                // adjusst the shots
+                                // DMAN REALLY SAVE position in meters on the target as well - MUCH easierto work with
+                                float2 avs = float2(0, 0);
+                                for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
+                                {
+                                    avs += score.lane_exercise.at(lane).at(currentExercise).shots[s].position;
+                                }
+                                avs /= score.lane_exercise.at(lane).at(currentExercise).shots.size();
+                                //avs.y += bulletDrop;
+                                //avs *= mToPix;
+
+                                Kolskoot::ballistics.adjustOffset(lane, avs);
+                                score.lane_exercise.at(lane).at(currentExercise).shots.clear();
+                            }
                         }
 
                         ImGui::NextColumn();
@@ -1598,6 +1628,7 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
 
     setupInfo.load();
     ballistics.load();
+    airToggle.load();
     bulletHole = Texture::createFromFile(setupInfo.dataFolder + "/targets/bullet.dds", true, true);
 
 
@@ -1639,6 +1670,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
 
 void Kolskoot::onShutdown()
 {
+    airToggle.save();
+
     PointGrey_Camera::FreeSingleton();
 
     if (ZIGBEE.IsOpen())
@@ -1691,7 +1724,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         if (ImGui::IsMouseClicked(0))       // insert a mouse shot
         {
             ImVec2 mouse = ImGui::GetMousePos();
-            if ((mouse.y > 100) && mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
+            if ((mouse.y > 150) && mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
             {
                 int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
                 if (QR.getRoundsLeft(lane) > 0)
@@ -1725,17 +1758,20 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         // turn air on for pistols if there are rounds left
         for (int i = 0; i < setupInfo.numLanes; i++)
         {
-            zigbeeRounds(i, QR.getRoundsLeft(i));
+            if (airToggle.inUse(ballistics.currentAmmo, i))
+            {
+                zigbeeRounds(i, QR.getRoundsLeft(i));
+            }
+            else
+            {
+                zigbeeRounds(i, 0);
+            }
         }
     }
     else if (airOffAfterLive && guiMode == gui_live)
     {
         airOffAfterLive = false;
-
-        for (int i = 0; i < setupInfo.numLanes; i++)
-        {
-            zigbeeRounds(i, 0, true);       // turn air off
-        }
+        zigbeeRounds(0, 0, true);       // turn air off, calling with true set all channels
     }
 
 

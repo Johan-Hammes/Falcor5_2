@@ -136,6 +136,34 @@ private:
 CEREAL_CLASS_VERSION(ballisticsSetup, 100);
 
 
+class laneAirEnable
+{
+public:
+    void load();
+    void save();
+    void toggle(_ammunition _ammo, int _lane)
+    {
+        air[_ammo][_lane] = !air[_ammo][_lane];
+    };
+    bool inUse(_ammunition _ammo, int _lane)
+    {
+        return air[_ammo][_lane];
+    };
+
+    std::array<std::array<bool, 15>, 3> air;       // 15 lanes shpuld be enough for the future, question is ammo, and how this breaks serialize
+
+private:
+    
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+                _archive(air);
+    }
+};
+CEREAL_CLASS_VERSION(laneAirEnable, 100);
+
+
 class target
 {
 public:
@@ -482,5 +510,6 @@ public:
     static std::vector<target> targetList;
     static _setup setupInfo;
     static ballisticsSetup ballistics;
+    static laneAirEnable airToggle;
     static CCommunication ZIGBEE;		// vir AIR beheer
 };
