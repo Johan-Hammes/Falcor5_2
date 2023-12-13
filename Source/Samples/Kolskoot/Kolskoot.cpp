@@ -1681,11 +1681,13 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
 
     
-
+    static bool airOffAfterLive = true;
 
     // live fire shooting
     if (guiMode == gui_live && QR.currentStage == live_live)
     {
+        airOffAfterLive = true;
+
         if (ImGui::IsMouseClicked(0))       // insert a mouse shot
         {
             ImVec2 mouse = ImGui::GetMousePos();
@@ -1726,8 +1728,10 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
             zigbeeRounds(i, QR.getRoundsLeft(i));
         }
     }
-    else if (guiMode == gui_live)
+    else if (airOffAfterLive && guiMode == gui_live)
     {
+        airOffAfterLive = false;
+
         for (int i = 0; i < setupInfo.numLanes; i++)
         {
             zigbeeRounds(i, 0, true);       // turn air off
