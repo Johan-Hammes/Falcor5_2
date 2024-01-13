@@ -584,7 +584,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             return float4(vOut.diffuseLight, 1);
         }
 */
-    //return 1;
+    return 1;
     //return float4(vOut.flags.y, frac(vOut.uv.x), frac(vOut.uv.y), 1);
     //return float4(frac(vOut.uv.y), frac(vOut.uv.y), isFrontFace, 1);
     //return 1; //this douvle speed even oif no pixels aredraw

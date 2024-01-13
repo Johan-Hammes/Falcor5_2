@@ -57,17 +57,6 @@
 using namespace Falcor;
 
 
-struct _shadowEdges
-{
-    float height[4096][4096];
-    float Nx[4095][4095];   // temp
-    //float3 norm[4095][4095];
-    unsigned char edge[4096][4096];
-
-    void load();
-};
-
-
 
 struct rvPacked
 {
@@ -99,6 +88,196 @@ struct rvB
     unsigned char albedoScale = 255;
     unsigned char translucencyScale = 255;
 };
+
+
+
+class _bezierGlider
+{
+public:
+    glm::vec3 P0 = float3(0, 0, 0);
+    glm::vec3 P1 = float3(2.5, 0, 0);
+    glm::vec3 P2 = float3(9, 0, 0);
+    glm::vec3 P3 = float3(10, -4, 0);
+    float arcLength;
+
+    void solveArcLenght();
+    float3 pos(float _s);
+    void renderGui(Gui* mpGui);
+
+
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive_float3(P0);
+        archive_float3(P1);
+        archive_float3(P2);
+        archive_float3(P3);
+    }
+};
+CEREAL_CLASS_VERSION(_bezierGlider, 100);
+
+
+class _glider
+{
+public:
+    void build();
+    void renderGui(Gui* mpGui);
+
+    _bezierGlider leadingEdge;
+    _bezierGlider trailingEdge;
+    _bezierGlider curve;
+
+    float cgDrop = -7.0f;       // OBSOLETE  7 meters down
+    float cgChord = 0.3f;       // OBSOLETE  front back CG / caribiners relative to cengter chord
+
+    float caribeanerY = 0.1f;
+    float caribeanerHalfSpread = 0.25f;
+    float linePercentage = 0.8f;        // OBSOLETE
+
+    float strapLenth = 0.6f;
+
+    float AChord = 0.09f;
+    float BChord = 0.3f;
+    float CChord = 0.73f;
+    float FChord = 1.0f;
+
+    float flatHalfSpan = 6.16f;
+    float surfaceArea = 0;
+    float maxChord = 2.97f;
+
+    int numHalfRibs = 25;       // one more than cells
+
+    float aoCenter = 0.f;
+    float aoEdge = 0.f;
+
+    // line lengths
+    float A1 = 4.707f;
+    float A2 = 4.742f;
+    float A3 = 3.932f;
+    float AG01 = 2.438f;
+    float AG02 = 2.405f;
+    float AG03 = 2.332f;
+    float AG04 = 2.302f;
+    float AG05 = 3.041f;
+    float AG06 = 2.927f;
+    float AG07 = 2.801f;
+
+    float B1 = 4.663f;
+    float B2 = 4.71f;
+    float B3 = 3.879f;
+    float BG01 = 2.386f;
+    float BG02 = 2.356f;
+    float BG03 = 2.278f;
+    float BG04 = 2.256f;
+    float BG05 = 3.026f;
+    float BG06 = 2.926f;
+    float BG07 = 2.817f;
+
+    float C1 = 4.861f;
+    float C2 = 4.894f;
+    float C3 = 3.914f;
+    float CG01 = 2.318f;
+    float CG02 = 2.285f;
+    float CG03 = 2.213f;
+    float CG04 = 2.181f;
+    float CG05 = 3.032f;
+    float CG06 = 2.919f;
+    float CG07 = 2.807f;
+
+    float F1 = 2.451f;
+    float F2 = 2.984f;
+    float FM1 = 2.468f;
+    float FM2 = 2.309f;
+    float FM3 = 1.674f;
+    float FM4 = 1.389f;
+    float FG01 = 1.474f;
+    float FG02 = 1.138f;
+    float FG03 = 1.087f;
+    float FG04 = 0.923f;
+    float FG05 = 0.927f;
+    float FG06 = 0.723f;
+    float FG07 = 0.821f;
+    float FG08 = 0.519f;
+    float FF1 = 1.2f;
+    float FF2 = 0.464f;
+
+    float S1 = 4.914f;
+    float SM1 = 0.699f;
+    float SM2 = 0.898f;
+    float SG01 = 0.451f;
+    float SG02 = 0.471f;
+    float SG03 = 0.346f;
+    float SG04 = 0.431f;
+    float SAG1 = 1.418f;
+    float SBG1 = 1.437f;
+    
+    // solved
+    float3 c_Left, c_Right;
+    float3 strapA_Left, strapB_Left, strapC_Left, strapS_Left;
+    float3 strapA_Right, strapB_Right, strapC_Right, strapS_Right;
+
+
+    // build
+    rvB ribbon[1024 * 1024 ];
+    rvPacked packedRibbons[1024 * 1024 ];
+    int ribbonCount = 0;
+    bool changed = false;
+
+
+    // Now for the build data
+    float3 lead[200];
+    float3 trail[200];
+    float3 tangent[200];
+private:
+
+    template<class Archive>
+    void serialize(Archive & _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(leadingEdge));
+        _archive(CEREAL_NVP(trailingEdge));
+        _archive(CEREAL_NVP(curve));
+
+        _archive(CEREAL_NVP(cgDrop));
+        _archive(CEREAL_NVP(cgChord));
+
+        _archive(CEREAL_NVP(caribeanerY));
+        _archive(CEREAL_NVP(caribeanerHalfSpread));
+        _archive(CEREAL_NVP(linePercentage));
+
+        _archive(CEREAL_NVP(AChord));
+        _archive(CEREAL_NVP(BChord));
+        _archive(CEREAL_NVP(CChord));
+        _archive(CEREAL_NVP(FChord));
+
+        _archive(CEREAL_NVP(flatHalfSpan));
+        _archive(CEREAL_NVP(maxChord));
+        _archive(CEREAL_NVP(numHalfRibs));
+
+        _archive(CEREAL_NVP(aoCenter));
+        _archive(CEREAL_NVP(aoEdge));
+    }
+};
+CEREAL_CLASS_VERSION(_glider, 100);
+
+
+
+
+
+
+struct _shadowEdges
+{
+    float height[4096][4096];
+    float Nx[4095][4095];   // temp
+    //float3 norm[4095][4095];
+    unsigned char edge[4096][4096];
+
+    void load();
+};
+
+
+
+
 
 
 
@@ -1037,7 +1216,7 @@ private:
 
     
     _terrainSettings settings;
-    int terrainMode = 0;
+    int terrainMode = 4;
     bool hasChanged = false;
 
     bool requestPopupSettings = false;
@@ -1250,4 +1429,7 @@ private:
     bool showGUI = true;
 
     _shadowEdges shadowEdges;
+
+
+    _glider ParaGlider;
 };

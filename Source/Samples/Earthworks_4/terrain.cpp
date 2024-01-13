@@ -44,6 +44,316 @@ _lastFile terrainManager::lastfile;
 materialCache_plants _plantMaterial::static_materials_veg;
 
 
+
+// PARAGLIDERS
+// ###############################################################################################################################################
+extern glm::vec3 cubic_Casteljau(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3);
+
+void _bezierGlider::solveArcLenght()
+{
+    arcLength = 0;
+    float3 p0 = float3(0, 0, 0);
+    float3 p1;
+    for (float t = 0; t < 1; t += 0.001f)
+    {
+        p1 = cubic_Casteljau(t, P0, P1, P2, P3);
+        arcLength += glm::length(p1 - p0);
+        p0 = p1;
+    }
+}
+
+
+float3 _bezierGlider::pos(float _s)
+{
+    float Length = 0;
+    float3 p0 = float3(0, 0, 0);
+    float3 p1;
+    for (float t = 0; t < 1; t += 0.001f)
+    {
+        p1 = cubic_Casteljau(t, P0, P1, P2, P3);
+        Length += glm::length(p1 - p0);
+        p0 = p1;
+        if ((Length / arcLength) >= _s) return p0;
+    }
+    return float3(0, 0, 0);
+}
+
+void _bezierGlider::renderGui(Gui* mpGui)
+{
+    ImGui::DragFloat3("p0", &P0.x, 0.1f, -20, 20);
+    ImGui::DragFloat3("p1", &P1.x, 0.1f, -20, 20);
+    ImGui::DragFloat3("p2", &P2.x, 0.1f, -20, 20);
+    ImGui::DragFloat3("p3", &P3.x, 0.1f, -20, 20);
+}
+
+
+void cubic_Casteljau_Para(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm::vec3 P3, glm::vec3& pos, glm::vec3& tangent, glm::vec3& bitangent)
+{
+    glm::vec3 pA = lerp(P0, P1, t);
+    glm::vec3 pB = lerp(P1, P2, t);
+    glm::vec3 pC = lerp(P2, P3, t);
+
+    glm::vec3 pD = lerp(pA, pB, t);
+    glm::vec3 pE = lerp(pB, pC, t);
+
+    pos = lerp(pD, pE, t);
+    tangent = glm::normalize(pE - pD);
+    bitangent = glm::cross(bitangent, glm::vec3(1, 0, 0));
+}
+
+void setupVert(rvB *r, int start, float3 pos, float radius)
+{
+    r->type = false;
+    r->startBit = start;
+    r->position = pos;
+    r->radius = radius;
+    r->bitangent = float3(0, 0, 1);
+    r->tangent = float3(0, 1, 0);
+    r->material = 0;
+    r->albedoScale = 127;
+    r->translucencyScale = 127;
+    r->uv = float2(1, 4);
+}
+
+void _glider::build()
+{
+    changed = true;
+
+    // first build the stuff
+    for (int i = 0; i < numHalfRibs; i++)
+    {
+        float t = ((float)i + 0.5f) / ((float)numHalfRibs - 0.5f);
+        glm::vec3 P, T, B, LEAD, TRAIL;
+        cubic_Casteljau_Para(t, curve.P0, curve.P1, curve.P2, curve.P3, P, T, B);
+        LEAD = cubic_Casteljau(t, leadingEdge.P0, leadingEdge.P1, leadingEdge.P2, leadingEdge.P3);
+        TRAIL = cubic_Casteljau(t, trailingEdge.P0, trailingEdge.P1, trailingEdge.P2, trailingEdge.P3);
+
+        P = curve.pos(1 - pow(1-t, 1.2));
+        lead[numHalfRibs + i] = P;
+        lead[numHalfRibs + i].z = LEAD.z;
+        trail[numHalfRibs + i] = P;
+        trail[numHalfRibs + i].z += maxChord - TRAIL.z;
+        tangent[numHalfRibs + i] = T;
+
+        lead[numHalfRibs - i -1] = P;
+        lead[numHalfRibs - i - 1].x *= -1;
+        lead[numHalfRibs - i - 1].z = LEAD.z;
+        trail[numHalfRibs - i - 1] = P;
+        trail[numHalfRibs - i - 1].x *= -1;
+        trail[numHalfRibs - i - 1].z += maxChord - TRAIL.z;
+        tangent[numHalfRibs - i - 1] = T;
+    }
+
+
+
+    ribbonCount = 0;
+
+    curve.solveArcLenght();
+    flatHalfSpan = curve.arcLength;
+
+    surfaceArea = 0;
+    float W = flatHalfSpan / numHalfRibs;
+    for (int i = 0; i <= numHalfRibs; i++)
+    {
+        surfaceArea += W * (glm::length(lead[i] - trail[i]) + glm::length(lead[i+1] - trail[i+1]));
+    }
+
+    for (int i = 0; i < numHalfRibs*2; i++)
+    {
+        ribbon[ribbonCount].type = false;
+        ribbon[ribbonCount].startBit = (i > 0);
+        ribbon[ribbonCount].position = lead[i];
+        ribbon[ribbonCount].radius = 0.02f;
+        ribbon[ribbonCount].bitangent = float3(1, 0, 0);
+        ribbon[ribbonCount].tangent = tangent[i];
+        ribbon[ribbonCount].material = 0;
+        ribbon[ribbonCount].albedoScale = 127;
+        ribbon[ribbonCount].translucencyScale = 127;
+        ribbon[ribbonCount].uv = float2(1, 4);
+        ribbonCount++;
+    }
+
+    for (int i = 0; i < numHalfRibs * 2; i++)
+    {
+        ribbon[ribbonCount].type = false;
+        ribbon[ribbonCount].startBit = (i > 0);
+        ribbon[ribbonCount].position = trail[i];
+        ribbon[ribbonCount].radius = 0.02f;
+        ribbon[ribbonCount].bitangent = float3(1, 0, 0);
+        ribbon[ribbonCount].tangent = tangent[i];
+        ribbon[ribbonCount].material = 0;
+        ribbon[ribbonCount].albedoScale = 127;
+        ribbon[ribbonCount].translucencyScale = 127;
+        ribbon[ribbonCount].uv = float2(1, 4);
+        ribbonCount++;
+    }
+
+    // ribs
+    for (int i = 0; i < numHalfRibs * 2; i++)
+    {
+        ribbon[ribbonCount].type = false;
+        ribbon[ribbonCount].startBit = 0;
+        ribbon[ribbonCount].position = lead[i];
+        ribbon[ribbonCount].radius = 0.01f;
+        ribbon[ribbonCount].bitangent = float3(0, 0, 1);
+        ribbon[ribbonCount].tangent = tangent[i];
+        ribbon[ribbonCount].material = 0;
+        ribbon[ribbonCount].albedoScale = 127;
+        ribbon[ribbonCount].translucencyScale = 127;
+        ribbon[ribbonCount].uv = float2(1, 4);
+        ribbonCount++;
+
+        ribbon[ribbonCount].type = false;
+        ribbon[ribbonCount].startBit = 1;
+        ribbon[ribbonCount].position = trail[i];
+        ribbon[ribbonCount].radius = 0.01f;
+        ribbon[ribbonCount].bitangent = float3(0, 0, 1);
+        ribbon[ribbonCount].tangent = tangent[i];
+        ribbon[ribbonCount].material = 0;
+        ribbon[ribbonCount].albedoScale = 127;
+        ribbon[ribbonCount].translucencyScale = 127;
+        ribbon[ribbonCount].uv = float2(1, 4);
+        ribbonCount++;
+    }
+
+    // triangle
+    {
+        c_Left = float3(-caribeanerHalfSpread, caribeanerY, 0);
+        c_Right = float3(caribeanerHalfSpread, caribeanerY, 0);
+        setupVert(&ribbon[ribbonCount], 0, float3(0, 0, 0), 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, c_Left, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, c_Right, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, float3(0, 0, 0), 0.02f);     ribbonCount++;
+    }
+
+    // straps
+    {
+        strapA_Left = c_Left + float3(-0.1f, strapLenth, 0.05f);
+        strapB_Left = c_Left + float3(-0.1f, strapLenth, 0.0f);
+        strapC_Left = c_Left + float3(-0.1f, strapLenth, -0.05f);
+        strapS_Left = c_Left + float3(-0.2f, strapLenth, 0.0f);
+
+        setupVert(&ribbon[ribbonCount], 0, c_Left, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapA_Left, 0.02f);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, c_Left, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapB_Left, 0.02f);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, c_Left, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapC_Left, 0.02f);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, c_Left, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapS_Left, 0.02f);     ribbonCount++;
+
+        strapA_Right = strapA_Left * float3(-1, 1, 1);
+        strapB_Right = strapB_Left * float3(-1, 1, 1);
+        strapC_Right = strapC_Left * float3(-1, 1, 1);
+        strapS_Right = strapS_Left * float3(-1, 1, 1);
+
+        setupVert(&ribbon[ribbonCount], 0, c_Right, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapA_Right, 0.02f);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, c_Right, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapB_Right, 0.02f);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, c_Right, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapC_Right, 0.02f);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, c_Right, 0.02f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, strapS_Right, 0.02f);     ribbonCount++;
+    }
+
+
+    // straps
+
+    // A lines
+
+    for (int i = 0; i < ribbonCount; i++)
+    {
+        packedRibbons[i] = ribbon[i].pack();
+    }
+}
+
+void _glider::renderGui(Gui* mpGui)
+{
+    ImGui::BeginChildFrame(1000, ImVec2(300, 160));
+    ImGui::Text("leadingEdge");
+    leadingEdge.renderGui(mpGui);
+    ImGui::EndChildFrame();
+
+    ImGui::BeginChildFrame(1001, ImVec2(300, 160));
+    ImGui::Text("trailingEdge");
+    trailingEdge.renderGui(mpGui);
+    ImGui::EndChildFrame();
+
+    ImGui::BeginChildFrame(1002, ImVec2(300, 160));
+    ImGui::Text("curve");
+    curve.renderGui(mpGui);
+    ImGui::EndChildFrame();
+    ImGui::NewLine();
+
+    ImGui::DragFloat("cgDrop", &cgDrop, 0.1f, -20, 0);
+    ImGui::DragFloat("cgChord", &cgChord, 0.01f, 0, 1);
+    ImGui::NewLine();
+
+    ImGui::DragFloat("caribeanerY", &caribeanerY, 0.01f, 0, 1);
+    ImGui::DragFloat("caribeanerHalfSpread", &caribeanerHalfSpread, 0.01f, 0, 1);
+    ImGui::DragFloat("linePercentage", &linePercentage, 0.01f, 0, 1);
+    ImGui::NewLine();
+
+    ImGui::DragFloat("AChord", &AChord, 0.01f, 0, 1);
+    ImGui::DragFloat("BChord", &BChord, 0.01f, 0, 1);
+    ImGui::DragFloat("CChord", &CChord, 0.01f, 0, 1);
+    ImGui::DragFloat("FChord", &FChord, 0.01f, 0, 1);
+    ImGui::NewLine();
+
+    ImGui::Text("flatSpan %f", flatHalfSpan * 2);
+    ImGui::Text("surface %f", surfaceArea);
+    ImGui::DragFloat("maxChord", &maxChord, 0.01f, 1, 5);
+    ImGui::DragInt("numHalfRibs", &numHalfRibs, 1, 10, 40);
+    ImGui::NewLine();
+
+    ImGui::DragFloat("aoCenter", &aoCenter, 0.01f, -0.5, 1);
+    ImGui::DragFloat("aoEdge", &aoEdge, 0.01f, -0.5, 1);
+    ImGui::NewLine();
+
+
+    if (ImGui::Button("Load")) {
+        std::filesystem::path path;// = terrainManager::lastfile.vegMaterial;
+        FileDialogFilterVec filters = { {"paragliderWing"} };
+        if (openFileDialog(filters, path))
+        {
+            std::ifstream is(path.string());
+            cereal::JSONInputArchive archive(is);
+            serialize(archive, 100);
+        }
+    }
+    ImGui::SameLine(0, 40);
+    if (ImGui::Button("Save")) {
+        std::filesystem::path path;// = terrainManager::lastfile.vegMaterial;
+        FileDialogFilterVec filters = { {"paragliderWing"} };
+        if (saveFileDialog(filters, path))
+        {
+            std::ofstream os(path.string());
+            cereal::JSONOutputArchive archive(os);
+            serialize(archive, 100);
+        }
+    }
+
+    if (ImGui::Button("BUILD")) {
+        build();
+    }
+
+    ImGui::Text("ribbonCount %d", ribbonCount);
+}
+
+
+
+
+
+
+
+
 #include <iostream>
 #include <fstream>
 void _shadowEdges::load()
@@ -2660,6 +2970,7 @@ void _GroveTree::testBranchLeaves()
     branchMode = true;
     branches.emplace_back();
     currentBranch = &branches.back();
+    currentBranch->nodes.clear();
     oldNumVerts = 1000;
 }
 
@@ -2684,6 +2995,7 @@ void _GroveTree::load()
             readHeader();
             branches.emplace_back();
             currentBranch = &branches.back();
+            currentBranch->nodes.clear();
             read2();
             oldNumVerts = 1000; // just bog to alwasy keep first node
             while (!enfOfFile)
@@ -2805,6 +3117,23 @@ void _GroveTree::rebuildVisibility()
                 branch.isVisible = anyVisible;
             }
             */
+        }
+
+
+        // Front of tree
+        {
+            bool anyVisible = false;
+
+            for (auto& node : branch.nodes) // look for that crossover 45 degrees 2 meters away
+            {
+                if ((node.pos.z < -2.0f) && (abs(node.pos.x) / abs(node.pos.z) < 1))
+                //if ((node.pos.z < -3.0f))
+                {
+                    anyVisible = true;
+                }
+                node.isNodeVisible = anyVisible;
+            }
+            branch.isVisible = anyVisible;
         }
 
     }
@@ -2936,12 +3265,13 @@ void _GroveTree::rebuildRibbons()
         if (branch.isVisible && branch.nodes.size() > 1)        // FIXME remocve branches with too few nodes at insert time
         {
             float v = 0.0f;
-            auto& prev = branch.nodes.front();
+            float3 prevPos = branch.nodes.front().pos;
+
 
             bool notFirst = false;
             for (auto& node : branch.nodes)
             {
-                v += length(node.pos - prev.pos) * 2.5f;
+                v += length(node.pos - prevPos) * 2.5f;
 
                 if (node.isNodeVisible)
                 {
@@ -2974,7 +3304,7 @@ void _GroveTree::rebuildRibbons()
                         }
                     }
                 }
-                prev = node;
+                prevPos = node.pos;
             }
         }
     }
@@ -4107,7 +4437,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::PushFont(_gui->getFont("roboto_20"));
 
         ImGui::PushItemWidth(ImGui::GetWindowWidth() - 20);
-        if (ImGui::Combo("###modeSelector", &terrainMode, "Vegetation\0Ecotope\0Terrafector\0Bezier road network\0")) { ; }
+        if (ImGui::Combo("###modeSelector", &terrainMode, "Vegetation\0Ecotope\0Terrafector\0Bezier road network\0Glider Builder\0")) { ; }
         ImGui::PopItemWidth();
         ImGui::NewLine();
 
@@ -4117,6 +4447,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         switch (terrainMode)
         {
         case 0:
+        {
             ImGui::Text("test");
             ImGui::DragInt("# instances", &ribbonInstanceNumber, 1, 1, 1000);
             ImGui::DragFloat("spacing", &ribbonSpacing, 0.01f, 0.1f, 10);
@@ -4124,8 +4455,11 @@ void terrainManager::onGuiRender(Gui* _gui)
 
             ImGui::Text("%d inst x %d x 2 = %3.1f M tris", ribbonInstanceNumber * ribbonInstanceNumber, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber * groveTree.numBranchRibbons * 2.0f / 1000000.0f);
             groveTree.renderGui(_gui);
-            break;
+        }
+        break;
+
         case 1:
+        {
             mEcosystem.renderGUI(_gui);
             if (ImGui::BeginPopupContextWindow(false))
             {
@@ -4133,14 +4467,21 @@ void terrainManager::onGuiRender(Gui* _gui)
                 if (ImGui::Selectable("Load")) { mEcosystem.load(); }
                 if (ImGui::Selectable("Save")) { mEcosystem.save(); }
                 ImGui::EndPopup();
+
             }
-            break;
+        }
+        break;
+
         case 2:
+        {
             //terrafectors.renderGui(_gui);
             ImGui::NewLine();
             //roadMaterialCache::getInstance().renderGui(_gui);
-            break;
+        }
+        break;
+
         case 3:
+        {
             style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
             mRoadNetwork.renderGUI(_gui);
 
@@ -4298,6 +4639,12 @@ void terrainManager::onGuiRender(Gui* _gui)
                 ImGui::DragFloat("kevSampleMinSpacing", &mRoadNetwork.pathBezier.kevSampleMinSpacing, 1, 1, 20);
 
             }
+        }
+        break;
+
+        case 4:
+            ImGui::Text("Wing designer");
+            ParaGlider.renderGui(_gui);
             break;
 
         }
@@ -4994,7 +5341,7 @@ bool terrainManager::update(RenderContext* _renderContext)
 {
     bake.renderContext = _renderContext;
 
-    if (terrainMode == 0)
+    if ((terrainMode == 0) || (terrainMode == 4))
     {
         return false;
     }
@@ -5818,7 +6165,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
           */
     }
 
-    if (terrainMode == 0)
+    if ((terrainMode == 0) || (terrainMode == 4))
     {
 
         {
@@ -5875,6 +6222,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.State()->setBlendState(split.blendstateSplines);
         }
 
+        
+
 
 
         if (groveTree.numBranchRibbons > 1)
@@ -5911,6 +6260,60 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber);
         }
+
+
+        // PARAGLIDER BUILDER
+        // ########################################################################################################################
+        
+        if ((terrainMode == 4) && ParaGlider.changed)
+        {
+            ParaGlider.changed = false;
+            ribbonInstanceNumber = 1;
+            ribbonData->setBlob(ParaGlider.packedRibbons, 0, ParaGlider.ribbonCount * sizeof(unsigned int) * 6);
+
+            ribbonShader.State()->setFbo(_fbo);
+            ribbonShader.State()->setViewport(0, _viewport, true);
+
+            ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+
+            ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
+            ribbonShader.State()->setBlendState(split.blendstateSplines);
+        }
+
+        if ((terrainMode == 4) && ParaGlider.ribbonCount > 1)
+        {
+            ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+            ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
+
+            static float spacing = 1.0f;
+
+            ribbonShader.Vars()["gConstantBuffer"]["offset"] = float3(0, 0, 0);
+            ribbonShader.Vars()["gConstantBuffer"]["repeatScale"] = spacing;
+            ribbonShader.Vars()["gConstantBuffer"]["numSide"] = 1;
+
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+
+            // lighting
+            ribbonShader.Vars()["gConstantBuffer"]["Ao_depthScale"] = static_Ao_depthScale;
+            ribbonShader.Vars()["gConstantBuffer"]["sunTilt"] = static_sunTilt;
+            ribbonShader.Vars()["gConstantBuffer"]["bDepth"] = static_bDepth;
+            ribbonShader.Vars()["gConstantBuffer"]["bScale"] = static_bScale;
+
+            static float time = 0.0f;
+            time += 0.01f;  // FIXME I NEED A Timer
+            ribbonShader.Vars()["gConstantBuffer"]["time"] = time;
+
+            ribbonShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
+
+
+            ribbonShader.drawInstanced(_renderContext, ParaGlider.ribbonCount, 1);
+        }
+        
 
         return;
     }
@@ -7247,7 +7650,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
 bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera)
 {
-    if (terrainMode == 0)
+    if ((terrainMode == 0) || (terrainMode == 4))
     {
         glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
         glm::vec2 diff;
