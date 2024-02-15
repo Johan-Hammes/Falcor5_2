@@ -324,7 +324,7 @@ public:
     void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
     void renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole);
     void renderLiveMenubar(Gui* _gui);
-    void load();
+    void load(std::filesystem::path _root);
     void save();
     void mouseShot(float x, float y, _setup setup);
     bool liveNext();

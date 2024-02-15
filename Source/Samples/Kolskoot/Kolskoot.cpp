@@ -723,9 +723,9 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 
 
 
-void quickRange::load()
+void quickRange::load(std::filesystem::path _root)
 {
-    std::filesystem::path path;
+    std::filesystem::path path = _root;
     FileDialogFilterVec filters = { {"exercises.json"} };
     if (openFileDialog(filters, path))
     {
@@ -768,7 +768,7 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
                 ImGui::SameLine(900, 0);
                 if (ImGui::Button("load")) {
-                    load();
+                    load(Kolskoot::setupInfo.dataFolder + "/exercises/");
                 }
 
 
