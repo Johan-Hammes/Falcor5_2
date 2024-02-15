@@ -52,8 +52,8 @@ using namespace Falcor;
 
 
 
-enum _pose {pose_stand, pose_kneel, pose_sit, pose_prone};
-enum _action {action_static, action_popup, action_move, action_adjust};    // net staic vir eers
+enum _pose { pose_stand, pose_kneel, pose_sit, pose_prone };
+enum _action { action_static, action_popup, action_move, action_adjust };    // net staic vir eers
 
 
 class _setup
@@ -78,7 +78,7 @@ public:
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
-        
+
         _archive(CEREAL_NVP(screenWidth));
         _archive(CEREAL_NVP(screen_pixelsX));
         _archive(CEREAL_NVP(pixelsPerMeter));
@@ -89,7 +89,7 @@ public:
 
         _archive(CEREAL_NVP(zigbeePacketVersion));
         _archive(CEREAL_NVP(zigbeeCOM));
-        
+
     }
 };
 CEREAL_CLASS_VERSION(_setup, 100);
@@ -114,7 +114,7 @@ public:
     bool hasChanged = false;
 
 private:
-    
+
     std::array<std::array<float2, 15>, 3> screen_offsets;       // 15 lanes shpuld be enough for the future, question is ammo, and how this breaks serialize
 
 
@@ -153,12 +153,12 @@ public:
     std::array<std::array<bool, 15>, 3> air;       // 15 lanes shpuld be enough for the future, question is ammo, and how this breaks serialize
 
 private:
-    
+
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
-                _archive(air);
+        _archive(air);
     }
 };
 CEREAL_CLASS_VERSION(laneAirEnable, 100);
@@ -186,10 +186,10 @@ public:
     int maxScore;       // to auto calcl exercise score from rounds
     int scoreWidth = 0;
     int scoreHeight = 0;
-    char *scoreData;
+    char* scoreData;
 
     std::string fullPath;
-    
+
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -224,6 +224,7 @@ public:
     float       downTime = 2.f;
     int         repeats = 1;
     float       speed = 1.0f;       // move speed
+    bool        playWhistle = false;
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -235,9 +236,13 @@ public:
         _archive(CEREAL_NVP(downTime));
         _archive(CEREAL_NVP(repeats));
         _archive(CEREAL_NVP(speed));
+        if (_version > 100)
+        {
+            _archive(CEREAL_NVP(playWhistle));
+        }
     }
 };
-CEREAL_CLASS_VERSION(targetAction, 100);
+CEREAL_CLASS_VERSION(targetAction, 101);
 
 
 
@@ -349,7 +354,11 @@ public:
 
     _scoring score;
     float bulletDrop = 0;
-    
+
+    float       actionCounter = 0.f;
+    int         actionRepeats = 0;
+    int         actionPhase = 0;
+
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -357,7 +366,7 @@ public:
         _archive(CEREAL_NVP(title));
         _archive(CEREAL_NVP(description));
         _archive(CEREAL_NVP(maxScore));
-        _archive(CEREAL_NVP(exercises));        
+        _archive(CEREAL_NVP(exercises));
     }
 };
 CEREAL_CLASS_VERSION(quickRange, 100);
@@ -410,7 +419,7 @@ public:
     void build(std::array<glm::vec4, 45>  dots, float2 screenSize);
 
 
-    
+
 
     _block grid[4][8];
 
@@ -465,14 +474,14 @@ private:
     //std::string mModelString;
 
     //PointGrey
-    PointGrey_Camera*   pointGreyCamera;
+    PointGrey_Camera* pointGreyCamera;
     int calibrationCounter;
     float pgGain = 0;
     float pgGamma = 0;
     Texture::SharedPtr	        pointGreyBuffer = nullptr;
     Texture::SharedPtr	        pointGreyDiffBuffer = nullptr;
     int dot_min = 5;
-    int dot_max = 40; 
+    int dot_max = 40;
     int threshold = 20;
     int m_PG_dot_position = 1;
     std::array<glm::vec4, 45> calibrationDots;
@@ -490,17 +499,17 @@ private:
 
     _guimode guiMode = gui_menu;
     int modeCalibrate = 0;
-    
+
     // quick range
     quickRange  QR;
     target      targetBuilder;
 
     Texture::SharedPtr	        bulletHole = nullptr;
 
-    
+
     unsigned char zigbeeID_h;
     unsigned char zigbeeID_l;
-    
+
     void  zigbeePaperMove();
     void  zigbeePaperStop();
     void  zigbeeRounds(unsigned int lane, int R, bool bStop = false);

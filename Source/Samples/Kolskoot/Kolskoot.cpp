@@ -567,6 +567,9 @@ void targetAction::renderGui(Gui* _gui)
     ImGui::Checkbox("drop", &dropWhenHit);
     TOOLTIP("Does the target drop down when hit");
 
+    ImGui::Checkbox("whistle", &playWhistle);
+    TOOLTIP("Play a whistle sound at the start of each round");
+
     ImGui::NewLine();
     ImGui::SetNextItemWidth(110);
     ImGui::DragInt("repeats", &repeats, 1, 1, 15);
@@ -990,6 +993,9 @@ bool quickRange::liveNext()
     case live_intro:
         currentStage = live_live;
         bulletDrop = Kolskoot::ballistics.bulletDrop(exercises[currentExercise].targetDistance);
+        actionRepeats = -1;
+        actionCounter =  exercises[currentExercise].action.startTime;
+        actionPhase = 1;
         break;
     case live_live:
         currentStage = live_scores;
@@ -1686,7 +1692,8 @@ void Kolskoot::onShutdown()
 
 void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    //gpDevice->toggleVSync(true);
+    gpDevice->toggleVSync(true);
+
 
     {
         FALCOR_PROFILE("pointGreyBuffer");
@@ -1719,6 +1726,46 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     // live fire shooting
     if (guiMode == gui_live && QR.currentStage == live_live)
     {
+
+        // _Play through this exercise
+        // most l;ikely move this code into QR if I can
+        // ######################################################################################
+        QR.actionCounter -= gpFramework->getFrameRate().getAverageFrameTime() * 0.001f;
+        if (QR.actionCounter < 0)
+        {
+            QR.actionPhase++;
+            QR.actionPhase %= 2;
+            if(QR.actionPhase == 0)
+            {
+                QR.actionPhase = 0;
+                QR.actionRepeats++;
+                if (QR.actionRepeats < QR.exercises[QR.currentExercise].action.repeats)
+                {
+                    QR.actionCounter = QR.exercises[QR.currentExercise].action.upTime;
+                    // show target
+
+                    if (QR.exercises[QR.currentExercise].action.playWhistle)
+                    {
+                        PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/wistle.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+                    }
+                }
+                else
+                {
+                    // we are done
+                    QR.liveNext();
+                }
+            }
+
+            if (QR.actionPhase == 1)
+            {
+                QR.actionCounter = QR.exercises[QR.currentExercise].action.downTime;
+                // hide target
+            }
+
+        }
+
+
+
         airOffAfterLive = true;
 
         if (ImGui::IsMouseClicked(0))       // insert a mouse shot
