@@ -44,6 +44,7 @@ _setup Kolskoot::setupInfo;
 ballisticsSetup Kolskoot::ballistics;
 laneAirEnable Kolskoot::airToggle;
 CCommunication Kolskoot::ZIGBEE;		// vir AIR beheer
+quickRange  Kolskoot::QR;
 float2 mouseScreen;
 static bool targetPopupOpen = false;
 bool requestLive = false;
@@ -100,7 +101,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
         if (ImGui::Selectable("menu")) { requestClose = true; }
 
 
-        
+
         ImGui::SetCursorPos(cursor);
 
         ImGui::SetNextItemWidth(200);
@@ -120,9 +121,9 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
         ImGui::SetNextItemWidth(200);
         ImGui::InputInt("zigbeeCom", &zigbeeCOM, 1);
-        
-        
-        
+
+
+
 
         ImGui::SetCursorPos(ImVec2(600, cursor.y));
         ImGui::SetNextItemWidth(200);
@@ -143,7 +144,7 @@ void _setup::renderGui(Gui* _gui, float _screenX)
 
 
 
-        
+
 
 
 
@@ -401,7 +402,7 @@ void target::loadscoreimageDialog()
 
 void target::load(std::filesystem::path _path)
 {
-    
+
     std::ifstream is(_path);
     if (is.good()) {
         cereal::XMLInputArchive archive(is);
@@ -725,6 +726,17 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 
 
 
+void quickRange::loadPath(std::filesystem::path _root)
+{
+    std::ifstream is(_root);
+    if (is.good()) {
+        cereal::XMLInputArchive archive(is);
+        serialize(archive, 100);
+        title = _root.filename().string().substr(0, _root.filename().string().length() - 15);
+    }
+}
+
+
 
 void quickRange::load(std::filesystem::path _root)
 {
@@ -756,6 +768,13 @@ void quickRange::save()
     }
 }
 
+void quickRange::play()
+{
+    requestLive = true;
+    currentExercise = 0;
+    currentStage = live_intro;
+    score.create(Kolskoot::setupInfo.numLanes, exercises.size());      // FIXME needs numlanes
+}
 
 void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 {
@@ -792,10 +811,7 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 {
                     ImGui::SameLine(_screenSize.x - 150, 0);
                     if (ImGui::Button("Test")) {
-                        requestLive = true;
-                        currentExercise = 0;
-                        currentStage = live_intro;
-                        score.create(Kolskoot::setupInfo.numLanes, exercises.size());      // FIXME needs numlanes
+                        play();
                     }
                 }
             }
@@ -939,7 +955,7 @@ void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window,
                     ImGui::Text("scores page");
                     break;
                 }
-                
+
             }
         }
         ImGui::PopFont();
@@ -994,7 +1010,7 @@ bool quickRange::liveNext()
         currentStage = live_live;
         bulletDrop = Kolskoot::ballistics.bulletDrop(exercises[currentExercise].targetDistance);
         actionRepeats = -1;
-        actionCounter =  exercises[currentExercise].action.startTime;
+        actionCounter = exercises[currentExercise].action.startTime;
         actionPhase = 1;
         break;
     case live_live:
@@ -1041,6 +1057,77 @@ void _scoring::create(size_t _numlanes, size_t _numEx)
 
 
 
+std::string menu::clean(const std::string _s)
+{
+    std::string str = _s;
+    size_t start_pos = 0;
+    while ((start_pos = str.find("\\", start_pos)) != std::string::npos) {
+        str.replace(start_pos, 1, "/");
+        start_pos += 1;
+    }
+    return str;
+}
+
+void menu::load()
+{
+    items.clear();
+
+    std::filesystem::path fullPath = Kolskoot::setupInfo.dataFolder + "/exercises/";
+    int  baseLength = fullPath.string().length();
+
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(fullPath))
+    {
+        if (!entry.is_directory())
+        {
+            items.emplace_back();
+            items.back().fullPath = clean(entry.path().string());
+
+            items.back().path = items.back().fullPath.substr(0, items.back().fullPath.find_last_of("\\/")); // remove filename
+            if (items.back().path.length() > baseLength)
+            {
+                items.back().path = items.back().path.substr(baseLength);   // remove frnt
+            }
+            else
+            {
+                items.back().path = "";
+            }
+
+            items.back().name = items.back().fullPath.substr(items.back().fullPath.find_last_of("\\/") + 1);
+            items.back().name = items.back().name.substr(0, items.back().name.length() - 15);
+        }
+    }
+}
+
+
+void menu::renderGui(Gui* _gui, Gui::Window& _window)
+{
+    std::string oldPath = "";
+
+    ImGui::PushFont(_gui->getFont("roboto_48"));
+    {
+        ImGui::BeginColumns("test", 5);
+
+        for (auto& I : items)
+        {
+            if (I.path != oldPath)
+            {
+                oldPath = I.path;
+                ImGui::NewLine();
+                ImGui::Text(I.path.c_str());
+            }
+
+            ImGui::NewLine();
+            ImGui::SameLine(0, 30);
+            ImVec2 size = ImVec2(300, 0);
+            if (ImGui::Selectable(I.name.c_str()))
+            {
+                Kolskoot::QR.loadPath(I.fullPath);
+                Kolskoot::QR.play();
+            }
+        }
+    }
+    ImGui::PopFont();
+}
 
 
 
@@ -1163,7 +1250,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 
                 //int x = ImGui::GetCursorPosX();
                 ImGui::SetNextItemWidth(150);
-                if(ImGui::BeginMenu("Settings"))
+                if (ImGui::BeginMenu("Settings"))
                 {
                     if (ImGui::MenuItem("Camera"))
                     {
@@ -1179,9 +1266,9 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                     }
                     ImGui::EndMenu();
                 }
-                
 
-       
+
+
                 ImGui::SameLine(0, 80);
                 ImGui::Selectable("Exercise builder", &selected, 0, ImVec2(200, 0));
                 if (selected) {
@@ -1204,7 +1291,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                         ballistics.save();
                     }
                 }
-                
+
             }
 
             ImGui::SetCursorPos(ImVec2(screenSize.x - 180, 0));
@@ -1262,7 +1349,22 @@ void Kolskoot::onGuiRender(Gui* _gui)
         switch (guiMode)
         {
         case gui_menu:
-            break;
+        {
+            Gui::Window menuPanel(_gui, "Menu", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
+            {
+                menuPanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
+                menuPanel.windowPos(0, 40);
+                guiMenu.renderGui(_gui, menuPanel);
+            }
+            menuPanel.release();
+
+            if (requestLive)
+            {
+                requestLive = false;
+                guiMode = gui_live;
+            }
+        }
+        break;
 
         case gui_camera:
             menuButton();
@@ -1282,6 +1384,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 }
             }
             screenPanel.release();
+
             menuButton();
         }
         break;
@@ -1669,6 +1772,9 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
 
     graphicsState = GraphicsState::create();
 
+    // menu
+    guiMenu.load(); // remember to reload after we save stuff
+
     guiStyle();
 }
 
@@ -1694,12 +1800,13 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 {
     gpDevice->toggleVSync(true);
 
+    Sleep(10);
 
     {
         FALCOR_PROFILE("pointGreyBuffer");
         if (guiMode == gui_camera || guiMode == gui_menu)
         {
-            
+
             if (pointGreyBuffer)
             {
                 pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
@@ -1720,7 +1827,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
 
 
-    
+
     static bool airOffAfterLive = true;
 
     // live fire shooting
@@ -1735,7 +1842,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         {
             QR.actionPhase++;
             QR.actionPhase %= 2;
-            if(QR.actionPhase == 0)
+            if (QR.actionPhase == 0)
             {
                 QR.actionPhase = 0;
                 QR.actionRepeats++;
@@ -1778,7 +1885,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
                 {
                     QR.mouseShot(mouse.x, mouse.y, setupInfo);
                     zigbeeFire(lane);                   // R4 / AK
-                    
+
                     PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
                 }
             }
@@ -1823,7 +1930,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
 
     //Sleep(10);
-    
+
 }
 
 

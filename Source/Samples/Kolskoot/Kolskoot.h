@@ -322,6 +322,25 @@ public:
     std::vector<std::vector<_scoringExercise>> lane_exercise;
 };
 
+
+struct menuItem
+{
+    std::string     fullPath;
+    std::string     path;
+    std::string     name;
+};
+
+class menu
+{
+    std::vector<menuItem> items;
+    std::string clean(const std::string _s);
+
+public:
+    void load();
+    void renderGui(Gui* _gui, Gui::Window& _window);
+
+};
+
 enum _liveStage { live_intro, live_live, live_scores };
 class quickRange        // rename
 {
@@ -330,7 +349,9 @@ public:
     void renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole);
     void renderLiveMenubar(Gui* _gui);
     void load(std::filesystem::path _root);
+    void loadPath(std::filesystem::path _root);
     void save();
+    void play();
     void mouseShot(float x, float y, _setup setup);
     bool liveNext();
     int getRoundsLeft(int _lane);
@@ -448,6 +469,7 @@ public:
     void menuButton();
     void nextButton();
     void guiStyle();
+    void playQR(std::string file);
 
 private:
     bool mUseTriLinearFiltering = true;
@@ -497,11 +519,13 @@ private:
 
     videoToScreen   screenMap;
 
+    menu        guiMenu;
+
     _guimode guiMode = gui_menu;
     int modeCalibrate = 0;
 
     // quick range
-    quickRange  QR;
+    
     target      targetBuilder;
 
     Texture::SharedPtr	        bulletHole = nullptr;
@@ -521,4 +545,5 @@ public:
     static ballisticsSetup ballistics;
     static laneAirEnable airToggle;
     static CCommunication ZIGBEE;		// vir AIR beheer
+    static quickRange  QR;
 };
