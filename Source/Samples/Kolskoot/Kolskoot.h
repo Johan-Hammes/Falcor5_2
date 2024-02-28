@@ -59,8 +59,19 @@ enum _action { action_static, action_popup, action_move, action_adjust };    // 
 class _setup
 {
 public:
+    float2 laneCenter(int _lane, int _pose)
+    {
+        float2 ret;
+        ret.x = (screen_pixelsX / numLanes / 2) + (screen_pixelsX / numLanes * _lane);
+        ret.y = eyeHeights[_pose] - 40;
+        return ret;
+    }
+    float meterToPixels(float _dst) {
+        return screen_pixelsX / screenWidth * shootingDistance / _dst;
+    }
     float screenWidth = 3.0f;
     float screen_pixelsX = 1000;
+    float screen_pixelsY = 1000;
     float pixelsPerMeter = 800.f;
     float shootingDistance = 10.f;  // fixme move to somethign that loads or saves
     float eyeHeights[4] = { 500, 800, 900, 1200 };
@@ -164,7 +175,7 @@ private:
 CEREAL_CLASS_VERSION(laneAirEnable, 100);
 
 
-class target
+class _target
 {
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
@@ -178,6 +189,7 @@ public:
     std::string description;
 
     int2 size_mm = int2(500, 500);
+    float2 size;
     Texture::SharedPtr	        image = nullptr;
     Texture::SharedPtr	        score = nullptr;
     std::string texturePath;
@@ -205,11 +217,13 @@ public:
         _archive(CEREAL_NVP(scoreWidth));
         _archive(CEREAL_NVP(scoreHeight));
 
+        size.x = (float)size_mm.x * 0.001f;
+        size.y = (float)size_mm.y * 0.001f;
         loadimage(Kolskoot::setupInfo.dataFolder + "/targets/");
         loadscoreimage(Kolskoot::setupInfo.dataFolder + "/targets/");
     }
 };
-CEREAL_CLASS_VERSION(target, 100);
+CEREAL_CLASS_VERSION(_target, 100);
 
 
 class targetAction
@@ -245,8 +259,49 @@ public:
 CEREAL_CLASS_VERSION(targetAction, 101);
 
 
+/*  This adds offset information to space them around
+* 
+*/
+class _displayTarget  
+{
+    public:
+    float3 offset = float3(0, 0, 0);        // offset in meters
+    _target t;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        archive(CEREAL_NVP(t.title));
+        archive_float3(offset);
+
+        for (auto& T : Kolskoot::targetList)
+        {
+            if (T.title == t.title)
+            {
+                t = T;
+            }
+        }
+    }
+};
+CEREAL_CLASS_VERSION(_displayTarget, 100);
 
 
+class _targetList
+{
+public:
+    void load();
+    void save(char * filename);
+    std::string filename;
+    std::vector<_displayTarget> targets;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(filename));
+        _archive(CEREAL_NVP(targets));
+    }
+};
+CEREAL_CLASS_VERSION(_targetList, 100);
 
 
 class exercise
@@ -263,8 +318,10 @@ public:
 
     int numRounds = 2;
     _pose           pose;
-    target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
+    _target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
     targetAction    action;
+
+    _targetList     targets;
 
 
     template<class Archive>
@@ -284,16 +341,29 @@ public:
             _archive(CEREAL_NVP(action));
         }
 
+        if (_version > 101)
+        {
+            _archive(CEREAL_NVP(targets.filename));
+            targets.load();
+        }
+
         for (auto& T : Kolskoot::targetList)
         {
             if (T.title == target.title)
             {
                 target = T;
+
+                // temporary fill into target List see if we can build them all
+                targets.filename = T.title;
+                targets.targets.emplace_back();
+                targets.targets.back().offset = float3(0, 0, 0);
+                targets.targets.back().t = target;
+                targets.save("F:/test.targetlist.xml");
             }
         }
     }
 };
-CEREAL_CLASS_VERSION(exercise, 101);
+CEREAL_CLASS_VERSION(exercise, 102);
 
 
 class _shots
@@ -308,7 +378,7 @@ public:
 class _scoringExercise
 {
 public:
-    target              target;
+    _target              target;
     std::vector<_shots> shots;
     int                 score = 0;
 };
@@ -346,7 +416,9 @@ class quickRange        // rename
 {
 public:
     void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
-    void renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole);
+    void renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane);
+    void renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole);
+    void adjustBoresight(int _lane);
     void renderLiveMenubar(Gui* _gui);
     void load(std::filesystem::path _root);
     void loadPath(std::filesystem::path _root);
@@ -355,6 +427,7 @@ public:
     void mouseShot(float x, float y, _setup setup);
     bool liveNext();
     int getRoundsLeft(int _lane);
+    void updateLive(float _dT);
 
     void clear() {
         exercises.clear();
@@ -471,6 +544,8 @@ public:
     void guiStyle();
     void playQR(std::string file);
 
+    
+
 private:
     bool mUseTriLinearFiltering = true;
     Sampler::SharedPtr mpPointSampler = nullptr;
@@ -526,9 +601,9 @@ private:
 
     // quick range
     
-    target      targetBuilder;
+    _target      targetBuilder;
 
-    Texture::SharedPtr	        bulletHole = nullptr;
+    
 
 
     unsigned char zigbeeID_h;
@@ -538,12 +613,24 @@ private:
     void  zigbeePaperStop();
     void  zigbeeRounds(unsigned int lane, int R, bool bStop = false);
     void  zigbeeFire(unsigned int lane);
+    void zigbeeClear();
+
+    // live playback
+    void updateLive();
+    void mouseShot();
+    void pointGreyShot();
+    bool airOffAfterLive = true;
 
 public:
-    static std::vector<target> targetList;
+    static std::vector<_target> targetList;
     static _setup setupInfo;
     static ballisticsSetup ballistics;
     static laneAirEnable airToggle;
     static CCommunication ZIGBEE;		// vir AIR beheer
     static quickRange  QR;
+
+    static Texture::SharedPtr	        bulletHole;
+    static Texture::SharedPtr	        ammoType[3];
+
+    // should maybe reqwrite as singleton class
 };

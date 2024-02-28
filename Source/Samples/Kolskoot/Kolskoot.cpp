@@ -39,7 +39,9 @@
 #pragma optimize("", off)
 
 
-std::vector<target> Kolskoot::targetList;
+Kolskoot::UniquePtr pKolskoot;
+
+std::vector<_target> Kolskoot::targetList;
 _setup Kolskoot::setupInfo;
 ballisticsSetup Kolskoot::ballistics;
 laneAirEnable Kolskoot::airToggle;
@@ -48,6 +50,11 @@ quickRange  Kolskoot::QR;
 float2 mouseScreen;
 static bool targetPopupOpen = false;
 bool requestLive = false;
+
+Texture::SharedPtr	        Kolskoot::bulletHole = nullptr;
+Texture::SharedPtr	        Kolskoot::ammoType[3] = { nullptr, nullptr, nullptr };
+
+
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -330,12 +337,12 @@ void laneAirEnable::save()
 
 
 
-void target::loadimage(std::string _root)
+void _target::loadimage(std::string _root)
 {
     image = Texture::createFromFile(_root + texturePath, true, true);
 }
 
-void target::loadimageDialog()
+void _target::loadimageDialog()
 {
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"dds"}, {"bmp"} };
@@ -347,7 +354,7 @@ void target::loadimageDialog()
 }
 
 
-void target::loadscoreimage(std::string _root)
+void _target::loadscoreimage(std::string _root)
 {
     score = Texture::createFromFile(_root + scorePath, true, true);
 
@@ -389,7 +396,7 @@ void target::loadscoreimage(std::string _root)
     }
 }
 
-void target::loadscoreimageDialog()
+void _target::loadscoreimageDialog()
 {
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"png"}, {"jpg"}, {"dds"}, {"bmp"} };
@@ -400,9 +407,8 @@ void target::loadscoreimageDialog()
     }
 }
 
-void target::load(std::filesystem::path _path)
+void _target::load(std::filesystem::path _path)
 {
-
     std::ifstream is(_path);
     if (is.good()) {
         cereal::XMLInputArchive archive(is);
@@ -413,7 +419,7 @@ void target::load(std::filesystem::path _path)
     }
 }
 
-void target::save(std::filesystem::path _path)
+void _target::save(std::filesystem::path _path)
 {
     std::ofstream os(_path);
     if (os.good()) {
@@ -423,7 +429,7 @@ void target::save(std::filesystem::path _path)
 }
 
 
-void target::renderGui(Gui* _gui, Gui::Window& _window)
+void _target::renderGui(Gui* _gui, Gui::Window& _window)
 {
     //bool open = true;
 
@@ -601,11 +607,32 @@ void targetAction::renderGui(Gui* _gui)
 
 
 
+void _targetList::load()
+{
+    std::ifstream is(filename);
+    if (is.good()) {
+        cereal::XMLInputArchive archive(is);
+        serialize(archive, 100);
+    }
+}
+
+void _targetList::save(char* filename)
+{
+    std::ofstream os(filename);
+    if (os.good()) {
+        cereal::XMLOutputArchive archive(os);
+        serialize(archive, 100);
+    }
+}
+
+
+
 
 
 
 bool exercise::renderTargetPopup(Gui* _gui)
 {
+    /*
     for (auto& T : Kolskoot::targetList)
     {
         if (ImGui::Button(T.title.c_str(), ImVec2(200, 0)))     // Just width acurate and large heigth t
@@ -616,7 +643,8 @@ bool exercise::renderTargetPopup(Gui* _gui)
         }
     }
 
-
+    */
+    
     return false;
 }
 
@@ -649,9 +677,9 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 
     ImGui::NewLine();
     ImGui::SameLine(20);
-    if (target.image)
+    if (targets.targets.size() > 0 && targets.targets[0].t.image)
     {
-        if (_window.imageButton("scoreImage", target.image, float2(150, 100)))     // Just width acurate and large heigth t
+        if (_window.imageButton("scoreImage", targets.targets[0].t.image, float2(150, 100)))     // Just width acurate and large heigth t
         {
             ImGui::OpenPopup("Targets");
         }
@@ -805,6 +833,13 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 if (ImGui::DragInt("# exercises", &numX, 0.04f, 0, 10))
                 {
                     exercises.resize(numX);
+                    /*for (auto& E : exercises)
+                    {
+                        if (E.target.maxScore == 0)
+                        {
+                            E.target = Kolskoot::targetList[0];
+                        }
+                    }*/
                 }
 
                 if (exercises.size() > 0)
@@ -851,131 +886,152 @@ void quickRange::renderLiveMenubar(Gui* _gui)
     ImGui::Text("%s                    exercise %d  -  %s", title.c_str(), currentExercise + 1, exercises[currentExercise].title.c_str());
 }
 
-void quickRange::renderLive(Gui* _gui, float2 _screenSize, Gui::Window& _window, _setup setup, Texture::SharedPtr _bulletHole)
+
+
+void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane)
 {
+    auto& Ex = exercises[currentExercise];
+    auto& target = Ex.target;
+
+    float2 pixSize = target.size * Kolskoot::setupInfo.meterToPixels(Ex.targetDistance);
+    float2 topleft = Kolskoot::setupInfo.laneCenter(_lane, Ex.pose) - (pixSize * 0.5f);
+    ImGui::SetCursorPos(ImVec2(topleft.x, topleft.y));
+    _window.image("testImage", target.image, pixSize, false);
+
+    for (int s = 0; s < score.lane_exercise.at(_lane).at(currentExercise).shots.size(); s++)
     {
-        ImGuiStyle& style = ImGui::GetStyle();
-        ImGuiStyle styleOld = style;
-        ImGui::PushFont(_gui->getFont("roboto_64"));
-        {
-            if (currentExercise < exercises.size())
-            {
-                switch (currentStage)
-                {
-                case live_intro:
-                    exercises[currentExercise].renderGui(_gui, _window);
-                    break;
-                case live_live:
-                    ImGui::BeginColumns("lanes", setup.numLanes);
-                    for (int lane = 0; lane < setup.numLanes; lane++)
-                    {
-                        float centerX = (setup.screen_pixelsX / setup.numLanes / 2) + (setup.screen_pixelsX / setup.numLanes * lane);
-                        float centerY = setup.eyeHeights[exercises[currentExercise].pose] - 40;
-                        float mToPix = setup.screen_pixelsX / setup.screenWidth * setup.shootingDistance / exercises[currentExercise].targetDistance;
+        float2 pos = score.lane_exercise.at(_lane).at(currentExercise).shots.at(s).position_relative;
+        float2 screenPos = (pos - 0.5f) * pixSize + Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
+        float bulletSize = Kolskoot::setupInfo.meterToPixels(Ex.targetDistance) * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
 
-
-                        float tw = mToPix * 0.001f * exercises[currentExercise].target.size_mm.x;
-                        float th = mToPix * 0.001f * exercises[currentExercise].target.size_mm.y;
-                        float px = centerX - (tw / 2);
-                        float py = centerY - (th * 0.5f);
-
-                        ImGui::SetCursorPos(ImVec2(40 + (setup.screen_pixelsX / setup.numLanes * lane), 20));
-                        ImGui::Text("%d", lane + 1);
-
-                        ImGui::SameLine();
-                        char AirName[256];
-                        sprintf(AirName, "##air_%d", lane);
-                        ImGui::Checkbox(AirName, &Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane]);
-
-                        if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
-                        {
-                            ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 270, 54));
-                            ImGui::PushFont(_gui->getFont("roboto_20"));
-                            ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), exercises[currentExercise].numRounds);
-                            ImGui::PopFont();
-
-                            ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 170, 54));
-                            ImGui::PushFont(_gui->getFont("roboto_20"));
-                            ImGui::Text("score");
-                            ImGui::PopFont();
-
-                            ImGui::SetCursorPos(ImVec2((setup.screen_pixelsX / setup.numLanes * (lane + 1)) - 120, 20));
-                            ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
-                            //ImGui::Text("drop : %d mm", (int)(bulletDrop * 1000));
-                            if (exercises[currentExercise].action.action == action_adjust)
-                            {
-                                ImGui::PushFont(_gui->getFont("roboto_48"));
-                                ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
-                                ImGui::PopFont();
-                            }
-
-
-
-
-                            ImGui::SetCursorPos(ImVec2(px, py));
-                            _window.image("testImage", exercises[currentExercise].target.image, float2(tw, th), false);
-
-                            for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
-                            {
-                                float2 pos = score.lane_exercise.at(lane).at(currentExercise).shots.at(s).position_relative;
-                                float px = centerX + (tw * (pos.x - 0.5f));
-                                float py = centerY + (th * (pos.y - 0.5f));
-
-                                float bulletSize = mToPix * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
-
-                                ImGui::SetCursorPos(ImVec2(px - (bulletSize / 2), py - (bulletSize / 2)));
-                                _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize), false);
-                                //_bulletHole
-                            }
-
-
-                            if (exercises[currentExercise].action.action == action_adjust && (score.lane_exercise.at(lane).at(currentExercise).shots.size() >= exercises[currentExercise].numRounds))
-                            {
-                                // adjusst the shots
-                                // DMAN REALLY SAVE position in meters on the target as well - MUCH easierto work with
-                                float2 avs = float2(0, 0);
-                                for (int s = 0; s < score.lane_exercise.at(lane).at(currentExercise).shots.size(); s++)
-                                {
-                                    avs += score.lane_exercise.at(lane).at(currentExercise).shots[s].position;
-                                }
-                                avs /= score.lane_exercise.at(lane).at(currentExercise).shots.size();
-                                //avs.y += bulletDrop;
-                                //avs *= mToPix;
-
-                                Kolskoot::ballistics.adjustOffset(lane, avs);
-                                score.lane_exercise.at(lane).at(currentExercise).shots.clear();
-                            }
-                        }
-
-                        ImGui::NextColumn();
-                    }
-                    ImGui::EndColumns();
-                    break;
-                case live_scores:   // not sure about this
-                    ImGui::Text("scores page");
-                    break;
-                }
-
-            }
-        }
-        ImGui::PopFont();
-        style = styleOld;
+        ImGui::SetCursorPos(ImVec2(screenPos.x - (bulletSize / 2), screenPos.y - (bulletSize / 2)));
+        _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize), false);
     }
 }
 
 
+
+void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole)
+{
+    if (currentExercise >= exercises.size())  return;
+
+    auto& Ex = exercises[currentExercise];
+    auto& target = Ex.target;
+
+    
+
+    ImGui::PushFont(_gui->getFont("roboto_64"));
+    {
+        switch (currentStage)
+        {
+        case live_intro:
+            Ex.renderGui(_gui, _window);
+
+            ImGui::SetCursorPos(ImVec2(Kolskoot::setupInfo.screen_pixelsX * 0.5, 40));
+            
+            _window.image("ammo", Kolskoot::ammoType[Kolskoot::ballistics.currentAmmo], float2(Kolskoot::setupInfo.screen_pixelsX * 0.5, Kolskoot::setupInfo.screen_pixelsX * 0.3), false);
+            break;
+
+        case live_live:
+        {
+            ImGui::BeginColumns("lanes", Kolskoot::setupInfo.numLanes);
+            for (int lane = 0; lane < Kolskoot::setupInfo.numLanes; lane++)
+            {
+                float laneWidth = Kolskoot::setupInfo.screen_pixelsX / Kolskoot::setupInfo.numLanes;
+                float laneLeft = laneWidth * lane;
+                float laneRight = laneLeft + laneWidth;
+
+                ImGui::SetCursorPos(ImVec2(laneLeft + 40, 20));
+                ImGui::Text("%d", lane + 1);
+
+                ImGui::SameLine();
+                char AirName[256];
+                sprintf(AirName, "##air_%d", lane);
+                ImGui::Checkbox(AirName, &Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane]);
+
+
+                if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
+                {
+                    ImGui::PushFont(_gui->getFont("roboto_20"));
+                    {
+                        ImGui::SetCursorPos(ImVec2(laneRight - 270, 54));
+                        ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), Ex.numRounds);
+
+                        ImGui::SetCursorPos(ImVec2(laneRight - 170, 54));
+                        ImGui::Text("score");
+                    }
+                    ImGui::PopFont();
+
+                    ImGui::SetCursorPos(ImVec2(laneRight - 120, 20));
+                    ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+
+                    if (Ex.action.action == action_adjust)
+                    {
+                        ImGui::PushFont(_gui->getFont("roboto_48"));
+                        ImGui::Text("offset : %d, %d px", (int)(Kolskoot::ballistics.offset(lane).x), (int)(Kolskoot::ballistics.offset(lane).y));
+                        ImGui::PopFont();
+                    }
+
+                    renderTarget(_gui, _window, _bulletHole, lane);         // Draw the target
+
+                    adjustBoresight(lane);                                  // test if we are adjusting boresigth and do it
+                }
+
+                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setupInfo.screen_pixelsY - 50));
+                ImGui::Text(".");   // just somethign to force teh down lines
+
+                ImGui::NextColumn();
+            }
+            ImGui::EndColumns();
+        }
+        break;
+
+        case live_scores:
+            ImGui::Text("scores page");
+            break;
+
+        }
+    }
+    ImGui::PopFont();
+}
+
+
+
+void quickRange::adjustBoresight(int _lane)
+{
+    auto& Ex = exercises[currentExercise];
+    auto& shots = score.lane_exercise.at(_lane).at(currentExercise).shots;
+
+    if (Ex.action.action == action_adjust && (shots.size() >= Ex.numRounds))
+    {
+        float2 avs = float2(0, 0);
+        for (auto &s : shots)
+        {
+            avs += s.position;
+        }
+        avs /= shots.size();
+
+        Kolskoot::ballistics.adjustOffset(_lane, avs);
+        shots.clear();
+    }
+}
+
+
+
 void quickRange::mouseShot(float x, float y, _setup setup)
 {
+    auto& Ex = exercises[currentExercise];
+    auto& target = Ex.target;
     int lane = (int)floor(x * setup.numLanes / setup.screen_pixelsX);
 
     x -= Kolskoot::ballistics.offset(lane).x;
     y -= Kolskoot::ballistics.offset(lane).y;
 
     // move all of this to target
-    float tw = 0.001f * exercises[currentExercise].target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / exercises[currentExercise].targetDistance;
-    float th = tw * exercises[currentExercise].target.size_mm.y / exercises[currentExercise].target.size_mm.x;
+    float tw = 0.001f * target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / Ex.targetDistance;
+    float th = tw * target.size_mm.y / target.size_mm.x;
     float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / setup.numLanes * lane);
-    float py = (setup.eyeHeights[exercises[currentExercise].pose]) - (th * 0.5f);
+    float py = (setup.eyeHeights[Ex.pose]) - (th * 0.5f);
 
     float shotX = (x - px) / tw;    // 0-1 texture space
     float shotY = (y - py) / th;
@@ -984,39 +1040,46 @@ void quickRange::mouseShot(float x, float y, _setup setup)
     float absY = (shotY - 0.5f) * th;
 
     // translate to scoring space
-    int scoreX = (int)(shotX * exercises[currentExercise].target.scoreWidth);
-    int scoreY = (int)(shotY * exercises[currentExercise].target.scoreHeight);
+    int scoreX = (int)(shotX * target.scoreWidth);
+    int scoreY = (int)(shotY * target.scoreHeight);
     int shotScore = 0;
-    if (scoreX >= 0 && scoreX < exercises[currentExercise].target.scoreWidth &&
-        scoreY >= 0 && scoreY < exercises[currentExercise].target.scoreHeight)
+    if (scoreX >= 0 && scoreX < target.scoreWidth &&
+        scoreY >= 0 && scoreY < target.scoreHeight)
     {
-        int scoreIndex = (scoreY * exercises[currentExercise].target.scoreWidth) + scoreX;
-        shotScore = exercises[currentExercise].target.scoreData[scoreIndex];
+        int scoreIndex = (scoreY * target.scoreWidth) + scoreX;
+        shotScore = target.scoreData[scoreIndex];
     }
 
-    score.lane_exercise.at(lane).at(currentExercise).score += shotScore;
-    score.lane_exercise.at(lane).at(currentExercise).shots.emplace_back();
-    score.lane_exercise.at(lane).at(currentExercise).shots.back().score = shotScore;
-    score.lane_exercise.at(lane).at(currentExercise).shots.back().position = float2(absX, absY);
-    score.lane_exercise.at(lane).at(currentExercise).shots.back().position_relative = float2(shotX, shotY);
-    score.lane_exercise.at(lane).at(currentExercise).target = exercises[currentExercise].target;
+    auto& scoreTarget = score.lane_exercise.at(lane).at(currentExercise);
+    auto& shot = scoreTarget.shots;
+    scoreTarget.score += shotScore;
+    scoreTarget.target = target;
+    shot.emplace_back();
+    shot.back().score = shotScore;
+    shot.back().position = float2(absX, absY);
+    shot.back().position_relative = float2(shotX, shotY);
 }
+
 
 
 bool quickRange::liveNext()
 {
+    auto& Ex = exercises[currentExercise];
+
     switch (currentStage) {
     case live_intro:
         currentStage = live_live;
-        bulletDrop = Kolskoot::ballistics.bulletDrop(exercises[currentExercise].targetDistance);
+        bulletDrop = Kolskoot::ballistics.bulletDrop(Ex.targetDistance);
         actionRepeats = -1;
-        actionCounter = exercises[currentExercise].action.startTime;
+        actionCounter = Ex.action.startTime;
         actionPhase = 1;
         break;
+
     case live_live:
         currentStage = live_scores;
-        bulletDrop = Kolskoot::ballistics.bulletDrop(exercises[currentExercise].targetDistance);    // just incase first one misses
+        bulletDrop = Kolskoot::ballistics.bulletDrop(Ex.targetDistance);    // just incase first one misses
         break;
+
     case live_scores:
         currentStage = live_intro;
         currentExercise++;
@@ -1027,10 +1090,9 @@ bool quickRange::liveNext()
         break;
     }
 
-
-
     return false;
 }
+
 
 
 int quickRange::getRoundsLeft(int _lane)
@@ -1039,6 +1101,60 @@ int quickRange::getRoundsLeft(int _lane)
     int left = total - score.lane_exercise.at(_lane).at(currentExercise).shots.size();
     return  __max(0, left);
 }
+
+
+
+void quickRange::updateLive(float _dT)
+{
+    actionCounter -= _dT;
+
+    if (actionCounter < 0)
+    {
+        actionPhase = (actionPhase + 1) % 2;
+
+        switch (actionPhase)
+        {
+        case 0:
+        {
+            actionRepeats++;
+            if (actionRepeats < exercises[currentExercise].action.repeats)
+            {
+                actionCounter = exercises[currentExercise].action.upTime;
+                if (exercises[currentExercise].action.action == action_static || exercises[currentExercise].action.action == action_adjust)
+                {
+                    actionCounter = 100000; /// just REALLy big
+                }
+                // show target
+
+                if (exercises[currentExercise].action.playWhistle)
+                {
+                    std::string filename = Kolskoot::setupInfo.dataFolder + "/sounds/wistle.wav";
+                    PlaySoundA((LPCSTR)(filename.c_str()), NULL, SND_FILENAME | SND_ASYNC);
+                }
+            }
+            else
+            {
+                // we are done
+                liveNext();
+            }
+        }
+        break;
+
+        case 1:
+        {
+            actionCounter = exercises[currentExercise].action.downTime;
+            // hide target
+        }
+        break;
+        }
+    }
+}
+
+
+
+
+
+
 
 
 
@@ -1312,7 +1428,7 @@ void Kolskoot::nextButton()
     {
         if (QR.liveNext())
         {
-            guiMode = gui_exercises;
+            guiMode = gui_menu;
             zigbeeRounds(0, 0, true);		// turn all air off
         }
     }
@@ -1324,7 +1440,7 @@ void Kolskoot::menuButton()
     ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 100));
     if (ImGui::Button("Menu"))
     {
-        guiMode = gui_exercises;
+        guiMode = gui_menu;
         zigbeeRounds(0, 0, true);		// turn all air off
     }
     TOOLTIP("esc");
@@ -1446,7 +1562,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             Gui::Window livePanel(_gui, "Live", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
             livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
             livePanel.windowPos(0, 40);
-            QR.renderLive(_gui, screenSize, livePanel, setupInfo, bulletHole);
+            QR.renderLive(_gui, livePanel, bulletHole);
             ImGui::PushFont(_gui->getFont("roboto_32"));
             {
                 nextButton();
@@ -1725,7 +1841,7 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     mpLinearSampler = Sampler::create(samplerDesc);
 
     pointGreyCamera = PointGrey_Camera::GetSingleton();
-    gpDevice->toggleVSync(false);
+    gpDevice->toggleVSync(true);
 
 
     camera = Falcor::Camera::create();
@@ -1739,6 +1855,10 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     ballistics.load();
     airToggle.load();
     bulletHole = Texture::createFromFile(setupInfo.dataFolder + "/targets/bullet.dds", true, true);
+
+    ammoType[0] = Texture::createFromFile(setupInfo.dataFolder + "/9mm.dds", true, true);
+    ammoType[1] = Texture::createFromFile(setupInfo.dataFolder + "/556.dds", true, true);
+    ammoType[2] = Texture::createFromFile(setupInfo.dataFolder + "/762.dds", true, true);
 
 
     if (std::filesystem::exists("kolskootCamera.xml"))
@@ -1756,8 +1876,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     {
         if (!entry.is_directory())
         {
-            std::string ext = entry.path().extension().string();
-            if (ext.find("json") != std::string::npos) {
+            //std::string ext = entry.path().extension().string();
+            if (entry.path().string().find("target.json") != std::string::npos) {
                 targetList.emplace_back();
                 targetList.back().load(entry.path());
             }
@@ -1794,19 +1914,79 @@ void Kolskoot::onShutdown()
     }
 }
 
-// FIXME make an update function even if i call it from eher or onUpate
+
+
+void Kolskoot::mouseShot()
+{
+    if (ImGui::IsMouseClicked(0))       // insert a mouse shot
+    {
+        ImVec2 mouse = ImGui::GetMousePos();
+        if ((mouse.y > 150) && mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
+        {
+            int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
+            if (QR.getRoundsLeft(lane) > 0)
+            {
+                QR.mouseShot(mouse.x, mouse.y, setupInfo);
+                zigbeeFire(lane);                   // R4 / AK
+
+                PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+            }
+        }
+    }
+}
+
+
+
+void Kolskoot::pointGreyShot()
+{
+    while (pointGreyCamera->dotQueue.size()) {
+        glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
+
+        if (!(screen.x == 0 && screen.y == 0))
+        {
+            int lane = (int)floor(screen.x / (screenSize.x / setupInfo.numLanes));
+            if (QR.getRoundsLeft(lane) > 0)
+            {
+                QR.mouseShot(screen.x, screen.y, setupInfo);
+                zigbeeFire(lane);                   // R4 / AK
+                PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+            }
+        }
+        pointGreyCamera->dotQueue.pop();
+    }
+}
+
+
+
+// _Play through this exercise
+void Kolskoot::updateLive()
+{
+    QR.updateLive(gpFramework->getFrameRate().getAverageFrameTime() * 0.001f);
+    airOffAfterLive = true;
+    mouseShot();
+    pointGreyShot();
+
+    for (int i = 0; i < setupInfo.numLanes; i++)                        // turn air on for pistols if there are rounds left
+    {
+        if (airToggle.inUse(ballistics.currentAmmo, i))
+        {
+            zigbeeRounds(i, QR.getRoundsLeft(i));
+        }
+        else
+        {
+            zigbeeRounds(i, 0);
+        }
+    }
+}
+
+
 
 void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    gpDevice->toggleVSync(true);
-
-    Sleep(10);
-
     {
         FALCOR_PROFILE("pointGreyBuffer");
         if (guiMode == gui_camera || guiMode == gui_menu)
         {
-
             if (pointGreyBuffer)
             {
                 pRenderContext->updateTextureData(pointGreyBuffer.get(), pointGreyCamera->bufferReference);
@@ -1819,6 +1999,28 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     }
 
     {
+        // preiodically clear teh zigbee buffer
+        static int zcnt = 0;
+        zcnt = (zcnt++) % 16;
+        if (zcnt == 0)     zigbeeClear();   // clear every couple of frames
+    }
+
+
+    // live fire shooting
+    if (guiMode == gui_live && QR.currentStage == live_live)
+    {
+        updateLive();
+    }
+    else if (airOffAfterLive && guiMode == gui_live)
+    {
+        zigbeeRounds(0, 0, true);       // turn air off, calling with true set all channels
+        airOffAfterLive = false;
+    }
+
+
+
+    {
+        // at the moment all renderign is doen with imGui so just clear
         FALCOR_PROFILE("clear");
         const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
         pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
@@ -1827,110 +2029,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 
 
 
-
-    static bool airOffAfterLive = true;
-
-    // live fire shooting
-    if (guiMode == gui_live && QR.currentStage == live_live)
-    {
-
-        // _Play through this exercise
-        // most l;ikely move this code into QR if I can
-        // ######################################################################################
-        QR.actionCounter -= gpFramework->getFrameRate().getAverageFrameTime() * 0.001f;
-        if (QR.actionCounter < 0)
-        {
-            QR.actionPhase++;
-            QR.actionPhase %= 2;
-            if (QR.actionPhase == 0)
-            {
-                QR.actionPhase = 0;
-                QR.actionRepeats++;
-                if (QR.actionRepeats < QR.exercises[QR.currentExercise].action.repeats)
-                {
-                    QR.actionCounter = QR.exercises[QR.currentExercise].action.upTime;
-                    // show target
-
-                    if (QR.exercises[QR.currentExercise].action.playWhistle)
-                    {
-                        PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/wistle.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
-                    }
-                }
-                else
-                {
-                    // we are done
-                    QR.liveNext();
-                }
-            }
-
-            if (QR.actionPhase == 1)
-            {
-                QR.actionCounter = QR.exercises[QR.currentExercise].action.downTime;
-                // hide target
-            }
-
-        }
-
-
-
-        airOffAfterLive = true;
-
-        if (ImGui::IsMouseClicked(0))       // insert a mouse shot
-        {
-            ImVec2 mouse = ImGui::GetMousePos();
-            if ((mouse.y > 150) && mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
-            {
-                int lane = (int)floor(mouse.x / (screenSize.x / setupInfo.numLanes));
-                if (QR.getRoundsLeft(lane) > 0)
-                {
-                    QR.mouseShot(mouse.x, mouse.y, setupInfo);
-                    zigbeeFire(lane);                   // R4 / AK
-
-                    PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
-                }
-            }
-        }
-
-
-
-        while (pointGreyCamera->dotQueue.size()) {
-            glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
-
-            if (!(screen.x == 0 && screen.y == 0))
-            {
-                int lane = (int)floor(screen.x / (screenSize.x / setupInfo.numLanes));
-                if (QR.getRoundsLeft(lane) > 0)
-                {
-                    QR.mouseShot(screen.x, screen.y, setupInfo);
-                    zigbeeFire(lane);                   // R4 / AK
-                    PlaySoundA((LPCSTR)(setupInfo.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
-                }
-            }
-            pointGreyCamera->dotQueue.pop();
-        }
-
-        // turn air on for pistols if there are rounds left
-        for (int i = 0; i < setupInfo.numLanes; i++)
-        {
-            if (airToggle.inUse(ballistics.currentAmmo, i))
-            {
-                zigbeeRounds(i, QR.getRoundsLeft(i));
-            }
-            else
-            {
-                zigbeeRounds(i, 0);
-            }
-        }
-    }
-    else if (airOffAfterLive && guiMode == gui_live)
-    {
-        airOffAfterLive = false;
-        zigbeeRounds(0, 0, true);       // turn air off, calling with true set all channels
-    }
-
-
-    //Sleep(10);
-
+    Sleep(2); // weird, dit is genoeg om frame sync aan te sit
 }
 
 
@@ -1939,54 +2038,55 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
 {
     if (mpScene && mpScene->onKeyEvent(keyEvent)) return true;
 
-    if ((keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::R))
+    if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
     {
-        return true;
-    }
-
-    if ((keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Escape))
-    {
-        if (targetPopupOpen) {
-            targetPopupOpen = false;
-        }
-        else
+        if (keyEvent.key == Input::Key::Escape)
         {
-            guiMode = gui_menu;
-            zigbeeRounds(0, 0, true);		// turn all air off
+            if (targetPopupOpen) {
+                targetPopupOpen = false;
+            }
+            else
+            {
+                guiMode = gui_menu;
+                zigbeeRounds(0, 0, true);		// turn all air off
+            }
+            return true;
         }
-        return true;
-    }
 
-    if ((modeCalibrate > 0) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Space))
-    {
-        modeCalibrate++;
+        if ((modeCalibrate > 0) && (keyEvent.key == Input::Key::Space))
+        {
+            modeCalibrate++;
 
-        if (modeCalibrate == 2) {
-            calibrationCounter = 120;
-        }
-        else if (modeCalibrate == 3) {
-            screenMap.build(calibrationDots, screenSize);
+            if (modeCalibrate == 2) {
+                calibrationCounter = 120;
+            }
+            else if (modeCalibrate == 3) {
+                screenMap.build(calibrationDots, screenSize);
 
-            std::ofstream os("kolskootCamera.xml");
-            if (os.good()) {
-                cereal::XMLOutputArchive archive(os);
-                screenMap.serialize(archive, 100);
+                std::ofstream os("kolskootCamera.xml");
+                if (os.good()) {
+                    cereal::XMLOutputArchive archive(os);
+                    screenMap.serialize(archive, 100);
+                }
             }
         }
-    }
 
-    if ((guiMode == gui_live) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Space))
-    {
-        if (QR.liveNext())
+        if (guiMode == gui_live)
         {
-            guiMode = gui_exercises;
-            zigbeeRounds(0, 0, true);		// turn all air off
+            if (keyEvent.key == Input::Key::Space)
+            {
+                if (QR.liveNext())
+                {
+                    guiMode = gui_menu;
+                    zigbeeRounds(0, 0, true);		// turn all air off
+                }
+            }
+            if (keyEvent.key == Input::Key::Escape)
+            {
+                guiMode = gui_menu; // FIME maybe know if it awas a test run and retirn to exercise builder instead
+                zigbeeRounds(0, 0, true);		// turn all air off
+            }
         }
-    }
-    if ((guiMode == gui_live) && (keyEvent.type == KeyboardEvent::Type::KeyPressed) && (keyEvent.key == Input::Key::Escape))
-    {
-        guiMode = gui_exercises;
-        zigbeeRounds(0, 0, true);		// turn all air off
     }
 
     return false;
@@ -2001,14 +2101,12 @@ bool Kolskoot::onMouseEvent(const MouseEvent& mouseEvent)
         mouseScreen = mouseEvent.screenPos;
         if (ImGui::IsMouseDown(0))
         {
-            //screenInfo.eyeHeights[screenInfo.dragSelect] = mouseEvent.pos.y;
             setupInfo.eyeHeights[0] = mouseEvent.pos.y * screenSize.y;
         }
     }
 
-    if ((guiMode == gui_live) && (mouseEvent.type == MouseEvent::Type::ButtonDown))
+    if ((guiMode == gui_live) && (mouseEvent.type == MouseEvent::Type::ButtonDown))                         // insert a mouse shot
     {
-        // insert a mouse shot
         QR.mouseShot((mouseEvent.pos.x * screenSize.y), (mouseEvent.pos.y * screenSize.y), setupInfo);
     }
 
@@ -2027,6 +2125,9 @@ void Kolskoot::onResizeSwapChain(uint32_t _width, uint32_t _height)
     viewport3d.maxDepth = 1;
     viewport3d.width = screenSize.x;
     viewport3d.height = screenSize.y;
+
+    setupInfo.screen_pixelsX = screenSize.x;
+    setupInfo.screen_pixelsY = screenSize.y;
 
     camera->setAspectRatio(screenSize.x / screenSize.y);
 
@@ -2091,13 +2192,12 @@ void Kolskoot::guiStyle()
 
 
 
-
 void   Kolskoot::zigbeePaperMove()
 {
     if (!ZIGBEE.IsOpen()) return;
     unsigned char channels = 1 << 4;		// set this to true
 
-    unsigned char STR[13];			// veelvoude van 10
+    unsigned char STR[13];
     unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
     Sleep(30);
 
@@ -2138,6 +2238,8 @@ void   Kolskoot::zigbeePaperMove()
         break;
     }
 }
+
+
 
 void   Kolskoot::zigbeePaperStop()
 {
@@ -2187,6 +2289,7 @@ void   Kolskoot::zigbeePaperStop()
 }
 
 
+
 void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
 {
     if (!ZIGBEE.IsOpen()) return;
@@ -2208,8 +2311,7 @@ void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
 
         unsigned char STR[13];			// veelvoude van 10
         unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
-        Sleep(30);
-
+        Sleep(30);      // FIXME kan ons hierdie baie kleiner kry? 10ms dalk
 
         unsigned char ANS[13];
 
@@ -2256,11 +2358,10 @@ void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
             ZIGBEE.Write(ANS, 11);
             break;
         }
-
-
-        //m_pLogger->Log( LOG_INFO, L"zigbee (%d, %d, %d) - %.2X%.2X %.2X%.2X %.2X%.2X %.2X%.2X %.2X%.2X %.2X%.2X %.2X", lane, R, channels, ANS[0], ANS[1], ANS[2], ANS[3], ANS[4], ANS[5], ANS[6], ANS[7], ANS[8], ANS[9], ANS[10], ANS[11], ANS[12] );
     }
 }
+
+
 
 void  Kolskoot::zigbeeFire(unsigned int lane)       //R4 and AK
 {
@@ -2270,9 +2371,9 @@ void  Kolskoot::zigbeeFire(unsigned int lane)       //R4 and AK
 
     // test R for change and return - write to zigbee
 
-    unsigned char STR[50];			// veelvoude van 10
-    memset(STR, 0, 50);			// clear
-    unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
+    unsigned char STR[50];			            // veelvoude van 10
+    memset(STR, 0, 50);			                // clear
+    unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet ons buffer skoonmaak?
 
     unsigned char ANS[13];
 
@@ -2317,10 +2418,19 @@ void  Kolskoot::zigbeeFire(unsigned int lane)       //R4 and AK
 }
 
 
+void  Kolskoot::zigbeeClear()       //just read teh buffer to clear it
+{
+    if (!ZIGBEE.IsOpen()) return;
+    unsigned char STR[50];			            // veelvoude van 10
+    memset(STR, 0, 50);			                // clear
+    unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet ons buffer skoonmaak?
+}
+
 
 int main(int argc, char** argv)
 {
-    Kolskoot::UniquePtr pRenderer = std::make_unique<Kolskoot>();
+    //Kolskoot::UniquePtr pKolskoot = std::make_unique<Kolskoot>();
+    pKolskoot = std::make_unique<Kolskoot>();
 
     SampleConfig config;
     config.windowDesc.title = "Kolskoot";
@@ -2330,6 +2440,6 @@ int main(int argc, char** argv)
     config.windowDesc.height = 1140;
     config.windowDesc.monitor = 0;
 
-    Sample::run(config, pRenderer);
+    Sample::run(config, pKolskoot);
     return 0;
 }
