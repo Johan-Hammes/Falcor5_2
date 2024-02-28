@@ -91,6 +91,40 @@ struct rvB
 
 
 
+
+class _airParticle
+{
+public:
+    float3 pos = float3(0, 0, 0);
+    float3 vel = float3(0, 0, 0);
+    float3 dVel = float3(0, 0, 0);
+    float3 acell = float3(0, 0, 0);
+    float r = 1.f;
+    float volume = 1.f;
+    float volRel = 1.f;
+    float volNew = 1.f;
+    float mass = 1.f;
+    std::array<uint, 16>    space;
+    int firstEmpty = -1;
+    float firstEmptyW = 1.f;;
+};
+
+class _airSim
+{
+public:
+    std::vector<_airParticle>   particles;
+    void update(float _dt);
+    void pack();
+    void setup();
+
+    rvB ribbon[1024 * 1024];
+    rvPacked packedRibbons[1024 * 1024];
+    int ribbonCount = 0;
+    bool changed = false;
+};
+
+
+
 class _bezierGlider
 {
 public:
@@ -118,15 +152,32 @@ public:
 CEREAL_CLASS_VERSION(_bezierGlider, 100);
 
 
+struct _cell
+{
+    float volume = 0;
+    float pressure = 0;
+    float AoA;
+    float AoA_lead;
+    float AoA_trail; //???
+};
+
 class _glider
 {
 public:
     void build();
     void renderGui(Gui* mpGui);
+    void solve(float _dT);
+    void pack();
 
     _bezierGlider leadingEdge;
     _bezierGlider trailingEdge;
     _bezierGlider curve;
+
+    _cell cells[50];    // although wrong its easier to just do this at the ribs and use directly, saves another interpolate
+    float3 wind = float3(0, 0.5f, -5.f);
+    float windspeed;
+    float dynamicPressure;
+    float3 totalWingForce;
 
     float cgDrop = -7.0f;       // OBSOLETE  7 meters down
     float cgChord = 0.3f;       // OBSOLETE  front back CG / caribiners relative to cengter chord
@@ -198,8 +249,8 @@ public:
     float FG05 = 0.927f;
     float FG06 = 0.723f;
     float FG07 = 0.821f;
-    float FG08 = 0.519f;
-    float FF1 = 1.2f;
+    float FG08 = 0.519f + 0.3f;
+    float FF1 = 1.2f - 0.1f;
     float FF2 = 0.464f;
 
     float S1 = 4.914f;
@@ -229,6 +280,70 @@ public:
     float3 lead[200];
     float3 trail[200];
     float3 tangent[200];
+    float3 bitangent[200];
+
+    int numVerts = 0;
+    float3 P[16384];
+    float3 Pold[16384];
+    float3 V[16384];
+    float3 A[16384];
+    float W[16384];
+    // add weights later
+    float3 N[16384];        // surface normals
+
+    int numConstraints = 0;
+    struct _c {
+        void set(uint _v0, uint _v1, float _l, float _s0, float _s1, float _s2, int _cell = 0) {
+            v0 = _v0;
+            v1 = _v1;
+            l = _l;
+            tensileStiff = _s0;
+            compressStiff = _s1;
+            pressureStiff = _s2;
+            cell = _cell;
+        }
+        uint v0;
+        uint v1;
+        float l;
+        float tensileStiff = 1.0f;
+        float compressStiff = 0.01f;
+        float pressureStiff = 0.1f;
+        int cell = 0;
+    };
+    _c constraints[16384];
+
+    float3 canopy[2][64][16];    // Just really big
+    float3 canopyPrev[2][64][16];    // Just really big
+    //float3 dC[64][16];
+    float3 lengths[2][64][16];
+    
+
+    //float3 linePoints[500];
+    struct _line{
+        void set(int _v1, int _v2, int _c, float _l)
+        {
+            V1 = _v1;
+            V2 = _v2;
+            choord = _c;
+            length = _l;
+            F = 0;
+        }
+
+        int V1;
+        int V2;
+        int choord = -1;
+        float length;
+        float F;
+
+        bool fixed = false; //.. last term is fixed
+    };
+    _line lines[500];
+    int lineIdx = 0;
+    int linePointIdx = 0;
+    int startLineConstraints = 0;
+    bool beenBuilt = false;
+
+
 private:
 
     template<class Archive>
@@ -1432,4 +1547,5 @@ private:
 
 
     _glider ParaGlider;
+    _airSim AirSim;
 };

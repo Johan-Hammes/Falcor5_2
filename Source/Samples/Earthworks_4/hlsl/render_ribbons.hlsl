@@ -584,13 +584,28 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             return float4(vOut.diffuseLight, 1);
         }
 */
-    return 1;
+
+    float3 cSolid = 1;
+    if (vOut.flags.x == 1)
+        cSolid = float3(1.0, 0.0, 0.0);
+    if (vOut.flags.x == 2)
+        cSolid = float3(0.0, 0.8, 0.0);
+
+    float alphaC = pow(saturate(vOut.flags.w * 0.1), 0.3);
+    if (alphaC < 0.99)
+    {
+        float2 uv = vOut.pos.xy / float2(2560, 1440);
+        float3 prev = gHalfBuffer.Sample(gSampler, uv).rgb;
+        cSolid = lerp(prev, cSolid, alphaC);
+    }
+    return float4(cSolid, 1);
+    
     //return float4(vOut.flags.y, frac(vOut.uv.x), frac(vOut.uv.y), 1);
     //return float4(frac(vOut.uv.y), frac(vOut.uv.y), isFrontFace, 1);
     //return 1; //this douvle speed even oif no pixels aredraw
 
     
-    sprite_material MAT = materials[vOut.flags.x];
+        sprite_material MAT = materials[vOut.flags.x];
 
     //if (vOut.flags.x == 1)
      //   return 0.5;

@@ -44,6 +44,281 @@ _lastFile terrainManager::lastfile;
 materialCache_plants _plantMaterial::static_materials_veg;
 
 
+void setupVert(rvB* r, int start, float3 pos, float radius, int _mat = 0)
+{
+    r->type = false;
+    r->startBit = start;
+    r->position = pos;
+    r->radius = radius;
+    r->bitangent = float3(0, 1, 0);
+    r->tangent = float3(0, 0, 1);
+    r->material = _mat;
+    r->albedoScale = 127;
+    r->translucencyScale = 127;
+    r->uv = float2(1, 4);
+
+    if (start == 1)
+    {
+        rvB* rprev = r--;
+        float3 tangent = glm::normalize(r->position - rprev->position);
+        r->bitangent = tangent;
+        rprev->bitangent = tangent;
+    }
+}
+
+// AIR
+// ###############################################################################################################################################
+
+void _airSim::setup()
+{
+    float R = 100.f;    // 100m sphere arounf (0, 0, 0);
+
+    std::mt19937 generator(101);
+    std::uniform_real_distribution<> distribution(-R, R);
+
+    float V = 4.18879020479f * R * R * R;
+    int numP = 1024;
+    float v = V / numP;
+
+    particles.clear();
+    particles.emplace_back();
+    particles.back().volume = 0.f;
+    particles.back().mass = 0.f;
+    particles.back().r = 0.f;       // make 0 the null particle
+
+    int cnt = numP;
+    while (cnt > 0)
+    {
+        float3 p = float3(distribution(generator), distribution(generator), distribution(generator));
+        float l = glm::length(p);
+        if (l < R)
+        {
+            particles.emplace_back();
+            particles.back().pos = p;
+            particles.back().volume = v;
+            particles.back().r = std::cbrt(v / 4.18879020479f);
+            for (int i = 0; i < 16; i++) {
+                particles.back().space[i] = 0;  // set to null particle
+            }
+            cnt--;
+        }
+    }
+
+    int linkCount = 0;
+    for (int j = 1; j <= numP; j++)
+    {
+        for (int k = 1; k <= numP; k++)
+        {
+            if (j != k)
+            {
+                float l = glm::length(particles[j].pos - particles[k].pos);
+                if (l < 3 * particles[j].r)
+                {
+                    for (int i = 0; i < 16; i++) {
+                        if (particles[j].space[i] == 0)
+                        {
+                            particles[j].space[i] = k;
+                            linkCount++;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    bool bCM = true;
+}
+
+void _airSim::update(float _dt)
+{
+    uint hash[100];
+    float3 norm[16];
+    float dst[16];
+    float W[16];
+    float wSum;
+    float d[16];
+    int numP = particles.size() - 1;
+    float3 A = float3(0, 0, 0);
+
+    // calculate volumes
+    {
+        FALCOR_PROFILE("weights");
+        for (int i = 1; i <= numP; i++)
+        {
+            wSum = 0;
+            particles[i].firstEmpty = -1;
+            A = float3(0, 0, 0);
+            float Wmin = 100000;
+            float RRi = particles[i].r * particles[i].r;
+            particles[i].dVel = float3(0, 0, 0);
+            for (int j = 0; j < 16; j++)
+            {
+                W[j] = 0;
+                uint idx = particles[i].space[j];
+                float RRj = particles[idx].r * particles[idx].r;
+                if (idx > 0)
+                {
+                    norm[j] = particles[idx].pos - particles[i].pos;
+                    dst[j] = glm::dot(norm[j], norm[j]);// glm::length(norm[j]);      // THSI SI TEH BOTTLENEC but fast on GPU
+                    W[j] = RRi / dst[j];
+                    W[j] *= W[j];
+                    wSum += W[j];
+
+                    // Find smallets W
+                    if (W[j] < Wmin)
+                    {
+                        Wmin = W[j];
+                        particles[i].firstEmpty = j;
+                    }
+
+                    particles[i].dVel += particles[idx].vel * W[j];
+                }
+            }
+
+            // add in a wall at spehere edge
+            //float toEdge = 100.f - glm::length(particles[i].pos);
+            //float Wedge = (particles[i].r * particles[i].r * 0.25f) * (toEdge * 0.5f);
+            //wSum += Wedge;
+            particles[i].dVel *= 1.0f / wSum;
+            particles[i].volNew = 1.3333f / wSum * (1.3333f * 3.14f * particles[i].r * particles[i].r * particles[i].r);
+
+
+
+            A = float3(0, 0, 0);
+            for (int j = 0; j < 16; j++)
+            {
+                uint idx = particles[i].space[j];
+                if (idx > 0)
+                {
+                    A -= norm[j] * (W[j]) / wSum;
+                }
+            }
+            //A += glm::normalize(particles[i].pos) * (Wedge / wSum);
+            particles[i].acell = A * wSum * 50.f;
+
+        }
+    }
+
+
+    {
+        FALCOR_PROFILE("advect");
+        for (int i = 1; i <= numP; i++)
+        {
+            particles[i].volRel = particles[i].volNew;
+            particles[i].vel *= 0.9f;
+            particles[i].vel += particles[i].dVel * 0.05f;
+            particles[i].vel += particles[i].acell * _dt;
+            particles[i].pos += particles[i].vel * _dt;
+
+
+            if (glm::length(particles[i].pos) > 100.f)
+            {
+                particles[i].pos = 100.f * glm::normalize(particles[i].pos);
+                particles[i].vel *= 0.9f;
+            }
+        }
+    }
+
+
+
+    {
+        FALCOR_PROFILE("neighbours");
+
+        // get list of indicis
+        static uint hashadd = 0;
+        for (int i = 1 + hashadd; i <= numP; i += 100)
+        {
+            float dR = particles[i].r * particles[i].r * 9.f;
+            float minR = 1000000;
+            if (particles[i].firstEmpty >= 0)
+            {
+                memset(hash, 0, sizeof(uint) * 100);
+                hash[(i + hashadd) % 100] = 1;
+                for (int j = 0; j < 16; j++)
+                {
+                    int ij = particles[i].space[j];
+                    if (ij != 0)
+                    {
+                        hash[(ij + hashadd) % 100] = 1;
+                    }
+                }
+                // now the hash is complete
+
+                for (int j = 0; j < 16; j++)
+                {
+                    int ij = particles[i].space[j];
+                    if (ij != 0)
+                    {
+                        for (int k = 0; k < 16; k++)
+                        {
+                            int ik = particles[ij].space[k];
+                            if (ik > 0 && hash[(ik + hashadd) % 100] == 0)
+                            {
+                                float3 D = particles[i].pos - particles[ik].pos;
+                                float f = glm::dot(D, D);
+                                if (f < dR && f < minR)
+                                {
+                                    particles[i].space[particles[i].firstEmpty] = ik;
+                                    minR = f;
+                                }
+                                /*
+                                float dst = glm::length(particles[i].pos - particles[ik].pos);
+                                if (dst < particles[i].r * 3)
+                                {
+                                    particles[i].space[particles[i].firstEmpty] = ik;
+                                    break;
+                                }
+                                */
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        hashadd++;
+        hashadd %= 100;
+    }
+
+}
+
+void _airSim::pack()
+{
+    ribbonCount = 0;
+
+    for (auto& P : particles)
+    {
+        setupVert(&ribbon[ribbonCount], 0, P.pos + float3(0, -0.5f, 0), 0.5f);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, P.pos + float3(0, 0.5f, 0), 0.5f);     ribbonCount++;
+        for (auto& idx : P.space)
+        {
+            if (idx > 0)
+            {
+                setupVert(&ribbon[ribbonCount], 0, P.pos, 0.1f);     ribbonCount++;
+                setupVert(&ribbon[ribbonCount], 1, particles[idx].pos, 0.1f);     ribbonCount++;
+            }
+        }
+    }
+
+
+    for (int i = 0; i < ribbonCount; i++)
+    {
+        packedRibbons[i] = ribbon[i].pack();
+    }
+    changed = true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 // PARAGLIDERS
 // ###############################################################################################################################################
@@ -52,7 +327,7 @@ extern glm::vec3 cubic_Casteljau(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 
 void _bezierGlider::solveArcLenght()
 {
     arcLength = 0;
-    float3 p0 = float3(0, 0, 0);
+    float3 p0 = cubic_Casteljau(0, P0, P1, P2, P3);
     float3 p1;
     for (float t = 0; t < 1; t += 0.001f)
     {
@@ -66,7 +341,7 @@ void _bezierGlider::solveArcLenght()
 float3 _bezierGlider::pos(float _s)
 {
     float Length = 0;
-    float3 p0 = float3(0, 0, 0);
+    float3 p0 = cubic_Casteljau(0, P0, P1, P2, P3);
     float3 p1;
     for (float t = 0; t < 1; t += 0.001f)
     {
@@ -98,123 +373,641 @@ void cubic_Casteljau_Para(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm
 
     pos = lerp(pD, pE, t);
     tangent = glm::normalize(pE - pD);
-    bitangent = glm::cross(bitangent, glm::vec3(1, 0, 0));
+    bitangent = glm::normalize(glm::cross(tangent, glm::vec3(0, 0, -1)));
 }
 
-void setupVert(rvB *r, int start, float3 pos, float radius)
-{
-    r->type = false;
-    r->startBit = start;
-    r->position = pos;
-    r->radius = radius;
-    r->bitangent = float3(0, 0, 1);
-    r->tangent = float3(0, 1, 0);
-    r->material = 0;
-    r->albedoScale = 127;
-    r->translucencyScale = 127;
-    r->uv = float2(1, 4);
-}
-
+float2 NACA[11] = { float2(2.28, -1.45), float2(6, -4.63), float2(8, -6), float2(10.15, -7.1), float2(10.88, -7.1), float2(10.4, -6.4),
+                   float2(8.65, -5.0), float2(7, -4), float2(5.1, -2.8), float2(2.8, -1.5), float2(0.2, 0) };
+float C[11] = { 0, 0.045f, 0.09f, 0.2f, 0.3f, 0.44f, 0.58f, 0.73f, 0.82f, 0.91f, 1 };
 void _glider::build()
 {
     changed = true;
+
+
+    curve.solveArcLenght();
+    flatHalfSpan = curve.arcLength;
+
 
     // first build the stuff
     for (int i = 0; i < numHalfRibs; i++)
     {
         float t = ((float)i + 0.5f) / ((float)numHalfRibs - 0.5f);
         glm::vec3 P, T, B, LEAD, TRAIL;
-        cubic_Casteljau_Para(t, curve.P0, curve.P1, curve.P2, curve.P3, P, T, B);
+        cubic_Casteljau_Para(1 - pow(1 - t, 1.2), curve.P0, curve.P1, curve.P2, curve.P3, P, T, B);
         LEAD = cubic_Casteljau(t, leadingEdge.P0, leadingEdge.P1, leadingEdge.P2, leadingEdge.P3);
         TRAIL = cubic_Casteljau(t, trailingEdge.P0, trailingEdge.P1, trailingEdge.P2, trailingEdge.P3);
 
-        P = curve.pos(1 - pow(1-t, 1.2));
+        P = curve.pos(1 - pow(1 - t, 1.4));
+        //P = curve.pos(t);
         lead[numHalfRibs + i] = P;
         lead[numHalfRibs + i].z = LEAD.z;
         trail[numHalfRibs + i] = P;
         trail[numHalfRibs + i].z += maxChord - TRAIL.z;
         tangent[numHalfRibs + i] = T;
+        bitangent[numHalfRibs + i] = B;
 
-        lead[numHalfRibs - i -1] = P;
+        lead[numHalfRibs - i - 1] = P;
         lead[numHalfRibs - i - 1].x *= -1;
         lead[numHalfRibs - i - 1].z = LEAD.z;
         trail[numHalfRibs - i - 1] = P;
         trail[numHalfRibs - i - 1].x *= -1;
         trail[numHalfRibs - i - 1].z += maxChord - TRAIL.z;
         tangent[numHalfRibs - i - 1] = T;
+        bitangent[numHalfRibs - i - 1] = B;
+        bitangent[numHalfRibs - i - 1].x *= -1;
     }
 
+    numVerts = 0;
+    numConstraints = 0;
+    for (int span = 0; span < numHalfRibs * 2; span++)
+    {
+        float choordL = glm::length(canopy[0][span][0] - canopy[0][span][10]);
+        float dC = 0.f;
+        for (int choord = 0; choord < 11; choord++)
+        {
+            /*switch (choord)
+            {
+            case 0: dC = 0.f; break;
+            case 1: dC = AChord; break;
+            case 2: dC = BChord; break;
+            case 3: dC = CChord; break;
+            case 4: dC = FChord; break;
+            }
+            dC = (float)choord / 10.f;
+            */
+            dC = C[choord];
+            canopy[0][span][choord] = glm::lerp(lead[span], trail[span], dC);
+            //canopy[span][choord].y = 3 + cos((span - numHalfRibs) / 25.f * 1.5f);
+            canopy[0][span][choord].z -= 1;
+
+            canopy[1][span][choord] = canopy[0][span][choord];
+            //canopy[0][span][choord].y += NACA[choord].y * choordL * 0.01f;  // bottom  SACLE
+            //canopy[1][span][choord].y += NACA[choord].x * choordL * 0.01f;  // top
+            canopy[0][span][choord] += bitangent[span] * (NACA[choord].y * choordL * 0.01f * 0.7f);
+            canopy[1][span][choord] += bitangent[span] * (NACA[choord].x * choordL * 0.01f * 0.7f);
+
+            P[numVerts] = canopy[0][span][choord];
+            W[numVerts] = 100;
+            V[numVerts] = float3(0, 0, 0);
+            A[numVerts] = float3(0, 0, 0);
+
+            P[numVerts + (50 * 11)] = canopy[1][span][choord];
+            W[numVerts + (50 * 11)] = 100;
+            V[numVerts + (50 * 11)] = float3(0, 0, 0);
+            A[numVerts + (50 * 11)] = float3(0, 0, 0);
+
+            numVerts++;
+        }
+    }
+
+    numVerts += (50 * 11);
+
+    for (int span = 0; span < numHalfRibs * 2; span++)
+    {
+        for (int choord = 0; choord < 11; choord++)
+        {
+            lengths[0][span][choord].x = glm::length(canopy[0][span][choord] - canopy[0][span][choord + 1]);
+            lengths[0][span][choord].y = glm::length(canopy[0][span][choord] - canopy[0][span + 1][choord + 1]);
+            lengths[0][span][choord].z = glm::length(canopy[0][span][choord] - canopy[0][span + 1][choord]);
+
+            lengths[1][span][choord].x = glm::length(canopy[1][span][choord] - canopy[1][span][choord + 1]);
+            lengths[1][span][choord].y = glm::length(canopy[1][span][choord] - canopy[1][span + 1][choord + 1]);
+            lengths[1][span][choord].z = glm::length(canopy[1][span][choord] - canopy[1][span + 1][choord]);
+
+            uint S = numHalfRibs * 2;
+            uint idx = span * 11 + choord;
+            if (choord < 10)
+            {
+                constraints[numConstraints].set(idx, idx + 1, lengths[0][span][choord].x, 1, 0.1f, 0.95f, span);
+                numConstraints++;
+            }
+            if (span < 49)
+            {
+                constraints[numConstraints].set(idx, idx + 11, lengths[0][span][choord].z, 1, 0.1f, 0.95f, span);
+                numConstraints++;
+            }
+
+            // top surace constraints
+            if (choord < 10)
+            {
+                constraints[numConstraints].set(idx + (50 * 11), idx + 1 + (50 * 11), lengths[1][span][choord].x, 1, 0.1f, 0.95f, span);
+                numConstraints++;
+            }
+            if (span < 49)
+            {
+                constraints[numConstraints].set(idx + (50 * 11), idx + 11 + (50 * 11), lengths[1][span][choord].z, 1, 0.1f, 0.95f, span);
+                numConstraints++;
+            }
+
+            // NACA constarints
+            //if ((choord == 0) || (choord == 1) || (choord == 9) || (choord == 10))
+            {
+                constraints[numConstraints].set(idx, idx + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span][choord]), 1, 0.01f, 0.95f, span);
+                numConstraints++;
+            }
+            if ((choord == 0))
+            {
+                //constraints[numConstraints].set(idx, idx + 2 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span][choord + 2]));
+                //numConstraints++;
+                //constraints[numConstraints].set(idx + (50 * 11), idx + 2, glm::length(canopy[1][span][choord] - canopy[0][span][choord + 2]));
+                //numConstraints++;
+            }
+            if ((choord >= 1) && (choord < 9))
+            {
+                constraints[numConstraints].set(idx, idx + 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span][choord + 1]), 1, 0.1f, 0.95f, span);
+                numConstraints++;
+                constraints[numConstraints].set(idx + 1, idx + (50 * 11), glm::length(canopy[1][span][choord + 1] - canopy[0][span][choord]), 1, 0.1f, 0.95f, span);
+                numConstraints++;
+            }
+
+            // corss member contraints top surface onyl for nopw
+            if (choord < 10 && (span < 49))
+            {
+                constraints[numConstraints].set(idx + (50 * 11), idx + 1 + 11 + (50 * 11), glm::length(canopy[1][span][choord] - canopy[1][span + 1][choord + 1]), 1, 0.1f, 0.95f, span);
+                numConstraints++;
+
+                //bottom
+                constraints[numConstraints].set(idx , idx + 1 + 11 , glm::length(canopy[0][span][choord] - canopy[0][span + 1][choord + 1]), 1, 0.1f, 0.95f, span);
+                numConstraints++;
+                //constraints[numConstraints].set(idx + 1 + (50 * 11), idx + 11 + (50 * 11), glm::length(canopy[1][span][choord+1] - canopy[1][span + 1][choord]));
+                //numConstraints++;
+            }
+
+            // Line asttachement constraints #################################################################
+            // 2 5 8 11 14 17 20
+
+            if ((span == 23) || (span == 20) || (span == 17) || (span == 14) || (span == 11) || (span == 8) || (span == 5) ||
+                (span == 26) || (span == 29) || (span == 32) || (span == 35) || (span == 38) || (span == 41) || (span == 44))
+            {
+                /*
+                if (choord == 2)
+                {
+                    constraints[numConstraints].set(idx, idx - 11 - 0 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord - 0]));
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx - 11 + 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord + 1]));
+                    numConstraints++;
+
+                    constraints[numConstraints].set(idx, idx + 11 - 0 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord - 0]));
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx + 11 + 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord + 1]));
+                    numConstraints++;
+                }*/
+                if ((choord == 2) || (choord == 4) || (choord == 7))
+                {
+                    constraints[numConstraints].set(idx, idx - 11 - 2 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord - 2]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx - 11 - 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord - 1]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx - 11 - 0 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord - 0]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx - 11 + 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord + 1]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx - 11 + 2 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span - 1][choord + 2]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+
+                    constraints[numConstraints].set(idx, idx + 11 - 2 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord - 2]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx + 11 - 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord - 1]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx + 11 - 0 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord - 0]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx + 11 + 1 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord + 1]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                    constraints[numConstraints].set(idx, idx + 11 + 2 + (50 * 11), glm::length(canopy[0][span][choord] - canopy[1][span + 1][choord + 2]), 1, 0.f, 0.f, span);
+                    numConstraints++;
+                }
+            }
+        }
+    }
+    // move edges in
+    /*
+    for (int span = 0; span < numHalfRibs * 2; span++)
+    {
+        for (int choord = 0; choord < 11; choord++)
+        {
+            if (span == 0) canopy[span][choord].x += 1;
+            if (span == 49) canopy[span][choord].x -= 1;
+        }
+    }
+    */
+    startLineConstraints = numConstraints;
+
+
+    // Now build teh lines - VERY HARDCODED
+    // From inside to outside, top to bottom
+    lineIdx = 0;
+    linePointIdx = numVerts;
+    // ################################################################################################################################################
+    // A :  #############################
+    lines[lineIdx + 0].set(linePointIdx + 0, 2, numHalfRibs - 2, AG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 2, numHalfRibs - 5, AG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 2, numHalfRibs - 8, AG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 2, numHalfRibs - 11, AG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 2, numHalfRibs - 14, AG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 2, numHalfRibs - 17, AG06);
+    lines[lineIdx + 6].set(linePointIdx + 2, 2, numHalfRibs - 20, AG07);
+
+    lines[lineIdx + 7].set(linePointIdx + 3, linePointIdx + 0, -1, A1);
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 1, -1, A2);
+    lines[lineIdx + 9].set(linePointIdx + 3, linePointIdx + 2, -1, A3);
+    lines[lineIdx + 7].fixed = true;
+    lines[lineIdx + 8].fixed = true;
+    lines[lineIdx + 9].fixed = true;
+
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs - 2][1] + canopy[0][numHalfRibs - 5][1]) - float3(0, 1, 0.1f);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs - 8][1] + canopy[0][numHalfRibs - 11][1]) - float3(0, 1, 0);
+    P[linePointIdx + 2] = glm::lerp(canopy[0][numHalfRibs - 17][1], strapA_Left, 0.4f);
+    P[linePointIdx + 3] = strapA_Left;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 10;
+
+
+    lines[lineIdx + 0].set(linePointIdx + 0, 2, numHalfRibs + 2 - 1, AG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 2, numHalfRibs + 5 - 1, AG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 2, numHalfRibs + 8 - 1, AG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 2, numHalfRibs + 11 - 1, AG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 2, numHalfRibs + 14 - 1, AG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 2, numHalfRibs + 17 - 1, AG06);
+    lines[lineIdx + 6].set(linePointIdx + 2, 2, numHalfRibs + 20 - 1, AG07);
+
+    lines[lineIdx + 7].set(linePointIdx + 3, linePointIdx + 0, -1, A1);
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 1, -1, A2);
+    lines[lineIdx + 9].set(linePointIdx + 3, linePointIdx + 2, -1, A3);
+    lines[lineIdx + 7].fixed = true;
+    lines[lineIdx + 8].fixed = true;
+    lines[lineIdx + 9].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs + 2 - 1][1] + canopy[0][numHalfRibs + 5 - 1][1]) - float3(0, 1, 0.1f);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs + 8 - 1][1] + canopy[0][numHalfRibs + 11 - 1][1]) - float3(0, 1, 0);
+    P[linePointIdx + 2] = glm::lerp(canopy[0][numHalfRibs + 17 - 1][1], strapA_Right, 0.4f);
+    P[linePointIdx + 3] = strapA_Right;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 10;
+
+
+    // B :  #############################
+    lines[lineIdx + 0].set(linePointIdx + 0, 4, numHalfRibs - 2, BG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 4, numHalfRibs - 5, BG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 4, numHalfRibs - 8, BG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 4, numHalfRibs - 11, BG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 4, numHalfRibs - 14, BG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 4, numHalfRibs - 17, BG06);
+    lines[lineIdx + 6].set(linePointIdx + 2, 4, numHalfRibs - 20, BG07);
+
+    lines[lineIdx + 7].set(linePointIdx + 3, linePointIdx + 0, -1, B1);
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 1, -1, B2);
+    lines[lineIdx + 9].set(linePointIdx + 3, linePointIdx + 2, -1, B3);
+    lines[lineIdx + 7].fixed = true;
+    lines[lineIdx + 8].fixed = true;
+    lines[lineIdx + 9].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs - 2][3] + canopy[0][numHalfRibs - 5][3]) - float3(0, 1, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs - 8][3] + canopy[0][numHalfRibs - 11][3]) - float3(0, 1, 0);
+    P[linePointIdx + 2] = glm::lerp(canopy[0][numHalfRibs - 17][3], strapB_Left, 0.4f);
+    P[linePointIdx + 3] = strapB_Left;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 10;
+
+
+    lines[lineIdx + 0].set(linePointIdx + 0, 4, numHalfRibs + 2 - 1, BG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 4, numHalfRibs + 5 - 1, BG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 4, numHalfRibs + 8 - 1, BG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 4, numHalfRibs + 11 - 1, BG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 4, numHalfRibs + 14 - 1, BG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 4, numHalfRibs + 17 - 1, BG06);
+    lines[lineIdx + 6].set(linePointIdx + 2, 4, numHalfRibs + 20 - 1, BG07);
+
+    lines[lineIdx + 7].set(linePointIdx + 3, linePointIdx + 0, -1, B1);
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 1, -1, B2);
+    lines[lineIdx + 9].set(linePointIdx + 3, linePointIdx + 2, -1, B3);
+    lines[lineIdx + 7].fixed = true;
+    lines[lineIdx + 8].fixed = true;
+    lines[lineIdx + 9].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs + 2 - 1][3] + canopy[0][numHalfRibs + 5 - 1][3]) - float3(0, 1, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs + 8 - 1][3] + canopy[0][numHalfRibs + 11 - 1][3]) - float3(0, 1, 0);
+    P[linePointIdx + 2] = glm::lerp(canopy[0][numHalfRibs + 17 - 1][3], strapB_Right, 0.4f);
+    P[linePointIdx + 3] = strapB_Right;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 10;
+
+
+    // C :  #############################
+    lines[lineIdx + 0].set(linePointIdx + 0, 7, numHalfRibs - 2, CG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 7, numHalfRibs - 5, CG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 7, numHalfRibs - 8, CG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 7, numHalfRibs - 11, CG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 7, numHalfRibs - 14, CG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 7, numHalfRibs - 17, CG06);
+    lines[lineIdx + 6].set(linePointIdx + 2, 7, numHalfRibs - 20, CG07);
+
+    lines[lineIdx + 7].set(linePointIdx + 3, linePointIdx + 0, -1, C1);
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 1, -1, C2);
+    lines[lineIdx + 9].set(linePointIdx + 3, linePointIdx + 2, -1, C3);
+    lines[lineIdx + 7].fixed = true;
+    lines[lineIdx + 8].fixed = true;
+    lines[lineIdx + 9].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs - 2][7] + canopy[0][numHalfRibs - 5][7]) - float3(0, 1, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs - 8][7] + canopy[0][numHalfRibs - 11][7]) - float3(0, 1, 0);
+    P[linePointIdx + 2] = glm::lerp(canopy[0][numHalfRibs - 17][7], strapC_Left, 0.4f);
+    P[linePointIdx + 3] = strapC_Left;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 10;
+
+
+    lines[lineIdx + 0].set(linePointIdx + 0, 7, numHalfRibs + 2 - 1, CG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 7, numHalfRibs + 5 - 1, CG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 7, numHalfRibs + 8 - 1, CG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 7, numHalfRibs + 11 - 1, CG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 7, numHalfRibs + 14 - 1, CG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 7, numHalfRibs + 17 - 1, CG06);
+    lines[lineIdx + 6].set(linePointIdx + 2, 7, numHalfRibs + 20 - 1, CG07);
+
+    lines[lineIdx + 7].set(linePointIdx + 3, linePointIdx + 0, -1, C1);
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 1, -1, C2);
+    lines[lineIdx + 9].set(linePointIdx + 3, linePointIdx + 2, -1, C3);
+    lines[lineIdx + 7].fixed = true;
+    lines[lineIdx + 8].fixed = true;
+    lines[lineIdx + 9].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs + 2 - 1][7] + canopy[0][numHalfRibs + 5 - 1][7]) - float3(0, 1, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs + 8 - 1][7] + canopy[0][numHalfRibs + 11 - 1][7]) - float3(0, 1, 0);
+    P[linePointIdx + 2] = glm::lerp(canopy[0][numHalfRibs + 17 - 1][7], strapC_Right, 0.4f);
+    P[linePointIdx + 3] = strapC_Right;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 10;
+
+
+
+
+
+    // S :  #############################
+
+    lines[lineIdx + 0].set(linePointIdx + 0, 2, numHalfRibs - 25, SG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 4, numHalfRibs - 25, SG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 7, numHalfRibs - 25, SG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 9, numHalfRibs - 25, SG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 2, numHalfRibs - 23, SAG1);
+    lines[lineIdx + 5].set(linePointIdx + 2, 5, numHalfRibs - 23, SBG1);
+    lines[lineIdx + 6].set(linePointIdx + 2, linePointIdx + 0, -1, SM1);
+    lines[lineIdx + 7].set(linePointIdx + 2, linePointIdx + 1, -1, SM2);
+
+    lines[lineIdx + 8].set(linePointIdx + 3, linePointIdx + 2, -1, S1);
+    lines[lineIdx + 8].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs - 25][1] + canopy[0][numHalfRibs - 25][3]) - float3(0, 0.5, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs - 25][7] + canopy[0][numHalfRibs - 25][9]) - float3(0, 0.5, 0);
+    P[linePointIdx + 2] = canopy[0][numHalfRibs - 24][5] - float3(0, 1, 0);
+    P[linePointIdx + 3] = strapS_Left;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 9;
+
+
+    lines[lineIdx + 0].set(linePointIdx + 0, 2, numHalfRibs + 25 - 1, SG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 4, numHalfRibs + 25 - 1, SG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 7, numHalfRibs + 25 - 1, SG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 9, numHalfRibs + 25 - 1, SG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 2, numHalfRibs + 23 - 1, SAG1);
+    lines[lineIdx + 5].set(linePointIdx + 2, 5, numHalfRibs + 23 - 1, SBG1);
+    lines[lineIdx + 6].set(linePointIdx + 2, linePointIdx + 0, -1, SM1);
+    lines[lineIdx + 7].set(linePointIdx + 2, linePointIdx + 1, -1, SM2);
+
+    lines[lineIdx + 8].set(linePointIdx + 2, linePointIdx + 3, -1, S1);
+    lines[lineIdx + 8].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs + 25 - 1][1] + canopy[0][numHalfRibs + 25 - 1][3]) - float3(0, 0.5, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs + 25 - 1][7] + canopy[0][numHalfRibs + 25 - 1][9]) - float3(0, 0.5, 0);
+    P[linePointIdx + 2] = canopy[0][numHalfRibs + 24 - 1][5] - float3(0, 1, 0);
+    P[linePointIdx + 3] = strapS_Right;
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 0;
+
+    linePointIdx += 4;
+    lineIdx += 9;
+
+
+
+
+
+
+    // F :  #############################
+    lines[lineIdx + 0].set(linePointIdx + 0, 10, numHalfRibs - 3, FG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 10, numHalfRibs - 5, FG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 10, numHalfRibs - 9, FG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 10, numHalfRibs - 11, FG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 10, numHalfRibs - 14, FG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 10, numHalfRibs - 17, FG06);
+
+    lines[lineIdx + 6].set(linePointIdx + 3, 10, numHalfRibs - 20, FG07);
+    lines[lineIdx + 7].set(linePointIdx + 3, 10, numHalfRibs - 22, FG08);
+
+    lines[lineIdx + 8].set(linePointIdx + 4, linePointIdx + 0, -1, FM1);
+    lines[lineIdx + 9].set(linePointIdx + 4, linePointIdx + 1, -1, FM2);
+    lines[lineIdx + 10].set(linePointIdx + 5, linePointIdx + 2, -1, FM3);
+    lines[lineIdx + 11].set(linePointIdx + 5, linePointIdx + 3, -1, FM4);
+
+    lines[lineIdx + 12].set(linePointIdx + 6, linePointIdx + 4, -1, F1);
+    lines[lineIdx + 13].set(linePointIdx + 6, linePointIdx + 5, -1, F2);
+
+    lines[lineIdx + 14].set(linePointIdx + 7, linePointIdx + 6, -1, FF1 + FF2);      // just make this one
+    lines[lineIdx + 14].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs - 3][10] + canopy[0][numHalfRibs - 5][10]) - float3(0, 0.5, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs - 9][10] + canopy[0][numHalfRibs - 11][10]) - float3(0, 0.5, 0);
+    P[linePointIdx + 2] = 0.5f * (canopy[0][numHalfRibs - 14][10] + canopy[0][numHalfRibs - 17][10]) - float3(0, 0.5, 0);
+    P[linePointIdx + 3] = 0.5f * (canopy[0][numHalfRibs - 20][10] + canopy[0][numHalfRibs - 22][10]) - float3(0, 0.5, 0);
+
+    P[linePointIdx + 4] = glm::lerp(0.5f * (P[linePointIdx + 0] + P[linePointIdx + 1]), strapC_Left, 0.25f);
+    P[linePointIdx + 5] = glm::lerp(0.5f * (P[linePointIdx + 2] + P[linePointIdx + 3]), strapC_Left, 0.25f);
+
+    P[linePointIdx + 6] = glm::lerp(0.5f * (P[linePointIdx + 4] + P[linePointIdx + 5]), strapC_Left, 0.5f);
+
+    P[linePointIdx + 7] = strapC_Left;
+
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 1000;
+    W[linePointIdx + 4] = 1000;
+    W[linePointIdx + 5] = 1000;
+    W[linePointIdx + 6] = 1000;
+    W[linePointIdx + 7] = 0;
+
+    linePointIdx += 8;
+    lineIdx += 15;
+
+
+
+
+    lines[lineIdx + 0].set(linePointIdx + 0, 10, numHalfRibs + 3 - 1, FG01);
+    lines[lineIdx + 1].set(linePointIdx + 0, 10, numHalfRibs + 5 - 1, FG02);
+
+    lines[lineIdx + 2].set(linePointIdx + 1, 10, numHalfRibs + 9 - 1, FG03);
+    lines[lineIdx + 3].set(linePointIdx + 1, 10, numHalfRibs + 11 - 1, FG04);
+
+    lines[lineIdx + 4].set(linePointIdx + 2, 10, numHalfRibs + 14 - 1, FG05);
+    lines[lineIdx + 5].set(linePointIdx + 2, 10, numHalfRibs + 17 - 1, FG06);
+
+    lines[lineIdx + 6].set(linePointIdx + 3, 10, numHalfRibs + 20 - 1, FG07);
+    lines[lineIdx + 7].set(linePointIdx + 3, 10, numHalfRibs + 22 - 1, FG08);
+
+    lines[lineIdx + 8].set(linePointIdx + 4, linePointIdx + 0, -1, FM1);
+    lines[lineIdx + 9].set(linePointIdx + 4, linePointIdx + 1, -1, FM2);
+    lines[lineIdx + 10].set(linePointIdx + 5, linePointIdx + 2, -1, FM3);
+    lines[lineIdx + 11].set(linePointIdx + 5, linePointIdx + 3, -1, FM4);
+
+    lines[lineIdx + 12].set(linePointIdx + 6, linePointIdx + 4, -1, F1);
+    lines[lineIdx + 13].set(linePointIdx + 6, linePointIdx + 5, -1, F2);
+
+    lines[lineIdx + 14].set(linePointIdx + 7, linePointIdx + 6, -1, FF1 + FF2);      // just make this one
+    lines[lineIdx + 14].fixed = true;
+
+    P[linePointIdx + 0] = 0.5f * (canopy[0][numHalfRibs + 3 - 1][10] + canopy[0][numHalfRibs + 5 - 1][10]) - float3(0, 0.5, 0);
+    P[linePointIdx + 1] = 0.5f * (canopy[0][numHalfRibs + 9 - 1][10] + canopy[0][numHalfRibs + 11 - 1][10]) - float3(0, 0.5, 0);
+    P[linePointIdx + 2] = 0.5f * (canopy[0][numHalfRibs + 14 - 1][10] + canopy[0][numHalfRibs + 17 - 1][10]) - float3(0, 0.5, 0);
+    P[linePointIdx + 3] = 0.5f * (canopy[0][numHalfRibs + 20 - 1][10] + canopy[0][numHalfRibs + 22 - 1][10]) - float3(0, 0.5, 0);
+
+    // P[linePointIdx + 4] = 0.5f * (P[linePointIdx + 0] + P[linePointIdx + 1]) - float3(0, 0.5, 0);
+     //P[linePointIdx + 5] = 0.5f * (P[linePointIdx + 2] + P[linePointIdx + 3]) - float3(0, 0.5, 0);
+
+     //P[linePointIdx + 6] = 0.5f * (P[linePointIdx + 4] + P[linePointIdx + 5]) - float3(0, 1.5, 0);
+
+    P[linePointIdx + 4] = glm::lerp(0.5f * (P[linePointIdx + 0] + P[linePointIdx + 1]), strapC_Right, 0.25f);
+    P[linePointIdx + 5] = glm::lerp(0.5f * (P[linePointIdx + 2] + P[linePointIdx + 3]), strapC_Right, 0.25f);
+
+    P[linePointIdx + 6] = glm::lerp(0.5f * (P[linePointIdx + 4] + P[linePointIdx + 5]), strapC_Right, 0.5f);
+
+
+    P[linePointIdx + 7] = strapC_Right;
+
+    W[linePointIdx + 0] = 1000;
+    W[linePointIdx + 1] = 1000;
+    W[linePointIdx + 2] = 1000;
+    W[linePointIdx + 3] = 1000;
+    W[linePointIdx + 4] = 1000;
+    W[linePointIdx + 5] = 1000;
+    W[linePointIdx + 6] = 1000;
+    W[linePointIdx + 7] = 0;
+
+    linePointIdx += 8;
+    lineIdx += 15;
+    // ################################################################################################################################################
 
 
     ribbonCount = 0;
 
-    curve.solveArcLenght();
-    flatHalfSpan = curve.arcLength;
+
 
     surfaceArea = 0;
-    float W = flatHalfSpan / numHalfRibs;
+    float Wxxx = flatHalfSpan / numHalfRibs;
     for (int i = 0; i <= numHalfRibs; i++)
     {
-        surfaceArea += W * (glm::length(lead[i] - trail[i]) + glm::length(lead[i+1] - trail[i+1]));
+        surfaceArea += Wxxx * (glm::length(lead[i] - trail[i]) + glm::length(lead[i + 1] - trail[i + 1]));
     }
 
-    for (int i = 0; i < numHalfRibs*2; i++)
+
+
+    int newID[1000];
+
+    // Now insert the lines into P and constarints
+    for (int l = 0; l < lineIdx; l++)
     {
-        ribbon[ribbonCount].type = false;
-        ribbon[ribbonCount].startBit = (i > 0);
-        ribbon[ribbonCount].position = lead[i];
-        ribbon[ribbonCount].radius = 0.02f;
-        ribbon[ribbonCount].bitangent = float3(1, 0, 0);
-        ribbon[ribbonCount].tangent = tangent[i];
-        ribbon[ribbonCount].material = 0;
-        ribbon[ribbonCount].albedoScale = 127;
-        ribbon[ribbonCount].translucencyScale = 127;
-        ribbon[ribbonCount].uv = float2(1, 4);
-        ribbonCount++;
-    }
+        int newIDcnt = 0;
+        int cnt = __max(1, (int)(lines[l].length * 10.f)); // 20cm for now
+        int id1 = lines[l].V1;
+        int id2 = lines[l].V2;
+        if (lines[l].choord > -1)
+        {
+            id2 += lines[l].choord * 11;
+        }
+        float3 P1 = P[id1];
+        float3 P2 = P[id2];
 
-    for (int i = 0; i < numHalfRibs * 2; i++)
-    {
-        ribbon[ribbonCount].type = false;
-        ribbon[ribbonCount].startBit = (i > 0);
-        ribbon[ribbonCount].position = trail[i];
-        ribbon[ribbonCount].radius = 0.02f;
-        ribbon[ribbonCount].bitangent = float3(1, 0, 0);
-        ribbon[ribbonCount].tangent = tangent[i];
-        ribbon[ribbonCount].material = 0;
-        ribbon[ribbonCount].albedoScale = 127;
-        ribbon[ribbonCount].translucencyScale = 127;
-        ribbon[ribbonCount].uv = float2(1, 4);
-        ribbonCount++;
-    }
+        newID[0] = id1;
 
-    // ribs
-    for (int i = 0; i < numHalfRibs * 2; i++)
-    {
-        ribbon[ribbonCount].type = false;
-        ribbon[ribbonCount].startBit = 0;
-        ribbon[ribbonCount].position = lead[i];
-        ribbon[ribbonCount].radius = 0.01f;
-        ribbon[ribbonCount].bitangent = float3(0, 0, 1);
-        ribbon[ribbonCount].tangent = tangent[i];
-        ribbon[ribbonCount].material = 0;
-        ribbon[ribbonCount].albedoScale = 127;
-        ribbon[ribbonCount].translucencyScale = 127;
-        ribbon[ribbonCount].uv = float2(1, 4);
-        ribbonCount++;
+        for (int j = 1; j < cnt; j++)
+        {
+            float t = (float)j / (float)cnt;
+            float3 Pnew = glm::lerp(P1, P2, t);
 
-        ribbon[ribbonCount].type = false;
-        ribbon[ribbonCount].startBit = 1;
-        ribbon[ribbonCount].position = trail[i];
-        ribbon[ribbonCount].radius = 0.01f;
-        ribbon[ribbonCount].bitangent = float3(0, 0, 1);
-        ribbon[ribbonCount].tangent = tangent[i];
-        ribbon[ribbonCount].material = 0;
-        ribbon[ribbonCount].albedoScale = 127;
-        ribbon[ribbonCount].translucencyScale = 127;
-        ribbon[ribbonCount].uv = float2(1, 4);
-        ribbonCount++;
+            P[linePointIdx] = Pnew;
+            W[linePointIdx] = 100;
+            newID[j] = linePointIdx;
+            linePointIdx++;
+        }
+
+        newID[cnt] = id2;
+
+        for (int j = 0; j < cnt; j++)
+        {
+            constraints[numConstraints].set(newID[j], newID[j + 1], lines[l].length / (float)cnt, 1, 0.01f, 0.f);
+            numConstraints++;
+        }
     }
+    numVerts = linePointIdx;
+
+
+
+    // straps
+
+    // A lines
 
     // triangle
     {
@@ -228,10 +1021,10 @@ void _glider::build()
 
     // straps
     {
-        strapA_Left = c_Left + float3(-0.1f, strapLenth, 0.05f);
+        strapA_Left = c_Left + float3(-0.1f, strapLenth, -0.05f);
         strapB_Left = c_Left + float3(-0.1f, strapLenth, 0.0f);
-        strapC_Left = c_Left + float3(-0.1f, strapLenth, -0.05f);
-        strapS_Left = c_Left + float3(-0.2f, strapLenth, 0.0f);
+        strapC_Left = c_Left + float3(-0.1f, strapLenth, 0.05f);
+        strapS_Left = c_Left + float3(-0.3f, strapLenth, 0.0f);
 
         setupVert(&ribbon[ribbonCount], 0, c_Left, 0.02f);     ribbonCount++;
         setupVert(&ribbon[ribbonCount], 1, strapA_Left, 0.02f);     ribbonCount++;
@@ -263,19 +1056,228 @@ void _glider::build()
         setupVert(&ribbon[ribbonCount], 1, strapS_Right, 0.02f);     ribbonCount++;
     }
 
+    for (int i = 0; i < ribbonCount; i++)
+    {
+        packedRibbons[i] = ribbon[i].pack();
+    }
+    changed = true;
 
-    // straps
 
-    // A lines
+    for (int i = 0; i < numVerts; i++)
+    {
+        V[i] = float3(0, 0, 0);
+        A[i] = float3(0, 0, 0);
+    }
+
+    beenBuilt = true;
+}
+
+
+
+
+
+
+
+void _glider::solve(float _dT)
+{
+    if (!beenBuilt) return;
+
+    // Dynamic pressure
+    windspeed = glm::length(wind);
+    dynamicPressure = 0.5 * windspeed * windspeed * 1.2;        //1.2 is sea level
+    //https://en.wikipedia.org/wiki/Density_of_air#:~:text=Air%20density%2C%20like%20air%20pressure,International%20Standard%20Atmosphere%20(ISA).
+    
+    totalWingForce = float3(0, 0, 0);
+    // Surface Normals
+    for (int s = 0; s < 50; s++)
+    {
+        for (int c = 0; c < 11; c++)
+        {
+            int l = __max(0, s - 1);
+            int r = __min(49, s + 1);
+            int f = __max(0, c - 1);
+            int b = __min(10, c + 1);
+            int A = l * 11 + f;
+            int B = r * 11 + b;
+            int C = l * 11 + b;
+            int D = r * 11 + f;
+            int idx = s * 11 + c;
+
+            if (c == 0)
+            {
+                N[idx] = -glm::cross(P[A + (50 * 11)] - P[B], P[C] - P[D + (50 * 11)]) * 0.25f *30.3f; //bottom
+            }
+            else
+            {
+                float dBottom = __min(1.0f, ((11.0f - c) / 10.0f));
+                N[idx] = -glm::cross(P[A] - P[B], P[C] - P[D]) * 0.25f * 30.0f * dBottom; //bottom
+            }
+
+            A += 50 * 11;
+            B += 50 * 11;
+            C += 50 * 11;
+            D += 50 * 11;
+            idx += 50 * 11;
+            if (c == 0)
+            {
+                N[idx] = glm::cross(P[A - (50 * 11)] - P[B], P[C] - P[D - (50 * 11)]) * 0.25f * 30.3f; //top
+            }
+            else
+            {
+                float dTop = __min(1.0f, ((11.0f - c) / 10.0f));
+                N[idx] = glm::cross(P[A] - P[B], P[C] - P[D]) * 0.25f * 50.0f * dTop; //top
+                if (c > 7)
+                {
+                    N[idx] = glm::cross(P[A] - P[B], P[C] - P[D]) * 0.25f * 30.0f * dTop; //top
+                }
+            }
+        }
+    }
+
+    // return;
+
+
+     // PRE
+    memcpy(Pold, P, sizeof(float3) * numVerts);
+    int SP = numHalfRibs * 2;
+    for (int i = 0; i < numVerts; i++)
+    {
+        float3 force;
+        
+        if (i < 50 * 11 * 2)
+        {
+            force = N[i] * 2.f + float3(0, 0.0, 0.295f);        // roughly 90kg
+            totalWingForce += force;
+        }
+        else
+        {
+            force = float3(0, -0.001f, 0.005f);    // wind on lines
+        }
+
+        V[i] += _dT * (force * W[i]);
+        P[i] += _dT * V[i];
+    }
+
+    // SOLVE
+    for (int i = 0; i < numConstraints; i++)
+    {
+        uint idx0 = constraints[i].v0;
+        uint idx1 = constraints[i].v1;
+        float Lrest = constraints[i].l;
+        float Wsum = W[idx0] + W[idx1];// +(0.9f / _dT);
+
+        if (Wsum > 0)
+        {
+            float3 S = P[idx1] - P[idx0];
+            float L = glm::length(S);
+            float3 Snorm = glm::normalize(S);
+            float C = L - Lrest;
+            if (C > 0)
+            {
+                C *= constraints[i].tensileStiff;
+            }
+            else
+            {
+                float stiff = __max(constraints[i].compressStiff, constraints[i].pressureStiff * cells[constraints[i].cell].pressure);
+                C *= stiff;
+            }
+            
+            float s = -C / Wsum;
+            P[idx0] -= Snorm * s * W[idx0];
+            P[idx1] += Snorm * s * W[idx1];
+        }
+    }
+
+
+    // POST
+    for (int i = 0; i < numVerts; i++)
+    {
+        if (P[i].y < 0)
+        {
+            P[i].y = 0;
+            V[i] *= 0.8f;
+        }
+
+        V[i] = (P[i] - Pold[i]) / _dT;// *0.999f;
+    }
+
+}
+
+
+
+
+
+
+
+
+
+void _glider::pack()
+{
+    if (!beenBuilt) return;
+
+    ribbonCount = 0;
+
+
+
+    for (int i = 0; i < numHalfRibs * 2; i++)
+    {
+        for (int c = 0; c < 11; c++)
+        {
+            setupVert(&ribbon[ribbonCount], c == 0 ? 0 : 1, P[i * 11 + c], 0.01f);     ribbonCount++;
+        }
+
+        if (i % 5 == 0)
+        {
+            for (int c = 0; c < 11; c++)
+            {
+                setupVert(&ribbon[ribbonCount], c == 0 ? 0 : 1, P[i * 11 + c + (50 * 11)], 0.01f);     ribbonCount++;
+            }
+        }
+    }
+
+    // span
+    for (int c = 0; c < 11; c += 10)
+    {
+        for (int i = 0; i < numHalfRibs * 2; i++)
+        {
+            setupVert(&ribbon[ribbonCount], i == 0 ? 0 : 1, P[i * 11 + c], 0.01f);     ribbonCount++;
+        }
+    }
+
+    // The line constraints
+    for (int j = startLineConstraints; j < numConstraints; j++)
+        //for (int j = 0; j < numConstraints; j++)
+    {
+        setupVert(&ribbon[ribbonCount], 0, P[constraints[j].v0], 0.0071f, 1);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, P[constraints[j].v1], 0.0071f, 1);     ribbonCount++;
+    }
+
+    // Normals
+    for (int j = 0; j < 50 * 11 * 2; j++)
+    {
+        setupVert(&ribbon[ribbonCount], 0, P[j], 0.001f, 2);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, P[j] + N[j] * 0.1f, 0.015f, 2);     ribbonCount++;
+    }
 
     for (int i = 0; i < ribbonCount; i++)
     {
         packedRibbons[i] = ribbon[i].pack();
     }
+    changed = true;
 }
+
+
+
+
+
+
+
+
+
 
 void _glider::renderGui(Gui* mpGui)
 {
+    ImGui::Columns(2);
     ImGui::BeginChildFrame(1000, ImVec2(300, 160));
     ImGui::Text("leadingEdge");
     leadingEdge.renderGui(mpGui);
@@ -342,9 +1344,26 @@ void _glider::renderGui(Gui* mpGui)
 
     if (ImGui::Button("BUILD")) {
         build();
+        build();
     }
 
     ImGui::Text("ribbonCount %d", ribbonCount);
+
+
+    ImGui::NextColumn();
+    {
+        ImGui::DragFloat3("wind m/s", &wind.x, 0.1f, -20, 20);
+        ImGui::Text("speed %2.2f km/h", glm::length(wind) * 3.6f);
+        ImGui::Text("vertical %2.2f m/s", -wind.y);
+        ImGui::Text("p - %2.2f", dynamicPressure);
+        ImGui::Text("force - %2.2f, %2.2f, %2.2f N", totalWingForce.x, totalWingForce.y, totalWingForce.z);
+        ImGui::NewLine();
+
+        for (int i = 0; i < 50; i++)
+        {
+            ImGui::Text("%2.2f", cells[i].pressure);
+        }
+    }
 }
 
 
@@ -494,7 +1513,7 @@ void _shadowEdges::load()
 
 
 
-float objectScale = 0.002f;
+float objectScale = 0.002f;  //0.002 for trees
 float radiusScale = 2.0f;//  so biggest radius now objectScale / 2.0f;
 float O = 16384.0f * objectScale * 0.5f;
 float3 objectOffset = float3(O, O * 0.5f, O);
@@ -1044,7 +2063,7 @@ void _plantMaterial::import(bool _replacePath)
     FileDialogFilterVec filters = { {"vegetationMaterial"} };
     if (openFileDialog(filters, path))
     {
-        import(path, _replacePath);
+import(path, _replacePath);
         terrainManager::lastfile.vegMaterial = path.string();
     }
 }
@@ -3127,7 +4146,7 @@ void _GroveTree::rebuildVisibility()
             for (auto& node : branch.nodes) // look for that crossover 45 degrees 2 meters away
             {
                 if ((node.pos.z < -2.0f) && (abs(node.pos.x) / abs(node.pos.z) < 1))
-                //if ((node.pos.z < -3.0f))
+                    //if ((node.pos.z < -3.0f))
                 {
                     anyVisible = true;
                 }
@@ -4158,6 +5177,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 
 
+
+    AirSim.setup();
 
 
     //_plantMaterial::static_materials_veg.materialVector.emplace_back();
@@ -6165,6 +7186,21 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
           */
     }
 
+    if (terrainMode == 4)
+    {
+        {
+            FALCOR_PROFILE("SOLVE_glider");
+            ParaGlider.solve(0.001f);
+        }
+        ParaGlider.pack();
+
+        {
+            FALCOR_PROFILE("SOLVE_AIR");
+            //AirSim.update(0.001f);
+        }
+        //AirSim.pack();
+    }
+
     if ((terrainMode == 0) || (terrainMode == 4))
     {
 
@@ -6222,7 +7258,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.State()->setBlendState(split.blendstateSplines);
         }
 
-        
+
 
 
 
@@ -6264,12 +7300,15 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         // PARAGLIDER BUILDER
         // ########################################################################################################################
-        
+
         if ((terrainMode == 4) && ParaGlider.changed)
+            //if ((terrainMode == 4) && AirSim.changed)
         {
             ParaGlider.changed = false;
             ribbonInstanceNumber = 1;
             ribbonData->setBlob(ParaGlider.packedRibbons, 0, ParaGlider.ribbonCount * sizeof(unsigned int) * 6);
+            //ribbonData->setBlob(AirSim.packedRibbons, 0, AirSim.ribbonCount * sizeof(unsigned int) * 6);
+
 
             ribbonShader.State()->setFbo(_fbo);
             ribbonShader.State()->setViewport(0, _viewport, true);
@@ -6284,6 +7323,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
 
         if ((terrainMode == 4) && ParaGlider.ribbonCount > 1)
+            //if ((terrainMode == 4) && AirSim.ribbonCount > 1)
         {
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
             ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
@@ -6312,8 +7352,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
             ribbonShader.drawInstanced(_renderContext, ParaGlider.ribbonCount, 1);
+            //ribbonShader.drawInstanced(_renderContext, AirSim.ribbonCount, 1);
+
         }
-        
+
 
         return;
     }
@@ -7669,7 +8711,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
             if (ImGui::IsMouseDown(1))
             {
                 mouseVegPitch += diff.y * 10.0f;
-                mouseVegPitch = glm::clamp(mouseVegPitch, 0.f, 1.5f);
+                mouseVegPitch = glm::clamp(mouseVegPitch, -1.f, 1.5f);
 
                 mouseVegYaw += diff.x * 20.0f;
                 while (mouseVegYaw < 0) mouseVegYaw += 6.28318530718f;
@@ -7694,6 +8736,10 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
         _camera->setPosition(camPos * mouseVegOrbit);
         _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
+        if ((terrainMode == 4))
+        {
+            _camera->setTarget(glm::vec3(0, 3.5f, 0));
+        }
         return true;
     }
     else {
