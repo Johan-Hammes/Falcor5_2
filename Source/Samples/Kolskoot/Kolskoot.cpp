@@ -424,7 +424,7 @@ void _target::save(std::filesystem::path _path)
     std::ofstream os(_path);
     if (os.good()) {
         cereal::XMLOutputArchive archive(os);
-        serialize(archive, 100);
+        serialize(archive, 101);
     }
 }
 
@@ -475,6 +475,7 @@ void _target::renderGui(Gui* _gui, Gui::Window& _window)
                 }
             }
 
+            ImGui::Checkbox("drop when hit", &dropWhenHit);
 
             ImGui::NewLine();
 
@@ -644,7 +645,7 @@ bool exercise::renderTargetPopup(Gui* _gui)
     }
 
     */
-    
+
     return false;
 }
 
@@ -893,7 +894,34 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     auto& Ex = exercises[currentExercise];
     auto& target = Ex.target;
 
+    static float hscale = 0.02f;
+    if (actionPhase == 0)
+    {
+        hscale += 0.02f;
+        hscale = __min(1, hscale);
+    }
+    else
+    {
+        hscale -= 0.02f;
+        hscale = __max(0.02f, hscale);
+    }
+
+    // drop when hit
+    if (target.dropWhenHit && score.lane_exercise.at(_lane).at(currentExercise).score > 0)
+    {
+        hscale = 0.02f;
+    }
+
+    // drop when shots done
+    if (Ex.action.dropWhenHit && getRoundsLeft(_lane) == 0)
+    {
+        // FIXEM can do with a delay and animation
+        // OK this does not work because we multiply out rounds
+        hscale = 0.02f;
+    }
+
     float2 pixSize = target.size * Kolskoot::setupInfo.meterToPixels(Ex.targetDistance);
+    pixSize.y *= hscale;
     float2 topleft = Kolskoot::setupInfo.laneCenter(_lane, Ex.pose) - (pixSize * 0.5f);
     ImGui::SetCursorPos(ImVec2(topleft.x, topleft.y));
     _window.image("testImage", target.image, pixSize, false);
@@ -903,10 +931,43 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
         float2 pos = score.lane_exercise.at(_lane).at(currentExercise).shots.at(s).position_relative;
         float2 screenPos = (pos - 0.5f) * pixSize + Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
         float bulletSize = Kolskoot::setupInfo.meterToPixels(Ex.targetDistance) * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
+        bulletSize = __max(bulletSize, 15);
+
+        ImGui::SetCursorPos(ImVec2(screenPos.x - (bulletSize / 2), screenPos.y - (bulletSize / 2)));
+        _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize * hscale), false);
+    }
+
+}
+
+
+
+float quickRange::renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane, float _size, float _y)
+{
+    auto& Ex = exercises[currentExercise];
+    auto& target = Ex.target;
+
+    // fixed height of 200 pixels
+    float2 pixSize = target.size * (_size / target.size.y);
+    float2 topleft = Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
+    topleft.y = _y;
+    topleft -= (pixSize * 0.5f);
+
+    ImGui::SetCursorPos(ImVec2(topleft.x, topleft.y));
+    _window.image("testImage", target.image, pixSize, false);
+
+    for (int s = 0; s < score.lane_exercise.at(_lane).at(currentExercise).shots.size(); s++)
+    {
+        float2 pos = score.lane_exercise.at(_lane).at(currentExercise).shots.at(s).position_relative;
+        float2 screenPos = Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
+        screenPos.y = _y;
+        screenPos += (pos - 0.5f) * pixSize;
+        float bulletSize = __max(20, _size / 20.f);
 
         ImGui::SetCursorPos(ImVec2(screenPos.x - (bulletSize / 2), screenPos.y - (bulletSize / 2)));
         _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize), false);
     }
+
+    return pixSize.x * 0.5f;
 }
 
 
@@ -918,7 +979,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
     auto& Ex = exercises[currentExercise];
     auto& target = Ex.target;
 
-    
+
 
     ImGui::PushFont(_gui->getFont("roboto_64"));
     {
@@ -928,7 +989,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
             Ex.renderGui(_gui, _window);
 
             ImGui::SetCursorPos(ImVec2(Kolskoot::setupInfo.screen_pixelsX * 0.5, 40));
-            
+
             _window.image("ammo", Kolskoot::ammoType[Kolskoot::ballistics.currentAmmo], float2(Kolskoot::setupInfo.screen_pixelsX * 0.5, Kolskoot::setupInfo.screen_pixelsX * 0.3), false);
             break;
 
@@ -952,18 +1013,17 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
                 if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
                 {
-                    ImGui::PushFont(_gui->getFont("roboto_20"));
+                    ImGui::PushFont(_gui->getFont("roboto_32"));
                     {
-                        ImGui::SetCursorPos(ImVec2(laneRight - 270, 54));
+                        ImGui::SetCursorPos(ImVec2(laneRight - 170, 54));
                         ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), Ex.numRounds);
 
-                        ImGui::SetCursorPos(ImVec2(laneRight - 170, 54));
-                        ImGui::Text("score");
+                        //ImGui::SetCursorPos(ImVec2(laneRight - 170, 54));
+                        //ImGui::Text("score");
                     }
                     ImGui::PopFont();
 
-                    ImGui::SetCursorPos(ImVec2(laneRight - 120, 20));
-                    ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                    
 
                     if (Ex.action.action == action_adjust)
                     {
@@ -973,6 +1033,21 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                     }
 
                     renderTarget(_gui, _window, _bulletHole, lane);         // Draw the target
+
+                    if (Kolskoot::setupInfo.eyeHeights[Ex.pose] < Kolskoot::setupInfo.screen_pixelsY * 0.5f)
+                    {
+                        float w = renderScope(_gui, _window, _bulletHole, lane, 300, Kolskoot::setupInfo.screen_pixelsY - 200);
+                        ImGui::SetCursorPos(ImVec2(laneLeft + 0.5 * laneWidth + w + 15, Kolskoot::setupInfo.screen_pixelsY - 200 - 32));
+                        ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                    }
+                    else
+                    {
+                        float w = renderScope(_gui, _window, _bulletHole, lane, 300, 190);
+                        ImGui::SetCursorPos(ImVec2(laneLeft + 0.5 * laneWidth + w + 15, 190 - 32));
+                        ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                    }
+
+                    
 
                     adjustBoresight(lane);                                  // test if we are adjusting boresigth and do it
                 }
@@ -987,7 +1062,27 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
         break;
 
         case live_scores:
-            ImGui::Text("scores page");
+            ImGui::BeginColumns("lanes", Kolskoot::setupInfo.numLanes);
+            for (int lane = 0; lane < Kolskoot::setupInfo.numLanes; lane++)
+            {
+                float laneWidth = Kolskoot::setupInfo.screen_pixelsX / Kolskoot::setupInfo.numLanes;
+                float laneLeft = laneWidth * lane;
+                float laneRight = laneLeft + laneWidth;
+
+
+                if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
+                {
+                    float w = renderScope(_gui, _window, _bulletHole, lane, laneWidth - 20, Kolskoot::setupInfo.screen_pixelsY * 0.5f);
+                    ImGui::SetCursorPos(ImVec2(laneLeft + 0.5 * laneWidth + w + 15, Kolskoot::setupInfo.screen_pixelsY - 200 - 32));
+                    ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                }
+
+                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setupInfo.screen_pixelsY - 50));
+                ImGui::Text(".");   // just somethign to force teh down lines
+
+                ImGui::NextColumn();
+            }
+            ImGui::EndColumns();
             break;
 
         }
@@ -1005,7 +1100,7 @@ void quickRange::adjustBoresight(int _lane)
     if (Ex.action.action == action_adjust && (shots.size() >= Ex.numRounds))
     {
         float2 avs = float2(0, 0);
-        for (auto &s : shots)
+        for (auto& s : shots)
         {
             avs += s.position;
         }

@@ -199,6 +199,7 @@ public:
     int scoreWidth = 0;
     int scoreHeight = 0;
     char* scoreData;
+    bool dropWhenHit = false;
 
     std::string fullPath;
 
@@ -221,9 +222,15 @@ public:
         size.y = (float)size_mm.y * 0.001f;
         loadimage(Kolskoot::setupInfo.dataFolder + "/targets/");
         loadscoreimage(Kolskoot::setupInfo.dataFolder + "/targets/");
+
+        if (_version > 100)
+        {
+            _archive(CEREAL_NVP(dropWhenHit));
+            
+        }
     }
 };
-CEREAL_CLASS_VERSION(_target, 100);
+CEREAL_CLASS_VERSION(_target, 101);
 
 
 class targetAction
@@ -417,6 +424,7 @@ class quickRange        // rename
 public:
     void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
     void renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane);
+    float renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane, float _size, float _y);
     void renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole);
     void adjustBoresight(int _lane);
     void renderLiveMenubar(Gui* _gui);
@@ -613,7 +621,7 @@ private:
     void  zigbeePaperStop();
     void  zigbeeRounds(unsigned int lane, int R, bool bStop = false);
     void  zigbeeFire(unsigned int lane);
-    void zigbeeClear();
+    void  zigbeeClear();
 
     // live playback
     void updateLive();
