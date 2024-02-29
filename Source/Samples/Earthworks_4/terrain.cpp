@@ -376,6 +376,125 @@ void cubic_Casteljau_Para(float t, glm::vec3 P0, glm::vec3 P1, glm::vec3 P2, glm
     bitangent = glm::normalize(glm::cross(tangent, glm::vec3(0, 0, -1)));
 }
 
+
+
+
+// temporary function, once I have a disk example , I can just edit those and load it
+void _glider::buildLines()
+{
+    float3 red = float3(0.8f, 0.01f, 0.01f);
+    float3 yellow = float3(0.8f, 0.8f, 0.01f);
+    float3 green = float3(0.01f, 0.8f, 0.01f);
+    float3 blue = float3(0.01f, 0.01f, 0.7f);
+    float3 turqoise = float3(0.01f, 0.7f, 0.7f);
+    float3 black = float3(0.01f, 0.01f, 0.01f);
+
+    // This is for Nova size medium
+    auto& lA = linesLeft.pushLine("left_A_strap", 0.5f, 0.02f, black);
+    {
+        auto& A1 = lA.pushLine("A1", 4.707f, 0.004f, red); {
+            A1.pushLine("AG01", 2.438f, 0.002f, red, uint2(23, 2));
+            A1.pushLine("AG02", 2.405f, 0.002f, red, uint2(20, 2));
+        }
+        auto& A2 = lA.pushLine("A2", 4.742f, 0.004f, red); {
+            A2.pushLine("AG03", 2.332f, 0.002f, red, uint2(17, 2));
+            A2.pushLine("AG04", 2.302f, 0.002f, red, uint2(14, 2));
+        }
+        auto& A3 = lA.pushLine("A3", 3.932f, 0.004f, red); {
+            A3.pushLine("AG05", 3.041f, 0.002f, red, uint2(11, 2));
+            A3.pushLine("AG06", 2.927f, 0.002f, red, uint2(8, 2));
+            A3.pushLine("AG07", 2.801f, 0.002f, red, uint2(5, 2));
+        }
+    }
+
+    auto& lB = linesLeft.pushLine("left_B_strap", 0.5f, 0.02f, black);
+    {
+        auto& B1 = lB.pushLine("B1", 4.663f, 0.004f, yellow); {
+            B1.pushLine("BG01", 2.386f, 0.002f, yellow, uint2(23, 4));
+            B1.pushLine("BG02", 2.356f, 0.002f, yellow, uint2(20, 4));
+        }
+        auto& B2 = lB.pushLine("B2", 4.71f, 0.004f, yellow); {
+            B2.pushLine("BG03", 2.278f, 0.002f, yellow, uint2(17, 4));
+            B2.pushLine("BG04", 2.256f, 0.002f, yellow, uint2(14, 4));
+        }
+        auto& B3 = lB.pushLine("B3", 3.879f, 0.004f, yellow); {
+            B3.pushLine("BG05", 3.026f, 0.002f, yellow, uint2(11, 4));
+            B3.pushLine("BG06", 2.926f, 0.002f, yellow, uint2(8, 4));
+            B3.pushLine("BG07", 2.817f, 0.002f, yellow, uint2(5, 4));
+        }
+    }
+
+    auto& lC = linesLeft.pushLine("left_C_strap", 0.5f, 0.02f, black);
+    {
+        auto& C1 = lC.pushLine("C1", 4.663f, 0.004f, green); {
+            C1.pushLine("CG01", 2.386f, 0.002f, green, uint2(23, 4));
+            C1.pushLine("CG02", 2.356f, 0.002f, green, uint2(20, 4));
+        }
+        auto& C2 = lC.pushLine("C2", 4.71f, 0.004f, green); {
+            C2.pushLine("CG03", 2.278f, 0.002f, green, uint2(17, 4));
+            C2.pushLine("CG04", 2.256f, 0.002f, green, uint2(14, 4));
+        }
+        auto& C3 = lC.pushLine("C3", 3.879f, 0.004f, green); {
+            C3.pushLine("CG05", 3.026f, 0.002f, green, uint2(11, 4));
+            C3.pushLine("CG06", 2.926f, 0.002f, green, uint2(8, 4));
+            C3.pushLine("CG07", 2.817f, 0.002f, green, uint2(5, 4));
+        }
+    }
+
+    auto& lS = linesLeft.pushLine("left_S_strap", 0.5f, 0.02f, black);
+    {
+        auto& S1 = lS.pushLine("S1", 4.914f, 0.004f, blue); {
+            S1.pushLine("SAG1", 1.418f, 0.002f, blue, uint2(2, 2));
+            S1.pushLine("SBG1", 1.437f, 0.002f, blue, uint2(2, 5));
+            auto& SM1 = S1.pushLine("SM1", 0.699f, 0.002f, blue, uint2(23, 4)); {
+                SM1.pushLine("SG01", 0.451f, 0.002f, blue, uint2(0, 1));
+                SM1.pushLine("SG02", 0.471f, 0.002f, blue, uint2(0, 3));
+            }
+            auto& SM2 = S1.pushLine("SM2", 0.898f, 0.002f, blue, uint2(20, 4)); {
+                SM2.pushLine("SG03", 0.346f, 0.002f, blue, uint2(0, 7));
+                SM2.pushLine("SG04", 0.431f, 0.002f, blue, uint2(0, 9));
+            }
+        }
+    }
+    
+    auto& lFF1 = linesLeft.pushLine("FF1", 1.2f, 0.004f, turqoise);
+    {
+        auto& FF2 = lFF1.pushLine("FF2", 0.464f, 0.004f, turqoise); {
+            auto& F1 = FF2.pushLine("F1", 2.451f, 0.003f, turqoise); {
+                auto& FM1 = F1.pushLine("FM1", 2.468f, 0.003f, turqoise); {
+                    FM1.pushLine("FG01", 1.474f, 0.002f, turqoise, uint2(22, 10));
+                    FM1.pushLine("FG02", 1.138f, 0.002f, turqoise, uint2(20, 10));
+                }
+                auto& FM2 = F1.pushLine("FM2", 2.309f, 0.003f, turqoise); {
+                    FM2.pushLine("FG03", 1.087f, 0.002f, turqoise, uint2(16, 10));
+                    FM2.pushLine("FG04", 0.923f, 0.002f, turqoise, uint2(14, 10));
+                }
+            }
+            auto& F2 = FF2.pushLine("F2", 2.451f, 0.003f, turqoise); {
+                auto& FM3 = F2.pushLine("FM3", 1.674f, 0.003f, turqoise); {
+                    FM3.pushLine("FG05", 0.927f, 0.002f, turqoise, uint2(11, 10));
+                    FM3.pushLine("FG06", 0.723f, 0.002f, turqoise, uint2(8, 10));
+                }
+                auto& FM4 = F2.pushLine("FM4", 1.389f, 0.003f, turqoise); {
+                    FM4.pushLine("FG07", 0.821f, 0.002f, turqoise, uint2(5, 10));
+                    FM4.pushLine("FG08", 0.519f, 0.002f, turqoise, uint2(3, 10));
+                }
+            }
+        }
+    }
+
+
+    linesRight = linesLeft;
+    linesRight.mirror(50);
+}
+
+
+void _glider::solveLines()
+{
+}
+
+
+
 float2 NACA[11] = { float2(2.28, -1.45), float2(6, -4.63), float2(8, -6), float2(10.15, -7.1), float2(10.88, -7.1), float2(10.4, -6.4),
                    float2(8.65, -5.0), float2(7, -4), float2(5.1, -2.8), float2(2.8, -1.5), float2(0.2, 0) };
 float C[11] = { 0, 0.045f, 0.09f, 0.2f, 0.3f, 0.44f, 0.58f, 0.73f, 0.82f, 0.91f, 1 };

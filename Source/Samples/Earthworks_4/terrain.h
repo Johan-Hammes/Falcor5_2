@@ -42,10 +42,6 @@
 #include "../../external/cereal-master/include/cereal/archives/json.hpp"
 #include "../../external/cereal-master/include/cereal/archives/xml.hpp"
 #include <fstream>
-//#define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
-//#define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
-//#define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
-
 
 #include "../../external/openJPH/include/openjph/ojph_arg.h"
 #include "../../external/openJPH/include/openjph/ojph_mem.h"
@@ -67,6 +63,8 @@ struct rvPacked
     unsigned int e;
     unsigned int f;
 };
+
+
 
 struct rvB
 {
@@ -128,17 +126,15 @@ public:
 class _bezierGlider
 {
 public:
+    void    solveArcLenght();
+    float3  pos(float _s);
+    void    renderGui(Gui* mpGui);
+
     glm::vec3 P0 = float3(0, 0, 0);
     glm::vec3 P1 = float3(2.5, 0, 0);
     glm::vec3 P2 = float3(9, 0, 0);
     glm::vec3 P3 = float3(10, -4, 0);
     float arcLength;
-
-    void solveArcLenght();
-    float3 pos(float _s);
-    void renderGui(Gui* mpGui);
-
-
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
@@ -152,6 +148,7 @@ public:
 CEREAL_CLASS_VERSION(_bezierGlider, 100);
 
 
+
 struct _cell
 {
     float volume = 0;
@@ -161,17 +158,63 @@ struct _cell
     float AoA_trail; //???
 };
 
+
+class _line
+{
+public:
+    void set(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0)) {
+        name = _n;
+        length = _l;
+        radius = _r;
+        color = _color;
+        attachment = _attach;
+    }
+    _line & pushLine(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0)){
+        children.emplace_back();
+        children.back().set(_n, _l, _r, _color, _attach);
+        return children.back();
+    }
+    void mirror(int _span) {
+        if (children.size() == 0) {
+            attachment.y = _span - attachment.y;
+        }
+        for (auto& C : children) {
+            C.mirror(_span);
+        }
+    }
+
+    std::string name;
+    float   length = 1.f;
+    float   radius = 0.04f;
+    float3  color;
+    std::vector<_line> children;
+    int2    attachment;                 // (span, coord)        only used if no children to attach to wing
+
+    uint    start;                     // points to parent vertex
+    uint    first;                     // points to first vertex of this line
+    uint    size;                      // number of elements
+};
+
+
 class _glider
 {
 public:
     void build();
+    void buildLines();
+    void solveLines();
     void renderGui(Gui* mpGui);
     void solve(float _dT);
     void pack();
 
+
+    // Builder #########################################################################################
     _bezierGlider leadingEdge;
     _bezierGlider trailingEdge;
     _bezierGlider curve;
+
+    _line linesLeft;
+    _line linesRight;
+    std::vector<_line> LINES;
 
     _cell cells[50];    // although wrong its easier to just do this at the ribs and use directly, saves another interpolate
     float3 wind = float3(0, 0.5f, -5.f);
@@ -282,6 +325,21 @@ public:
     float3 tangent[200];
     float3 bitangent[200];
 
+    struct _point
+    {
+        float3 pos;
+        float3 vel;
+        float3 normal;
+        float3 tangent;
+
+        float p;        // dynamic pressure or is this per cell
+        float w;        // 1/mass
+        float area;     // or is this dynamic or baked into normal size
+    };
+    int IDX(uint top, uint span, uint chord) {
+        return 0;
+    }
+    //??? specuial constraints for top bottom intersection, sounds good
     int numVerts = 0;
     float3 P[16384];
     float3 Pold[16384];
@@ -374,7 +432,6 @@ private:
     }
 };
 CEREAL_CLASS_VERSION(_glider, 100);
-
 
 
 
