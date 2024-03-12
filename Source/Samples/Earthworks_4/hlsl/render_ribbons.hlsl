@@ -462,7 +462,8 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         v.uv.x = 0.5 - L[0].uv.x;
         v.pos = mul(L[0].pos + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
         OutputStream.Append(v);
-        
+
+        /*
         if (L[0].flags.w > 10)      // but we can do the test rigth here from radius
         {
             float l1 = length(L[1].pos.xyz - L[0].pos.xyz);
@@ -477,6 +478,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.pos = mul(posBezier + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
             OutputStream.Append(v);
         }
+        */
         
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
@@ -587,9 +589,19 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     float3 cSolid = 1;
     if (vOut.flags.x == 1)
-        cSolid = float3(1.0, 0.0, 0.0);
+        cSolid = float3(0.8f, 0.01f, 0.01f);
     if (vOut.flags.x == 2)
-        cSolid = float3(0.0, 0.8, 0.0);
+        cSolid = float3(0.8f, 0.8f, 0.01f);
+    if (vOut.flags.x == 3)
+        cSolid = float3(0.01f, 0.8f, 0.01f);
+    if (vOut.flags.x == 4)
+        cSolid = float3(0.01f, 0.01f, 0.7f);
+    if (vOut.flags.x == 5)
+        cSolid = float3(0.01f, 0.7f, 0.7f);
+    if (vOut.flags.x == 6)
+        cSolid = float3(0.7f, 0.7f, 0.01f);
+    if (vOut.flags.x == 7)
+        cSolid = float3(0.01f, 0.01f, 0.01f);
 
     float alphaC = pow(saturate(vOut.flags.w * 0.1), 0.3);
     if (alphaC < 0.99)

@@ -126,6 +126,12 @@ public:
 class _bezierGlider
 {
 public:
+    void set(float3 a, float3 b, float3 c, float3 d) {
+        P0 = a;
+        P1 = b;
+        P2 = c;
+        P3 = d;
+    }
     void    solveArcLenght();
     float3  pos(float _s);
     void    renderGui(Gui* mpGui);
@@ -149,51 +155,9 @@ CEREAL_CLASS_VERSION(_bezierGlider, 100);
 
 
 
-struct _cell
-{
-    float volume = 0;
-    float pressure = 0;
-    float AoA;
-    float AoA_lead;
-    float AoA_trail; //???
-};
 
 
-class _line
-{
-public:
-    void set(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0)) {
-        name = _n;
-        length = _l;
-        radius = _r;
-        color = _color;
-        attachment = _attach;
-    }
-    _line & pushLine(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0)){
-        children.emplace_back();
-        children.back().set(_n, _l, _r, _color, _attach);
-        return children.back();
-    }
-    void mirror(int _span) {
-        if (children.size() == 0) {
-            attachment.y = _span - attachment.y;
-        }
-        for (auto& C : children) {
-            C.mirror(_span);
-        }
-    }
 
-    std::string name;
-    float   length = 1.f;
-    float   radius = 0.04f;
-    float3  color;
-    std::vector<_line> children;
-    int2    attachment;                 // (span, coord)        only used if no children to attach to wing
-
-    uint    start;                     // points to parent vertex
-    uint    first;                     // points to first vertex of this line
-    uint    size;                      // number of elements
-};
 
 
 class _glider
@@ -212,11 +176,11 @@ public:
     _bezierGlider trailingEdge;
     _bezierGlider curve;
 
-    _line linesLeft;
-    _line linesRight;
-    std::vector<_line> LINES;
+    //_lineBuilder linesLeft;
+    //_lineBuilder linesRight;
+    //std::vector<_lineBuilder> LINES;
 
-    _cell cells[50];    // although wrong its easier to just do this at the ribs and use directly, saves another interpolate
+    //_cell cells[50];    // although wrong its easier to just do this at the ribs and use directly, saves another interpolate
     float3 wind = float3(0, 0.5f, -5.f);
     float windspeed;
     float dynamicPressure;
@@ -335,6 +299,7 @@ public:
         float p;        // dynamic pressure or is this per cell
         float w;        // 1/mass
         float area;     // or is this dynamic or baked into normal size
+        float lamda;
     };
     int IDX(uint top, uint span, uint chord) {
         return 0;
@@ -432,6 +397,256 @@ private:
     }
 };
 CEREAL_CLASS_VERSION(_glider, 100);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+struct _cell
+{
+    float volume = 0;
+    float pressure = 0;
+    float reynolds = 0;
+    float cD;
+    float chordLength;
+    float AoA;
+    float AoA_lead;
+    float AoA_trail; //???
+
+    float3 front;
+    float3 up;
+    float3 v;
+    float rho;
+    float windspeed;
+    float3 rel_wind;
+    float cellVelocity;
+
+};
+
+struct _constraint
+{
+    _constraint(uint _a, uint _b, uint _cell, float _l, float _sa, float _sb, float _sc) : idx_0(_a), idx_1(_b),
+        cell(_cell), l(_l), tensileStiff(_sa), compressStiff(_sb), pressureStiff(_sc){ l = __max(0.01, l); }
+
+    uint        idx_0;
+    uint        idx_1;
+    uint        cell;              // for pressure values
+    float       l;
+    float tensileStiff = 1.0f;
+    float compressStiff = 0.01f;
+    float pressureStiff = 0.1f;
+};
+
+struct _lineConstraints
+{
+    uint        c_0;                // index to its constraints so we can modify at runtime
+    uint        c_1;
+
+    uint material = 0;
+};
+
+
+class _lineBuilder
+{
+public:
+    uint calcVerts(float _spacing);
+    void addVerts(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, uint& idx, uint parentidx, float _spacing, std::vector<_constraint> &C);
+    void set(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0), float3 _p = float3(0, 0, 0));
+    _lineBuilder& pushLine(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0), float3 _p = float3(0, 0, 0));
+    void mirror(int _span);
+    float3 averageEndpoint(float3 _start);
+    void solveLayout(float3 _start, uint _chord);
+    void addRibbon(rvB *_r, std::vector<float3> &_x, int & _c);
+
+    float3 solveTensionAndForce(std::vector<float3>& _x, std::vector<float3>& _n, float _t);
+    float3 forceBackUp(std::vector<float3>& _x, std::vector<float>& _w, float _dt, float3 _end);
+
+    float calcStretch(std::vector<float3> & _x, std::vector<_constraint>& _c);
+    void renderGui();
+
+    std::string name;
+    float   length = 1.f;
+    float   radius = 0.04f;
+    float3  color;
+    std::vector<_lineBuilder> children;
+    int2    attachment;                 // (span, coord)        only used if no children to attach to wing
+    int     index;
+
+    uint    startIdx;                     // points to parent vertex
+    uint    endIdx;
+    uint    first;                     // points to first vertex of this line
+    uint    size;                      // number of elements
+
+    float3 endPos;
+
+    float stretch;
+    uint c0;
+    uint c1;
+
+
+
+    // tensdile wight distribution
+    float   tension;
+    float3  tencileForce;
+    float3  summedForce;
+};
+
+
+
+class _gliderBuilder
+{
+public:
+    void buildWing();
+    void builWingConstraints();
+    void buildLines();
+    void generateLines();
+    void builLineConstraints();
+    void solveLines();
+    void renderGui(Gui* mpGui);
+    void visualsPack(rvB *ribbon, rvPacked *packed, int &count, bool &changed);
+    uint index(uint _s, uint _c);               // index of this vertex
+    uint4 crossIdx(int _s, int _c);
+    uint4 quadIdx(int _s, int _c);
+
+    std::vector<std::vector<float>> Cp;
+    //float Cp[15][23];
+    void buildCp();
+
+    _bezierGlider leadingEdge;
+    _bezierGlider trailingEdge;
+    _bezierGlider curve;
+    _lineBuilder linesLeft;
+    _lineBuilder linesRight;
+
+    uint spanSize = 50;
+    uint chordSize = 23;
+    float maxChord = 2.97f;
+    float wingWeight = 5.0f;        //kg
+
+    std::vector<float3> x;              //position      {_gliderBuilder}
+    std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
+    std::vector<float>  cdA;             // drag - for lines etc      {_gliderBuilder}
+    std::vector<uint4>  cross;          // Index of cross verticies for normal calculation      {_gliderBuilder}
+    std::vector<float>  area;
+
+    std::vector<_constraint>    constraints;
+
+    // reference values
+    float flatSpan;
+    float flatArea;
+    float totalArea;
+    std::vector<float> cellWidth;
+    std::vector<float> cellChord;
+    std::vector<float3> ribNorm;
+
+private:
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(leadingEdge));
+        _archive(CEREAL_NVP(trailingEdge));
+        _archive(CEREAL_NVP(curve));
+
+        _archive(CEREAL_NVP(linesLeft));
+        _archive(CEREAL_NVP(linesRight));
+    }
+};
+CEREAL_CLASS_VERSION(_gliderBuilder, 100);
+
+
+
+
+
+
+
+
+
+
+class _gliderRuntime
+{
+public:
+    void renderGui(Gui* mpGui);
+    void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
+    void solve(float _dT);
+    void pack(rvB* ribbon, rvPacked* packed, int& count, bool& changed);
+    void load();
+    void save();
+    uint index(uint _s, uint _c);               // index of this vertex
+
+    std::vector<float3> x;              //position      {_gliderBuilder}
+    std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
+    std::vector<float>  cd;             // drag - for lines etc      {_gliderBuilder}
+    std::vector<uint4>  cross;          // Index of cross verticies for normal calculation      {_gliderBuilder}
+    std::vector<float3> l;              // lamda
+    std::vector<float3> v;              // velocity
+    std::vector<float3> n;              // normal - scaled with area
+    std::vector<float3> t;              // tangent - scaled with area
+
+    std::vector<float3> x_old;
+    std::vector<float3> l_old;
+
+    std::vector<_constraint>    constraints;
+
+    std::vector <_cell>     cells;
+
+    std::vector<std::vector<float>> Cp;
+
+    _lineBuilder linesLeft;
+    _lineBuilder linesRight;
+    float3 sumLineEndings;
+
+    uint spanSize = 50;
+    uint chordSize = 11;
+
+    float3 ROOT = float3(0, 0, 0);
+    float3 sumFwing;
+    float3 sumDragWing;
+    //float3 tempAForce[100];
+
+    float3 tensionCarabinerLeft;
+    float3 tensionCarabinerRight;
+
+    float weightLines;
+    float weightPilot;
+    float weightWing;
+
+    float3 v_oldRoot;
+    float3 a_root;
+    float vBody = 0;
+    // stepping
+    uint runcount = 1000000;
+    uint frameCnt = 0;
+    bool singlestep = false;
+    void playpause() {
+        if (runcount == 0 && singlestep) runcount = 1;
+        else if (runcount == 0 && !singlestep) runcount = 100000;
+        else runcount = 0;
+    }
+    void runstep() {
+        singlestep = !singlestep;
+    }
+
+private:
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+    }
+};
+CEREAL_CLASS_VERSION(_gliderRuntime, 100);
+
+
 
 
 
@@ -1604,5 +1819,7 @@ private:
 
 
     _glider ParaGlider;
+    _gliderBuilder paraBuilder;
+    _gliderRuntime paraRuntime;
     _airSim AirSim;
 };
