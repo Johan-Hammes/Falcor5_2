@@ -38,7 +38,7 @@
 
 #pragma optimize("", off)
 
-
+uint menuHeight = 64;
 Kolskoot::UniquePtr pKolskoot;
 
 std::vector<_target> Kolskoot::targetList;
@@ -57,6 +57,105 @@ Texture::SharedPtr	        Kolskoot::ammoType[3] = { nullptr, nullptr, nullptr }
 
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
+
+
+
+
+
+
+
+
+int pdf_Line(HPDF_Page page, float x, float y, float x2, float y2)
+{
+    HPDF_Page_SetRGBStroke(page, 0.0, 0.0, 0.0);
+    HPDF_Page_SetLineWidth(page, 0.3f);
+    HPDF_Page_MoveTo(page, x, HPDF_Page_GetHeight(page) - y);
+    HPDF_Page_LineTo(page, x2, HPDF_Page_GetHeight(page) - y2);
+    HPDF_Page_Stroke(page);
+    return 0;
+}
+
+
+enum { align_LEFT, align_MIDDLE, align_RIGHT };
+float pdf_Text(HPDF_Page page, HPDF_Font font, float x, float y, std::string txt, float size, int alignment)
+{
+    HPDF_Page_SetFontAndSize(page, font, size);
+    HPDF_Page_SetWordSpace(page, 2);
+    float w = HPDF_Page_TextWidth(page, txt.c_str());
+    switch (alignment)
+    {
+    case align_LEFT:
+        break;
+    case align_MIDDLE:
+        x = x - (w / 2);
+        break;
+    case align_RIGHT:
+        x = x - w;
+        break;
+    }
+
+    HPDF_Page_BeginText(page);
+    HPDF_Page_MoveTextPos(page, x, HPDF_Page_GetHeight(page) - y);
+    HPDF_Page_ShowText(page, txt.c_str());
+    HPDF_Page_EndText(page);
+
+    return 	w;	// return width
+}
+/*
+void pdf_PNG(HPDF_Doc  pdf, HPDF_Page page, std::string name, float x, float y, float w, float h)
+{
+    HPDF_Image image = HPDF_LoadPngImageFromFile(pdf, name.c_str());
+    if (image)
+    {
+        HPDF_Page_DrawImage(page, image, x, HPDF_Page_GetHeight(page) - y, w, h);
+    }
+}
+*/
+void pdf_JPG(HPDF_Doc  pdf, HPDF_Page page, std::string name, float x, float y, float w, float h)
+{
+    HPDF_Image image = HPDF_LoadJpegImageFromFile(pdf, name.c_str());
+    if (image)
+    {
+        HPDF_Page_DrawImage(page, image, x, HPDF_Page_GetHeight(page) - y, w, h);
+    }
+}
+
+int pdf_Circle(HPDF_Page page, float x, float y, float r)
+{
+    HPDF_Page_SetRGBStroke(page, 0.0, 0.0, 0.0);
+    HPDF_Page_SetLineWidth(page, 1.0);
+    HPDF_Page_Circle(page, x, HPDF_Page_GetHeight(page) - y, r);
+    HPDF_Page_Stroke(page);
+    return 0;
+}
+
+int pdf_CircleWhite(HPDF_Page page, float x, float y, float r)
+{
+    HPDF_Page_SetRGBStroke(page, 1.0, 1.0, 1.0);
+    HPDF_Page_SetLineWidth(page, 2.0);
+    HPDF_Page_Circle(page, x, HPDF_Page_GetHeight(page) - y, r);
+    HPDF_Page_Stroke(page);
+    return 0;
+}
+
+#ifdef HPDF_DLL
+void  __stdcall
+#else
+void
+#endif
+error_handler(HPDF_STATUS   error_no,
+    HPDF_STATUS   detail_no,
+    void* user_data)
+{
+    // do something
+}
+
+
+
+
+
+
+
 
 
 void _setup::renderGui(Gui* _gui, float _screenX)
@@ -307,7 +406,7 @@ float ballisticsSetup::bulletDrop(float distance)
 
 void ballisticsSetup::renderGuiAmmo(Gui* _gui)
 {
-    ImGui::Combo("###ammoSelector", (int*)&currentAmmo, " 9mm\0 5.56\0 7.62\0");
+    ImGui::Combo("###ammoSelector", (int*)&currentAmmo, " 9 mm\0 5.56 mm\0 7.62 mm\0");
 }
 
 
@@ -564,7 +663,43 @@ void _target::renderGui(Gui* _gui, Gui::Window& _window)
 }
 
 
+void targetAction::renderIntroGui(Gui* _gui, int rounds)
+{
+    switch (action)
+    {
+    case 0: ImGui::Text("Static"); break;
+    case 1: ImGui::Text("Popup"); break;
+    case 2: ImGui::Text("Move"); break;
+    case 3: ImGui::Text("Sighting"); break;
+    }
 
+    ImGui::NewLine();
+
+    ImGui::Text("%d  X", repeats);
+
+    
+    ImGui::NewLine();
+    ImGui::SameLine(0, 50);
+    ImGui::Text("%d  rounds", rounds);
+
+    if (action == 1 || action == 2)
+    {
+        ImGui::NewLine();
+        ImGui::SameLine(0, 50);
+        ImGui::Text("%d  seconds up", (int)upTime);
+
+        ImGui::NewLine();
+        ImGui::SameLine(0, 50);
+        ImGui::Text("%d  seconds down", (int)downTime);
+
+        if (playWhistle) {
+            ImGui::NewLine();
+            ImGui::SameLine(0, 50);
+            ImGui::Text("whistle");
+        }
+    }
+    
+}
 
 
 void targetAction::renderGui(Gui* _gui)
@@ -753,6 +888,59 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 
 
 
+void exercise::renderIntroGui(Gui* _gui, Gui::Window& _window)
+{
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+    {
+        ImGui::SetCursorPos(ImVec2(Kolskoot::setupInfo.screen_pixelsX * 0.1, 200.f));
+        ImGui::BeginChildFrame(100, ImVec2(500.f, 800.f));
+        {
+            float targetHeight = 500.f;
+            float targetWidth;
+            //if (targets.targets.size() > 0 && targets.targets[0].t.image)
+            {
+                targetWidth = targetHeight * target.size.x / target.size.y;
+                ImGui::SetCursorPos(ImVec2((500 - targetWidth)*0.5f, 0.f));
+                _window.imageButton("scoreImage", target.image, float2(targetWidth, targetHeight));
+            }
+
+            ImGui::NewLine();
+            ImGui::NewLine();
+            ImGui::SameLine((500 - targetWidth) * 0.5f, 0);
+            switch (pose)
+            {
+            case 0: ImGui::Text("Standing");  break;
+            case 1: ImGui::Text("Kneeling");  break;
+            case 2: ImGui::Text("Sitting");  break;
+            case 3: ImGui::Text("Prone");  break;
+            }
+
+            ImGui::NewLine();
+            ImGui::NewLine();
+            ImGui::SameLine((500 - targetWidth) * 0.5f, 0);
+            ImGui::Text("%d m", (int)targetDistance);
+        }
+        ImGui::EndChildFrame();
+
+
+
+
+        
+        
+
+        ImGui::SetCursorPos(ImVec2(Kolskoot::setupInfo.screen_pixelsX * 0.5 - 250, 200.f));
+        ImGui::BeginChildFrame(101, ImVec2(500.f, 800.f));
+        {
+            action.renderIntroGui(_gui, numRounds);
+        }
+        ImGui::EndChildFrame();
+    }
+    ImGui::PopStyleColor();
+
+}
+
+
+
 
 
 void quickRange::loadPath(std::filesystem::path _root)
@@ -884,7 +1072,21 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
 void quickRange::renderLiveMenubar(Gui* _gui)
 {
-    ImGui::Text("%s                    exercise %d  -  %s", title.c_str(), currentExercise + 1, exercises[currentExercise].title.c_str());
+    //ImGui::SameLine(0, 50);
+    ImGui::Text("     %s", title.c_str());
+
+    ImGui::SameLine(Kolskoot::setupInfo.screen_pixelsX * 0.2, 0);
+    ImGui::Text("Exercise %d / %d", currentExercise + 1, exercises.size());
+
+    ImGui::SameLine(Kolskoot::setupInfo.screen_pixelsX * 0.4, 0);
+    
+    ImGui::PushFont(_gui->getFont("roboto_48"));
+    {
+        ImGui::SetCursorPosY(-10);
+        ImGui::Text("%s", exercises[currentExercise].title.c_str());
+    }
+    ImGui::PopFont();
+        
 }
 
 
@@ -948,9 +1150,10 @@ float quickRange::renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPt
 
     // fixed height of 200 pixels
     float2 pixSize = target.size * (_size / target.size.y);
-    float2 topleft = Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
-    topleft.y = _y;
-    topleft -= (pixSize * 0.5f);
+    float2 topleft = float2(10, 10);// Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
+    //topleft.y = _y;
+    //topleft -= (pixSize * 0.5f);
+    float2 center = topleft + (pixSize * 0.5f);
 
     ImGui::SetCursorPos(ImVec2(topleft.x, topleft.y));
     _window.image("testImage", target.image, pixSize, false);
@@ -958,8 +1161,7 @@ float quickRange::renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     for (int s = 0; s < score.lane_exercise.at(_lane).at(currentExercise).shots.size(); s++)
     {
         float2 pos = score.lane_exercise.at(_lane).at(currentExercise).shots.at(s).position_relative;
-        float2 screenPos = Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
-        screenPos.y = _y;
+        float2 screenPos = center;
         screenPos += (pos - 0.5f) * pixSize;
         float bulletSize = __max(20, _size / 20.f);
 
@@ -986,11 +1188,11 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
         switch (currentStage)
         {
         case live_intro:
-            Ex.renderGui(_gui, _window);
+            Ex.renderIntroGui(_gui, _window);
 
-            ImGui::SetCursorPos(ImVec2(Kolskoot::setupInfo.screen_pixelsX * 0.5, 40));
+            ImGui::SetCursorPos(ImVec2(Kolskoot::setupInfo.screen_pixelsX * 0.7, 450 - Kolskoot::setupInfo.screen_pixelsX * 0.05f));
 
-            _window.image("ammo", Kolskoot::ammoType[Kolskoot::ballistics.currentAmmo], float2(Kolskoot::setupInfo.screen_pixelsX * 0.5, Kolskoot::setupInfo.screen_pixelsX * 0.3), false);
+            _window.image("ammo", Kolskoot::ammoType[Kolskoot::ballistics.currentAmmo], float2(Kolskoot::setupInfo.screen_pixelsX * 0.2, Kolskoot::setupInfo.screen_pixelsX * 0.1), false);
             break;
 
         case live_live:
@@ -1002,28 +1204,31 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                 float laneLeft = laneWidth * lane;
                 float laneRight = laneLeft + laneWidth;
 
-                ImGui::SetCursorPos(ImVec2(laneLeft + 40, 20));
-                ImGui::Text("%d", lane + 1);
-
-                ImGui::SameLine();
                 char AirName[256];
                 sprintf(AirName, "##air_%d", lane);
                 ImGui::Checkbox(AirName, &Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane]);
 
 
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(200, 200, 0, 255));
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 255));
+                {
+                    ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth*0.5 - 30, 5));
+                    ImGui::BeginChildFrame(33+ lane, ImVec2(60.f, 60.f));
+                    {
+                        ImGui::SetCursorPos(ImVec2(15, -3));
+                        ImGui::Text("%d", lane + 1);
+                    }
+                    ImGui::EndChildFrame();
+                }
+                ImGui::PopStyleColor();
+                ImGui::PopStyleColor();
+
+                ImGui::SameLine();
+                
+
+
                 if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
                 {
-                    ImGui::PushFont(_gui->getFont("roboto_32"));
-                    {
-                        ImGui::SetCursorPos(ImVec2(laneRight - 170, 54));
-                        ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), Ex.numRounds);
-
-                        //ImGui::SetCursorPos(ImVec2(laneRight - 170, 54));
-                        //ImGui::Text("score");
-                    }
-                    ImGui::PopFont();
-
-                    
 
                     if (Ex.action.action == action_adjust)
                     {
@@ -1034,20 +1239,49 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
                     renderTarget(_gui, _window, _bulletHole, lane);         // Draw the target
 
-                    if (Kolskoot::setupInfo.eyeHeights[Ex.pose] < Kolskoot::setupInfo.screen_pixelsY * 0.5f)
-                    {
-                        float w = renderScope(_gui, _window, _bulletHole, lane, 300, Kolskoot::setupInfo.screen_pixelsY - 200);
-                        ImGui::SetCursorPos(ImVec2(laneLeft + 0.5 * laneWidth + w + 15, Kolskoot::setupInfo.screen_pixelsY - 200 - 32));
-                        ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
-                    }
-                    else
-                    {
-                        float w = renderScope(_gui, _window, _bulletHole, lane, 300, 190);
-                        ImGui::SetCursorPos(ImVec2(laneLeft + 0.5 * laneWidth + w + 15, 190 - 32));
-                        ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
-                    }
 
-                    
+                    // scope #######################################################################################
+                    float scopeWidth = __min(400, laneWidth - 20);
+                    float scopeHeight = scopeWidth * 0.6;
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 20, 20, 255));
+                    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(100, 100, 100, 255));
+                    {
+                        if (Kolskoot::setupInfo.eyeHeights[Ex.pose] < Kolskoot::setupInfo.screen_pixelsY * 0.5f)
+                        {
+                            ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - scopeWidth * 0.5, Kolskoot::setupInfo.screen_pixelsY - 100 - scopeHeight));
+                            ImGui::BeginChildFrame(933 + lane, ImVec2(scopeWidth, scopeHeight));
+                        }
+                        else
+                        {
+                            ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - scopeWidth * 0.5, 100));
+                            ImGui::BeginChildFrame(933 + lane, ImVec2(scopeWidth, scopeHeight));
+                        }
+
+                        
+                        {
+                            float w = renderScope(_gui, _window, _bulletHole, lane, scopeHeight-20, 10);
+
+                            
+
+                            ImGui::PushFont(_gui->getFont("roboto_32"));
+                            {
+                                ImGui::SetCursorPos(ImVec2(scopeWidth - 170, 54));
+                                ImGui::Text("shots %d / %d", score.lane_exercise.at(lane).at(currentExercise).shots.size(), Ex.numRounds);
+
+                            }
+                            ImGui::PopFont();
+
+                            ImGui::SetCursorPos(ImVec2(scopeWidth - 170, 154));
+                            ImGui::Text("%d/%d", score.lane_exercise.at(lane).at(currentExercise).score, target.maxScore * Ex.numRounds);
+
+
+                        }
+                        ImGui::EndChildFrame();
+                    }
+                    ImGui::PopStyleColor();
+                    ImGui::PopStyleColor();
+
+
 
                     adjustBoresight(lane);                                  // test if we are adjusting boresigth and do it
                 }
@@ -1070,11 +1304,40 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                 float laneRight = laneLeft + laneWidth;
 
 
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(200, 200, 0, 255));
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 255));
+                {
+                    ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - 30, 5));
+                    ImGui::BeginChildFrame(33 + lane, ImVec2(60.f, 60.f));
+                    {
+                        ImGui::SetCursorPos(ImVec2(15, -3));
+                        ImGui::Text("%d", lane + 1);
+                    }
+                    ImGui::EndChildFrame();
+                }
+                ImGui::PopStyleColor();
+                ImGui::PopStyleColor();
+
+
                 if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
                 {
-                    float w = renderScope(_gui, _window, _bulletHole, lane, laneWidth - 20, Kolskoot::setupInfo.screen_pixelsY * 0.5f);
-                    ImGui::SetCursorPos(ImVec2(laneLeft + 0.5 * laneWidth + w + 15, Kolskoot::setupInfo.screen_pixelsY - 200 - 32));
-                    ImGui::Text("%d", score.lane_exercise.at(lane).at(currentExercise).score);
+                    float scopeWidth = laneWidth * 0.6;
+                    float scopeHeight = scopeWidth * 1.6;
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 20, 20, 30));
+                    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(100, 100, 100, 255));
+                    {
+                        ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - scopeWidth * 0.5, 200));
+                        ImGui::BeginChildFrame(1933 + lane, ImVec2(scopeWidth, scopeHeight));
+                        {
+                            float w = renderScope(_gui, _window, _bulletHole, lane, scopeHeight - 20, 10);
+
+                            ImGui::SetCursorPos(ImVec2(scopeWidth - 150, 54));
+                            ImGui::Text("%d/%d", score.lane_exercise.at(lane).at(currentExercise).score, target.maxScore * Ex.numRounds);
+                        }
+                        ImGui::EndChildFrame();
+                    }
+                    ImGui::PopStyleColor();
+                    ImGui::PopStyleColor();
                 }
 
                 ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setupInfo.screen_pixelsY - 50));
@@ -1248,6 +1511,37 @@ void quickRange::updateLive(float _dT)
 
 
 
+void quickRange::print()
+{
+    HPDF_Doc  pdf;
+    HPDF_Page page;
+    HPDF_Font pdf_font;
+    float pageWidth, pageHeight;
+    float x, y;
+
+    pdf = HPDF_New(error_handler, NULL);
+    pdf_font = HPDF_GetFont(pdf, "Candara", NULL);
+    page = HPDF_AddPage(pdf);
+    HPDF_Page_SetSize(page, HPDF_PAGE_SIZE_A4, HPDF_PAGE_PORTRAIT);
+    pageHeight = HPDF_Page_GetHeight(page);
+    pageWidth = HPDF_Page_GetWidth(page);
+
+    x = 20;
+    y = 60;
+
+    pdf_Line(page, pageWidth / 2, 90, pageWidth / 2, pageHeight - 70);
+    pdf_Text(page, pdf_font, x, y, "test", 10, align_LEFT);
+
+    HPDF_SaveToFile(pdf, (Kolskoot::setupInfo.dataFolder + "/printing/test.pdf").c_str());
+    //system("lpr filename");
+}
+
+
+
+
+
+
+
 
 
 
@@ -1314,30 +1608,39 @@ void menu::renderGui(Gui* _gui, Gui::Window& _window)
 {
     std::string oldPath = "";
 
-    ImGui::PushFont(_gui->getFont("roboto_48"));
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(80, 80, 80, 255));
     {
-        ImGui::BeginColumns("test", 5);
-
-        for (auto& I : items)
+        ImGui::PushFont(_gui->getFont("roboto_48"));
         {
-            if (I.path != oldPath)
-            {
-                oldPath = I.path;
-                ImGui::NewLine();
-                ImGui::Text(I.path.c_str());
-            }
+            ImGui::BeginColumns("test", 5);
 
-            ImGui::NewLine();
-            ImGui::SameLine(0, 30);
-            ImVec2 size = ImVec2(300, 0);
-            if (ImGui::Selectable(I.name.c_str()))
+            for (auto& I : items)
             {
-                Kolskoot::QR.loadPath(I.fullPath);
-                Kolskoot::QR.play();
+                if (I.path != oldPath)
+                {
+                    oldPath = I.path;
+                    ImGui::NewLine();
+                    ImGui::Text(I.path.c_str());
+                }
+
+                ImGui::NewLine();
+                ImGui::SameLine(0, 50);
+                ImVec2 size = ImVec2(300, 0);
+                if (ImGui::Selectable(I.name.c_str()))
+                {
+                    Kolskoot::QR.loadPath(I.fullPath);
+                    Kolskoot::QR.play();
+                }
+
+                if (ImGui::GetCursorPosY() > Kolskoot::setupInfo.screen_pixelsY - 80)
+                {
+                    ImGui::NextColumn();
+                }
             }
         }
+        ImGui::PopFont();
     }
-    ImGui::PopFont();
+    ImGui::PopStyleColor();
 }
 
 
@@ -1441,84 +1744,86 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 {
     FALCOR_PROFILE("onGuiMenubar");
 
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 16));
     if (ImGui::BeginMainMenuBar())
     {
+        if (guiMode == gui_live)
         {
-            if (guiMode == gui_live)
-            {
-                QR.renderLiveMenubar(_gui);
+            QR.renderLiveMenubar(_gui);
 
-                ImGui::SameLine(800, 0);
-            }
-            else
-            {
-                bool selected = false;
-                ImGui::Text("Kolskoot");
-
-                ImGui::SameLine(0, 200);
-                ImGui::SetNextItemWidth(150);
-
-
-                //int x = ImGui::GetCursorPosX();
-                ImGui::SetNextItemWidth(150);
-                if (ImGui::BeginMenu("Settings"))
-                {
-                    if (ImGui::MenuItem("Camera"))
-                    {
-                        guiMode = gui_camera;
-                    }
-                    if (ImGui::MenuItem("Screen"))
-                    {
-                        guiMode = gui_screen;
-                    }
-                    if (ImGui::MenuItem("Targets"))
-                    {
-                        guiMode = gui_targets;
-                    }
-                    ImGui::EndMenu();
-                }
-
-
-
-                ImGui::SameLine(0, 80);
-                ImGui::Selectable("Exercise builder", &selected, 0, ImVec2(200, 0));
-                if (selected) {
-                    guiMode = gui_exercises;
-                    selected = false;
-                    QR.clear();
-                }
-
-                ImGui::SameLine(0, 80);
-                ImGui::SetNextItemWidth(150);
-                ballistics.renderGuiAmmo(_gui);
-
-
-
-                if (ballistics.hasChanged)
-                {
-                    ImGui::SameLine(0, 20);
-                    if (ImGui::Button("Save modified boresight"))
-                    {
-                        ballistics.save();
-                    }
-                }
-
-            }
-
-            ImGui::SetCursorPos(ImVec2(screenSize.x - 180, 0));
-            ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
-
-            ImGui::SetCursorPos(ImVec2(screenSize.x - 30, 0));
-            if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
+            ImGui::SameLine(800, 0);
         }
+        else
+        {
+            bool selected = false;
+            ImGui::Text("Kolskoot");
+
+            ImGui::SameLine(0, 200);
+            ImGui::SetNextItemWidth(150);
+
+            ImGui::SetNextItemWidth(150);
+            if (ImGui::BeginMenu("Settings"))
+            {
+                if (ImGui::MenuItem("Camera"))
+                {
+                    guiMode = gui_camera;
+                }
+                if (ImGui::MenuItem("Screen"))
+                {
+                    guiMode = gui_screen;
+                }
+                if (ImGui::MenuItem("Targets"))
+                {
+                    guiMode = gui_targets;
+                }
+                ImGui::EndMenu();
+            }
+
+            ImGui::SameLine(0, 80);
+            ImGui::Selectable("Exercise builder", &selected, 0, ImVec2(200, 0));
+            if (selected) {
+                guiMode = gui_exercises;
+                selected = false;
+                QR.clear();
+            }
+
+
+            ImGui::PushFont(_gui->getFont("roboto_48"));
+            {
+                ImGui::SameLine(Kolskoot::setupInfo.screen_pixelsX / 2, 0);
+                ImGui::SetNextItemWidth(300);
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+                ballistics.renderGuiAmmo(_gui);
+                ImGui::PopStyleColor();
+            }
+            ImGui::PopFont();
+
+            if (ballistics.hasChanged)
+            {
+                ImGui::SameLine(0, 20);
+                if (ImGui::Button("Save modified boresight"))
+                {
+                    ballistics.save();
+                }
+            }
+
+        }
+
+        //ImGui::SetCursorPos(ImVec2(screenSize.x - 180, 0));
+        //ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+
+        ImGui::SetCursorPos(ImVec2(screenSize.x - 30, 0));
+        if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
+
     }
     ImGui::EndMainMenuBar();
+    ImGui::PopStyleVar();
 }
 
 
 void Kolskoot::nextButton()
 {
-    ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 100));
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 120));
     if (ImGui::Button("Next"))
     {
         if (QR.liveNext())
@@ -1532,7 +1837,7 @@ void Kolskoot::nextButton()
 
 void Kolskoot::menuButton()
 {
-    ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 100));
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 120));
     if (ImGui::Button("Menu"))
     {
         guiMode = gui_menu;
@@ -1563,8 +1868,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
         {
             Gui::Window menuPanel(_gui, "Menu", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
             {
-                menuPanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
-                menuPanel.windowPos(0, 40);
+                menuPanel.windowSize((int)screenSize.x, (int)screenSize.y - menuHeight);
+                menuPanel.windowPos(0, menuHeight);
                 guiMenu.renderGui(_gui, menuPanel);
             }
             menuPanel.release();
@@ -1585,8 +1890,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
         {
             Gui::Window screenPanel(_gui, "Screen", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
             {
-                screenPanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
-                screenPanel.windowPos(0, 40);
+                screenPanel.windowSize((int)screenSize.x, (int)screenSize.y - menuHeight);
+                screenPanel.windowPos(0, menuHeight);
                 setupInfo.renderGui(_gui, screenSize.x);
                 if (setupInfo.requestClose)
                 {
@@ -1603,8 +1908,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
         case gui_targets:
         {
             Gui::Window targetPicker(_gui, "Target picker", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
-            targetPicker.windowSize((int)screenSize.x / 2, (int)screenSize.y - 40);
-            targetPicker.windowPos(0, 40);
+            targetPicker.windowSize((int)screenSize.x / 2, (int)screenSize.y - menuHeight);
+            targetPicker.windowPos(0, menuHeight);
             {
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 int W = (int)floor(screenSize.x / 2 / 240);
@@ -1626,8 +1931,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
             targetPicker.release();
 
             Gui::Window targetPanel(_gui, "Target", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
-            targetPanel.windowSize((int)screenSize.x / 2, (int)screenSize.y - 40);
-            targetPanel.windowPos((int)screenSize.x / 2, 40);
+            targetPanel.windowSize((int)screenSize.x / 2, (int)screenSize.y - menuHeight);
+            targetPanel.windowPos((int)screenSize.x / 2, menuHeight);
             targetBuilder.renderGui(_gui, targetPanel);
             targetPanel.release();
             menuButton();
@@ -1637,8 +1942,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
         case gui_exercises:
         {
             Gui::Window exercisePanel(_gui, "Excercises", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
-            exercisePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
-            exercisePanel.windowPos(0, 40);
+            exercisePanel.windowSize((int)screenSize.x, (int)screenSize.y - menuHeight);
+            exercisePanel.windowPos(0, menuHeight);
             QR.renderGui(_gui, screenSize, exercisePanel);
             exercisePanel.release();
 
@@ -1655,8 +1960,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
         {
             FALCOR_PROFILE("gui_live");
             Gui::Window livePanel(_gui, "Live", { 100, 100 }, { 0, 0 }, Falcor::Gui::WindowFlags::NoResize);
-            livePanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
-            livePanel.windowPos(0, 40);
+            livePanel.windowSize((int)screenSize.x, (int)screenSize.y - menuHeight);
+            livePanel.windowPos(0, menuHeight);
             QR.renderLive(_gui, livePanel, bulletHole);
             ImGui::PushFont(_gui->getFont("roboto_32"));
             {
@@ -1678,8 +1983,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
         if (guiMode == gui_camera)
         {
             Gui::Window pointgreyPanel(_gui, "PointGrey", { 900, 900 }, { 100, 100 }, Falcor::Gui::WindowFlags::NoResize);
-            pointgreyPanel.windowSize((int)screenSize.x, (int)screenSize.y - 40);
-            pointgreyPanel.windowPos(0, 40);
+            pointgreyPanel.windowSize((int)screenSize.x, (int)screenSize.y - menuHeight);
+            pointgreyPanel.windowPos(0, menuHeight);
             {
                 ImGui::PushFont(_gui->getFont("roboto_32"));
                 {
@@ -1987,6 +2292,7 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
 
     graphicsState = GraphicsState::create();
 
+    QR.print();
     // menu
     guiMenu.load(); // remember to reload after we save stuff
 
@@ -2117,7 +2423,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     {
         // at the moment all renderign is doen with imGui so just clear
         FALCOR_PROFILE("clear");
-        const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
+        const float4 clearColor(0.2f, 0.02f, 0.02f, 1);
         pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
         mpGraphicsState->setFbo(pTargetFbo);
     }
@@ -2253,7 +2559,7 @@ void Kolskoot::guiStyle()
 #define DARKLIME(v) ImVec4(0.06f, 0.1f, 0.03f, v);
 
     auto& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.0f, 0.0f, 1.f);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.01f, 0.01f, 0.01f, 1.f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 

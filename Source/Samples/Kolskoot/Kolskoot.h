@@ -40,6 +40,9 @@
 #include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
 #include <fstream>
+
+#include"harupdf/include/hpdf.h"
+
 #define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
 #define archive_float3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
 #define archive_float4(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z)); archive(CEREAL_NVP(v.w));}
@@ -237,6 +240,7 @@ class targetAction
 {
 public:
     void renderGui(Gui* _gui);
+    void renderIntroGui(Gui* _gui, int rounds);
 
     _action     action;
     bool        dropWhenHit = false;
@@ -315,6 +319,7 @@ class exercise
 {
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
+    void renderIntroGui(Gui* _gui, Gui::Window& _window);
     bool renderTargetPopup(Gui* _gui);
 
     std::string title;
@@ -436,6 +441,7 @@ public:
     bool liveNext();
     int getRoundsLeft(int _lane);
     void updateLive(float _dT);
+    void print();
 
     void clear() {
         exercises.clear();
@@ -629,6 +635,7 @@ private:
     void pointGreyShot();
     bool airOffAfterLive = true;
 
+    HPDF_Doc pdf;
 public:
     static std::vector<_target> targetList;
     static _setup setupInfo;

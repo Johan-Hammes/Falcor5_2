@@ -14,13 +14,18 @@ target_sources(Kolskoot PRIVATE
 
     #FlyCapture/FlyCapture2.h
     #FlyCapture/Error.h
+	
+	#harupdf/include/hpdf.h
 )
 
 
 
 include_directories("${PROJECT_SOURCE_DIR}/FlyCapture")
-target_link_libraries(Kolskoot PUBLIC winmm.lib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/FlyCapture/FlyCapture2_v140.lib")
+include_directories("${PROJECT_SOURCE_DIR}/harupdf")
+include_directories("${PROJECT_SOURCE_DIR}/harupdf/include")
+target_link_libraries(Kolskoot PUBLIC winmm.lib PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/FlyCapture/FlyCapture2_v140.lib" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/harupdf/hpdf.lib")
 ##target_link_libraries(Kolskoot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/FlyCapture/FlyCapture2d_v140.lib")
+
 
 
 
