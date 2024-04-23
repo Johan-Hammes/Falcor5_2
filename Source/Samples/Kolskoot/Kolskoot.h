@@ -59,6 +59,17 @@ enum _pose { pose_stand, pose_kneel, pose_sit, pose_prone };
 enum _action { action_static, action_popup, action_move, action_adjust };    // net staic vir eers
 
 
+class _screenLayout
+{
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(screenWidth));
+    }
+};
+CEREAL_CLASS_VERSION(_screenLayout, 100);
+
+
 class _setup
 {
 public:
@@ -81,8 +92,17 @@ public:
     int numLanes = 5;
     std::string dataFolder;
 
+    int num3DScreens = 2;
+    uint XOffset3D;
+    uint cameraSerial[2] = {13050978, 16294735};
+
+    bool hasInstructorScreen = true;
+    uint instructorScreenIdx = 0;
+    uint2 instructorOffet = uint2(0, 0);
+    uint2 instructorSize = uint2(0, 0);
+
     bool requestClose = false;
-    void renderGui(Gui* _gui, float _screenX);
+    void renderGui(Gui* _gui, float _screenX, bool _intructor = false);
     void load();
     void save();
 
@@ -104,9 +124,24 @@ public:
         _archive(CEREAL_NVP(zigbeePacketVersion));
         _archive(CEREAL_NVP(zigbeeCOM));
 
+        if (_version > 100)
+        {
+            _archive(CEREAL_NVP(num3DScreens));
+            _archive(CEREAL_NVP(cameraSerial[0]));
+            _archive(CEREAL_NVP(cameraSerial[1]));
+
+            _archive(CEREAL_NVP(hasInstructorScreen));
+            _archive(CEREAL_NVP(instructorScreenIdx));
+            _archive(CEREAL_NVP(instructorOffet.x));
+            _archive(CEREAL_NVP(instructorOffet.y));
+            _archive(CEREAL_NVP(instructorSize.x));
+            _archive(CEREAL_NVP(instructorSize.y));
+
+        }
+
     }
 };
-CEREAL_CLASS_VERSION(_setup, 100);
+CEREAL_CLASS_VERSION(_setup, 101);
 
 
 enum _ammunition { ammo_9mm, ammo_556, ammo_762 };
@@ -223,8 +258,8 @@ public:
 
         size.x = (float)size_mm.x * 0.001f;
         size.y = (float)size_mm.y * 0.001f;
-        loadimage(Kolskoot::setupInfo.dataFolder + "/targets/");
-        loadscoreimage(Kolskoot::setupInfo.dataFolder + "/targets/");
+        loadimage(Kolskoot::setup.dataFolder + "/targets/");
+        loadscoreimage(Kolskoot::setup.dataFolder + "/targets/");
 
         if (_version > 100)
         {
@@ -319,7 +354,7 @@ class exercise
 {
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
-    void renderIntroGui(Gui* _gui, Gui::Window& _window);
+    void renderIntroGui(Gui* _gui, Gui::Window& _window, ImVec2 _offset, ImVec2 _size);
     bool renderTargetPopup(Gui* _gui);
 
     std::string title;
@@ -429,8 +464,9 @@ class quickRange        // rename
 public:
     void renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window);
     void renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane);
-    float renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane, float _size, float _y);
+    float renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole, int _lane, float _size, float _y, bool _inst = false);
     void renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole);
+    void renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::SharedPtr _bulletHole);
     void adjustBoresight(int _lane);
     void renderLiveMenubar(Gui* _gui);
     void load(std::filesystem::path _root);
@@ -552,6 +588,13 @@ public:
     bool onKeyEvent(const KeyboardEvent& keyEvent) override;
     bool onMouseEvent(const MouseEvent& mouseEvent) override;
     void onGuiRender(Gui* pGui) override;
+    void renderBranding(Gui* _gui, Gui::Window& _window, uint2 _size);
+    void renderTargets(Gui* _gui, Gui::Window& _window, uint2 _size);
+    void renderCamera(Gui* _gui, Gui::Window& _window, uint2 _size);
+    void renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, uint _screen);
+    void renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen);
+    void renderLive(Gui* _gui, Gui::Window& _window, uint2 _size);
+    void renderLiveInstructor(Gui* _gui, Gui::Window& _window, uint2 _size);
     void onGuiMenubar(Gui* _gui);
     void menuButton();
     void nextButton();
@@ -586,11 +629,13 @@ private:
 
     //PointGrey
     PointGrey_Camera* pointGreyCamera;
+    videoToScreen   screenMap[2];          // MULTIPEL for 10 lane
+
     int calibrationCounter;
     float pgGain = 0;
     float pgGamma = 0;
-    Texture::SharedPtr	        pointGreyBuffer = nullptr;
-    Texture::SharedPtr	        pointGreyDiffBuffer = nullptr;
+    Texture::SharedPtr	        pointGreyBuffer[2] = { nullptr, nullptr };
+    Texture::SharedPtr	        pointGreyDiffBuffer[2] = { nullptr, nullptr };
     int dot_min = 5;
     int dot_max = 40;
     int threshold = 20;
@@ -606,12 +651,15 @@ private:
     GraphicsState::SharedPtr    graphicsState;
     Falcor::Camera::SharedPtr	camera;
 
-    videoToScreen   screenMap;
+
+    Texture::SharedPtr	        kolskootLogo;
+
 
     menu        guiMenu;
 
     _guimode guiMode = gui_menu;
     int modeCalibrate = 0;
+    int cameraToCalibratate = 0;
 
     // quick range
     
@@ -638,7 +686,7 @@ private:
     HPDF_Doc pdf;
 public:
     static std::vector<_target> targetList;
-    static _setup setupInfo;
+    static _setup setup;
     static ballisticsSetup ballistics;
     static laneAirEnable airToggle;
     static CCommunication ZIGBEE;		// vir AIR beheer

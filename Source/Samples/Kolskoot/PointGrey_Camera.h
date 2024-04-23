@@ -61,7 +61,7 @@ public :
 	void setThreshold( int T );
 	void setMode7( int width, int height);
 
-	bool isConnected() { return m_bConnected; }
+	bool isConnected(int cam) { return m_bConnected[cam]; }
 
 	unsigned int getSerialNumber( int cam = 0 );
     unsigned int getFrameCount(int cam);
@@ -75,7 +75,7 @@ private :
 	PointGrey_Camera();
 	virtual ~PointGrey_Camera();
 	static PointGrey_Camera *s_instance;
-	bool		m_bConnected = false;
+    bool		m_bConnected[2] = { false, false };
 
 public:
 	unsigned int	m_NumCameras;
@@ -88,8 +88,10 @@ public:
 
     std::queue<glm::vec4> dotQueue;
     glm::vec2 bufferSize;
-    unsigned char* bufferData;
-    unsigned char* bufferReference;
-    unsigned char* bufferBlur;
-    unsigned char* bufferThreshold;
+    unsigned char* bufferData[2];
+    unsigned char* bufferReference[2];
+    unsigned char* bufferBlur[2];
+    unsigned char* bufferThreshold[2];
+
+    unsigned int serial[2];
 };

@@ -34,8 +34,8 @@ unsigned char*	vidFrame[2] = {NULL, NULL };	// 5 die buffer
 unsigned char*	vidReference[2] = {NULL, NULL};	
 bool bRefClearing;
 unsigned char	referenceCNT[2] = {0, 0};
-unsigned short*	vidBlur = NULL;
-unsigned char*	vidThresh = NULL;
+unsigned short*	vidBlur[2] = { NULL, NULL };
+unsigned char*	vidThresh[2] = { NULL, NULL };
 //unsigned char*	vidMASK = NULL;
 int	copyPTR = 0;
 int processPTR = 0;
@@ -86,24 +86,31 @@ void allocateBuffers(int w, int h)
 	
 	if(vidReference[0]) delete vidReference[0];
 	if(vidReference[1]) delete vidReference[1];
-	if(vidBlur) delete vidBlur;
-	if(vidThresh) delete vidThresh;
+	if(vidBlur[0]) delete vidBlur[0];
+    if (vidBlur[1]) delete vidBlur[1];
+	if(vidThresh[0]) delete vidThresh[0];
+    if (vidThresh[1]) delete vidThresh[1];
 	//if(vidMASK) delete vidMASK;
 
 	
 	vidReference[0] =  new unsigned char[w*h];
 	vidReference[1] =  new unsigned char[w*h];
-	vidBlur =  new unsigned short[w*h];
-	vidThresh =  new unsigned char[w*h];
+	vidBlur[0] = new unsigned short[w * h];
+    vidBlur[1] = new unsigned short[w * h];
+	vidThresh[0] = new unsigned char[w * h];
+    vidThresh[1] = new unsigned char[w * h];
 	//vidMASK =  new unsigned char[w*h];
 
 	//memset( vidMASK, 1, m_width*m_height );
 
     PointGrey_Camera::GetSingleton()->bufferSize = glm::vec2(m_width, m_height);
-    PointGrey_Camera::GetSingleton()->bufferData = BUFFER[0][0].data;
-    PointGrey_Camera::GetSingleton()->bufferReference = vidFrame[0];
+    PointGrey_Camera::GetSingleton()->bufferData[0] = BUFFER[0][0].data;
+    PointGrey_Camera::GetSingleton()->bufferData[1] = BUFFER[1][0].data;
+    PointGrey_Camera::GetSingleton()->bufferReference[0] = vidFrame[0];
+    PointGrey_Camera::GetSingleton()->bufferReference[1] = vidFrame[1];
     //PointGrey_Camera::GetSingleton()->bufferBlur = vidBlur;
-    PointGrey_Camera::GetSingleton()->bufferThreshold = vidThresh;
+    PointGrey_Camera::GetSingleton()->bufferThreshold[0] = vidThresh[0];
+    PointGrey_Camera::GetSingleton()->bufferThreshold[1] = vidThresh[1];
 }
 
 
@@ -157,7 +164,7 @@ void threshold()
 	}
 }
 
-void blobSolve(int i)
+void blobSolve(int _camera, int i)
 {
 	int countdownPixels;
 	
@@ -190,7 +197,7 @@ void blobSolve(int i)
 						DOTS[i].value += val;
 						DOTS[i].x += x*val;
 						DOTS[i].y += y*val;
-						vidThresh[IDX(x,y)] = 128;
+						vidThresh[_camera][IDX(x,y)] = 128;
 					}
 					countdownPixels --;
 				}			
@@ -200,40 +207,40 @@ void blobSolve(int i)
 }
 
 
-void blobMark(int i)
+void blobMark(int _camera, int i)
 {
 	if ( (DOTS[i].x > 6) && (DOTS[i].x < m_width - 6) && (DOTS[i].y > 6) && (DOTS[i].y < m_height - 6) )
 	{
 		for (int j=-5; j<=5; j++)
 		{
-			vidThresh[IDX((int)DOTS[i].x-j, (int)DOTS[i].y-j)] = 254;
-			vidThresh[IDX((int)DOTS[i].x+j, (int)DOTS[i].y-j)] = 254;
+			vidThresh[_camera][IDX((int)DOTS[i].x-j, (int)DOTS[i].y-j)] = 254;
+			vidThresh[_camera][IDX((int)DOTS[i].x+j, (int)DOTS[i].y-j)] = 254;
 		}
 	}
 	
 	for (int x=DOTS[i].xmin; x<DOTS[i].xmax; x++)
 	{
-		vidThresh[IDX(x, DOTS[i].ymin)] = 255;
-		vidThresh[IDX(x, DOTS[i].ymax)] = 255;
+		vidThresh[_camera][IDX(x, DOTS[i].ymin)] = 255;
+		vidThresh[_camera][IDX(x, DOTS[i].ymax)] = 255;
 	}
 	for (int y=DOTS[i].ymin; y<DOTS[i].ymax; y++)
 	{
-		vidThresh[IDX(DOTS[i].xmin, y)] = 255;
-		vidThresh[IDX(DOTS[i].xmax, y)] = 255;
+		vidThresh[_camera][IDX(DOTS[i].xmin, y)] = 255;
+		vidThresh[_camera][IDX(DOTS[i].xmax, y)] = 255;
 	}
 	
 }
 
 
 
-void dots()
+void dots(int _camera)
 {
 	okDOTS = 0;
 	debug_PixelsProcessed = 0;
 
 	for (int i=0; i<NumDots; i++)
 	{
-		blobSolve( i );
+		blobSolve( _camera, i );
 
 		DOTS[i].x /= DOTS[i].value;
 		DOTS[i].y /= DOTS[i].value;		// This is for middle average position
@@ -245,18 +252,18 @@ void dots()
 		{
 			v_dots[okDOTS] = glm::vec4( DOTS[i].x, DOTS[i].y, (float)DOTS[i].numPix, DOTS[i].value/DOTS[i].numPix );
 			okDOTS ++;
-			blobMark( i );
+			blobMark(_camera, i );
 		}
 	}
 }
 
 
-void ProcessDots( int frameNumber )
+void ProcessDots( int _camera, int frameNumber )
 {
 	//if (pScene)
 	{
 		NumDots = 0;				// clear all dots
-		memset( vidThresh, 0, m_width*m_height );
+		memset( vidThresh[_camera], 0, m_width * m_height);
 		for (int d=0; d<MAX_BLOBS_TO_TRACK; d++)	
 		{
 			DOTS[d].numPix = 0;
@@ -274,7 +281,7 @@ void ProcessDots( int frameNumber )
 		//tT = timerBlur.end();
 
 		//timerBlur.begin();
-			dots();
+			dots(_camera);
 		//tD = timerBlur.end();
 
 
@@ -393,7 +400,7 @@ void OnImageGrabbed(Image* pImage, const void* pCallbackData)
 				(pImage->GetBitsPerPixel() == 8) )
 			{
 				memcpy( vidFrame[m_CurrentCamera], pImage->GetData(), m_width*m_height );
-				ProcessDots( frameCNT[Camera] );
+				ProcessDots(Camera, frameCNT[Camera] );
 			}
 		}
 	}
@@ -444,7 +451,7 @@ void OnImageGrabbed_B(Image* pImage, const void* pCallbackData)
 				(pImage->GetBitsPerPixel() == 8) )
 			{
 				memcpy( vidFrame[m_CurrentCamera], pImage->GetData(), m_width*m_height );
-				ProcessDots( frameCNT[Camera] );
+				ProcessDots(Camera, frameCNT[Camera] );
 			}
 		}
 	}
@@ -495,9 +502,11 @@ PointGrey_Camera::PointGrey_Camera()
         FlyCapture2::Error E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
 
         FlyCapture2::Error E2 = m_VideoCamera[i].Connect();
-        m_bConnected = (E2.GetType() == PGRERROR_OK);
+        m_bConnected[i] = (E2.GetType() == PGRERROR_OK);
 
         E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
+
+        serial[i] = pCameraInfo.serialNumber;
 /*
         FlyCapture2::VideoMode pVideoMode;
         FlyCapture2::FrameRate pFrameRate;
@@ -551,7 +560,7 @@ PointGrey_Camera::~PointGrey_Camera()
 {
 	for (int i=0; i<m_NumCameras; i++)
 	{
-		if (m_VideoCamera[i].IsConnected())
+        if (isConnected(i))
 		{
 			m_CamError = m_VideoCamera[i].StopCapture();
 			m_CamError = m_VideoCamera[i].Disconnect();
@@ -598,6 +607,10 @@ void PointGrey_Camera::restartCamera( int w, int h)
 			}
 			if (i==0) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &A );
 			if (i==1) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &B );
+
+            FlyCapture2::CameraInfo info;
+            m_VideoCamera[i].GetCameraInfo(&info);
+            serial[i] = info.serialNumber;
 	}
 }
 
@@ -783,11 +796,7 @@ void PointGrey_Camera::setThreshold( int T )
 
 unsigned int PointGrey_Camera::getSerialNumber(int cam)
 {
-	
-	FlyCapture2::CameraInfo info;
-	m_VideoCamera[cam].GetCameraInfo(&info);
-	return info.serialNumber;
-	
+    return serial[cam];
 }
 
 unsigned int PointGrey_Camera::getFrameCount(int cam)
