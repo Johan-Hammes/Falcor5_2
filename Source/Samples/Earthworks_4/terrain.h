@@ -418,12 +418,17 @@ struct _cell
 {
     float volume = 0;
     float pressure = 0;
+    float old_pressure = 0;
     float reynolds = 0;
     float cD;
     float chordLength;
     float AoA;
     float AoA_lead;
     float AoA_trail; //???
+    float brakeSetting;
+
+    float AoBrake;
+    float ragdoll;
 
     float3 front;
     float3 up;
@@ -462,45 +467,68 @@ class _lineBuilder
 {
 public:
     uint calcVerts(float _spacing);
-    void addVerts(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, uint& idx, uint parentidx, float _spacing, std::vector<_constraint> &C);
+    void addVerts(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, uint& _idx, uint _parentidx, float _spacing);
     void set(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0), float3 _p = float3(0, 0, 0));
-    _lineBuilder& pushLine(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0), float3 _p = float3(0, 0, 0));
+    _lineBuilder& pushLine(std::string _n, float _l, float _d, float3 _color, int2 _attach = uint2(0, 0), float3 _dir = float3(0, 0, 0), int _segments = 1);
     void mirror(int _span);
     float3 averageEndpoint(float3 _start);
     void solveLayout(float3 _start, uint _chord);
     void addRibbon(rvB *_r, std::vector<float3> &_x, int & _c);
 
-    float3 solveTensionAndForce(std::vector<float3>& _x, std::vector<float3>& _n, float _t);
-    float3 forceBackUp(std::vector<float3>& _x, std::vector<float>& _w, float _dt, float3 _end);
+    void renderGui(int tab = -1);
 
-    float calcStretch(std::vector<float3> & _x, std::vector<_constraint>& _c);
-    void renderGui();
+    void wingTencile(std::vector<float3>& _x, std::vector<float3>& _n);
+    float maxT(float _r, float _dT);
+    void windAndTension_2(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float3>& _n, std::vector<float3>& _v, float3 _wind, float _dtSquare);
+    void windAndTension(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float3>& _v, float3 _wind, float _dtSquare);
+    float3 tensionDown(std::vector<float3>& _x, std::vector<float3>& _n);
+    void tensionPercentageUp();
+    void solveUp(std::vector<float3>& _x, bool _lastRound, float _ratio = 1.f);
+    void solveUp_2(std::vector<float3>& _x, bool _lastRound, float _ratio = 1.f, float _w0 = 0.f);
+
+    _lineBuilder* getLine(std::string _s);
 
     std::string name;
     float   length = 1.f;
-    float   radius = 0.04f;
+    float   diameter = 0.04f;
     float3  color;
     std::vector<_lineBuilder> children;
     int2    attachment;                 // (span, coord)        only used if no children to attach to wing
-    int     index;
+    int     wingIdx;
 
-    uint    startIdx;                     // points to parent vertex
-    uint    endIdx;
-    uint    first;                     // points to first vertex of this line
-    uint    size;                      // number of elements
+    uint    parent_Idx;                // points to parent vertex, vetex[0]
+    uint    start_Idx;                 // points to vertex[1]
+    uint    end_Idx;
+    uint    numSegments;               // number of segments in 
 
     float3 endPos;
 
-    float stretch;
-    uint c0;
-    uint c1;
-
-
+    bool    isLineEnd = false;            // is this attached to the wing
+    bool    isCarabiner = false;            // is this attached to the wing
 
     // tensdile wight distribution
-    float   tension;
-    float3  tencileForce;
-    float3  summedForce;
+    //float   tension;
+    float   maxTencileForce;
+    float3  tencileVector;
+    float   tencileForce;
+    float  tencileRequest;
+    float3  wingForce;
+    float straightRatio;
+
+    // new tensile
+    float t_ratio;      // ratio of
+    float t_combined;
+
+    // new new tensile
+    float stretchLength;
+    float stretchRatio;
+
+    // New new new
+    float rho_Line;
+    float f_Line;
+    float rho_End;
+    float m_Line;
+    float m_End;
 };
 
 
@@ -520,9 +548,12 @@ public:
     uint4 crossIdx(int _s, int _c);
     uint4 quadIdx(int _s, int _c);
 
+    std::vector<float3> wingshape;
     std::vector<std::vector<float>> Cp;
+    float CPbrakes[6][11][25];
     //float Cp[15][23];
     void buildCp();
+    void analizeCp(std::string name, int idx);
 
     _bezierGlider leadingEdge;
     _bezierGlider trailingEdge;
@@ -531,7 +562,7 @@ public:
     _lineBuilder linesRight;
 
     uint spanSize = 50;
-    uint chordSize = 23;
+    uint chordSize = 25;
     float maxChord = 2.97f;
     float wingWeight = 5.0f;        //kg
 
@@ -584,6 +615,22 @@ public:
     void load();
     void save();
     uint index(uint _s, uint _c);               // index of this vertex
+    void solveConstraint(uint _i, float _step);
+
+    // Play
+    float weightShift = 0.5f;
+    float weightLength = 0.4f;
+    bool symmetry = true;
+    _lineBuilder* pBrakeLeft = nullptr;
+    _lineBuilder* pBrakeRight = nullptr;
+
+    _lineBuilder* pEarsLeft = nullptr;
+    _lineBuilder* pEarsRight = nullptr;
+
+    _lineBuilder* pSLeft = nullptr;
+    _lineBuilder* pSRight = nullptr;
+    float maxBrake, maxEars, maxS;
+
 
     std::vector<float3> x;              //position      {_gliderBuilder}
     std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
@@ -602,21 +649,28 @@ public:
     std::vector <_cell>     cells;
 
     std::vector<std::vector<float>> Cp;
+    float CPbrakes[6][11][25];
 
     _lineBuilder linesLeft;
     _lineBuilder linesRight;
     float3 sumLineEndings;
 
     uint spanSize = 50;
-    uint chordSize = 11;
+    uint chordSize = 25;
 
     float3 ROOT = float3(0, 0, 0);
     float3 sumFwing;
+    float3 sumFwing_F;
+    float3 sumFwing_A;
+    float3 sumFwing_B;
+    float3 sumFwing_C;
     float3 sumDragWing;
     //float3 tempAForce[100];
 
     float3 tensionCarabinerLeft;
     float3 tensionCarabinerRight;
+    float3 pilotDrag;
+    float3 lineDrag;
 
     float weightLines;
     float weightPilot;
@@ -625,18 +679,24 @@ public:
     float3 v_oldRoot;
     float3 a_root;
     float vBody = 0;
+    float3 wingV;
+    float3 wingVold;
+    float3 wingA;
+    float root_AG01;
     // stepping
-    uint runcount = 1000000;
+    uint runcount = 0;
     uint frameCnt = 0;
     bool singlestep = false;
     void playpause() {
         if (runcount == 0 && singlestep) runcount = 1;
-        else if (runcount == 0 && !singlestep) runcount = 100000;
+        else if (runcount == 0 && !singlestep) runcount = 10000000;
         else runcount = 0;
     }
     void runstep() {
         singlestep = !singlestep;
     }
+
+    float pilotYaw;
 
 private:
     template<class Archive>
@@ -1512,7 +1572,7 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiMenubar(Gui* pGui);
-    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, const Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy);
+    void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
     bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera);
     bool onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
@@ -1580,8 +1640,9 @@ private:
     Texture::SharedPtr compressed_Albedo_Array;
     Texture::SharedPtr compressed_PBR_Array;
     Texture::SharedPtr height_Array;
-
+public:
     pixelShader terrainShader;
+private:
     pixelShader terrainSpiteShader;
     Texture::SharedPtr	  spriteTexture = nullptr;
 
@@ -1655,6 +1716,10 @@ private:
         float splineOverlayStrength = 1.f;
         bool bakeBakeOnlyData = true;
     }gis_overlay;
+
+
+    
+
 
     struct {
         uint                bakeSize = 1024;
@@ -1788,12 +1853,12 @@ private:
         glm::vec3   newPosition;
         glm::vec3   newTarget;
     }mouse;
-
+public:
     Sampler::SharedPtr			sampler_Trilinear;
     Sampler::SharedPtr			sampler_Clamp;
     Sampler::SharedPtr			sampler_ClampAnisotropic;
     Sampler::SharedPtr			sampler_Ribbons;
-
+private:
 
     bool requestPopupTree = false;
     _GroveTree groveTree;

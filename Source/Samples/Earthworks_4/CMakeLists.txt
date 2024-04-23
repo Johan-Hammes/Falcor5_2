@@ -32,6 +32,7 @@ target_sources(Earthworks_4 PRIVATE
     terrain.h
 	pixelShader.cpp
     pixelShader.h
+    volumeFogPhaseFunctions.cpp
 	
 	hlsl/compute_tileVertices.hlsl
 	hlsl/compute_bc6h_functions.hlsli
@@ -57,6 +58,13 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/compute_clipLodAnimatePlants.hlsl
 
     hlsl/compute_bakeFloodfill.hlsl
+
+    hlsl/compute_fogCloudAtmosphereCommon.hlsli
+    hlsl/compute_volumeFog.hlsli
+    hlsl/compute_sunlightInAtmosphere.hlsl
+    hlsl/compute_volumeFogAtmosphericScatter.hlsl
+    hlsl/compute_volumeFogLights.hlsl
+    hlsl/compute_volumeFogSmokeAndDust.hlsl
 
     hlsl/render_meshTerrafector.hlsl
     hlsl/render_splineTerrafector.hlsl

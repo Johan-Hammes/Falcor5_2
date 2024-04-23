@@ -36,6 +36,67 @@ FILE* logFile;
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
+
+extern unsigned int phaseX;
+extern unsigned int phaseY;
+extern float phaseData[];
+
+void FogVolume::onLoad(FogVolumeParameters params)
+{
+    m_params = params;
+    inscatter = Texture::create3D(params.m_x, params.m_y, params.m_z, params.format, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+    inscatter_cloudbase = Texture::create2D(params.m_x, params.m_y, Falcor::ResourceFormat::RGBA16Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+    inscatter_sky = Texture::create2D(params.m_x, params.m_y, Falcor::ResourceFormat::RGBA16Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+
+    outscatter = Texture::create3D(params.m_x, params.m_y, params.m_z, params.format, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+    outscatter_cloudbase = Texture::create2D(params.m_x, params.m_y, Falcor::ResourceFormat::RGBA16Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+    outscatter_sky = Texture::create2D(params.m_x, params.m_y, Falcor::ResourceFormat::RGBA16Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+}
+
+void FogVolume::update()
+{
+    m_logEnd = ((float)m_params.m_z - 1.0f) / ((float)m_params.m_z) / (log(m_params._far / m_params._near));
+    m_oneOverK = 1.0f / (float)m_params.m_z;
+
+    float base = m_params._far / m_params._near;
+    m_SliceStep = pow(base, 1.0f / (m_params.m_z - 1.0f));
+    m_SliceZero = m_params._near / m_SliceStep;
+}
+
+void FogVolume::setCamera(Camera::SharedPtr _camera)
+{
+    glm::mat4 W = toGLM(_camera->getViewMatrix().getTranspose());
+    
+    float3 dir = W[2] * -1.f;
+    float3 up = W[1];
+    float3 right = W[0];
+
+    //note these functions are overridden in vr and triple... (see CameraStereo and CameraTriple)
+    float fovY = 2.0f * std::atan(0.5f * _camera->getFrameHeight() / _camera->getFocalLength());
+    float fovX = fovY * _camera->getAspectRatio();
+    float tan_fovH = tan(fovX * 0.5f);
+    float tan_fovV = tan(fovY * 0.5f);
+    float3 dX = right / (m_params.m_x / 2.0f) * tan_fovH;
+    float3 dY = up / (m_params.m_y / 2.0f) * tan_fovV * (-1.0f); // inverted due to texture coordinates
+
+    compute_Params.dx = dX;
+    compute_Params.dy = dY;
+    compute_Params.eye_direction =
+        dir - dX * (m_params.m_x / 2.0f - 0.5f) - dY * (m_params.m_y / 2.0f - 0.5f); // move to the center of the top leftmost pixel  ??? should I use edges instead of centers
+    compute_Params.eye_position = _camera->getPosition();
+    compute_Params.numSlices = m_params.m_z;
+    compute_Params.sliceZero = m_SliceZero;
+    compute_Params.sliceMultiplier = m_SliceStep;
+    compute_Params.sliceStep = m_SliceStep - 1.0f;
+
+    
+    
+}
+
+
+
+
+
 void Earthworks_4::onGuiMenubar(Gui* _gui)
 {
     if (ImGui::BeginMainMenuBar())
@@ -133,6 +194,37 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 
     terrain.onLoad(_renderContext, logFile);
 
+    {
+        atmosphere.sunlightTexture = Texture::create2D(512, 256, Falcor::ResourceFormat::RGBA32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+
+        atmosphere.compute_sunSlice.load("Samples/Earthworks_4/hlsl/compute_sunlightInAtmosphere.hlsl");
+        atmosphere.compute_sunSlice.Vars()->setTexture("gResult", atmosphere.sunlightTexture);
+
+        atmosphere.mainFar.onLoad(FogVolumeParameters{ 256, 128, 128, Falcor::ResourceFormat::R11G11B10Float, true, false, 50.f, 20000.f });
+        atmosphere.mainNear.onLoad(FogVolumeParameters{ 256, 128, 256, Falcor::ResourceFormat::RGBA16Float, false, false, 1.f, 100.f });
+        atmosphere.parabolicFar.onLoad(FogVolumeParameters{ 128, 128, 32, Falcor::ResourceFormat::R11G11B10Float, true, true, 100.f, 20000.f });
+
+        atmosphere.phaseFunction = Texture::create2D(phaseX, phaseY, Falcor::ResourceFormat::R32Float, 1, 1, phaseData, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+
+        atmosphere.compute_Atmosphere.load("Samples/Earthworks_4/hlsl/compute_volumeFogAtmosphericScatter.hlsl");
+
+        atmosphere.compute_Atmosphere.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+        atmosphere.compute_Atmosphere.Vars()->setTexture("hazePhaseFunction", atmosphere.phaseFunction);
+        
+
+        atmosphere.compute_Atmosphere.Vars()->setTexture("gInscatter", atmosphere.mainFar.inscatter);
+        atmosphere.compute_Atmosphere.Vars()->setTexture("gInscatter_cloudBase", atmosphere.mainFar.inscatter_cloudbase);
+        atmosphere.compute_Atmosphere.Vars()->setTexture("gInscatter_sky", atmosphere.mainFar.inscatter_sky);
+        atmosphere.compute_Atmosphere.Vars()->setTexture("gOutscatter", atmosphere.mainFar.outscatter);
+        atmosphere.compute_Atmosphere.Vars()->setTexture("gOutscatter_cloudBase", atmosphere.mainFar.outscatter_cloudbase);
+        atmosphere.compute_Atmosphere.Vars()->setTexture("gOutscatter_sky", atmosphere.mainFar.outscatter_sky);
+
+        terrain.terrainShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.mainFar.inscatter);
+        terrain.terrainShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.mainFar.outscatter);
+        //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
+        //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
+    }
+
     FILE* file = fopen("camera.bin", "rb");
     if (file) {
         CameraData data;
@@ -159,15 +251,146 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 {
     gpDevice->toggleVSync(refresh.vsync);
 
+    {
+        FALCOR_PROFILE("sunlight");
+        atmosphere.compute_sunSlice.Vars()["FogCloudCommonParams"]["sun_direction"] = atmosphere.common.sun_direction;
+        atmosphere.compute_sunSlice.Vars()["FogCloudCommonParams"]["cloudBase"] = atmosphere.common.cloudBase;
+        atmosphere.compute_sunSlice.Vars()["FogCloudCommonParams"]["cloudThickness"] = atmosphere.common.cloudThickness;
+
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["eye_direction"] = atmosphere.params.eye_direction;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["uv_offset"] = atmosphere.params.uv_offset;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["eye_position"] = atmosphere.params.eye_position;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["uv_scale"] = atmosphere.params.uv_scale;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["dx"] = atmosphere.params.dx;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["uv_pixSize"] = atmosphere.params.uv_pixSize;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["dy"] = atmosphere.params.dy;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["numSlices"] = atmosphere.params.numSlices;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["sliceZero"] = atmosphere.params.sliceZero;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["sliceMultiplier"] = atmosphere.params.sliceMultiplier;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["sliceStep"] = atmosphere.params.sliceStep;
+
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["timer"] = atmosphere.params.timer;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["numFogLights"] = atmosphere.params.numFogLights;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["paddTime"] = atmosphere.params.paddTime;
+
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fogAltitude"] = atmosphere.params.fogAltitude;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fogDensity"] = atmosphere.params.fogDensity;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fogUVoffset"] = atmosphere.params.fogUVoffset;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fogMip0Size"] = atmosphere.params.fogMip0Size;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["numFogVolumes"] = atmosphere.params.numFogVolumes;
+
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["sunColourBeforeOzone"] = atmosphere.params.sunColourBeforeOzone;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["haze_Turbidity"] = atmosphere.params.haze_Turbidity;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["haze_Colour"] = atmosphere.params.haze_Colour;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["haze_AltitudeKm"] = atmosphere.params.haze_AltitudeKm;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fog_Colour"] = atmosphere.params.fog_Colour;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["haze_BaseAltitudeKm"] = atmosphere.params.haze_BaseAltitudeKm;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fog_AltitudeKm"] = atmosphere.params.fog_AltitudeKm;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fog_BaseAltitudeKm"] = atmosphere.params.fog_BaseAltitudeKm;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["fog_Turbidity"] = atmosphere.params.fog_Turbidity;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["globalExposure"] = atmosphere.params.globalExposure;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["rain_Colour"] = atmosphere.params.rain_Colour;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["rainFade"] = atmosphere.params.rainFade;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["ozone_Density"] = atmosphere.params.ozone_Density;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["ozone_Colour"] = atmosphere.params.ozone_Colour;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["refraction"] = atmosphere.params.refraction;
+
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["parabolicProjection"] = atmosphere.params.parabolicProjection;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["parabolicMapHalfSize"] = atmosphere.params.parabolicMapHalfSize;
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["parabolicUpDown"] = atmosphere.params.parabolicUpDown;
+
+        atmosphere.compute_sunSlice.Vars()["FogAtmosphericParams"]["tmp_IBL_scale"] = atmosphere.params.tmp_IBL_scale;
+
+        atmosphere.compute_sunSlice.dispatch(_renderContext, 512 / 32, 256 / 32);
+    }
+
+
+    {
+        FALCOR_PROFILE("volumeFog");
+        atmosphere.mainFar.setCamera(camera);
+        atmosphere.mainFar.update();
+
+        atmosphere.compute_Atmosphere.Vars()["FogCloudCommonParams"]["sun_direction"] = atmosphere.common.sun_direction;
+        atmosphere.compute_Atmosphere.Vars()["FogCloudCommonParams"]["cloudBase"] = atmosphere.common.cloudBase;
+        atmosphere.compute_Atmosphere.Vars()["FogCloudCommonParams"]["cloudThickness"] = atmosphere.common.cloudThickness;
+
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["eye_direction"] = atmosphere.mainFar.compute_Params.eye_direction;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["uv_offset"] = atmosphere.mainFar.compute_Params.uv_offset;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["eye_position"] = atmosphere.mainFar.compute_Params.eye_position;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["uv_scale"] = atmosphere.mainFar.compute_Params.uv_scale;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["dx"] = atmosphere.mainFar.compute_Params.dx;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["uv_pixSize"] = atmosphere.mainFar.compute_Params.uv_pixSize;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["dy"] = atmosphere.mainFar.compute_Params.dy;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["numSlices"] = atmosphere.mainFar.compute_Params.numSlices;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["sliceZero"] = atmosphere.mainFar.compute_Params.sliceZero;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["sliceMultiplier"] = atmosphere.mainFar.compute_Params.sliceMultiplier;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["sliceStep"] = atmosphere.mainFar.compute_Params.sliceStep;
+
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["timer"] = atmosphere.mainFar.compute_Params.timer;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["numFogLights"] = atmosphere.mainFar.compute_Params.numFogLights;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["paddTime"] = atmosphere.mainFar.compute_Params.paddTime;
+
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fogAltitude"] = atmosphere.mainFar.compute_Params.fogAltitude;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fogDensity"] = atmosphere.mainFar.compute_Params.fogDensity;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fogUVoffset"] = atmosphere.mainFar.compute_Params.fogUVoffset;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fogMip0Size"] = atmosphere.mainFar.compute_Params.fogMip0Size;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["numFogVolumes"] = atmosphere.mainFar.compute_Params.numFogVolumes;
+
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["sunColourBeforeOzone"] = atmosphere.mainFar.compute_Params.sunColourBeforeOzone;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["haze_Turbidity"] = atmosphere.mainFar.compute_Params.haze_Turbidity;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["haze_Colour"] = atmosphere.mainFar.compute_Params.haze_Colour;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["haze_AltitudeKm"] = atmosphere.mainFar.compute_Params.haze_AltitudeKm;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fog_Colour"] = atmosphere.mainFar.compute_Params.fog_Colour;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["haze_BaseAltitudeKm"] = atmosphere.mainFar.compute_Params.haze_BaseAltitudeKm;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fog_AltitudeKm"] = atmosphere.mainFar.compute_Params.fog_AltitudeKm;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fog_BaseAltitudeKm"] = atmosphere.mainFar.compute_Params.fog_BaseAltitudeKm;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["fog_Turbidity"] = atmosphere.mainFar.compute_Params.fog_Turbidity;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["globalExposure"] = atmosphere.mainFar.compute_Params.globalExposure;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["rain_Colour"] = atmosphere.mainFar.compute_Params.rain_Colour;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["rainFade"] = atmosphere.mainFar.compute_Params.rainFade;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["ozone_Density"] = atmosphere.mainFar.compute_Params.ozone_Density;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["ozone_Colour"] = atmosphere.mainFar.compute_Params.ozone_Colour;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["refraction"] = atmosphere.mainFar.compute_Params.refraction;
+
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["parabolicProjection"] = atmosphere.mainFar.compute_Params.parabolicProjection;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["parabolicMapHalfSize"] = atmosphere.mainFar.compute_Params.parabolicMapHalfSize;
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["parabolicUpDown"] = atmosphere.mainFar.compute_Params.parabolicUpDown;
+
+        atmosphere.compute_Atmosphere.Vars()["FogAtmosphericParams"]["tmp_IBL_scale"] = atmosphere.mainFar.compute_Params.tmp_IBL_scale;
+
+        atmosphere.compute_Atmosphere.Vars()->setSampler("linearSampler", terrain.sampler_Trilinear);
+        atmosphere.compute_Atmosphere.Vars()->setSampler("clampSampler", terrain.sampler_Clamp);
+
+        atmosphere.compute_Atmosphere.dispatch(_renderContext, atmosphere.mainFar.m_params.m_x / 8, atmosphere.mainFar.m_params.m_y / 8, 1);
+
+
+        terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = atmosphere.common.sun_direction;
+        terrain.terrainShader.Vars()["LightsCB"]["sunColour"] = float3(10, 10, 10);
+        
+
+        terrain.terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+        terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.mainFar.m_params._near;
+        terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.mainFar.m_logEnd;
+        terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.mainFar.m_oneOverK;
+        //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_Start"] = gis_overlay.strenght;
+        //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_log_F"] = gis_overlay.strenght;
+        //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_one_over_k"] = gis_overlay.strenght;
+    }
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     bool changed = terrain.update(_renderContext);
 
     //const float4 clearColor(0.38f, 0.52f, 0.10f, 1);
     //const float4 clearColor(0.02f, 0.02f, 0.02f, 1);
-    const float4 clearColor(0.02f, 0.1f, 0.35f, 1);
+    const float4 clearColor(0.0f, 0.f, 0.f, 1);
     _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+
+    {
+        glm::vec4 srcRect = glm::vec4(0, 0, 256, 128);
+        glm::vec4 dstRect = glm::vec4(0, 0, screenSize.x, screenSize.y);
+        _renderContext->blit(atmosphere.mainFar.inscatter_sky->getSRV(0, 1, 0, 1), hdrFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
+    }
 
     graphicsState->setFbo(pTargetFbo);
 
@@ -197,6 +420,19 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
         terrafectorEditorMaterial::static_materials.dispTexIndex = -1;
         _plantMaterial::static_materials_veg.dispTexIndex = -1;
     }
+
+    {
+        glm::vec4 srcRect = glm::vec4(0, 0, 256, 128);
+        glm::vec4 dstRect = glm::vec4(100, 100, 100+512, 100+256);
+       // _renderContext->blit(atmosphere.sunlightTexture->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
+        static int slice = 0;
+       //_renderContext->blit(atmosphere.mainFar.inscatter->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
+       slice++;
+       if (slice >= 128) slice = 0;
+    }
+
+
+    
 
     {
         FALCOR_PROFILE("HDR half copy");

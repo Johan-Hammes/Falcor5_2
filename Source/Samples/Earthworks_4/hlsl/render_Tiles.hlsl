@@ -222,7 +222,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.mesh_Cavity = 1;
 	Attr.CURVATURE = 0;
 	
-	mat.roughness = saturate(PBR.g);
+    mat.roughness = 0.7;//    saturate(PBR.g);
 	
 	prepareMaterialLayerTerrain( Attr, mat );
 	
@@ -257,8 +257,8 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.diffuse.rg = GIS_UV;
 */
 	//lightIBL( Attr, mat, diffuse, specular );						// 	170us
-	lightLayer( Attr, mat, sunDirection, sunColour, diffuse, specular);		//	40us  - redelik vinnig maar tel op oor ligte - if() is worth it
-	diffuse += float3(0.03, 0.04, 0.05) * 0.3;
+	lightLayer( Attr, mat, sunDirection, sunColour * 0.07, diffuse, specular);		//	40us  - redelik vinnig maar tel op oor ligte - if() is worth it
+	//diffuse += float3(0.03, 0.04, 0.05) * 0.3;
 
 	diffuse *= (1 - mat.fresnel);
 	specular *= mat.fresnel;
@@ -269,32 +269,38 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	
 	
 
-	
+
+    //colour.rgb = mat.diff.rgb * light;
+
+    // MARK the steep slopes
+    float slopeMark = saturate((1.0 - Attr.N_mesh.y - redOffset) * redScale);
+
+    if (slopeMark > 0.01)
+    {
+        colour.r = lerp(colour.r, slopeMark, redStrength);
+    }
+    
 	// Now for my atmospeher code --------------------------------------------------------------------------------------------------------
 	{
 		//far one
 		float3 atmosphereUV;
-		atmosphereUV.xy = vIn.pos.xy / screenSize;
-		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start) * fog_far_log_F + fog_far_one_over_k; 
+        atmosphereUV.xy = vIn.pos.xy / screenSize;
+		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start ) * fog_far_log_F + fog_far_one_over_k;
+        atmosphereUV.z = max(0.01, atmosphereUV.z);
+        atmosphereUV.z = min(0.99, atmosphereUV.z);
 		colour.rgb *= gAtmosphereOutscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
 		colour.rgb += gAtmosphereInscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
+        //colour.r = atmosphereUV.z;
 
-		
+        
 		//atmosphereUV.z = log( length(vIn.eye.xyz) / fog_near_Start) * fog_near_log_F + fog_near_one_over_k;   
 		//float4 FOG = gSmokeAndDustInscatter.Sample( gSmpLinearClamp, atmosphereUV );
 		//colour.rgb *= FOG.a;
 		//colour.rgb += FOG.rgb;
 	}
 		
-	//colour.rg += vIn.texCoords.rg;
-    colour.rgb = mat.diff.rgb *light;
 
-    // MARK the steep slopes
-    float slopeMark = saturate((1.0 - Attr.N_mesh.y - redOffset) * redScale);
-
-    if (slopeMark > 0.01) {
-        colour.r = lerp(colour.r, slopeMark, redStrength);
-    }
+    
 
     //colour.rgb = gNormArray.Sample(gSmpAniso, vIn.texCoords).rgb;
     //colour.g = 1 - Attr.N_mesh.g;
