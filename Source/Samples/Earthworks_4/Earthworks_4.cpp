@@ -200,7 +200,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
         atmosphere.compute_sunSlice.load("Samples/Earthworks_4/hlsl/compute_sunlightInAtmosphere.hlsl");
         atmosphere.compute_sunSlice.Vars()->setTexture("gResult", atmosphere.sunlightTexture);
 
-        atmosphere.mainFar.onLoad(FogVolumeParameters{ 256, 128, 128, Falcor::ResourceFormat::R11G11B10Float, true, false, 50.f, 20000.f });
+        atmosphere.mainFar.onLoad(FogVolumeParameters{ 256, 128, 256, Falcor::ResourceFormat::R11G11B10Float, true, false, 50.f, 20000.f });
         atmosphere.mainNear.onLoad(FogVolumeParameters{ 256, 128, 256, Falcor::ResourceFormat::RGBA16Float, false, false, 1.f, 100.f });
         atmosphere.parabolicFar.onLoad(FogVolumeParameters{ 128, 128, 32, Falcor::ResourceFormat::R11G11B10Float, true, true, 100.f, 20000.f });
 

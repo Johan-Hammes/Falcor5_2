@@ -659,6 +659,7 @@ public:
     uint chordSize = 25;
 
     float3 ROOT = float3(0, 0, 0);
+    float3 OFFSET = float3(0, 0, 0);
     float3 sumFwing;
     float3 sumFwing_F;
     float3 sumFwing_A;

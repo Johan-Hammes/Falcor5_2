@@ -2010,7 +2010,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
 
 
-    ROOT = float3(-7700, 1000, -10500);
+    ROOT = float3(5500, 1600, 11500);
 
     for (int i = 0; i < spanSize; i++)
     {
@@ -2436,11 +2436,15 @@ void _gliderRuntime::solve(float _dT)
         //float3 offset = (x[spanSize / 4 * chordSize] + x[spanSize * chordSize]) * 0.5f;
         //float3 offset = (x[spanSize / 2 * chordSize] );
         float3 offset = (x[spanSize * chordSize]) + float3(0, 0.5, 0);
+        //int3 offsetI = offset;
+        //offset = offsetI;
         ROOT += offset;
         for (int i = 0; i < x.size(); i++)
         {
             x[i] -= offset;
         }
+
+        //OFFSET = (x[spanSize * chordSize]) + float3(0, 0.5, 0);
     }
 
 

@@ -240,7 +240,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 		float2 GIS_UV = (vIn.worldPos.xz - gisBox.xy) / gisBox.z;
 		if (GIS_UV.x > 0 && GIS_UV.x < 1 && GIS_UV.y > 0 && GIS_UV.y < 1)
 		{
-            float4 GIS = gGISAlbedo.Sample(gSmpAniso, GIS_UV);
+            float4 GIS = gGISAlbedo.Sample(gSmpAniso, GIS_UV) * float4(1, 0.8, 0.8, 1);
 			mat.diff = lerp(mat.diff, GIS, gisOverlayStrength);
 		}
 	}
@@ -263,7 +263,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	diffuse *= (1 - mat.fresnel);
 	specular *= mat.fresnel;
 
-	
+    diffuse += float3(0.01, 0.02, 0.04) * 0.6;
 	float3 colour = diffuse + specular * 0.1;
 	
 	
@@ -285,7 +285,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 		//far one
 		float3 atmosphereUV;
         atmosphereUV.xy = vIn.pos.xy / screenSize;
-		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start ) * fog_far_log_F + fog_far_one_over_k;
+		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start / 0.8 ) * fog_far_log_F + fog_far_one_over_k;
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);
 		colour.rgb *= gAtmosphereOutscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
