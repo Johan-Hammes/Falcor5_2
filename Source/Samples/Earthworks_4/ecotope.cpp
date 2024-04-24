@@ -276,18 +276,23 @@ void ecotopeSystem::load()
     FileDialogFilterVec filters = { {"ecosystem"} };
     if (openFileDialog(filters, path))
     {
-        std::ifstream is(path.string());
-        cereal::JSONInputArchive archive(is);
-        serialize(archive);
-        rebuildRuntime();
-
-        for (int ect = 0; ect < ecotopes.size(); ect++)
-        {
-            ecotopes[ect].reloadTextures();
-        }
+        load(path.string());
     }
 }
 
+
+void ecotopeSystem::load(std::string _path)
+{
+    std::ifstream is(_path);
+    cereal::JSONInputArchive archive(is);
+    serialize(archive);
+    rebuildRuntime();
+
+    for (int ect = 0; ect < ecotopes.size(); ect++)
+    {
+        ecotopes[ect].reloadTextures();
+    }
+}
 
 
 void ecotopeSystem::save() {

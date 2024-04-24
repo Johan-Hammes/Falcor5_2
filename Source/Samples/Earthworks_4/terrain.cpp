@@ -2010,7 +2010,8 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
 
 
-    ROOT = float3(5500, 1600, 11500);
+    //ROOT = float3(5500, 1900, 11500);   // walensee
+    ROOT = float3(-7500, 1000, -10400);// hulfteff
 
     for (int i = 0; i < spanSize; i++)
     {
@@ -7279,13 +7280,17 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
 
         spriteTexture = Texture::createFromFile("F:/terrains/switserland_Steg/ecosystem/sprite_diff.DDS", true, true);
+        spriteNormalsTexture = Texture::createFromFile("F:/terrains/switserland_Steg/ecosystem/sprite_norm.DDS", true, false);
 
         terrainSpiteShader.load("Samples/Earthworks_4/hlsl/terrain/render_tile_sprite.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
         terrainSpiteShader.Vars()->setBuffer("tiles", split.buffer_tiles);
         terrainSpiteShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_quads);
         terrainSpiteShader.Vars()->setBuffer("instanceBuffer", split.buffer_instance_quads);        // WHY BOTH
         terrainSpiteShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+        terrainSpiteShader.Vars()->setSampler("gSmpLinearClamp", sampler_Clamp);
         terrainSpiteShader.Vars()->setTexture("gAlbedo", spriteTexture);
+        terrainSpiteShader.Vars()->setTexture("gNorm", spriteNormalsTexture);
+
 
 
 
@@ -7553,6 +7558,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mSpriteRenderer.onLoad();
 
     mEcosystem.terrainSize = settings.size;
+    mEcosystem.load("F:/terrains/switserland_Steg/ecosystem/steg.ecosystem");    // FIXME MOVE To lastFILE
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
     terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
@@ -9819,6 +9825,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainSpiteShader.State()->setFbo(_fbo);
         terrainSpiteShader.State()->setViewport(0, _viewport, true);
         terrainSpiteShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        terrainSpiteShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
 
         glm::vec3 D = glm::vec3(view[2][0], view[2][1], -view[2][2]);
         glm::vec3 R = glm::normalize(glm::cross(glm::vec3(0, 1, 0), D));
@@ -9828,9 +9835,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
         terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
 
-        //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
+        terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
 
-        terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
+        //terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
         //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
     }
 

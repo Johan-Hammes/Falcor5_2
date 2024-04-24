@@ -1643,9 +1643,11 @@ private:
     Texture::SharedPtr height_Array;
 public:
     pixelShader terrainShader;
-private:
     pixelShader terrainSpiteShader;
+private:
+    
     Texture::SharedPtr	  spriteTexture = nullptr;
+    Texture::SharedPtr	  spriteNormalsTexture = nullptr;
 
     pixelShader ribbonShader;
     pixelShader ribbonShader_Bake;

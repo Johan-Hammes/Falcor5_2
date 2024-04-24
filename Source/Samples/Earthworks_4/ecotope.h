@@ -188,6 +188,7 @@ public:
 	}
 
 	void load();
+    void load(std::string _path);
 	void save();
 	void renderGUI(Gui *_pGui);
 	void renderSelectedGUI(Gui *_pGui);

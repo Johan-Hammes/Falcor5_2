@@ -272,7 +272,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	diffuse *= (1 - mat.fresnel);
 	specular *= mat.fresnel;
 
-    diffuse += float3(0.01, 0.02, 0.04) * 0.6;
+    diffuse += float3(0.01, 0.02, 0.04) * 0.6 * mat.diff.rgb;
 	float3 colour = diffuse + specular * 0.1;
 	
 	

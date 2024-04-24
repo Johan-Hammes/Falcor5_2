@@ -595,19 +595,20 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     float3 cSolid = 1;
     if (vOut.flags.x == 1)
-        cSolid = float3(0.8f, 0.01f, 0.01f);
+        cSolid = float3(0.8f, 0.01f, 0.01f) * 0.1;
     if (vOut.flags.x == 2)
-        cSolid = float3(0.8f, 0.8f, 0.01f);
+        cSolid = float3(0.8f, 0.8f, 0.01f) * 0.1;
     if (vOut.flags.x == 3)
-        cSolid = float3(0.01f, 0.8f, 0.01f);
+        cSolid = float3(0.01f, 0.8f, 0.01f) * 0.1;
     if (vOut.flags.x == 4)
-        cSolid = float3(0.01f, 0.01f, 0.7f);
+        cSolid = float3(0.01f, 0.01f, 0.7f) * 0.1;
     if (vOut.flags.x == 5)
-        cSolid = float3(0.01f, 0.7f, 0.7f);
+        cSolid = float3(0.01f, 0.7f, 0.7f) * 0.1;
     if (vOut.flags.x == 6)
-        cSolid = float3(0.9f, 0.1f, 0.01f);
+        cSolid = float3(0.9f, 0.1f, 0.01f) * 0.1;
     if (vOut.flags.x == 7)
-        cSolid = float3(0.01f, 0.01f, 0.01f);
+        cSolid = float3(0.01f, 0.01f, 0.01f) * 0.1;
+
 
     float alphaC = min(saturate(vOut.uv.x * 0.9), saturate((1 - vOut.uv.x) * 0.9));
     //alphaC = min(alphaC, pow(saturate(vOut.flags.w * 0.000901), 0.91));

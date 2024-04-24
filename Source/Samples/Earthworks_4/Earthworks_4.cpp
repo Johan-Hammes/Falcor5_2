@@ -140,6 +140,11 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.terrainShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.terrainShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+
+    terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
+    terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
+    terrain.terrainSpiteShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+    
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
 
@@ -167,6 +172,8 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
+    global_sun_direction = glm::normalize(float3(-1, -0.2f, 0));
+
     FALCOR_PROFILE("onFrameUpdate");
     atmosphere.setSunDirection(global_sun_direction);
     atmosphere.getFar().setCamera(camera);
@@ -183,6 +190,11 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_Start"] = gis_overlay.strenght;
     //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_log_F"] = gis_overlay.strenght;
     //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_one_over_k"] = gis_overlay.strenght;
+
+    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["screenSize"] = screenSize;
+    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     terrain.update(_renderContext);

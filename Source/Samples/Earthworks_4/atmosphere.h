@@ -55,8 +55,8 @@ struct   fogAtmosphericParams {
     float haze_BaseAltitudeKm = 0;
 
     float fog_AltitudeKm = 0.09f;
-    float fog_BaseAltitudeKm = 0.85f;
-    float fog_Turbidity = 8.0f;
+    float fog_BaseAltitudeKm = 0.65f;
+    float fog_Turbidity = 5.0f;
     float globalExposure = 1.0f / 20000.0f;
 
     float3 rain_Colour{ 0.1, 0.1, 0.1 };

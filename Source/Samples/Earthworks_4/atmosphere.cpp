@@ -26,10 +26,11 @@ void FogVolume::setCamera(Camera::SharedPtr _camera)
     float3 right = W[0];
 
     //note these functions are overridden in vr and triple... (see CameraStereo and CameraTriple)
-    float fovY = 2.0f * std::atan(0.5f * _camera->getFrameHeight() / _camera->getFocalLength());
-    float fovX = fovY * _camera->getAspectRatio();
-    float tan_fovH = tan(fovX * 0.5f);
-    float tan_fovV = tan(fovY * 0.5f);
+    float fovY = std::atan(0.5f * _camera->getFrameHeight() / _camera->getFocalLength());
+    float fovX = std::atan(0.5f * _camera->getFrameHeight() * _camera->getAspectRatio() / _camera->getFocalLength());
+
+    float tan_fovH = tan(fovX);
+    float tan_fovV = tan(fovY);
     float3 dX = right / (m_params.m_x / 2.0f) * tan_fovH;
     float3 dY = up / (m_params.m_y / 2.0f) * tan_fovV * (-1.0f); // inverted due to texture coordinates
 
