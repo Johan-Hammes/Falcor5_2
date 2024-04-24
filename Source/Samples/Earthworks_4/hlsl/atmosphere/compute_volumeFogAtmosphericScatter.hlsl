@@ -70,12 +70,11 @@ float acosFast(float inX) {
 	IBL += envMap.SampleLevel(linearSampler, IBLdir, 2).rgb * 0.1;	// forward narrow1
 	IBL *= tmp_IBL_scale;
 
-    IBL = float3(0.05, 0.07, 0.1) * 0;
+    IBL = float3(0.05, 0.07, 0.1) * 0.3;
     
 
 	float cloudBase_km = cloudBase / 1000;
 
-	//float numSlice = 0;
 	// start at sliceZero and continue up to the cloudbase, or slice depth-2  ------------------------------------
 	uint SLICE = 0;
 	float R = EarthR + 0.1;
@@ -84,8 +83,6 @@ float acosFast(float inX) {
 		acumulateFog(inScatter, outScatter, newIn, newOut);
 		coord.z = SLICE++;
 		write(inScatter, outScatter, coord);
-        //gInscatter[coord] = 1;//        float3(1, 0, 0); //        SLICE / numSlices;
-		//numSlice += 0.1;
 	}
 
 	// if we reach the cloudbase first, just repeat this value till slice depth-2  ------------------------------
@@ -95,21 +92,24 @@ float acosFast(float inX) {
         gInscatter[coord] = float3(0, 0, 1); //        SLICE / numSlices;
     }
 
-	// now step intill we reach the cloudbase and write into single slice ---------------------------------------
-/*	while (R < (EarthR + cloudBase_km) && (R > EarthR)) {
+	// now step untill we reach the cloudbase and write into single slice ---------------------------------------
+    int cnt = 150;
+	while (cnt > 0 && R < (EarthR + cloudBase_km) && (R > EarthR)) {
 		calculateStep(direction, phaseRayleigh, phaseUV, IBL, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);
-	}
-    */
+        cnt--;
+    }
 	gInscatter_cloudBase[coord.xy] = inScatter;
 	gOutscatter_cloudBase[coord.xy] = outScatter;
-/*
+
 	// now step from the cloudbase to space and write into last slice -------------------------------------------
-	while (R < (EarthR + 100.0) && (R > EarthR)) {
+    cnt = 150;
+	while (cnt > 0 && R < (EarthR + 100.0) && (R > EarthR)) {
 		calculateStep(direction, phaseRayleigh, phaseUV, IBL, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);
-	}
-    */
+        cnt--;
+    }
+  
     gInscatter_sky[coord.xy] = inScatter;
 	gOutscatter_sky[coord.xy] = outScatter;
 

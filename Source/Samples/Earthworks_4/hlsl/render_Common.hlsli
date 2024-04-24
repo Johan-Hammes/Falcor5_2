@@ -44,6 +44,8 @@ Texture3D gAtmosphereOutscatter : register(t13);
 Texture3D gSmokeAndDustInscatter : register(t14);
 Texture3D gSmokeAndDustOutscatter : register(t15);
 
+Texture2D SunInAtmosphere : register(t16);
+
 /*
 void float4 applyVolumeFog(inout float4 colour)
 {

@@ -5,6 +5,8 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:18388608")
 target_sources(Earthworks_4 PRIVATE
     Earthworks_4.cpp
     Earthworks_4.h
+    atmosphere.cpp
+    atmosphere.h
     computeShader.cpp
     computeShader.h
     ecotope.h
@@ -59,12 +61,12 @@ target_sources(Earthworks_4 PRIVATE
 
     hlsl/compute_bakeFloodfill.hlsl
 
-    hlsl/compute_fogCloudAtmosphereCommon.hlsli
-    hlsl/compute_volumeFog.hlsli
-    hlsl/compute_sunlightInAtmosphere.hlsl
-    hlsl/compute_volumeFogAtmosphericScatter.hlsl
-    hlsl/compute_volumeFogLights.hlsl
-    hlsl/compute_volumeFogSmokeAndDust.hlsl
+    hlsl/atmosphere/compute_fogCloudAtmosphereCommon.hlsli
+    hlsl/atmosphere/compute_volumeFog.hlsli
+    hlsl/atmosphere/compute_sunlightInAtmosphere.hlsl
+    hlsl/atmosphere/compute_volumeFogAtmosphericScatter.hlsl
+    hlsl/atmosphere/compute_volumeFogLights.hlsl
+    hlsl/atmosphere/compute_volumeFogSmokeAndDust.hlsl
 
     hlsl/render_meshTerrafector.hlsl
     hlsl/render_splineTerrafector.hlsl

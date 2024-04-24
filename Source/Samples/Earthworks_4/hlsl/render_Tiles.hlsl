@@ -66,6 +66,14 @@ This does allow for double indirection to save even more space and pack it all t
 
 
 
+float4 sunLight(float3 posKm)
+{
+    float2 sunUV;
+    float dX = dot(posKm.xz, normalize(sunDirection.xz));
+    sunUV.x = saturate(0.5 - (dX / 1600.0f));
+    sunUV.y = 1 - saturate(posKm.y / 100.0f);
+    return SunInAtmosphere.SampleLevel(gSmpLinearClamp, sunUV, 0) * 0.07957747154594766788444188168626;
+}
 
 
 StructuredBuffer<Terrain_vertex> VB;
@@ -257,7 +265,8 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.diffuse.rg = GIS_UV;
 */
 	//lightIBL( Attr, mat, diffuse, specular );						// 	170us
-	lightLayer( Attr, mat, sunDirection, sunColour * 0.07, diffuse, specular);		//	40us  - redelik vinnig maar tel op oor ligte - if() is worth it
+    float4 sunColor = sunLight(vIn.worldPos * 0.001);
+    lightLayer(Attr, mat, sunDirection, sunColor.rgb, diffuse, specular); //	40us  - redelik vinnig maar tel op oor ligte - if() is worth it
 	//diffuse += float3(0.03, 0.04, 0.05) * 0.3;
 
 	diffuse *= (1 - mat.fresnel);
@@ -285,7 +294,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 		//far one
 		float3 atmosphereUV;
         atmosphereUV.xy = vIn.pos.xy / screenSize;
-		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start / 0.8 ) * fog_far_log_F + fog_far_one_over_k;
+		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start ) * fog_far_log_F + fog_far_one_over_k;
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);
 		colour.rgb *= gAtmosphereOutscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;

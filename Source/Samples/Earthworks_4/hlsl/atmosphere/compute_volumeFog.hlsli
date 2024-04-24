@@ -139,7 +139,6 @@ float4 opticalDepth(float altKm) {
     O.x = saturate(exp(-altKm / 8.4));
     O.y = saturate(exp(-max(0, (altKm - haze_BaseAltitudeKm)) / haze_AltitudeKm)) * haze_Turbidity * haze_Turbidity;
     O.z = saturate(exp(-max(0, (altKm - fog_BaseAltitudeKm)) / fog_AltitudeKm)) * fog_Turbidity * fog_Turbidity;
-    O.z = saturate(exp(-max(0, (altKm - 0.75)) / 0.06)) * fog_Turbidity * fog_Turbidity;
 	O.w = (1 - smoothstep(0, 1, abs(altKm - 24.0) * 0.04)) * ozone_Density;
 	return O;
 }

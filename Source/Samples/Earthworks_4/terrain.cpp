@@ -9255,7 +9255,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
             if (_tile->lod == 14)  scale = 1.5f;
             if (_tile->lod == 15)  scale = 2.0f;
             if (_tile->lod >= 16)  scale = 3.2f;
-            //scale *= 1.5;
+            scale *= 2.5;
 
             split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
             split.compute_tileVerticis.Vars()["gConstants"]["constants"] = float4(pixelSize * scale, 0, 0, _tile->index);
