@@ -30,7 +30,7 @@
 #include "imgui.h"
 #include "Core/Platform/MonitorInfo.h"
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 FILE* logFile;
 

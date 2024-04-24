@@ -33,7 +33,7 @@
 #include "assimp/Exporter.hpp"
 using namespace Assimp;
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -3895,7 +3895,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraBuilder.buildCp();
     paraBuilder.buildWing();
     paraBuilder.buildLines();
-    paraBuilder.solveLines();
     paraBuilder.generateLines();
 
     paraBuilder.builWingConstraints();
@@ -4397,7 +4396,6 @@ void terrainManager::onGuiRender(Gui* _gui)
 
         case 4:
             ImGui::Text("Wing designer");
-            //ParaGlider.renderGui(_gui);
 
             if (ImGui::Button("restart"))
             {
@@ -5945,14 +5943,13 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         {
             FALCOR_PROFILE("SOLVE_glider");
-            //ParaGlider.solve(0.001f);
-            for (int i = 0; i < 1; i++)
-            {
-                paraRuntime.solve(0.0005f);
-            }
+            paraRuntime.solve(0.0005f);
         }
-        //ParaGlider.pack();
-        paraRuntime.pack(paraRuntime.ribbon, paraRuntime.packedRibbons, paraRuntime.ribbonCount, paraRuntime.changed);
+
+        paraRuntime.pack_canopy();
+        paraRuntime.pack_lines();
+        paraRuntime.pack_feedback();
+        paraRuntime.pack();
 
 
         {

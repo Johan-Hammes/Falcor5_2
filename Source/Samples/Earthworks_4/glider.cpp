@@ -538,12 +538,12 @@ void _lineBuilder::solveLayout(float3 _start, uint _chord)
         m_End += 0.5f * C.m_Line;
     }
 }
-    
 
 
-void _lineBuilder::renderGui(int tab)
+
+void _lineBuilder::renderGui(char* search, int tab)
 {
-    if ((     (name.find("F") == 0) || (name.find("Carabiner") != std::string::npos) || (name.find("strap") != std::string::npos)    ) && (name.find("L_") == std::string::npos))
+    if (((name.find(search) == 0) || (name.find("Carabiner") != std::string::npos) || (name.find("strap") != std::string::npos)) && (name.find("L_") == std::string::npos))
     {
         ImGui::NewLine();
         ImGui::SameLine(0, (float)(tab * 10));
@@ -551,11 +551,11 @@ void _lineBuilder::renderGui(int tab)
         ImGui::SameLine(150, 0);
         ImGui::Text("%1.5f %2d%%, %2d%%     %3dN    %3dN ", stretchRatio, (int)(t_ratio * 99), (int)(t_combined * 99), (int)maxTencileForce, (int)tencileForce);
         //ImGui::Text("%dmm, %1.2fmm %3.1fg   %3.2fg   %3.2fmm", (int)(length * 1000.f), diameter * 1000.f, 1000.f * m_End, 1000.f * m_Line, f_Line);
-        
+
     }
 
     for (auto& C : children) {
-        C.renderGui(tab + 1);
+        C.renderGui(search, tab + 1);
     }
 }
 
@@ -595,7 +595,7 @@ void _lineBuilder::addRibbon(rvB_Glider* _r, std::vector<float3>& _x, int& _c)
         }
     }
 
-    
+
     {
         float tF = sqrt(tencileForce);
         float3 tN = glm::normalize(tencileVector);
@@ -622,46 +622,41 @@ float3 AllSummedForce;
 float3 AllSummedLinedrag;
 
 
-void _lineBuilder::wingTencile(std::vector<float3>& _x, std::vector<float3>& _n)
+void _lineBuilder::wingLoading(std::vector<float3>& _x, std::vector<float3>& _n)
 {
-    
-        tencileVector = float3(0, 0, 0);
+    tencileVector = float3(0, 0, 0);
 
-        for (int s = __max(0, attachment.x - 1); s <= __min(49, attachment.x + 1); s++)
+    for (int s = __max(0, attachment.x - 1); s <= __min(49, attachment.x + 1); s++)
+    {
+        switch (attachment.y)
         {
-            switch (attachment.y)
-            {
-            case 9:
-                for (int c = 8; c <= 16; c++) {
-                    tencileVector += _n[s * 25 + c];
-                }
-                break;
-            case 8: case 7: case 6: case 5: case 4: case 3: case 2: case 1:
-                for (int c = attachment.y - 1; c <= attachment.y + 1; c++) {
-                    tencileVector += _n[s * 25 + c];
-                    tencileVector += _n[s * 25 + 24 - c];
-                }
-                break;
-            case 0:
-                for (int c = 0; c <= 1; c++) {
-                    tencileVector += _n[s * 25 + c];
-                    tencileVector += _n[s * 25 + 24 - c];
-                }
-                break;
+        case 9:
+            for (int c = 8; c <= 16; c++) {
+                tencileVector += _n[s * 25 + c];
             }
+            break;
+        case 8: case 7: case 6: case 5: case 4: case 3: case 2: case 1:
+            for (int c = attachment.y - 1; c <= attachment.y + 1; c++) {
+                tencileVector += _n[s * 25 + c];
+                tencileVector += _n[s * 25 + 24 - c];
+            }
+            break;
+        case 0:
+            for (int c = 0; c <= 1; c++) {
+                tencileVector += _n[s * 25 + c];
+                tencileVector += _n[s * 25 + 24 - c];
+            }
+            break;
         }
-        wingForce = tencileVector;
-        AllSummedForce += tencileVector;
+    }
+    AllSummedForce += tencileVector;
 
 
-        float3 lineNormal = glm::normalize(_x[end_Idx] - _x[parent_Idx]);
-        tencileRequest = __max(0.0001f, glm::dot(lineNormal, tencileVector));
+    float3 lineNormal = glm::normalize(_x[end_Idx] - _x[parent_Idx]);
+    tencileRequest = __max(0.0001f, glm::dot(lineNormal, tencileVector));
 
-        tencileForce = __min(tencileRequest, maxTencileForce);
-        tencileVector = tencileForce * lineNormal;
-
-        //wingForce = tencileRequest * lineNormal;
-    
+    tencileForce = __min(tencileRequest, maxTencileForce);
+    tencileVector = tencileForce * lineNormal;
 }
 
 float _lineBuilder::maxT(float _r, float _dT)
@@ -710,32 +705,19 @@ void _lineBuilder::windAndTension(std::vector<float3>& _x, std::vector<float>& _
     _x[end_Idx] += (fWind / m_End + float3(0, -9.8f * gravityScale, 0)) * _dtSquare;
     AllSummedLinedrag += fWind;
 
-    if (std::isnan(_x[end_Idx].x))
-    {
-        bool bcm = true;
-    }
-
-    //f_Line = rho / m_End * _dtSquare * 1000.f;// rho_Line* v* v;
     f_Line = rho_Line * v * v;
 
     if (isLineEnd)
     {
-        wingTencile(_x, _n);
+        wingLoading(_x, _n);
         t_ratio = tencileForce / tencileRequest;
-
-        if (isLineEnd)
-        {
-            //_x[end_Idx] += wingForce * 0.1f / m_End * _dtSquare;
-        }
-
-        
     }
-    
+
     for (auto& C : children) {
         C.windAndTension(_x, _w, _n, _v, _wind, _dtSquare);
     }
 
-    // now on the way down
+    // now on the way down ---------------------------------------------------------
     if (!isLineEnd)
     {
         tencileVector = float3(0, 0, 0);
@@ -743,7 +725,6 @@ void _lineBuilder::windAndTension(std::vector<float3>& _x, std::vector<float>& _
             tencileVector += C.tencileVector;
         }
 
-        
         if (!isCarabiner)
         {
             float SumRequest = glm::length(tencileVector);
@@ -752,11 +733,6 @@ void _lineBuilder::windAndTension(std::vector<float3>& _x, std::vector<float>& _
             tencileForce = __min(tencileRequest, maxTencileForce);
             tencileVector = tencileForce * lineNormal;
             t_ratio = tencileForce / tencileRequest;
-
-            if (tencileRequest < SumRequest * 0.9f)
-            {
-                bool bCM = true;
-            }
         }
         else
         {
@@ -766,79 +742,14 @@ void _lineBuilder::windAndTension(std::vector<float3>& _x, std::vector<float>& _
     }
 }
 
-float3 _lineBuilder::tensionDown(std::vector<float3>& _x, std::vector<float3>& _n)
-{
-    
-
-    if (isLineEnd)
-    {
-        tencileVector = float3(0, 0, 0);
-
-        for (int s = __max(0, attachment.x - 1); s <= __min(49, attachment.x + 1); s++)
-        {
-            switch (attachment.y)
-            {
-            case 9:
-                for (int c = 8; c <= 16; c++) {
-                    tencileVector += _n[s * 25 + c];
-                }
-                break;
-            case 8: case 7: case 6: case 5: case 4: case 3: case 2: case 1:
-                for (int c = attachment.y - 1; c <= attachment.y + 1; c++) {
-                    tencileVector += _n[s * 25 + c];
-                    tencileVector += _n[s * 25 + 24 - c];
-                }
-                break;
-            case 0:
-                for (int c = 0; c <= 1; c++) {
-                    tencileVector += _n[s * 25 + c];
-                    tencileVector += _n[s * 25 + 24 - c];
-                }
-                break;
-            }
-        }
-        wingForce = tencileVector;
-        AllSummedForce += tencileVector;
-
-        
-        float3 lineNormal = glm::normalize(_x[end_Idx] - _x[end_Idx-1]);
-        float Fn = __max(0.0001f, glm::dot(lineNormal, tencileVector));
-
-        //if (Fn < maxTencileForce) t_ratio = 1;
-
-        //tencileForce = Fn * t_ratio * lineNormal;
-        tencileForce = __min(Fn, maxTencileForce);
-        tencileVector = tencileForce * lineNormal;
-    }
-    else
-    {
-        tencileVector = float3(0, 0, 0);
-        for (auto& C : children) {
-            tencileVector += C.tensionDown(_x, _n);
-        }
-        
-
-        if (!isCarabiner)
-        {
-            float3 lineNormal = glm::normalize(_x[start_Idx] - _x[parent_Idx]);
-            float F = __max(0.0001f, glm::dot(tencileVector, lineNormal));
-            tencileVector = lineNormal * F;
-        }
-
-        tencileForce = glm::length(tencileVector);
-    }
-
-    return tencileVector;
-    t_ratio = tencileForce / maxTencileForce;
-}
 
 
 // also do tension here for next round
 void _lineBuilder::solveUp(std::vector<float3>& _x, bool _lastRound, float _ratio, float _w0)
 {
-    t_combined = __min(t_ratio, _ratio); 
+    t_combined = __min(t_ratio, _ratio);
 
-    float w1 = 1.0f / m_End; 
+    float w1 = 1.0f / m_End;
     if (isLineEnd)
     {
         _x[end_Idx] = _x[wingIdx]; // chiken and egg shit
@@ -898,10 +809,8 @@ _lineBuilder* _lineBuilder::getLine(std::string _s)
 
 
 
-uint _gliderBuilder::index(uint _s, uint _c)
-{
-    return (_s * chordSize) + _c;
-}
+
+
 
 uint4 _gliderBuilder::crossIdx(int _s, int _c)
 {
@@ -1059,7 +968,7 @@ void _gliderBuilder::builWingConstraints()
             {
                 float chordPush = 0.1f;
                 if (c > 12) chordPush = 0.2f;
-                if (c==11 || c == 12)chordPush = 0.f;
+                if (c == 11 || c == 12)chordPush = 0.f;
                 idx = quadIdx(s, c);
                 constraints.push_back(_constraint(idx.x, idx.y, s, L(idx.x, idx.y), 1.f, 0.1f, chordPush));  // chord
                 constraints.push_back(_constraint(idx.x, idx.w, s, L(idx.x, idx.w), 1.f, 0.1f, 0.4f));  // span
@@ -1235,10 +1144,10 @@ void _gliderBuilder::buildLines()
         }
 
 
-        auto& S1 = lB.pushLine("S1", 4.914f / 3.f, 0.0013f, green, uint2(0, 0), float3(0, 0, 0), 3);
+        auto& S1 = lB.pushLine("S1", 4.914f / 5.f, 0.0013f, green, uint2(0, 0), float3(0, 0, 0), 5);
         {
-            S1.pushLine("SAG1", 1.418f, 0.0009f, green, uint2(2, 9), x[index(2, 9)]);
-            S1.pushLine("SBG1", 1.437f, 0.0009f, green, uint2(2, 5), x[index(2, 5)]);
+            S1.pushLine("SAG1", 1.418f / 2.f, 0.0009f, green, uint2(2, 9), x[index(2, 9)], 2);
+            S1.pushLine("SBG1", 1.437f / 2.f, 0.0009f, green, uint2(2, 5), x[index(2, 5)], 2);
             auto& SM1 = S1.pushLine("SM1", 0.699f, 0.0009f, green, uint2(23, 4)); {
                 SM1.pushLine("SG01", 0.451f, 0.0009f, green, uint2(0, 9), x[index(0, 9)]);
                 SM1.pushLine("SG02", 0.471f, 0.0009f, green, uint2(0, 7), x[index(0, 7)]);
@@ -1316,10 +1225,6 @@ void _gliderBuilder::buildLines()
 
     linesLeft.solveLayout(float3(-0.1f, 0, 0), chordSize);        // this does a basic layout on lenths
     linesRight.solveLayout(float3(0.1f, 0, 0), chordSize);
-
-
-    //_lineBuilder *pR_FF2 = linesRight.getLine("FF2");pBrakeLeft
-    //if (pR_FF2) pR_FF2->length = 0.03f;
 }
 
 
@@ -1360,13 +1265,6 @@ void _gliderBuilder::generateLines()
 }
 
 
-void _gliderBuilder::solveLines()
-{
-}
-
-void _gliderBuilder::renderGui(Gui* mpGui)
-{
-}
 
 
 void _gliderBuilder::visualsPack(rvB_Glider* ribbon, rvPackedGlider* packed, int& count, bool& changed)
@@ -1470,7 +1368,7 @@ void _gliderBuilder::buildCp()
     char name[256];
     std::string line;
     float x, y, cp;
-    
+
     std::ofstream outcpfile("F:\\xfoil\\wing_CP.txt");    // 9 degrees
     for (int j = 0; j < 11; j++)
     {
@@ -1560,7 +1458,7 @@ void _gliderBuilder::buildCp()
             float r2 = 1.0f - r;
             r = 1.0f + r2;
         }
-        
+
         //float slope = -1 / TAN / TAN;
         float cutoffR = cos(0.57f * cutoffX);
 
@@ -1749,7 +1647,7 @@ void _gliderBuilder::analizeCp(std::string name, int cp_idx)
         wingshape[24 - j] = float3(tiny[j].p.x, tiny[j].p.y, tiny[j].area);
     }
 
-    
+
 }
 
 
@@ -1763,11 +1661,8 @@ void _gliderBuilder::analizeCp(std::string name, int cp_idx)
 void _gliderRuntime::renderGui(Gui* mpGui)
 {
     ImGui::Columns(2);
-    //ImGui::BeginChildFrame(1000, ImVec2(300, 160));
-    //ImGui::Text("leadingEdge");
-    //leadingEdge.renderGui(mpGui);
-    //ImGui::EndChildFrame();
-    float3 velHor = v[chordSize * spanSize];
+
+    uint triangle = chordSize * spanSize;
 
     if (ImGui::SliderFloat("weight", &weightShift, 0, 1))
     {
@@ -1775,9 +1670,9 @@ void _gliderRuntime::renderGui(Gui* mpGui)
         constraints[2].l = (1.0f - weightShift) * weightLength;
     }
     ImGui::Checkbox("symmetry", &symmetry);
-    
-    if(pBrakeLeft) ImGui::SliderFloat("F left", &pBrakeLeft->length, 0.1f, maxBrake);
-    if(pBrakeRight) ImGui::SliderFloat("F right", &pBrakeRight->length, 0.1f, maxBrake);
+
+    if (pBrakeLeft) ImGui::SliderFloat("F left", &pBrakeLeft->length, 0.1f, maxBrake);
+    if (pBrakeRight) ImGui::SliderFloat("F right", &pBrakeRight->length, 0.1f, maxBrake);
 
     if (pEarsLeft) ImGui::SliderFloat("ears left", &pEarsLeft->length, 0.1f, maxEars);
     if (pEarsRight) ImGui::SliderFloat("ears right", &pEarsRight->length, 0.1f, maxEars);
@@ -1793,85 +1688,61 @@ void _gliderRuntime::renderGui(Gui* mpGui)
     }
 
     ImGui::Checkbox("step", &singlestep);
+    ImGui::SameLine(0, 50);
     ImGui::Text("%d", frameCnt);
 
     ImGui::NewLine();
-    ImGui::Text("v_root %2.1f, %2.3f, %2.1f", velHor.x, velHor.y, velHor.z);
-    ImGui::Text("a_root %2.1f, %2.3f, %2.1f", a_root.x, a_root.y, a_root.z);
-    ImGui::Text("vBody %2.3f m/s", vBody);
+    
+    ImGui::Text("pilot / lines/ wing %2.1fkg, %2.1f g, %2.1fkg", weightPilot, weightLines * 1000.f, weightWing);
+    ImGui::Text("altitude %2.1fm", x[triangle].y);
 
-    ImGui::NewLine();
-
-    ImGui::Text("pos %2.1f, %2.1f, %2.1f", ROOT.x, ROOT.y, ROOT.z);
-    ImGui::Text("pilot / lines/ wing %2.1f, %2.1f g, %2.1f", weightPilot, weightLines * 1000.f, weightWing);
-
-
+    float3 velHor = v[triangle];
     velHor.y = 0;
     float Vh = glm::length(velHor) * 3.6f;
     ImGui::Text("speed %2.1f km/h", Vh);
-    ImGui::Text("vertical %2.1f m/s", v[chordSize * spanSize].y);
+    ImGui::Text("vertical %2.1f m/s", v[triangle].y);
 
     ImGui::NewLine();
-    ImGui::Text("wing lift %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing), sumFwing.x, sumFwing.y, sumFwing.z);
-    ImGui::Text("wing F %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing_F), sumFwing_F.x, sumFwing_F.y, sumFwing_F.z);
-    ImGui::Text("wing C %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing_C), sumFwing_C.x, sumFwing_C.y, sumFwing_C.z);
-    ImGui::Text("wing B %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing_B), sumFwing_B.x, sumFwing_B.y, sumFwing_B.z);
-    ImGui::Text("wing A %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing_A), sumFwing_A.x, sumFwing_A.y, sumFwing_A.z);
-    float3 abc = sumFwing_A + sumFwing_B + sumFwing_C;
-    ImGui::Text("ABC %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(abc), abc.x, abc.y, abc.z);
-
-    ImGui::Text("wing drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumDragWing), sumDragWing.x, sumDragWing.y, sumDragWing.z);
+    ImGui::Text("wing surface drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumDragWing), sumDragWing.x, sumDragWing.y, sumDragWing.z);
     ImGui::Text("line drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(AllSummedLinedrag), AllSummedLinedrag.x, AllSummedLinedrag.y, AllSummedLinedrag.z);
     ImGui::Text("pilot drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(pilotDrag), pilotDrag.x, pilotDrag.y, pilotDrag.z);
     
     ImGui::NewLine();
+    ImGui::Text("wing force %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing), sumFwing.x, sumFwing.y, sumFwing.z);
     ImGui::Text("ALLSUMMED %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(AllSummedForce), AllSummedForce.x, AllSummedForce.y, AllSummedForce.z);
-
-    ImGui::Text("tips %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumLineEndings), sumLineEndings.x, sumLineEndings.y, sumLineEndings.z);
-    ImGui::Text("carabiner Left %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(tensionCarabinerLeft), tensionCarabinerLeft.x, tensionCarabinerLeft.y, tensionCarabinerLeft.z);
-    ImGui::Text("carabinerRight %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(tensionCarabinerRight), tensionCarabinerRight.x, tensionCarabinerRight.y, tensionCarabinerRight.z);
+    //ImGui::Text("carabiner Left %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(tensionCarabinerLeft), tensionCarabinerLeft.x, tensionCarabinerLeft.y, tensionCarabinerLeft.z);
+    //ImGui::Text("carabinerRight %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(tensionCarabinerRight), tensionCarabinerRight.x, tensionCarabinerRight.y, tensionCarabinerRight.z);
     float3 sum = tensionCarabinerLeft + tensionCarabinerRight;
     ImGui::Text("BODY %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sum), sum.x, sum.y, sum.z);
 
 
-
-
-
     ImGui::NewLine();
-    ImGui::Text("AoA cellV");
-    for (int i = 0; i < spanSize; i += 1)
+    ImGui::Text("AoA, cellV, brake, pressure, ragdoll");
+    for (int i = 0; i < spanSize; i += 3)
     {
-        ImGui::Text(" % 2.1f, %4.1f, %4.1f, %4d%%, %4.1f", (cells[i].AoA * 57), cells[i].cellVelocity, cells[i].brakeSetting, (int)(cells[i].pressure * 99.f), cells[i].ragdoll);
+        ImGui::Text("%2d : %4.1f, %4.1f, %4d%%, %4.1f, %2.1f ", i, cells[i].cellVelocity, cells[i].brakeSetting, (int)(cells[i].pressure * 99.f), cells[i].ragdoll, cells[i].AoA * 57 );
     }
-
 
     ImGui::NextColumn();
 
-
-    ImGui::Text("wing v %2.1f m/s    (%2.1f, %2.1f, %2.1f)", glm::length(wingV), wingV.x, wingV.y, wingV.z);
-    ImGui::Text("winf a %2.1f m/s/s    (%2.1f, %2.1f, %2.1f)", glm::length(wingA), wingA.x, wingA.y, wingA.z);
-    ImGui::NewLine();
-    //23/ 9
-    ImGui::Text("AG01 v %2.1f m/s    (%2.1f, %2.1f, %2.1f)", glm::length(v[23 * 25 + 9]), v[23 * 25 + 9].x, v[23 * 25 + 9].y, v[23 * 25 + 9].z);
-    ImGui::Text("root -> AG01 %2.6f", root_AG01);
-
-    ImGui::NewLine();
-    linesLeft.renderGui();
-    linesRight.renderGui();
+    static char SEARCH[256];
+    ImGui::InputText("search", SEARCH, 256);
+    linesLeft.renderGui(SEARCH);
+    linesRight.renderGui(SEARCH);
 
 }
 
 
-
+// it gets parabuilder data
 void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints)
 {
     x = _x;
     w = _w;
     cd = _cd;
     cross = _cross;
-    l.resize(x.size());
+
     v.resize(x.size());
-    memset(&v[0], 0, sizeof(float3) * x.size());
+    memset(&v[0], 0, sizeof(float3) * v.size());
     n.resize(_span * _chord);
     t.resize(_span * _chord);
 
@@ -1888,26 +1759,25 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
 
     //ROOT = float3(5500, 1900, 11500);   // walensee
-    ROOT = float3(-7500, 1000, -10400);// hulfteff
+    ROOT = float3(-7500, 1000, -10400);// hulftegg
 
     for (int i = 0; i < spanSize; i++)
     {
         cells[i].v = float3(0, -1.5, -7);
         cells[i].pressure = 1;
-    }
-
-    for (int i = 0; i < v.size(); i++)
-    {
-        v[i] = float3(0, -1.5, -7);
+        cells[i].chordLength = glm::length(x[index(i, 12)] - x[index(i, 0)]); // fixme
     }
 
     for (int i = 0; i < x.size(); i++)
     {
         x[i] += float3(0, 0, 0);
+        v[i] = float3(0, -1.5, -7);
     }
+
     for (int i = 0; i < n.size(); i++)
     {
         n[i] = 0.125f * glm::cross((x[cross[i].z] - x[cross[i].w]), (x[cross[i].x] - x[cross[i].y]));
+        // this should be on disk
     }
 
     frameCnt = 0;
@@ -1915,25 +1785,21 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
     pBrakeLeft = linesLeft.getLine("FF1");
     pBrakeRight = linesRight.getLine("FF1");
-
     pEarsLeft = linesLeft.getLine("ears");
     pEarsRight = linesRight.getLine("ears");
-    //_lineBuilder *pR_FF2 = linesRight.getLine("FF2");
-    //if (pR_FF2) pR_FF2->length = 0.03f;
-
     pSLeft = linesLeft.getLine("S1");
     pSRight = linesRight.getLine("S1");
 
-    static bool firstStart = true;
-
-    if (firstStart && pBrakeLeft)
+    static bool first = true;
+    if (first && pBrakeLeft)
     {
-        firstStart = false;
+        first = false;
         if (pBrakeLeft)      maxBrake = pBrakeLeft->length;
         if (pEarsLeft)  maxEars = pEarsLeft->length;
         if (pSLeft)  maxS = pSLeft->length;
     }
 }
+
 
 
 void _gliderRuntime::solve(float _dT)
@@ -1945,21 +1811,18 @@ void _gliderRuntime::solve(float _dT)
     runcount--;
     frameCnt++;
 
-    _dT = 0.003f;
+    _dT = 0.002f;
+
     // fixme later per cell
-    float3 wind = float3(0, 1.5f, 9.0f) * 0.007f;
+    float3 wind = float3(0, 0.f, 0.01f);
 
     sumFwing = float3(0, 0, 0);
-    sumFwing_F = float3(0, 0, 0);
-    sumFwing_C = float3(0, 0, 0);
-    sumFwing_B = float3(0, 0, 0);
-    sumFwing_A = float3(0, 0, 0);
     sumDragWing = float3(0, 0, 0);
     AllSummedForce = float3(0, 0, 0);
     AllSummedLinedrag = float3(0, 0, 0);
 
     {
-        FALCOR_PROFILE("aero");
+        FALCOR_PROFILE("wing");
         for (int i = 0; i < spanSize; i++)
         {
             cells[i].old_pressure = cells[i].pressure;
@@ -1967,14 +1830,7 @@ void _gliderRuntime::solve(float _dT)
 
         for (int i = 0; i < spanSize; i++)
         {
-
-            // front - ha ha ha - this is harder, unless I specifically orent my wing when I calculate brakes
             cells[i].front = glm::normalize(x[index(i, 12)] - x[index(i, 3)]);  // From C forward
-
-            if (std::isnan(cells[i].front.x))
-            {
-                bool bcm = true;
-            }
 
             // up vector ####################################################################
             cells[i].up = float3(0, 0, 0);
@@ -1984,50 +1840,27 @@ void _gliderRuntime::solve(float _dT)
                 cells[i].up += n[index(i, 24 - j)];
             }
             float3 r = glm::cross(cells[i].up, cells[i].front);
-            cells[i].up = glm::cross(cells[i].front, r);
-            cells[i].up = glm::normalize(cells[i].up);
+            cells[i].up = glm::normalize(glm::cross(cells[i].front, r));
 
-            float3 frontBrake = glm::normalize(x[index(i, 3)] - x[index(i, 0)]);  // From C forward
+            float3 frontBrake = glm::normalize(x[index(i, 3)] - x[index(i, 0)]);
             float3 upBrake = glm::normalize(glm::cross(frontBrake, r));
-            cells[i].AoBrake = - glm::dot(upBrake, cells[i].front) * 0.8f;
+
+            cells[i].AoBrake = -glm::dot(upBrake, cells[i].front) * 0.8f;
             cells[i].AoBrake = __min(1.f, cells[i].AoBrake);
             cells[i].AoBrake = __max(0.f, cells[i].AoBrake);
-                
-            if (std::isnan(cells[i].AoBrake))
-            {
-                bool bcm = true;
-            }
-            if (std::isnan(cells[i].v.x))
-            {
-                bool bcm = true;
-            }
 
-
-            float3 VV = float3(0, 0, 0);
+            cells[i].v = float3(0, 0, 0);
             for (int j = 0; j < chordSize; j++)
             {
-                VV += v[index(i, j)];
+                cells[i].v += v[index(i, j)];
             }
-            VV /= chordSize;
-            cells[i].v = lerp(cells[i].v, VV, 1.f);
-            cells[i].cellVelocity = glm::length(cells[i].v);
+            cells[i].v /= chordSize;
 
-            //if (std::isnan(cells[i].cellVelocity))
-            if (cells[i].cellVelocity > 100)
-            {
-                bool bcm = true;
-            }
+            cells[i].rel_wind = wind - cells[i].v;
+            cells[i].cellVelocity = glm::length(cells[i].rel_wind);
+            cells[i].rho = 0.5 * 1.11225f * cells[i].cellVelocity * cells[i].cellVelocity;       // dynamic pressure
 
-            if (cells[i].cellVelocity < 0.1f)
-            {
-                bool bcm = true;
-            }
-
-            float3 cellWind = wind - cells[i].v;
-            cells[i].rel_wind = cellWind;
-            float windSpeed = glm::length(cellWind);
-            cells[i].rho = 0.5 * 1.11225f * windSpeed * windSpeed;       // dynamic pressure
-            float3 windDir = glm::normalize(cellWind);   // per cell later
+            float3 windDir = glm::normalize(cells[i].rel_wind);
             cells[i].AoA = asin(glm::dot(cells[i].up, windDir));
             if (glm::dot(windDir, cells[i].front) > 0) {
                 cells[i].AoA = 3.141592653589793238462f - cells[i].AoA;
@@ -2038,12 +1871,10 @@ void _gliderRuntime::solve(float _dT)
             }
             if (i > spanSize - 11)
             {
-                cells[i].AoA += (float)(i - (spanSize -11)) * 0.005f;
+                cells[i].AoA += (float)(i - (spanSize - 11)) * 0.005f;
             }
-            //cells[i].AoA = __max(0, cells[i].AoA);
-
-            cells[i].chordLength = 3.f; // fixme
-            cells[i].reynolds = (1.125f * windSpeed * cells[i].chordLength) / (0.0000186);     // dynamic viscocity 25C air
+            
+            cells[i].reynolds = (1.125f * cells[i].cellVelocity * cells[i].chordLength) / (0.0000186);     // dynamic viscocity 25C air
             cells[i].cD = 0.027f / pow(cells[i].reynolds, 1.f / 7.f);
 
             // cell pressure
@@ -2054,16 +1885,18 @@ void _gliderRuntime::solve(float _dT)
             float pressure10 = __max(0, glm::lerp(CPbrakes[0][idx][10], CPbrakes[0][idx + 1][10], dL));
             float pressure11 = __max(0, glm::lerp(CPbrakes[0][idx][11], CPbrakes[0][idx + 1][11], dL));
             float P = __max(pressure10, pressure11);
-            float windPscale = __min(1.f, windSpeed / 4.f);
+            float windPscale = __min(1.f, cells[i].cellVelocity / 4.f);
             P *= pow(windPscale, 4);
 
             cells[i].old_pressure = glm::lerp(cells[i].old_pressure, P, 0.01f);
         }
 
+
+        // the pressure distribution
         for (int i = 0; i < spanSize; i++)
         {
             cells[i].pressure = cells[i].old_pressure;
-            
+
             if (i < 5)
             {
                 cells[i].pressure = cells[5].old_pressure;
@@ -2072,7 +1905,7 @@ void _gliderRuntime::solve(float _dT)
             {
                 cells[i].pressure = cells[spanSize - 6].old_pressure;
             }
-            
+
             else
             {
                 float MAX = __max(__max(cells[i].old_pressure, cells[i - 1].old_pressure * 0.80f), cells[i + 1].old_pressure * 0.80f);
@@ -2100,8 +1933,8 @@ void _gliderRuntime::solve(float _dT)
             cells[span].brakeSetting = brake;
             int idxBrake = (int)floor(brake);
             float dB = __min(1, brake - idxBrake);
-            float CP_B0 = glm::lerp(CPbrakes[idxBrake][idx][chord], CPbrakes[idxBrake+1][idx][chord], dB);
-            float CP_B1 = glm::lerp(CPbrakes[idxBrake][idx+1][chord], CPbrakes[idxBrake + 1][idx+1][chord], dB);
+            float CP_B0 = glm::lerp(CPbrakes[idxBrake][idx][chord], CPbrakes[idxBrake + 1][idx][chord], dB);
+            float CP_B1 = glm::lerp(CPbrakes[idxBrake][idx + 1][chord], CPbrakes[idxBrake + 1][idx + 1][chord], dB);
             cp = glm::lerp(CP_B0, CP_B1, dL);
 
             // rag doll pressures
@@ -2112,31 +1945,8 @@ void _gliderRuntime::solve(float _dT)
             cp = glm::lerp(cp, __max(0, cpRagdoll), cells[span].ragdoll);
 
 
-
-
             n[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
-            //n[i] = n[i] * (0 - cp) * cells[span].rho;
             sumFwing += n[i];
-
-            if (span > 3 || span < 46) {
-                if (chord < 2 || chord > 22) {
-                    sumFwing_F += n[i];
-                }
-
-                if ((chord >= 2 && chord <= 4) || (chord >= 20 && chord <= 22)) {
-                    sumFwing_C += n[i];
-                }
-
-                if ((chord >= 5 && chord <= 7) || (chord >= 17 && chord <= 19)) {
-                    sumFwing_B += n[i];
-                }
-
-                if ((chord >= 8 && chord <= 16)) {
-                    sumFwing_A += n[i];
-                }
-            }
-
-            //float Newton = glm::length(n[i]);
 
             n[i] = 0.125f * glm::cross((x[cross[i].z] - x[cross[i].w]), (x[cross[i].x] - x[cross[i].y]));
             n[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
@@ -2151,20 +1961,12 @@ void _gliderRuntime::solve(float _dT)
 
 
     uint start = chordSize * spanSize;
-    float3 oldB = x[start];
-    float3 oldL = x[start + 1];
-    float3 oldR = x[start + 2];
 
     weightLines = 0;
     weightPilot = 0;
     weightWing = 0;
-
     pilotDrag = float3(0, 0, 0);
     lineDrag = float3(0, 0, 0);
-
-    vBody = glm::lerp(vBody, glm::length(v[start] - wind), 1.f);      // FIXME needs general win
-    //float lineRho = (0.5 * 1.11225f * vBody * vBody) * 0.6f * (0.1f / 10000.f);
-    //lineRho = __max(0.000001, lineRho);
 
     {
         FALCOR_PROFILE("pre");
@@ -2172,8 +1974,6 @@ void _gliderRuntime::solve(float _dT)
         memcpy(&x_old[0], &x[0], sizeof(float3) * x.size());
         for (int i = 0; i < x.size(); i++)
         {
-            //x_old[i] = x[i];
-
             float3 a = float3(0, -9.8, 0);      // gravity
             if (i < spanSize * chordSize) {
                 a += w[i] * n[i];
@@ -2193,23 +1993,10 @@ void _gliderRuntime::solve(float _dT)
         }
     }
 
-    float3 g_oldB = x[start];
-    float3 g_oldL = x[start + 1];
-    float3 g_oldR = x[start + 2];
-
-    //float3 lineF = -glm::normalize(v[start] - wind) * lineRho;
-
-
-    linesLeft.windAndTension(x, w, n, v, wind, _dT* _dT);
-    linesRight.windAndTension(x, w, n, v, wind, _dT* _dT);
+    linesLeft.windAndTension(x, w, n, v, wind, _dT * _dT);
+    linesRight.windAndTension(x, w, n, v, wind, _dT * _dT);
     tensionCarabinerLeft = linesLeft.tencileVector * 0.94f;
     tensionCarabinerRight = linesRight.tencileVector * 0.94f;
-
-    //tensionCarabinerLeft = linesLeft.tensionDown(x, n) * 0.94f;
-    //tensionCarabinerRight = linesRight.tensionDown(x, n) * 0.94f;
-
-    //linesLeft.windAndTension(x, w, v, wind, _dT* _dT);
-    //linesRight.windAndTension(x, w, v, wind, _dT* _dT);
 
     // Solve the body and carabiners
     x[start + 1] += w[start + 1] * tensionCarabinerLeft * _dT * _dT;
@@ -2246,10 +2033,6 @@ void _gliderRuntime::solve(float _dT)
         }
     }
 
-    float3 solve_oldB = x[start];
-    float3 solve_oldL = x[start + 1];
-    float3 solve_oldR = x[start + 2];
-
 
     {
         FALCOR_PROFILE("wing constraints");
@@ -2265,26 +2048,16 @@ void _gliderRuntime::solve(float _dT)
                 linesRight.solveUp(x, last);
             }
 
-
             for (int i = 3; i < constraints.size(); i++)
             {
                 solveConstraint(i, dS);
             }
-            //dS += 0.05f;
-
-            x[start] = solve_oldB;          // maybe unnesesay I think I have caraqbibner weigths correct
-            x[start + 1] = solve_oldL;
-            x[start + 2] = solve_oldR;
         }
     }
 
 
 
-
-
     v_oldRoot = v[spanSize * chordSize];
-
-
     {
         FALCOR_PROFILE("post");
         for (int i = 0; i < x.size(); i++)
@@ -2304,8 +2077,6 @@ void _gliderRuntime::solve(float _dT)
                 x[i].y = -ROOT.y;
                 v[i] *= 0.3f;
             }
-
-            
         }
 
         a_root = (v[spanSize * chordSize] - v_oldRoot) / _dT;
@@ -2322,28 +2093,9 @@ void _gliderRuntime::solve(float _dT)
             x[i] -= offset;
         }
 
-        //OFFSET = (x[spanSize * chordSize]) + float3(0, 0.5, 0);
+        if (glm::length(pilotDrag) > 1.f) pilotYaw = atan2(pilotDrag.x, pilotDrag.z);
     }
-
-
-    wingVold = wingV;
-    wingV = float3(0, 0, 0);
-    uint cnt = 0;
-    for (int j = 10; j < 40; j++)
-    {
-        for (int i = 0; i < chordSize; i++)
-        {
-            wingV += v[j * chordSize + i];
-            cnt++;
-        }
-    }
-    wingV /= (float)cnt;
-    wingA = (wingV - wingVold) / _dT;
-    root_AG01 = glm::length(x[start] - x[23 * chordSize + 9]);
-
-
-    //if (glm::length(pilotDrag) > 1.f) pilotYaw = lerp(pilotYaw, atan2(pilotDrag.x, pilotDrag.z), 0.01f);
-    if (glm::length(pilotDrag) > 1.f) pilotYaw = atan2(pilotDrag.x, pilotDrag.z);
+    
 }
 
 
@@ -2356,13 +2108,6 @@ void _gliderRuntime::solveConstraint(uint _i, float _step)
     float Wsum = w[idx0] + w[idx1];
     float3 S = x[idx1] - x[idx0];
     float L = glm::length(S);
-    //float L = (S.x * S.x + S.y * S.y + S.z * S.z) / Cst.l;   //l^2 centeres arounf 1.0f
-    //float L = L1 * Cst.l;
-    if (L == 0)
-    {
-        L = 0.001f;
-        S.y += 0.001f;
-    }
     float C = (L - Cst.l) / L * _step;
     if (C > 0) {
         C *= Cst.tensileStiff;
@@ -2376,30 +2121,59 @@ void _gliderRuntime::solveConstraint(uint _i, float _step)
 }
 
 
-void _gliderRuntime::pack(rvB_Glider* ribbon, rvPackedGlider* packed, int& count, bool& changed)
+void _gliderRuntime::pack_canopy()
 {
-    count = 0;
+    ribbonCount = 0;
 
-    for (int s = 0; s < spanSize; s+=1)
+    // chord
+    for (int s = 0; s < spanSize; s++)
     {
         for (int c = 0; c < chordSize; c++)
         {
-                     setupVert(&ribbon[count], c == 0 ? 0 : 1, x[index(s, c)], 0.008f, 0);     count++;
+            setupVert(&ribbon[ribbonCount], c == 0 ? 0 : 1, x[index(s, c)], 0.005f);     ribbonCount++;
         }
     }
 
     // span
     for (int c = 0; c < chordSize; c++)
     {
-        //if ((c == 0) || (c == 3) || (c == 6) || (c == 9) || (c == 12))
+        for (int s = 0; s < spanSize; s++)
         {
-            for (int s = 0; s < spanSize; s++)
-            {
-                setupVert(&ribbon[count], s == 0 ? 0 : 1, x[index(s, c)], 0.006f);     count++;
-            }
+            setupVert(&ribbon[ribbonCount], s == 0 ? 0 : 1, x[index(s, c)], 0.005f);     ribbonCount++;
         }
-        
     }
+
+    // triangle
+    uint triangle = spanSize * chordSize;
+    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, 7);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 1], 0.01f, 7);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, 7);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 2], 0.01f, 7);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 1], 0.01f, 7);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 2], 0.01f, 7);     ribbonCount++;
+
+    // constraints
+    for (int i = 0; i < constraints.size(); i++)
+    {
+        //setupVert(&ribbon[ribbonCount], 0, x[constraints[i].idx_0], 0.004f, 7);     ribbonCount++;
+        //setupVert(&ribbon[ribbonCount], 1, x[constraints[i].idx_1], 0.004f, 7);     ribbonCount++;
+    }
+}
+
+
+void _gliderRuntime::pack_lines()
+{
+    linesLeft.addRibbon(ribbon, x, ribbonCount);
+    linesRight.addRibbon(ribbon, x, ribbonCount);
+}
+
+void _gliderRuntime::pack_feedback()
+{
+    uint triangle = spanSize * chordSize;
+    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.001f, 1);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle] + pilotDrag * 0.05f, 0.1f, 1);     ribbonCount++;
 
     // normals and tangetns
     int ribcount = 0;
@@ -2413,77 +2187,44 @@ void _gliderRuntime::pack(rvB_Glider* ribbon, rvPackedGlider* packed, int& count
             {
                 uint color = 1;
                 if (c < 12) color = 2;
-                //                setupVert(&ribbon[count], 0, x[index(s, c)], 0.001f, color);     count++;
-                //                setupVert(&ribbon[count], 1, x[index(s, c)] + n[index(s, c)] * 0.3f, 0.004f, color);     count++;
-                                //setupVert(&ribbon[count], 1, x[index(s, c)] + t[index(s, c)] * 20.f, 0.01f, 4);     count++;
+
+                //setupVert(&ribbon[count], 0, x[index(s, c)], 0.001f, color);     count++;
+                //setupVert(&ribbon[count], 1, x[index(s, c)] + n[index(s, c)] * 0.3f, 0.004f, color);     count++;
+                //setupVert(&ribbon[count], 1, x[index(s, c)] + t[index(s, c)] * 20.f, 0.01f, 4);     count++;
             }
         }
     }
 
-    // triangle
-    uint start = spanSize * chordSize;
-    setupVert(&ribbon[count], 0, x[start], 0.01f, 7);     count++;
-    setupVert(&ribbon[count], 1, x[start + 1], 0.01f, 7);     count++;
-
-    setupVert(&ribbon[count], 0, x[start], 0.01f, 7);     count++;
-    setupVert(&ribbon[count], 1, x[start + 2], 0.01f, 7);     count++;
-
-    setupVert(&ribbon[count], 0, x[start + 1], 0.01f, 7);     count++;
-    setupVert(&ribbon[count], 1, x[start + 2], 0.01f, 7);     count++;
-
-
-    setupVert(&ribbon[count], 0, x[start], 0.001f, 1);     count++;
-    setupVert(&ribbon[count], 1, x[start] + pilotDrag * 0.05f, 0.1f, 1);     count++;
-
-    //setupVert(&ribbon[count], 0, x[start] + float3(0, 3, 0), 0.001f, 1);     count++;
-    //setupVert(&ribbon[count], 1, x[start] + float3(0, 3, 0) + lineDrag * 0.05f, 0.16f, 1);     count++;
-
-
-
-
-
-    // constraints
-    for (int i = 0; i < constraints.size(); i++)
-    {
-  //      setupVert(&ribbon[count], 0, x[constraints[i].idx_0], 0.004f, 7);     count++;
-    //    setupVert(&ribbon[count], 1, x[constraints[i].idx_1], 0.004f, 7);     count++;
-    }
-
-
-    // Feedbacl
+    /*
     for (int s = 0; s < spanSize; s += 1)
     {
- /*               setupVert(&ribbon[count], 0, x[index(s, 0)], 0.005f, 2);     count++;
-                setupVert(&ribbon[count], 1, x[index(s, 0)] + cells[s].rel_wind * 0.2f, 0.016f, 2);     count++;
+        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 2);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + cells[s].rel_wind * 0.2f, 0.016f, 2);     ribbonCount++;
 
-                setupVert(&ribbon[count], 0, x[index(s, 0)], 0.005f, 2);     count++;
-                setupVert(&ribbon[count], 1, x[index(s, 0)] - cells[s].rel_wind * 0.3f, 0.016f, 2);     count++;
+        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 2);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] - cells[s].rel_wind * 0.3f, 0.016f, 2);     ribbonCount++;
 
-                setupVert(&ribbon[count], 0, x[index(s, 0)], 0.001f, 1);     count++;
-                setupVert(&ribbon[count], 1, x[index(s, 0)] + pilotDrag * 0.05f, 0.016f, 1);     count++;
+        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.001f, 1);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + pilotDrag * 0.05f, 0.016f, 1);     ribbonCount++;
 
-                setupVert(&ribbon[count], 0, x[index(s, 0)], 0.005f, 7);     count++;
-                setupVert(&ribbon[count], 1, x[index(s, 0)] + cells[s].front * 3.3f, 0.016f, 7);     count++;
+        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 7);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + cells[s].front * 3.3f, 0.016f, 7);     ribbonCount++;
 
-                setupVert(&ribbon[count], 0, x[index(s, 0)], 0.005f, 7);     count++;
-                setupVert(&ribbon[count], 1, x[index(s, 0)] + cells[s].up * 3.3f, 0.016f, 7);     count++;
-                
-                */
-        //        setupVert(&ribbon[count], 0, x[index(s, 12)], 0.005f, 1);     count++;
-        //        setupVert(&ribbon[count], 1, x[index(s, 12)] + cells[s].v * 0.2f, 0.02f, 1);     count++;
-    }
+        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 7);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + cells[s].up * 3.3f, 0.016f, 7);     ribbonCount++;
 
+        //        setupVert(&ribbon[ribbonCount], 0, x[index(s, 12)], 0.005f, 1);     ribbonCount++;
+        //        setupVert(&ribbon[ribbonCount], 1, x[index(s, 12)] + cells[s].v * 0.2f, 0.02f, 1);     ribbonCount++;
+    } */
+}
 
-    //lines
-    linesLeft.addRibbon(ribbon, x, count);
-    linesRight.addRibbon(ribbon, x, count);
-
-    for (int i = 0; i < count; i++)
+void _gliderRuntime::pack()
+{
+    for (int i = 0; i < ribbonCount; i++)
     {
-        packed[i] = ribbon[i].pack();
+        packedRibbons[i] = ribbon[i].pack();
     }
     changed = true;
-
 }
 
 void _gliderRuntime::load()
@@ -2493,14 +2234,5 @@ void _gliderRuntime::load()
 void _gliderRuntime::save()
 {
 }
-
-uint _gliderRuntime::index(uint _s, uint _c)
-{
-    return _s * chordSize + _c;
-}
-
-
-
-
 
 

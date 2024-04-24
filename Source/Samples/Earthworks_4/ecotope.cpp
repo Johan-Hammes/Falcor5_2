@@ -7,7 +7,7 @@
 #include <fstream>
 #include "imgui.h"
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 
 

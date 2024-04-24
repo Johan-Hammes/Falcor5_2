@@ -162,12 +162,11 @@ public:
     void solveLayout(float3 _start, uint _chord);
     void addRibbon(rvB_Glider*_r, std::vector<float3> &_x, int & _c);
 
-    void renderGui(int tab = -1);
+    void renderGui(char *search, int tab = -1);
 
-    void wingTencile(std::vector<float3>& _x, std::vector<float3>& _n);
+    void wingLoading(std::vector<float3>& _x, std::vector<float3>& _n);
     float maxT(float _r, float _dT);
     void windAndTension(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float3>& _n, std::vector<float3>& _v, float3 _wind, float _dtSquare);
-    float3 tensionDown(std::vector<float3>& _x, std::vector<float3>& _n);
     void solveUp(std::vector<float3>& _x, bool _lastRound, float _ratio = 1.f, float _w0 = 0.f);
 
     _lineBuilder* getLine(std::string _s);
@@ -190,21 +189,16 @@ public:
     bool    isLineEnd = false;            // is this attached to the wing
     bool    isCarabiner = false;            // is this attached to the wing
 
-    // tensdile wight distribution
-    //float   tension;
+    // tensile weight distribution
     float   maxTencileForce;
     float3  tencileVector;
     float   tencileForce;
     float  tencileRequest;
-    float3  wingForce;
     float straightRatio;
 
     // new tensile
     float t_ratio;      // ratio of
     float t_combined;
-
-    // new new tensile
-    float stretchLength;
     float stretchRatio;
 
     // New new new
@@ -224,11 +218,8 @@ public:
     void builWingConstraints();
     void buildLines();
     void generateLines();
-    void builLineConstraints();
-    void solveLines();
-    void renderGui(Gui* mpGui);
     void visualsPack(rvB_Glider*ribbon, rvPackedGlider*packed, int &count, bool &changed);
-    uint index(uint _s, uint _c);               // index of this vertex
+    uint index(uint _s, uint _c) { return (_s * chordSize) + _c; }               // index of this vertex
     uint4 crossIdx(int _s, int _c);
     uint4 quadIdx(int _s, int _c);
 
@@ -295,10 +286,13 @@ public:
     void renderGui(Gui* mpGui);
     void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
     void solve(float _dT);
-    void pack(rvB_Glider* ribbon, rvPackedGlider* packed, int& count, bool& changed);
+    void pack_canopy();
+    void pack_lines();
+    void pack_feedback();
+    void pack();
     void load();
     void save();
-    uint index(uint _s, uint _c);               // index of this vertex
+    uint index(uint _s, uint _c) { return _s * chordSize + _c; } 
     void solveConstraint(uint _i, float _step);
 
     // build
@@ -326,7 +320,6 @@ public:
     std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
     std::vector<float>  cd;             // drag - for lines etc      {_gliderBuilder}
     std::vector<uint4>  cross;          // Index of cross verticies for normal calculation      {_gliderBuilder}
-    std::vector<float3> l;              // lamda
     std::vector<float3> v;              // velocity
     std::vector<float3> n;              // normal - scaled with area
     std::vector<float3> t;              // tangent - scaled with area
@@ -343,7 +336,7 @@ public:
 
     _lineBuilder linesLeft;
     _lineBuilder linesRight;
-    float3 sumLineEndings;
+    //float3 sumLineEndings;
 
     uint spanSize = 50;
     uint chordSize = 25;
@@ -351,12 +344,7 @@ public:
     float3 ROOT = float3(0, 0, 0);
     float3 OFFSET = float3(0, 0, 0);
     float3 sumFwing;
-    float3 sumFwing_F;
-    float3 sumFwing_A;
-    float3 sumFwing_B;
-    float3 sumFwing_C;
     float3 sumDragWing;
-    //float3 tempAForce[100];
 
     float3 tensionCarabinerLeft;
     float3 tensionCarabinerRight;
@@ -370,10 +358,7 @@ public:
     float3 v_oldRoot;
     float3 a_root;
     float vBody = 0;
-    float3 wingV;
-    float3 wingVold;
-    float3 wingA;
-    float root_AG01;
+
     // stepping
     uint runcount = 0;
     uint frameCnt = 0;
