@@ -9,6 +9,13 @@ target_sources(Earthworks_4 PRIVATE
     atmosphere.h
     computeShader.cpp
     computeShader.h
+    Sprites.h
+    Sprites.cpp
+    Sprite_defines.h
+	pixelShader.cpp
+    pixelShader.h
+    volumeFogPhaseFunctions.cpp
+
     ecotope.h
     ecotope.cpp
     roads_AI.cpp
@@ -25,41 +32,43 @@ target_sources(Earthworks_4 PRIVATE
     roads_road.h
     roadNetwork.cpp
     roadNetwork.h
-    Sprites.h
-    Sprites.cpp
-    Sprite_defines.h
     terrafector.cpp
     terrafector.h
 	terrain.cpp
     terrain.h
-	pixelShader.cpp
-    pixelShader.h
-    volumeFogPhaseFunctions.cpp
 	
-	hlsl/compute_tileVertices.hlsl
-	hlsl/compute_bc6h_functions.hlsli
-	hlsl/gpuLights_defines.hlsli
-	hlsl/gpuLights_functions.hlsli
-	hlsl/groundcover_defines.hlsli
-	hlsl/groundcover_functions.hlsli
-    hlsl/materials.hlsli
-	hlsl/terrainDefines.hlsli
-	hlsl/terrainFunctions.hlsli
-	hlsl/compute_bc6h.hlsl
-	hlsl/compute_tileBicubic.hlsl
-	hlsl/compute_tileBuildLookup.hlsl
-	hlsl/compute_tileClear.hlsl
-	hlsl/compute_tileDelaunay.hlsl
-	hlsl/compute_tileEcotopes.hlsl
-	hlsl/compute_tileGenerate.hlsl
-	hlsl/compute_tileJumpFlood.hlsl
-	hlsl/compute_tileNormals.hlsl
-	hlsl/compute_tilePassthrough.hlsl
-	hlsl/compute_tileSplitMerge.hlsl
-    hlsl/compute_terrain_under_mouse.hlsl
-    hlsl/compute_clipLodAnimatePlants.hlsl
+	hlsl/terrain/compute_tileVertices.hlsl
+	hlsl/terrain/compute_bc6h_functions.hlsli
+	hlsl/terrain/gpuLights_defines.hlsli
+	hlsl/terrain/gpuLights_functions.hlsli
+	hlsl/terrain/groundcover_defines.hlsli
+	hlsl/terrain/groundcover_functions.hlsli
+    hlsl/terrain/materials.hlsli
+	hlsl/terrain/terrainDefines.hlsli
+	hlsl/terrain/terrainFunctions.hlsli
+	hlsl/terrain/compute_bc6h.hlsl
+	hlsl/terrain/compute_tileBicubic.hlsl
+	hlsl/terrain/compute_tileBuildLookup.hlsl
+	hlsl/terrain/compute_tileClear.hlsl
+	hlsl/terrain/compute_tileDelaunay.hlsl
+	hlsl/terrain/compute_tileEcotopes.hlsl
+	hlsl/terrain/compute_tileGenerate.hlsl
+	hlsl/terrain/compute_tileJumpFlood.hlsl
+	hlsl/terrain/compute_tileNormals.hlsl
+	hlsl/terrain/compute_tilePassthrough.hlsl
+	hlsl/terrain/compute_tileSplitMerge.hlsl
+    hlsl/terrain/compute_terrain_under_mouse.hlsl
+    hlsl/terrain/compute_clipLodAnimatePlants.hlsl
 
-    hlsl/compute_bakeFloodfill.hlsl
+    hlsl/terrain/compute_bakeFloodfill.hlsl
+
+    hlsl/terrain/render_meshTerrafector.hlsl
+    hlsl/terrain/render_ribbons.hlsl
+    hlsl/terrain/render_splineTerrafector.hlsl
+    hlsl/terrain/render_spline.hlsl
+    hlsl/terrain/render_tile_sprite.hlsl
+    hlsl/terrain/render_Tiles.hlsl
+    hlsl/terrain/render_triangles.hlsl
 
     hlsl/atmosphere/compute_fogCloudAtmosphereCommon.hlsli
     hlsl/atmosphere/compute_volumeFog.hlsli
@@ -68,14 +77,8 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/atmosphere/compute_volumeFogLights.hlsl
     hlsl/atmosphere/compute_volumeFogSmokeAndDust.hlsl
 
-    hlsl/render_meshTerrafector.hlsl
-    hlsl/render_splineTerrafector.hlsl
-    hlsl/render_spline.hlsl
+    
     hlsl/render_sprite.hlsl
-    hlsl/render_tile_sprite.hlsl
-    hlsl/render_ribbons.hlsl
-    hlsl/render_triangles.hlsl
-    hlsl/render_Tiles.hlsl
     hlsl/render_Common.hlsli
     hlsl/PBR.hlsli
     hlsl/material.hlsli

@@ -1740,7 +1740,7 @@ private:
         computeShader		compute_tileVerticis;
         computeShader		compute_tileJumpFlood;
         computeShader		compute_tileDelaunay;
-        computeShader		compute_tileElevationMipmap;
+        //computeShader		compute_tileElevationMipmap;
         computeShader		compute_clipLodAnimatePlants;
 
         // BC6H compressor

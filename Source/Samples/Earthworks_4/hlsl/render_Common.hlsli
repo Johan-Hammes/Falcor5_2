@@ -1,4 +1,4 @@
-#include "gpuLights_defines.hlsli"
+#include "terrain/gpuLights_defines.hlsli"
 
 
 SamplerState gSmpPoint : register(s0);

@@ -7263,7 +7263,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         split.buffer_terrain = Buffer::createStructured(sizeof(Terrain_vertex), numVertPerTile * numTiles);
 
-        terrainShader.load("Samples/Earthworks_4/hlsl/render_Tiles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+        terrainShader.load("Samples/Earthworks_4/hlsl/terrain/render_Tiles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
         terrainShader.Vars()->setBuffer("tiles", split.buffer_tiles);
         terrainShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_terrain);
 
@@ -7280,7 +7280,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         spriteTexture = Texture::createFromFile("F:/terrains/switserland_Steg/ecosystem/sprite_diff.DDS", true, true);
 
-        terrainSpiteShader.load("Samples/Earthworks_4/hlsl/render_tile_sprite.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
+        terrainSpiteShader.load("Samples/Earthworks_4/hlsl/terrain/render_tile_sprite.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
         terrainSpiteShader.Vars()->setBuffer("tiles", split.buffer_tiles);
         terrainSpiteShader.Vars()->setBuffer("tileLookup", split.buffer_lookup_quads);
         terrainSpiteShader.Vars()->setBuffer("instanceBuffer", split.buffer_instance_quads);        // WHY BOTH
@@ -7323,20 +7323,20 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonTextures.emplace_back(tex);
         */
 
-        ribbonShader.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+        ribbonShader.load("Samples/Earthworks_4/hlsl/terrain/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);
         ribbonShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
 
         ribbonShader_Bake.add("_BAKE", "");
-        ribbonShader_Bake.load("Samples/Earthworks_4/hlsl/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+        ribbonShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonData);
         ribbonShader_Bake.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
         ribbonShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader_Bake.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
 
-        compute_bakeFloodfill.load("Samples/Earthworks_4/hlsl/compute_bakeFloodfill.hlsl");
+        compute_bakeFloodfill.load("Samples/Earthworks_4/hlsl/terrain/compute_bakeFloodfill.hlsl");
 
 
 
@@ -7344,7 +7344,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         triangleData = Buffer::createStructured(sizeof(triangleVertex), 16384); // just a nice amount for now
 
-        triangleShader.load("Samples/Earthworks_4/hlsl/render_triangles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+        triangleShader.load("Samples/Earthworks_4/hlsl/terrain/render_triangles.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
         triangleShader.Vars()->setBuffer("instanceBuffer", triangleData);        // WHY BOTH
         triangleShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         triangleShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
@@ -7407,14 +7407,14 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-        compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/compute_terrain_under_mouse.hlsl");
+        compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/terrain/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
         compute_TerrainUnderMouse.Vars()->setTexture("gHeight", height_Array);
         compute_TerrainUnderMouse.Vars()->setBuffer("tiles", split.buffer_tiles);
         compute_TerrainUnderMouse.Vars()->setBuffer("groundcover_feedback", split.buffer_feedback);
 
         // clear
-        split.compute_tileClear.load("Samples/Earthworks_4/hlsl/compute_tileClear.hlsl");
+        split.compute_tileClear.load("Samples/Earthworks_4/hlsl/terrain/compute_tileClear.hlsl");
         split.compute_tileClear.Vars()->setBuffer("feedback", split.buffer_feedback);
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_Terrain", split.drawArgs_tiles);
         split.compute_tileClear.Vars()->setBuffer("DrawArgs_Quads", split.drawArgs_quads);
@@ -7424,7 +7424,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
         // plants clip lod animate
-        split.compute_clipLodAnimatePlants.load("Samples/Earthworks_4/hlsl/compute_clipLodAnimatePlants.hlsl");
+        split.compute_clipLodAnimatePlants.load("Samples/Earthworks_4/hlsl/terrain/compute_clipLodAnimatePlants.hlsl");
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("tileLookup", split.buffer_lookup_plants);
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("plantBuffer", split.buffer_instance_plants);
@@ -7433,12 +7433,12 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("feedback", split.buffer_feedback);
 
         // split merge
-        split.compute_tileSplitMerge.load("Samples/Earthworks_4/hlsl/compute_tileSplitMerge.hlsl");
+        split.compute_tileSplitMerge.load("Samples/Earthworks_4/hlsl/terrain/compute_tileSplitMerge.hlsl");
         split.compute_tileSplitMerge.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileSplitMerge.Vars()->setBuffer("feedback", split.buffer_feedback);
 
         // generate
-        split.compute_tileGenerate.load("Samples/Earthworks_4/hlsl/compute_tileGenerate.hlsl");
+        split.compute_tileGenerate.load("Samples/Earthworks_4/hlsl/terrain/compute_tileGenerate.hlsl");
         split.compute_tileGenerate.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
         split.compute_tileGenerate.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileGenerate.Vars()->setTexture("gNoise", split.noise_u16);
@@ -7449,7 +7449,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileGenerate.Vars()->setTexture("gEct4", split.tileFbo->getColorTexture(7));
 
         // passthrough
-        split.compute_tilePassthrough.load("Samples/Earthworks_4/hlsl/compute_tilePassthrough.hlsl");
+        split.compute_tilePassthrough.load("Samples/Earthworks_4/hlsl/terrain/compute_tilePassthrough.hlsl");
         split.compute_tilePassthrough.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
         split.compute_tilePassthrough.Vars()->setBuffer("plant_instance", split.buffer_instance_plants);
         split.compute_tilePassthrough.Vars()->setBuffer("feedback", split.buffer_feedback);
@@ -7458,7 +7458,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tilePassthrough.Vars()->setTexture("gNoise", split.noise_u16);
 
         // build lookup
-        split.compute_tileBuildLookup.load("Samples/Earthworks_4/hlsl/compute_tileBuildLookup.hlsl");
+        split.compute_tileBuildLookup.load("Samples/Earthworks_4/hlsl/terrain/compute_tileBuildLookup.hlsl");
         split.compute_tileBuildLookup.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tileBuildLookup.Vars()->setBuffer("tileLookup", split.buffer_lookup_quads);
         split.compute_tileBuildLookup.Vars()->setBuffer("plantLookup", split.buffer_lookup_plants);
@@ -7470,14 +7470,14 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileBuildLookup.Vars()->setBuffer("DispatchArgs_Plants", split.dispatchArgs_plants);
 
         // bicubic
-        split.compute_tileBicubic.load("Samples/Earthworks_4/hlsl/compute_tileBicubic.hlsl");
+        split.compute_tileBicubic.load("Samples/Earthworks_4/hlsl/terrain/compute_tileBicubic.hlsl");
         split.compute_tileBicubic.Vars()->setSampler("linearSampler", sampler_Clamp);
         split.compute_tileBicubic.Vars()->setTexture("gOutput", split.tileFbo->getColorTexture(0));
         split.compute_tileBicubic.Vars()->setTexture("gDebug", split.debug_texture);
         //split.compute_tileBicubic.Vars()->setTexture("gOuthgt_TEMPTILLTR", split.tileFbo->getColorTexture(0));
 
         // ecotopes
-        split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/compute_tileEcotopes.hlsl");
+        split.compute_tileEcotopes.load("Samples/Earthworks_4/hlsl/terrain/compute_tileEcotopes.hlsl");
         split.compute_tileEcotopes.Vars()->setSampler("linearSampler", sampler_Clamp);
         split.compute_tileEcotopes.Vars()->setTexture("gHeight", split.tileFbo->getColorTexture(0));
         split.compute_tileEcotopes.Vars()->setTexture("gAlbedo", split.tileFbo->getColorTexture(1));
@@ -7493,14 +7493,14 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
         // normals
-        split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/compute_tileNormals.hlsl");
+        split.compute_tileNormals.load("Samples/Earthworks_4/hlsl/terrain/compute_tileNormals.hlsl");
         split.compute_tileNormals.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileNormals.Vars()->setTexture("gOutNormals", split.normals_texture);
         split.compute_tileNormals.Vars()->setTexture("gOutput", split.debug_texture);
         split.compute_tileNormals.Vars()->setBuffer("tiles", split.buffer_tiles);
 
         // vertices
-        split.compute_tileVerticis.load("Samples/Earthworks_4/hlsl/compute_tileVertices.hlsl");
+        split.compute_tileVerticis.load("Samples/Earthworks_4/hlsl/terrain/compute_tileVertices.hlsl");
         split.compute_tileVerticis.Vars()->setSampler("linearSampler", sampler_Clamp);
         split.compute_tileVerticis.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileVerticis.Vars()->setTexture("gOutVerts", split.vertex_A_texture);
@@ -7510,11 +7510,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         // jumpflood
         // It may even be faster to set this up twice and hop between the two
-        split.compute_tileJumpFlood.load("Samples/Earthworks_4/hlsl/compute_tileJumpFlood.hlsl");
+        split.compute_tileJumpFlood.load("Samples/Earthworks_4/hlsl/terrain/compute_tileJumpFlood.hlsl");
         split.compute_tileJumpFlood.Vars()->setTexture("gDebug", split.debug_texture);
 
         // delaunay
-        split.compute_tileDelaunay.load("Samples/Earthworks_4/hlsl/compute_tileDelaunay.hlsl");
+        split.compute_tileDelaunay.load("Samples/Earthworks_4/hlsl/terrain/compute_tileDelaunay.hlsl");
         split.compute_tileDelaunay.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileDelaunay.Vars()->setTexture("gInVerts", split.vertex_B_texture);
         split.compute_tileDelaunay.Vars()->setBuffer("VB", split.buffer_terrain);
@@ -7522,7 +7522,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         //split.compute_tileDelaunay.Vars()->setBuffer("tileDrawargsArray", split.drawArgs_tiles);
 
         // elevation mipmap
-        split.compute_tileElevationMipmap.load("Samples/Earthworks_4/hlsl/compute_tileElevationMipmap.hlsl");
+        /*
+        split.compute_tileElevationMipmap.load("Samples/Earthworks_4/hlsl/terrain/compute_tileElevationMipmap.hlsl");
         split.compute_tileElevationMipmap.Vars()->setTexture("gInHgt", split.tileFbo->getColorTexture(0));
         split.compute_tileElevationMipmap.Vars()->setTexture("gDebug", split.debug_texture);
         const auto& mipmapReflector = split.compute_tileElevationMipmap.Reflector()->getDefaultParameterBlock();
@@ -7532,10 +7533,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_tileElevationMipmap.Vars()->setUav(bind_mip1, split.tileFbo->getColorTexture(0)->getUAV(1));
         split.compute_tileElevationMipmap.Vars()->setUav(bind_mip2, split.tileFbo->getColorTexture(0)->getUAV(2));
         split.compute_tileElevationMipmap.Vars()->setUav(bind_mip3, split.tileFbo->getColorTexture(0)->getUAV(3));
-
+        */
         // BC6H compressor
         split.bc6h_texture = Texture::create2D(tile_numPixels / 4, tile_numPixels / 4, Falcor::ResourceFormat::RGBA32Uint, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
-        split.compute_bc6h.load("Samples/Earthworks_4/hlsl/compute_bc6h.hlsl");
+        split.compute_bc6h.load("Samples/Earthworks_4/hlsl/terrain/compute_bc6h.hlsl");
         split.compute_bc6h.Vars()->setTexture("gOutput", split.bc6h_texture);
 
     }
@@ -7595,17 +7596,17 @@ void terrainManager::init_TopdownRender()
 {
 
     terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 2048); // FIXME hardcoded
-    split.shader_spline3D.load("Samples/Earthworks_4/hlsl/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_spline3D.load("Samples/Earthworks_4/hlsl/terrain/render_spline.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
     split.shader_spline3D.Vars()->setSampler("gSmpLinear", sampler_Trilinear);
     //split.shader_spline3D.Program()->getReflector()
-    split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_splineTerrafector.load("Samples/Earthworks_4/hlsl/terrain/render_splineTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     //split.shader_splineTerrafector.State()->setFbo(split.tileFbo);
     split.shader_splineTerrafector.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
 
 
     // mesh terrafector shader
-    split.shader_meshTerrafector.load("Samples/Earthworks_4/hlsl/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    split.shader_meshTerrafector.load("Samples/Earthworks_4/hlsl/terrain/render_meshTerrafector.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     split.shader_meshTerrafector.Vars()->setSampler("gSmpLinear", sampler_Trilinear);
     //split.shader_meshTerrafector.Vars()["PerFrameCB"]["gConstColor"] = false;
     split.shader_meshTerrafector.State()->setFbo(split.tileFbo);

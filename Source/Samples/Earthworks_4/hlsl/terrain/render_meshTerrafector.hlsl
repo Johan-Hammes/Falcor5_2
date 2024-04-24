@@ -1,5 +1,5 @@
 //#include "terrainCommon.hlsli"
-#include "render_Common.hlsli"
+#include "../render_Common.hlsli"
 
 #define CALLEDFROMHLSL
 #include "materials.hlsli"

@@ -26,10 +26,10 @@
 
 
 using namespace Falcor;
-#include"hlsl/groundcover_defines.hlsli"
-#include"hlsl/terrainDefines.hlsli"
-#include"hlsl/gpuLights_defines.hlsli"
-#include"hlsl/materials.hlsli"
+#include"hlsl/terrain/groundcover_defines.hlsli"
+#include"hlsl/terrain/terrainDefines.hlsli"
+#include"hlsl/terrain/gpuLights_defines.hlsli"
+#include"hlsl/terrain/materials.hlsli"
 
 
 #define archive_float2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}

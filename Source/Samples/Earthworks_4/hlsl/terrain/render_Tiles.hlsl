@@ -2,7 +2,7 @@
 #include "groundcover_defines.hlsli"
 #include "terrainDefines.hlsli"
 #include "terrainFunctions.hlsli"
-#include "PBR.hlsli"
+#include "../PBR.hlsli"
 #include "gpuLights_functions.hlsli"
 
 

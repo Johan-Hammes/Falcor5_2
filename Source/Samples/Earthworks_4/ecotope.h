@@ -2,9 +2,9 @@
 
 #include "Falcor.h"
 using namespace Falcor;
-#include"hlsl/groundcover_defines.hlsli"
-#include"hlsl/terrainDefines.hlsli"
-#include"hlsl/gpuLights_defines.hlsli"
+#include"hlsl/terrain/groundcover_defines.hlsli"
+#include"hlsl/terrain/terrainDefines.hlsli"
+#include"hlsl/terrain/gpuLights_defines.hlsli"
 
 #include "cereal/cereal.hpp"
 #include "cereal/types/map.hpp"
