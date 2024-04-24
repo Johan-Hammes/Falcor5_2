@@ -36,6 +36,8 @@ target_sources(Earthworks_4 PRIVATE
     terrafector.h
 	terrain.cpp
     terrain.h
+    glider.cpp
+    glider.h
 	
 	hlsl/terrain/compute_tileVertices.hlsl
 	hlsl/terrain/compute_bc6h_functions.hlsli
