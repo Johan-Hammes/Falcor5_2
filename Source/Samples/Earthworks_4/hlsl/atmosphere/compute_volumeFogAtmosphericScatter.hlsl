@@ -33,6 +33,15 @@ float acosFast(float inX) {
 	//return inX >= 0.0f ? s : fsl_PI - s;
 }
 
+float shadow(float3 pos, float step)
+{
+    float2 uv = saturate((pos.xz / (4096 * 9.765625)) + 0.5);
+    float2 params = terrainShadow.SampleLevel(linearSampler, uv, 0).rg;
+    float h = (pos.y + params.g * .5 - params.r) / (params.g); //    (pos.y - params.r) / params.g;
+    return saturate(h);
+
+}
+
 /*	FIXME
 	The first slice si WRONG, but we have to chnage the way we do the lookup first to fix this
 	It ignores all teh fog in front of that first slice
@@ -78,10 +87,17 @@ float acosFast(float inX) {
 	// start at sliceZero and continue up to the cloudbase, or slice depth-2  ------------------------------------
 	uint SLICE = 0;
 	float R = EarthR + 0.1;
-	while ((SLICE < numSlices) && R < (EarthR + cloudBase_km) && (R > EarthR)) {
-		calculateStep(direction, phaseRayleigh, phaseUV, IBL, depth, newIn, newOut, R);
+	while ((SLICE < numSlices) && R < (EarthR + cloudBase_km) && (R > EarthR))
+    {
+        float step = depth * sliceStep;
+        float3 pos = eye_position + direction * (depth + (step / 2));
+        float S = shadow(pos, sliceStep);
+		calculateStep(direction, phaseRayleigh, phaseUV, IBL, S, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);
 		coord.z = SLICE++;
+
+        float2 uv = saturate((pos.xz / (4096 * 9.765625)) + 0.5);
+        //inScatter.rg = uv;
 		write(inScatter, outScatter, coord);
 	}
 
@@ -95,7 +111,7 @@ float acosFast(float inX) {
 	// now step untill we reach the cloudbase and write into single slice ---------------------------------------
     int cnt = 150;
 	while (cnt > 0 && R < (EarthR + cloudBase_km) && (R > EarthR)) {
-		calculateStep(direction, phaseRayleigh, phaseUV, IBL, depth, newIn, newOut, R);
+		calculateStep(direction, phaseRayleigh, phaseUV, IBL, 1, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);
         cnt--;
     }
@@ -105,7 +121,7 @@ float acosFast(float inX) {
 	// now step from the cloudbase to space and write into last slice -------------------------------------------
     cnt = 150;
 	while (cnt > 0 && R < (EarthR + 100.0) && (R > EarthR)) {
-		calculateStep(direction, phaseRayleigh, phaseUV, IBL, depth, newIn, newOut, R);
+		calculateStep(direction, phaseRayleigh, phaseUV, IBL, 1, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);
         cnt--;
     }

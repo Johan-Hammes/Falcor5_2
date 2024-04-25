@@ -46,6 +46,18 @@ Texture3D gSmokeAndDustOutscatter : register(t15);
 
 Texture2D SunInAtmosphere : register(t16);
 
+Texture2D cloudShadow : register(t20);
+Texture2D terrainShadow : register(t21);
+
+
+float shadow(float3 pos, float step)
+{
+    float2 uv = saturate((pos.xz / (4096 * 9.765625)) + 0.5);
+    float2 params = terrainShadow.SampleLevel(gSmpLinear, uv, 0).rg;
+    float h = (pos.y + params.g * .5 - params.r) / (params.g); //    (pos.y - params.r) / params.g;
+    return saturate(h);
+}
+
 /*
 void float4 applyVolumeFog(inout float4 colour)
 {

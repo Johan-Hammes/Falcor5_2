@@ -31,7 +31,11 @@ Texture3D gLightVolume : register(t4);
 Texture2D hazePhaseFunction : register(t5);
 TextureCube envMap : register(t6);
 Texture2D SunInAtmosphere : register(t7);
-Texture2D fogDensities[32] : register(t8);
+Texture2D terrainShadow : register(t8);
+
+Texture2D fogDensities[32] : register(t10);
+
+
 
 // I rthink remove FogCloudCommonParams
 // and make this(b0)
@@ -179,7 +183,7 @@ float2 cloud_uv(float3 pos) {
 //	return (dir * distance) * 0.5 + 0.5;
 //}
 
-void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, inout float depth, inout float3 newIn, inout float3 newOut, out float planetRadius) {
+void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, float shadow, inout float depth, inout float3 newIn, inout float3 newOut, out float planetRadius) {
 
 	// eye_position.xz = 0.0f;	// from camera
 	float step = depth * sliceStep;
@@ -208,6 +212,7 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, ino
 	}
 */
     float4 sunlight = sunLight(pos * 0.001); // * cloudShadow;
+    sunlight.rgb *= shadow;
 
 	float opticalDepthToSun = sunlight.a;
 	phaseUV.x = opticalDepthToSun / 10.0f;

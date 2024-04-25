@@ -265,8 +265,10 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.diffuse.rg = GIS_UV;
 */
 	//lightIBL( Attr, mat, diffuse, specular );						// 	170us
+    float S = shadow(vIn.worldPos, 0);
     float4 sunColor = sunLight(vIn.worldPos * 0.001);
-    lightLayer(Attr, mat, sunDirection, sunColor.rgb, diffuse, specular); //	40us  - redelik vinnig maar tel op oor ligte - if() is worth it
+    
+    lightLayer(Attr, mat, sunDirection, sunColor.rgb * S, diffuse, specular); //	40us  - redelik vinnig maar tel op oor ligte - if() is worth it
 	//diffuse += float3(0.03, 0.04, 0.05) * 0.3;
 
 	diffuse *= (1 - mat.fresnel);

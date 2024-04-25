@@ -54,9 +54,9 @@ struct   fogAtmosphericParams {
     float3 fog_Colour{ 0.95, 0.95, 0.95 };
     float haze_BaseAltitudeKm = 0;
 
-    float fog_AltitudeKm = 0.09f;
+    float fog_AltitudeKm = 0.19f;
     float fog_BaseAltitudeKm = 0.65f;
-    float fog_Turbidity = 5.0f;
+    float fog_Turbidity = 15.0f;
     float globalExposure = 1.0f / 20000.0f;
 
     float3 rain_Colour{ 0.1, 0.1, 0.1 };
@@ -131,9 +131,11 @@ public:
     void computeSunInAtmosphere(RenderContext* _renderContext);
     void computeVolumetric(RenderContext* _renderContext);
     void setSunDirection(float3 dir);
+    void setTerrainShadow(Texture::SharedPtr shadow);
     FogVolume& getFar() { return mainFar; }
     FogVolume& getNear() { return mainNear; }
     FogVolume& getParabolic() { return parabolicFar; }
+    
 
 public:
     Texture::SharedPtr  sunlightTexture = nullptr;

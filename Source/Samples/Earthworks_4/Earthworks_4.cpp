@@ -140,10 +140,12 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.terrainShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.terrainShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+    
 
     terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.terrainSpiteShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+    
     
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
@@ -172,7 +174,19 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
-    global_sun_direction = glm::normalize(float3(-1, -0.2f, 0));
+    global_sun_direction = glm::normalize(float3(-1, -0.09f, 0));
+
+    static bool first = true;
+    if (first)
+    {
+        first = false;
+        terrain.shadowEdges.load(global_sun_direction.y);
+        terrain.terrainShadowTexture = Texture::create2D(4096, 4096, Falcor::ResourceFormat::RG32Float, 1, 1, terrain.shadowEdges.shadowH, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+
+        terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
+    }
 
     FALCOR_PROFILE("onFrameUpdate");
     atmosphere.setSunDirection(global_sun_direction);
@@ -214,7 +228,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
     {
         // blit the sky
-        glm::vec4 srcRect = glm::vec4(0, 0, 256, 128);
+        glm::vec4 srcRect = glm::vec4(0, 0, atmosphere.getFar().m_params.m_x, atmosphere.getFar().m_params.m_y);
         glm::vec4 dstRect = glm::vec4(0, 0, screenSize.x, screenSize.y);
         _renderContext->blit(atmosphere.getFar().inscatter_sky->getSRV(0, 1, 0, 1), hdrFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
     }

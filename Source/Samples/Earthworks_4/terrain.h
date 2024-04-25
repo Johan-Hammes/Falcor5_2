@@ -94,7 +94,9 @@ struct _shadowEdges
     //float3 norm[4095][4095];
     unsigned char edge[4096][4096];
 
-    void load();
+    float2 shadowH[4096][4096];
+
+    void load(float _angle);
 };
 
 
@@ -1235,6 +1237,11 @@ public:
     Sampler::SharedPtr			sampler_Clamp;
     Sampler::SharedPtr			sampler_ClampAnisotropic;
     Sampler::SharedPtr			sampler_Ribbons;
+
+
+    _shadowEdges shadowEdges;
+    Texture::SharedPtr	  terrainShadowTexture;
+
 private:
 
     bool requestPopupTree = false;
@@ -1257,7 +1264,7 @@ private:
 
     bool showGUI = true;
 
-    _shadowEdges shadowEdges;
+    
 
 
     _gliderBuilder paraBuilder;

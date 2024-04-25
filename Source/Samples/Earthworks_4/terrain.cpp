@@ -80,7 +80,7 @@ void setupVert(rvB* r, int start, float3 pos, float radius, int _mat = 0)
 
 #include <iostream>
 #include <fstream>
-void _shadowEdges::load()
+void _shadowEdges::load(float _angle)
 {
     int edgeCnt = 0;
     int shadowEdge = 0;
@@ -98,11 +98,12 @@ void _shadowEdges::load()
             for (int x = 0; x < 4095; x++)
             {
                 Nx[y][x] = (height[y][x] - height[y][x + 1]) / 9.765625f;    // 10 meter between pixels SHIT NOT TRUE
+                shadowH[y][x] = float2(height[y][x] - 5.f, 0.f);
             }
         }
 
 
-        float angle = 0.04f;  // about 10 degrees
+        float angle = -_angle;  // about 10 degrees
         float a_min = -angle;
         float a_max = -angle - 0.05f;
 
@@ -127,9 +128,12 @@ void _shadowEdges::load()
                     for (int j = x - 1; j > 0; j--)
                     {
                         H -= angle * 9.765625f;
-                        if (H > height[y][j])
+                        if (H > shadowH[y][j].x)
                         {
                             edge[y][j] = 0;
+
+                            float softDepth = (float)j * 9.765625f / 100.f;
+                            shadowH[y][j] = float2(H - 0.f, softDepth);
                             //shadowEdge++;
                             //break;
                         }
@@ -3630,7 +3634,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-        //shadowEdges.load();
+        
 
 
 
