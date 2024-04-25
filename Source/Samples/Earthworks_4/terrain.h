@@ -96,7 +96,7 @@ struct _shadowEdges
 
     float2 shadowH[4096][4096];
 
-    void load(float _angle);
+    void load(std::string filename, float _angle);
 };
 
 
@@ -1020,6 +1020,8 @@ private:
 public:
     pixelShader terrainShader;
     pixelShader terrainSpiteShader;
+    _terrainSettings settings;
+
 private:
     
     Texture::SharedPtr	  spriteTexture = nullptr;
@@ -1042,7 +1044,7 @@ private:
     bool spacingFromExtents = true;
 
     
-    _terrainSettings settings;
+    
     int terrainMode = 4;
     bool hasChanged = false;
 

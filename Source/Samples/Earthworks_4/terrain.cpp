@@ -80,13 +80,13 @@ void setupVert(rvB* r, int start, float3 pos, float radius, int _mat = 0)
 
 #include <iostream>
 #include <fstream>
-void _shadowEdges::load(float _angle)
+void _shadowEdges::load(std::string filename, float _angle)
 {
     int edgeCnt = 0;
     int shadowEdge = 0;
 
     std::ifstream ifs;
-    ifs.open("F:\\terrains\\switserland_Steg\\gis\\_export\\root4096.bil", std::ios::binary);
+    ifs.open(filename, std::ios::binary);
 
     if (ifs)
     {
@@ -205,15 +205,15 @@ void _shadowEdges::load(float _angle)
 
             }
         }
-
+        /*
         std::ofstream ofs;
-        ofs.open("F:\\terrains\\switserland_Steg\\gis\\_export\\edge.raw", std::ios::binary);
+        ofs.open(filename + ".edge.raw", std::ios::binary);
         if (ofs)
         {
             ofs.write((char*)edge, 4096 * 4096);
             ofs.close();
         }
-
+        */
     }
 }
 
@@ -3609,8 +3609,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
         terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
 
-        spriteTexture = Texture::createFromFile("F:/terrains/switserland_Steg/ecosystem/sprite_diff.DDS", true, true);
-        spriteNormalsTexture = Texture::createFromFile("F:/terrains/switserland_Steg/ecosystem/sprite_norm.DDS", true, false);
+        spriteTexture = Texture::createFromFile(settings.dirRoot + "/ecosystem/sprite_diff.DDS", true, true);
+        spriteNormalsTexture = Texture::createFromFile(settings.dirRoot + "/ecosystem/sprite_norm.DDS", true, false);
 
         terrainSpiteShader.load("Samples/Earthworks_4/hlsl/terrain/render_tile_sprite.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
         terrainSpiteShader.Vars()->setBuffer("tiles", split.buffer_tiles);
@@ -3645,16 +3645,17 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         _plantMaterial::static_materials_veg.sb_vegetation_Materials = Buffer::createStructured(sizeof(sprite_material), 1024 * 8);      // just a lot
 
+        
 
         /*
-        Texture::SharedPtr tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\bark\\Oak1_albedo.dds", false, true);
+        Texture::SharedPtr tex = Texture::createFromFile(settings.dirResource + "/textures/bark/Oak1_albedo.dds", false, true);
         ribbonTextures.emplace_back(tex);
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\bark\\Oak1_sprite_normal.dds", false, false);
+        tex = Texture::createFromFile(settings.dirResource + "/textures/bark/Oak1_sprite_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
 
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\dandelion_leaf1_albedo.dds", false, true);
+        tex = Texture::createFromFile(settings.dirResource + "/textures/twigs/dandelion_leaf1_albedo.dds", false, true);
         ribbonTextures.emplace_back(tex);
-        tex = Texture::createFromFile("F:\\terrains\\_resources\\textures\\twigs\\dandelion_leaf1_normal.dds", false, false);
+        tex = Texture::createFromFile(settings.dirResource + "/textures/twigs/dandelion_leaf1_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
         */
 
@@ -3684,8 +3685,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         triangleShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         triangleShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
 
-        vegetation.skyTexture = Texture::createFromFile("F:\\alps_bc.dds", false, true);
-        vegetation.envTexture = Texture::createFromFile("F:\\alps_IR_bc.dds", false, true);
+        vegetation.skyTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_bc.dds", false, true);
+        vegetation.envTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_IR_bc.dds", false, true);
         triangleShader.Vars()->setTexture("gSky", vegetation.skyTexture);
         ribbonShader.Vars()->setTexture("gEnv", vegetation.envTexture);
         ribbonShader_Bake.Vars()->setTexture("gEnv", vegetation.envTexture);
@@ -3709,9 +3710,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         //for (int F = 1; F <= 16; F++)
         {
-            //sprintf(name, "F:\\texturesDotCom\\wim\\blades\\%d.fbx", F);
-            //sprintf(name, "F:\\terrains\\_resources\\textures_dot_com\\TexturesCom_3dplant_Nettle\\Individual_seeds\\A_256.fbx");
-            sprintf(name, "F:\\terrains\\_resources\\cube.fbx");
+            sprintf(name, (settings.dirResource + "/cube.fbx").c_str());
 
             scene = importer.ReadFile(name, flags);
             if (scene)
@@ -3888,7 +3887,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mSpriteRenderer.onLoad();
 
     mEcosystem.terrainSize = settings.size;
-    mEcosystem.load("F:/terrains/switserland_Steg/ecosystem/steg.ecosystem");    // FIXME MOVE To lastFILE
+    mEcosystem.load(settings.dirRoot + "/ecosystem/steg.ecosystem");    // FIXME MOVE To lastFILE
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
     terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
@@ -6936,18 +6935,8 @@ void terrainManager::sceneToMax()
                     {
                         uint index = y * 256 + x;
                         pMesh->mVertices[index] = aiVector3D(tile->origin.x + x * tile->size / 248.0f, pF[index], tile->origin.z + y * tile->size / 248.0f);
-                        //pMesh->mTextureCoords[0][index] = aiVector3D((float)x / 255.0f, (float)y / 255.0f, 0);
                     }
                 }
-                /*
-                sprintf(filename, "F:/_sceneTest/hgt_%d.raw", tile->index);
-                FILE* file = fopen(filename, "wb");
-                if (file) {
-                    fwrite(pF, sizeof(float), tile_numPixels * tile_numPixels, file);
-                    fclose(file);
-                }
-                */
-
                 meshCount++;
             }
         }
@@ -6963,10 +6952,6 @@ void terrainManager::sceneToMax()
             exp.Export(scene, "obj", path.string());
         }
     }
-
-
-    //sprintf(filename, "F:/_sceneTest/test.obj");
-    //exp.Export(scene, "obj", filename);
 }
 
 

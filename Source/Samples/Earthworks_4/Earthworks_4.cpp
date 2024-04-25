@@ -167,7 +167,37 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     aboutTex = Texture::createFromFile("earthworks_4/about.dds", false, true);
 
     tonemapper.load("Samples/Earthworks_4/hlsl/compute_tonemapper.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+    //loadColorCube("F:/terrains/colorcubes/K_TONE Vintage_KODACHROME.cube");
+    loadColorCube(terrain.settings.dirResource + "/colorcubes/ColdChrome.cube");
+}
 
+
+void Earthworks_4::loadColorCube(std::string name)
+{
+    std::string line;
+    float3 color;
+    std::ifstream cube(name);
+    if (cube.good())
+    {
+        std::getline(cube, line);
+        std::getline(cube, line);
+        std::getline(cube, line);
+        std::getline(cube, line);
+        std::getline(cube, line);
+
+        float3 colorcube[33][33][33];
+        for (int i = 0; i < 33; i++)
+        {
+            for (int j = 0; j < 33; j++)
+            {
+                for (int k = 0; k < 33; k++)
+                {
+                    cube >> colorcube[i][j][k].x >> colorcube[i][j][k].y >> colorcube[i][j][k].z;
+                }
+            }
+        }
+        colorCube = Texture::create3D(33, 33, 33, Falcor::ResourceFormat::RGB32Float, 1, colorcube, Falcor::Resource::BindFlags::ShaderResource);
+    }
 }
 
 
@@ -180,7 +210,8 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     if (first)
     {
         first = false;
-        terrain.shadowEdges.load(global_sun_direction.y);
+        terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", global_sun_direction.y);
+
         terrain.terrainShadowTexture = Texture::create2D(4096, 4096, Falcor::ResourceFormat::RG32Float, 1, 1, terrain.shadowEdges.shadowH, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
 
         terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
@@ -236,6 +267,8 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     terrain.onFrameRender(_renderContext, hdrFbo, camera, graphicsState, viewport3d, hdrHalfCopy);
 
     tonemapper.Vars()->setTexture("hdr", hdrFbo->getColorTexture(0));
+    tonemapper.Vars()->setTexture("cube", colorCube);
+    tonemapper.Vars()->setSampler("linearSampler", terrain.sampler_Clamp);
     tonemapper.State()->setFbo(pTargetFbo);
     tonemapper.State()->setRasterizerState(graphicsState->getRasterizerState());
     tonemapper.drawInstanced(_renderContext, 3, 1);

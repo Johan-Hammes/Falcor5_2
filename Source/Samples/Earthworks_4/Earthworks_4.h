@@ -51,6 +51,8 @@ public:
     void onGuiRender(Gui* _gui) override;
     void onGuiMenubar(Gui* _gui);
 
+    void loadColorCube(std::string name);
+
 private:
     void guiStyle();
 
@@ -61,6 +63,7 @@ private:
     Fbo::SharedPtr		        hdrFbo;
     Fbo::SharedPtr		        tonemappedFbo;
     Texture::SharedPtr	        hdrHalfCopy;
+    Texture::SharedPtr	        colorCube;
 
     GraphicsState::SharedPtr    graphicsState;
     Camera::SharedPtr	        camera;
