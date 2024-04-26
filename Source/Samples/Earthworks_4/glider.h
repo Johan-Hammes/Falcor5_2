@@ -5,6 +5,7 @@
 #include "../../external/cereal-master/include/cereal/archives/binary.hpp"
 #include "../../external/cereal-master/include/cereal/archives/json.hpp"
 #include "../../external/cereal-master/include/cereal/archives/xml.hpp"
+#include "../../external/cereal-master/include/cereal/types/vector.hpp"
 #include <fstream>
 
 
@@ -219,6 +220,39 @@ public:
 };
 
 
+
+class _lineBuilder_FILE
+{
+public:
+    _lineBuilder_FILE& pushLine(std::string _name, float _length, float _diameter, int2 _attach = uint2(0, 0), int _segments = 1);
+    void generate(std::vector<float3>& _x, int chordSize, _lineBuilder &line);
+
+    std::string name;
+    float   length = 1.f;
+    float   diameter_mm = 1.f;
+    int2    attachment;                 // (span, coord)        only used if no children to attach to wing
+    int     segments;
+
+    std::vector<_lineBuilder_FILE> children;
+    
+
+//private:
+#define archive_f3(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
+#define archive_i2(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y));}
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(CEREAL_NVP(name));
+        archive(CEREAL_NVP(length));
+        archive(CEREAL_NVP(diameter_mm));
+        archive_i2(attachment);
+        archive(CEREAL_NVP(segments));
+
+        archive(CEREAL_NVP(children));
+    }
+};
+
+
 class wingShape
 {
 public:
@@ -239,6 +273,9 @@ public:
     std::string wingName = "naca4415";
     std::string spacingFile = "NOVA_AONIC.spacing.txt";
 
+    std::vector<int> linebraceSpan;
+    std::vector<int> linebraceChord;
+
 private:
     template<class Archive>
     void serialize(Archive& archive)
@@ -253,7 +290,11 @@ private:
         archive(CEREAL_NVP(wingWeight));
 
         archive(CEREAL_NVP(wingName));
-        archive(CEREAL_NVP(spacingFile));
+        archive(CEREAL_NVP(chordSpacing));
+        //archive(CEREAL_NVP(spacingFile));
+
+        archive(CEREAL_NVP(linebraceSpan));
+        archive(CEREAL_NVP(linebraceChord));
     }
 };
 
@@ -269,7 +310,7 @@ struct _constraintSetup
     float3 surface = float3(.5f, 0.f, 0.5f);
     // ??? trailing edge span stiffner
 
-    float3 pressure_volume = float3(0.f, 0.f, 0.6f);
+    float3 pressure_volume = float3(0.f, 0.f, 0.4f);
 
     float3 line_bracing = float3(1.f, 0.f, 0.f);
 };
@@ -280,6 +321,7 @@ class _gliderBuilder
 public:
     void buildWing();
     void builWingConstraints();
+    void buildLinesFILE_NOVA_AONIC_medium();
     void buildLines();
     void generateLines();
     void visualsPack(rvB_Glider*ribbon, rvPackedGlider*packed, int &count, bool &changed);
@@ -312,6 +354,7 @@ public:
     wingShape shape;
     _constraintSetup cnst;
 
+    
     //_bezierGlider leadingEdge;
     //_bezierGlider trailingEdge;
     //_bezierGlider curve;

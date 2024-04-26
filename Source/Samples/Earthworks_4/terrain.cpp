@@ -3899,6 +3899,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraBuilder.xfoil_shape("naca4415");
     paraBuilder.buildCp();
     paraBuilder.buildWing();
+
+    //paraBuilder.buildLinesFILE_NOVA_AONIC_medium();
     paraBuilder.buildLines();
     paraBuilder.generateLines();
 

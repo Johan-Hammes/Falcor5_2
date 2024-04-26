@@ -443,7 +443,7 @@ uint _lineBuilder::calcVerts(float _spacing)
 void _lineBuilder::addVerts(std::vector<float3>& _x, std::vector<float>& _w, uint& _idx, uint _parentidx, float _spacing)
 {
     isLineEnd = children.size() == 0;
-    isCarabiner = name.find("Carabiner") != std::string::npos;
+    isCarabiner = name.find("carabiner") != std::string::npos;
 
     numSegments = 1;// (uint)ceil((float)length / _spacing);
     parent_Idx = _parentidx;
@@ -549,7 +549,7 @@ void _lineBuilder::solveLayout(float3 _start, uint _chord)
 
 void _lineBuilder::renderGui(char* search, int tab)
 {
-    if (((name.find(search) == 0) || (name.find("Carabiner") != std::string::npos) || (name.find("strap") != std::string::npos)) && (name.find("L_") == std::string::npos))
+    if (((name.find(search) == 0) || (name.find("carabiner") != std::string::npos) || (name.find("strap") != std::string::npos)) && (name.find("L_") == std::string::npos))
     {
         ImGui::NewLine();
         ImGui::SameLine(0, (float)(tab * 10));
@@ -812,6 +812,34 @@ _lineBuilder* _lineBuilder::getLine(std::string _s)
 
 
 
+_lineBuilder_FILE& _lineBuilder_FILE::pushLine(std::string _name, float _length, float _diameter, int2 _attach, int _segments)
+{
+    children.emplace_back();
+    children.back().name = _name;
+    children.back().length = _length;
+    children.back().diameter_mm = _diameter;
+    children.back().attachment = _attach;
+    children.back().segments = _segments;
+    return children.back();
+}
+
+
+void _lineBuilder_FILE::generate(std::vector<float3>& _x, int chordSize, _lineBuilder& line)
+{
+    
+    float3 black = float3(0.01f, 0.01f, 0.01f);
+    float segLength = length / segments;
+    float3 endpos = _x[attachment.x * chordSize + attachment.y];
+    
+    _lineBuilder& newLine = line.pushLine(name, segLength, diameter_mm * 0.001f, black, attachment, endpos, segments);
+
+    for (auto& c : children)
+    {
+        c.generate(_x, chordSize, newLine);
+    }
+}
+
+
 
 
 
@@ -831,27 +859,6 @@ void wingShape::load(std::string _root, std::string _path)
     std::ifstream is(_path);
     cereal::JSONInputArchive archive(is);
     serialize(archive);
-
-    // chordSpacing
-    chordSpacing.resize(spanSize >> 1);
-    float scale = (float)(spanSize >> 1) + 0.5f;
-    for (int i = 0; i < chordSpacing.size(); i++)
-    {
-        chordSpacing[i] = 1.f - (float)i / scale;
-    }
-
-    std::ifstream infile(_root + "/" + spacingFile);
-    if (infile.good())
-    {
-        float x;
-        int i = 0;
-        while (infile >> x)
-        {
-            chordSpacing[i] = x;
-            i++;
-        }
-        infile.close();
-    }
 }
 
 void wingShape::save()
@@ -867,6 +874,20 @@ void wingShape::save()
         chordSpacing[i] = SPAN[i];
     }
 
+    uint braced[14] = { 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44 };
+
+    linebraceSpan.resize(14);;
+    for (int i = 0; i < 14; i++)
+    {
+        linebraceSpan[i] = braced[i];
+    }
+
+    uint bracedC[3] = { 3, 6, 9 };
+    linebraceChord.resize(3);
+    for (int i = 0; i < 3; i++)
+    {
+        linebraceChord[i] = bracedC[i];
+    }
 
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"wingShape"} };
@@ -1045,7 +1066,7 @@ void _gliderBuilder::builWingConstraints()
         }
 
         // stitch sides
-        if (s == 0 || s == (spanSize-1))
+        if (s == 0 || s == (spanSize - 1))
         {
             for (int c = 0; c < chordSize / 2 - 1; c++)
             {
@@ -1112,17 +1133,13 @@ void _gliderBuilder::builWingConstraints()
             constraints.push_back(_constraint(idx.z, idxTop.y, s, L(idx.z, idxTop.y), cnst.pressure_volume));  // diagonal and zigzag them
         }
     }
-    
+
 
     // Line attacment cross bracing
-    uint braced[14] = { 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44 };
-    uint bracedC[3] = { 3, 6, 9 };
-    for (int i = 0; i < 14; i++)
+    for (int& s : shape.linebraceSpan)
     {
-        int s = braced[i];
-        for (int j = 0; j < 3; j++)
+        for (int& c : shape.linebraceChord)
         {
-            uint c = bracedC[j];
             uint cTop = chordSize - 1 - c;
             a = index(s, c);
             b = index(s, cTop);
@@ -1141,8 +1158,13 @@ void _gliderBuilder::builWingConstraints()
 
 
 
-void _gliderBuilder::buildLines()
+void _gliderBuilder::buildLinesFILE_NOVA_AONIC_medium()
 {
+    _lineBuilder_FILE file;
+    file.length = 0.1f;
+    file.diameter_mm = 50.f;
+    file.name = "carabiner";
+
     float3 red = float3(0.8f, 0.01f, 0.01f);
     float3 yellow = float3(0.8f, 0.8f, 0.01f);
     float3 green = float3(0.01f, 0.8f, 0.01f);
@@ -1152,131 +1174,132 @@ void _gliderBuilder::buildLines()
     float3 black = float3(0.01f, 0.01f, 0.01f);
 
     // This is for Nova size medium
-    auto& lA = linesRight.pushLine("A_strap", 0.4f, 0.005f, black);
-    {
-        auto& A1 = lA.pushLine("A1", 4.707f / 3.f, 0.0013f, red, uint2(0, 0), float3(0, 0, 0), 3);
-        {
-            A1.pushLine("AG01", 2.438f / 2.f, 0.0009f, red, uint2(23, 9), x[index(23, 9)], 2);
-            A1.pushLine("AG02", 2.405f / 2.f, 0.0009f, red, uint2(20, 9), x[index(20, 9)], 2);
+    auto& lA = file.pushLine("A_strap", 0.4f, 5.f); {
+        auto& A1 = lA.pushLine("A1", 4.707f, 1.3f, uint2(0, 0), 3); {
+            A1.pushLine("AG01", 2.438f, 0.9f, uint2(23, 9), 2);
+            A1.pushLine("AG02", 2.405f, 0.9f, uint2(20, 9), 2);
         }
-        auto& A2 = lA.pushLine("A2", 4.742f / 3.f, 0.0013f, red, uint2(0, 0), float3(0, 0, 0), 3);
-        {
-            A2.pushLine("AG03", 2.332f / 2.f, 0.0009f, red, uint2(17, 9), x[index(17, 9)], 2);
-            A2.pushLine("AG04", 2.302f / 2.f, 0.0009f, red, uint2(14, 9), x[index(14, 9)], 2);
+        auto& A2 = lA.pushLine("A2", 4.742f, 1.3f, uint2(0, 0), 3); {
+            A2.pushLine("AG03", 2.332f, 0.9f, uint2(17, 9), 2);
+            A2.pushLine("AG04", 2.302f, 0.9f, uint2(14, 9), 2);
         }
     }
 
-    auto& lA3 = linesRight.pushLine("A3_strap", 0.4f, 0.005f, black);
-    {
-        auto& A3 = lA3.pushLine("A_ears", 3.932f / 2.f, 0.0013f, red, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            A3.pushLine("AG05", 3.041f / 2.f, 0.0009f, red, uint2(11, 9), x[index(11, 9)], 2);
-            A3.pushLine("AG06", 2.927f / 2.f, 0.0009f, red, uint2(8, 9), x[index(8, 9)], 2);
-            A3.pushLine("AG07", 2.801f / 2.f, 0.0009f, red, uint2(5, 9), x[index(5, 9)], 2);
+    auto& lA3 = file.pushLine("A3_strap", 0.4f, 5.f); {
+        auto& A3 = lA3.pushLine("A_ears", 3.932f, 1.3f, uint2(0, 0), 2); {
+            A3.pushLine("AG05", 3.041f, 0.9f, uint2(11, 9), 2);
+            A3.pushLine("AG06", 2.927f, 0.9f, uint2(8, 9), 2);
+            A3.pushLine("AG07", 2.801f, 0.9f, uint2(5, 9), 2);
         }
     }
 
-    auto& lB = linesRight.pushLine("B_strap", 0.47f, 0.005f, black);
-    {
-        auto& B1 = lB.pushLine("B1", 4.663f / 2.f, 0.0013f, yellow, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            B1.pushLine("BG01", 2.386f / 2.f, 0.0009f, yellow, uint2(23, 6), x[index(23, 6)], 2);
-            B1.pushLine("BG02", 2.356f / 2.f, 0.0009f, yellow, uint2(20, 6), x[index(20, 6)], 2);
+    auto& lB = file.pushLine("B_strap", 0.47f, 5.f); {
+        auto& B1 = lB.pushLine("B1", 4.663f, 1.3f, uint2(0, 0), 3); {
+            B1.pushLine("BG01", 2.386f, 0.9f, uint2(23, 6), 2);
+            B1.pushLine("BG02", 2.356f, 0.9f, uint2(20, 6), 2);
         }
-        auto& B2 = lB.pushLine("B2", 4.71f / 2.f, 0.0013f, yellow, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            B2.pushLine("BG03", 2.278f / 2.f, 0.0009f, yellow, uint2(17, 6), x[index(17, 6)], 2);
-            B2.pushLine("BG04", 2.256f / 2.f, 0.0009f, yellow, uint2(14, 6), x[index(14, 6)], 2);
+        auto& B2 = lB.pushLine("B2", 4.71f, 1.3f, uint2(0, 0), 3); {
+            B2.pushLine("BG03", 2.278f, 0.9f, uint2(17, 6), 2);
+            B2.pushLine("BG04", 2.256f, 0.9f, uint2(14, 6), 2);
         }
-        auto& B3 = lB.pushLine("B3", 3.879f / 2.f, 0.0013f, yellow, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            B3.pushLine("BG05", 3.026f / 2.f, 0.0009f, yellow, uint2(11, 6), x[index(11, 6)], 2);
-            B3.pushLine("BG06", 2.926f / 2.f, 0.0009f, yellow, uint2(8, 6), x[index(8, 6)], 2);
-            B3.pushLine("BG07", 2.817f / 2.f, 0.0009f, yellow, uint2(5, 6), x[index(5, 6)], 2);
+        auto& B3 = lB.pushLine("B3", 3.879f, 1.3f, uint2(0, 0), 3); {
+            B3.pushLine("BG05", 3.026f, 0.9f, uint2(11, 6), 2);
+            B3.pushLine("BG06", 2.926f, 0.9f, uint2(8, 6), 2);
+            B3.pushLine("BG07", 2.817f, 0.9f, uint2(5, 6), 2);
         }
 
 
-        auto& S1 = lB.pushLine("S1", 4.914f / 5.f, 0.0013f, green, uint2(0, 0), float3(0, 0, 0), 5);
-        {
-            S1.pushLine("SAG1", 1.418f / 2.f, 0.0009f, green, uint2(2, 9), x[index(2, 9)], 2);
-            S1.pushLine("SBG1", 1.437f / 2.f, 0.0009f, green, uint2(2, 5), x[index(2, 5)], 2);
-            auto& SM1 = S1.pushLine("SM1", 0.699f, 0.0009f, green, uint2(23, 4)); {
-                SM1.pushLine("SG01", 0.451f, 0.0009f, green, uint2(0, 9), x[index(0, 9)]);
-                SM1.pushLine("SG02", 0.471f, 0.0009f, green, uint2(0, 7), x[index(0, 7)]);
+        auto& S1 = lB.pushLine("S1", 4.914f, 1.3f, uint2(0, 0), 5); {
+            S1.pushLine("SAG1", 1.418f, 0.9f, uint2(2, 9), 2);
+            S1.pushLine("SBG1", 1.437f, 0.9f, uint2(2, 5), 2);
+            auto& SM1 = S1.pushLine("SM1", 0.699f, 0.9f, uint2(23, 4)); {
+                SM1.pushLine("SG01", 0.451f, 0.9f, uint2(0, 9));
+                SM1.pushLine("SG02", 0.471f, 0.9f, uint2(0, 7));
             }
-            auto& SM2 = S1.pushLine("SM2", 0.898f, 0.0009f, green, uint2(20, 4)); {
-                SM2.pushLine("SG03", 0.346f, 0.0009f, green, uint2(0, 3), x[index(0, 3)]);
-                SM2.pushLine("SG04", 0.431f, 0.0009f, green, uint2(0, 1), x[index(0, 1)]);
+            auto& SM2 = S1.pushLine("SM2", 0.898f, 0.9f, uint2(20, 4)); {
+                SM2.pushLine("SG03", 0.346f, 0.9f, uint2(0, 3));
+                SM2.pushLine("SG04", 0.431f, 0.9f, uint2(0, 1));
             }
         }
     }
 
-    auto& lC = linesRight.pushLine("C_strap", 0.54f, 0.005f, black);
-    {
-        auto& C1 = lC.pushLine("C1", 4.663f / 2.f, 0.0013f, turqoise, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            C1.pushLine("CG01", 2.386f / 2.f, 0.0009f, turqoise, uint2(23, 3), x[index(23, 3)], 2);
-            C1.pushLine("CG02", 2.356f / 2.f, 0.0009f, turqoise, uint2(20, 3), x[index(20, 3)], 2);
+    auto& lC = file.pushLine("C_strap", 0.54f, 5.f); {
+        auto& C1 = lC.pushLine("C1", 4.663f, 1.3f, uint2(0, 0), 2); {
+            C1.pushLine("CG01", 2.386f, 0.9f, uint2(23, 3), 2);
+            C1.pushLine("CG02", 2.356f, 0.9f, uint2(20, 3), 2);
         }
-        auto& C2 = lC.pushLine("C2", 4.71f / 2.f, 0.0013f, turqoise, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            C2.pushLine("CG03", 2.278f / 2.f, 0.0009f, turqoise, uint2(17, 3), x[index(17, 3)], 2);
-            C2.pushLine("CG04", 2.256f / 2.f, 0.0009f, turqoise, uint2(14, 3), x[index(14, 3)], 2);
+        auto& C2 = lC.pushLine("C2", 4.71f, 1.3f, uint2(0, 0), 2); {
+            C2.pushLine("CG03", 2.278f, 0.9f, uint2(17, 3), 2);
+            C2.pushLine("CG04", 2.256f, 0.9f, uint2(14, 3), 2);
         }
-        auto& C3 = lC.pushLine("C3", 3.879f / 2.f, 0.0013f, turqoise, uint2(0, 0), float3(0, 0, 0), 2);
-        {
-            C3.pushLine("CG05", 3.026f / 3.f, 0.0009f, turqoise, uint2(11, 3), x[index(11, 3)], 3);
-            C3.pushLine("CG06", 2.926f / 3.f, 0.0009f, turqoise, uint2(8, 3), x[index(8, 3)], 3);
-            C3.pushLine("CG07", 2.817f / 3.f, 0.0009f, turqoise, uint2(5, 3), x[index(5, 3)], 3);
+        auto& C3 = lC.pushLine("C3", 3.879f, 1.3f, uint2(0, 0), 2); {
+            C3.pushLine("CG05", 3.026f, 0.9f, uint2(11, 3), 3);
+            C3.pushLine("CG06", 2.926f, 0.9f, uint2(8, 3), 3);
+            C3.pushLine("CG07", 2.817f, 0.9f, uint2(5, 3), 3);
         }
     }
 
 
-    auto& strapF = lC.pushLine("F_strap", 0.08f, 0.005f, black);
+    auto& strapF = lC.pushLine("F_strap", 0.08f, 5.f);
 
-    auto& FF2 = strapF.pushLine("FF1+2", 1.2f + 0.464f, 0.002f, red, uint2(0, 0), float3(0, 0, 0));
-    {
-        //auto& FF2 = lFF1.pushLine("FF2", , 0.002f, red);
+    auto& FF2 = strapF.pushLine("FF1+2", 1.2f + 0.464f, 2.f, uint2(0, 0), 2); {
+        //auto& FF2 = lFF1.pushLine("FF2", , 0.002f);
         {
-            auto& F1 = FF2.pushLine("F1", (2.451f) / 3.f, 0.002f, red, uint2(0, 0), float3(0, 0, 0), 3);
-            {
-                auto& FM1 = F1.pushLine("FM1", 2.468f / 3.f, 0.0012f, red, uint2(0, 0), float3(0, 0, 0), 3);
-                {
-                    FM1.pushLine("FG01", 1.474f, 0.0009f, red, uint2(22, 0), x[index(22, 0)]);
-                    FM1.pushLine("FG02", 1.138f, 0.0009f, red, uint2(20, 0), x[index(20, 0)]);
+            auto& F1 = FF2.pushLine("F1", 2.451f, 2.f, uint2(0, 0), 3); {
+                auto& FM1 = F1.pushLine("FM1", 2.468f, 1.3f, uint2(0, 0), 3); {
+                    FM1.pushLine("FG01", 1.474f, 0.9f, uint2(22, 0));
+                    FM1.pushLine("FG02", 1.138f, 0.9f, uint2(20, 0));
                 }
-                auto& FM2 = F1.pushLine("FM2", 2.309f / 3.f, 0.0012f, red, uint2(0, 0), float3(0, 0, 0), 3);
-                {
-                    FM2.pushLine("FG03", 1.087f, 0.0009f, red, uint2(16, 0), x[index(16, 0)]);
-                    FM2.pushLine("FG04", 0.923f, 0.0009f, red, uint2(14, 0), x[index(14, 0)]);
+                auto& FM2 = F1.pushLine("FM2", 2.309f, 1.3f, uint2(0, 0)); {
+                    FM2.pushLine("FG03", 1.087f, 0.9f, uint2(16, 0));
+                    FM2.pushLine("FG04", 0.923f, 0.9f, uint2(14, 0));
                 }
             }
-            auto& F2 = FF2.pushLine("F2", 2.984f / 3.f, 0.002f, red, uint2(0, 0), float3(0, 0, 0), 3);
-            {
-                auto& FM3 = F2.pushLine("FM3", 1.674f / 2.f, 0.0012f, red, uint2(0, 0), float3(0, 0, 0), 2);
-                {
-                    FM3.pushLine("FG05", 0.927f, 0.0009f, red, uint2(11, 0), x[index(11, 0)]);
-                    FM3.pushLine("FG06", 0.723f, 0.0009f, red, uint2(8, 0), x[index(8, 0)]);
+            auto& F2 = FF2.pushLine("F2", 2.984f, 2.f, uint2(0, 0), 3); {
+                auto& FM3 = F2.pushLine("FM3", 1.674f, 1.3f, uint2(0, 0), 2); {
+                    FM3.pushLine("FG05", 0.927f, 0.9f, uint2(11, 0));
+                    FM3.pushLine("FG06", 0.723f, 0.9f, uint2(8, 0));
                 }
-                auto& FM4 = F2.pushLine("FM4", 1.389f / 2.f, 0.0012f, red, uint2(0, 0), float3(0, 0, 0), 2);
-                {
-                    FM4.pushLine("FG07", 0.821f, 0.0009f, red, uint2(5, 0), x[index(5, 0)]);
-                    FM4.pushLine("FG08", 0.519f, 0.0009f, red, uint2(3, 0), x[index(3, 0)]);
+                auto& FM4 = F2.pushLine("FM4", 1.389f, 1.3f, uint2(0, 0), 2); {
+                    FM4.pushLine("FG07", 0.821f, 0.9f, uint2(5, 0));
+                    FM4.pushLine("FG08", 0.519f, 0.9f, uint2(3, 0));
                 }
             }
         }
     }
 
 
-    linesRight.length = 0.08f;          // make it 1 cm, because the layout of the carabiner messes with the maths the curve nad strap widths
-    linesRight.name = "right_Carabiner";
-    linesLeft.name = "left_Carabiner";
+
+
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"lines"} };
+    if (saveFileDialog(filters, path))
+    {
+        std::ofstream os(path.string());
+        cereal::JSONOutputArchive archive(os);
+        file.serialize(archive);
+    }
+
+}
+
+
+void _gliderBuilder::buildLines()
+{
+    _lineBuilder_FILE lines;
+    std::ifstream is(xfoilDir + "/NOVA_IONIC_medium.lines");
+    cereal::JSONInputArchive archive(is);
+    lines.serialize(archive);
+
+    _lineBuilder genLines;
+    lines.generate(x, chordSize, genLines);
+    linesRight = genLines.children.back();
 
     linesLeft = linesRight;
-    linesLeft.mirror(50);
+    linesLeft.mirror(spanSize);
 
     linesLeft.solveLayout(float3(-0.1f, 0, 0), chordSize);        // this does a basic layout on lenths
     linesRight.solveLayout(float3(0.1f, 0, 0), chordSize);
+    return;
 }
 
 
