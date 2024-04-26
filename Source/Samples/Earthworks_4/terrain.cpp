@@ -3907,10 +3907,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraBuilder.builWingConstraints();
     //paraBuilder.builLineConstraints();
 
-
-
     paraBuilder.visualsPack(paraRuntime.ribbon, paraRuntime.packedRibbons, paraRuntime.ribbonCount, paraRuntime.changed);
 
+    paraRuntime.setxfoilDir(settings.dirResource + "/xfoil");
     paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
     paraRuntime.Cp = paraBuilder.Cp;
     memcpy(paraRuntime.CPbrakes, paraBuilder.CPbrakes, sizeof(float) * 6 * 11 * 25);

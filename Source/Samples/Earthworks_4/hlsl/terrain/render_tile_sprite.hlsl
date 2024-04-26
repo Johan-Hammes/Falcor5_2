@@ -198,7 +198,7 @@ float4 psMain(GSOut vOut) : SV_TARGET
         clip(samp.a - 0.1); // all the trabnsparent stuff
         clip(0.6 - samp.a);
     }
-    samp.rgb *=  0.2;//    saturate(dot(norm, -sunDirection)) * vOut.sunlight;
+    samp.rgb *=  0.02;//    saturate(dot(norm, -sunDirection)) * vOut.sunlight;
     //samp.rgb *= vOut.outscatter;
     //samp.rgb += vOut.inscatter;
 	

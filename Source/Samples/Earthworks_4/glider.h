@@ -129,6 +129,7 @@ struct _cell
     float ragdoll;
 
     float3 front;
+    float3 right;
     float3 up;
     float3 v;
     float rho;
@@ -301,12 +302,12 @@ private:
 
 struct _constraintSetup
 {
-    float3 chord = float3(1.f, 0.f, 0.8f);     // pull, push, pressure
-    float3 chord_verticals = float3(1.f, 0.f, 0.7f);     // pull, push, pressure
-    float3 chord_diagonals = float3(1.f, 0.f, 0.1f);     // pull, push, pressure
+    float3 chord = float3(1.f, 0.f, 0.5f);              // pull, push, pressure
+    float3 chord_verticals = float3(1.f, 0.f, 0.f);     // pull, push, pressure
+    float3 chord_diagonals = float3(0.7f, 0.f, 0.f);    // pull, push, pressure
     // ??? nose stiffner
 
-    float3 span = float3(1.f, 0.f, 0.7f);
+    float3 span = float3(0.7f, 0.f, 0.7f);
     float3 surface = float3(.5f, 0.f, 0.5f);
     // ??? trailing edge span stiffner
 
@@ -399,7 +400,13 @@ CEREAL_CLASS_VERSION(_gliderBuilder, 100);
 
 
 
-
+class _cp
+{
+public:
+    void load(std::string _name);
+    float get(float _brake, float aoa, uint _chord);
+    float cp[6][36][25];
+};
 
 
 
@@ -419,6 +426,11 @@ public:
     void save();
     uint index(uint _s, uint _c) { return _s * chordSize + _c; } 
     void solveConstraint(uint _i, float _step);
+
+    void setxfoilDir(std::string dir) { xfoilDir = dir; }
+    std::string xfoilDir;
+    std::string wingName = "naca4415";
+    _cp Pressure;
 
     // build
     rvB_Glider ribbon[1024 * 1024];
@@ -440,6 +452,19 @@ public:
     _lineBuilder* pSRight = nullptr;
     float maxBrake, maxEars, maxS;
 
+    struct _xpdb
+    {
+        float3  x;
+        float   w;
+
+        float3  xPrev;
+
+        float3  v;
+        float3  normal;
+        float3  tangent;
+
+        uint4   neighbours;
+    };
 
     std::vector<float3> x;              //position      {_gliderBuilder}
     std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
@@ -450,7 +475,7 @@ public:
     std::vector<float3> t;              // tangent - scaled with area
 
     std::vector<float3> x_old;
-    std::vector<float3> l_old;
+    
 
     std::vector<_constraint>    constraints;
 

@@ -5,13 +5,40 @@
 //#pragma optimize("", off)
 
 extern void setupVert(rvB_Glider* r, int start, float3 pos, float radius, int _mat = 0);
-
-
-
-
-
 float3 AllSummedForce;
 float3 AllSummedLinedrag;
+
+
+
+
+
+void _cp::load(std::string _name)
+{
+    std::ifstream CPbin(_name, std::ios::binary);
+    if (CPbin.good())
+    {
+        CPbin.read(reinterpret_cast<char*>(&cp), sizeof(float) * 6 * 36 * 25);
+        CPbin.close();
+    }
+}
+
+
+float _cp::get(float _brake, float _aoa, uint _chord)
+{
+    _brake = glm::clamp(_brake * 5.f, 0.f, 4.99f);
+    int b_idx = (int)_brake;
+    float b = _brake - b_idx;
+
+    _aoa = glm::clamp((_aoa * 57.f) + 6, 0.f, 34.9f);
+    int aoa_idx = (int)_aoa;
+    float a = _aoa - aoa_idx;
+
+    float cpA = glm::lerp(cp[b_idx][aoa_idx][_chord], cp[b_idx][aoa_idx + 1][_chord], a);
+    float cpB = glm::lerp(cp[b_idx+1][aoa_idx][_chord], cp[b_idx+1][aoa_idx + 1][_chord], a);
+    float cp = glm::lerp(cpA, cpB, b);
+
+    return cp;
+}
 
 
 
@@ -79,7 +106,7 @@ void _gliderRuntime::renderGui(Gui* mpGui)
     ImGui::Text("AoA, cellV, brake, pressure, ragdoll");
     for (int i = 0; i < spanSize; i += 3)
     {
-        ImGui::Text("%2d : %4.1f, %4.1f, %4d%%, %4.1f, %2.1f %d ", i, cells[i].cellVelocity, cells[i].brakeSetting, (int)(cells[i].pressure * 99.f), cells[i].ragdoll, cells[i].AoA * 57, (int)cells[i].reynolds);
+        ImGui::Text("%2d : %4.1f, %4.1f, %4d%%, %4.1f, %2.1f %d ", (int)(cells[i].AoA * 57), cells[i].cellVelocity, cells[i].brakeSetting, (int)(cells[i].pressure * 99.f), cells[i].ragdoll, cells[i].AoA * 57, (int)cells[i].reynolds);
     }
 
     ImGui::NextColumn();
@@ -93,6 +120,7 @@ void _gliderRuntime::renderGui(Gui* mpGui)
 
 
 // it gets parabuilder data
+// this should load from disk
 void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints)
 {
     x = _x;
@@ -106,7 +134,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     t.resize(_span * _chord);
 
     x_old.resize(x.size());
-    l_old.resize(x.size());
+
 
     constraints = _constraints;
 
@@ -118,7 +146,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
 
     //ROOT = float3(5500, 1900, 11500);   // walensee
-    ROOT = float3(-7500, 1000, -10400);// hulftegg
+    ROOT = float3(-7500, 1200, -10400);// hulftegg
 
     for (int i = 0; i < spanSize; i++)
     {
@@ -157,6 +185,10 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
         if (pEarsLeft)  maxEars = pEarsLeft->length;
         if (pSLeft)  maxS = pSLeft->length;
     }
+
+    std::string folder = xfoilDir + "/" + wingName + "/cp.bin";
+    Pressure.load(folder);
+
 }
 
 //#pragma optimize("", on)
@@ -180,34 +212,20 @@ void _gliderRuntime::solve(float _dT)
     AllSummedForce = float3(0, 0, 0);
     AllSummedLinedrag = float3(0, 0, 0);
 
+    float airDensity = 1.11225f;
+
     {
-        FALCOR_PROFILE("wing");
-        for (int i = 0; i < spanSize; i++)
+        FALCOR_PROFILE("aero");
+
+
+        for (int i = 0; i < spanSize; i++)                  // cell pressure
         {
-            cells[i].old_pressure = cells[i].pressure;
+            cells[i].old_pressure = cells[i].pressure;      // move to pressure calc after
         }
 
-        for (int i = 0; i < spanSize; i++)
+
+        for (int i = 0; i < spanSize; i++)                  // velocity and dynamic pressure
         {
-            cells[i].front = glm::normalize(x[index(i, 12)] - x[index(i, 3)]);  // From C forward
-
-            // up vector ####################################################################
-            cells[i].up = float3(0, 0, 0);
-            for (int j = 0; j < 10; j++)
-            {
-                cells[i].up -= n[index(i, j)];
-                cells[i].up += n[index(i, 24 - j)];
-            }
-            float3 r = glm::cross(cells[i].up, cells[i].front);
-            cells[i].up = glm::normalize(glm::cross(cells[i].front, r));
-
-            float3 frontBrake = glm::normalize(x[index(i, 3)] - x[index(i, 0)]);
-            float3 upBrake = glm::normalize(glm::cross(frontBrake, r));
-
-            cells[i].AoBrake = -glm::dot(upBrake, cells[i].front) * 0.8f;
-            cells[i].AoBrake = __min(1.f, cells[i].AoBrake);
-            cells[i].AoBrake = __max(0.f, cells[i].AoBrake);
-
             cells[i].v = float3(0, 0, 0);
             for (int j = 0; j < chordSize; j++)
             {
@@ -217,24 +235,41 @@ void _gliderRuntime::solve(float _dT)
 
             cells[i].rel_wind = wind - cells[i].v;
             cells[i].cellVelocity = glm::length(cells[i].rel_wind);
-            cells[i].rho = 0.5 * 1.11225f * cells[i].cellVelocity * cells[i].cellVelocity;       // dynamic pressure
+            cells[i].rho = 0.5f * airDensity * pow(cells[i].cellVelocity, 2);       // dynamic pressure
+            cells[i].rho = __min(cells[i].rho, 1000.f);//clamp
+
+            cells[i].reynolds = (1.125f * cells[i].cellVelocity * cells[i].chordLength) / (0.0000186);
+            cells[i].cD = 0.027f / pow(cells[i].reynolds, 1.f / 7.f);
+        }
+
+
+        for (int i = 0; i < spanSize; i++)                  // aoa and F
+        {
+            int a = __max(0, i - 1);
+            int b = __min(spanSize-1, i + 1);
+            cells[i].front = glm::normalize(x[index(i, 12)] - x[index(i, 3)]);          // From C forward
+            cells[i].right = glm::normalize(x[index(b, 9)] - x[index(a, 9)]);           // at A line
+            cells[i].up = glm::normalize(glm::cross(cells[i].front, cells[i].right));
+
+            float3 frontBrake = glm::normalize(x[index(i, 3)] - x[index(i, 0)]);
+            float3 upBrake = glm::normalize(glm::cross(frontBrake, cells[i].right));
+
+            float sintheta = -glm::dot(upBrake, cells[i].front);
+            cells[i].AoBrake =  glm::lerp(cells[i].AoBrake, sintheta * 1.5f, 0.03f);    // quite smoothed
+            cells[i].AoBrake = glm::clamp(cells[i].AoBrake, 0.f, 1.f);
 
             float3 windDir = glm::normalize(cells[i].rel_wind);
-            cells[i].AoA = asin(glm::dot(cells[i].up, windDir));
+            float aoa = asin(glm::dot(cells[i].up, windDir));
             if (glm::dot(windDir, cells[i].front) > 0) {
-                cells[i].AoA = 3.141592653589793238462f - cells[i].AoA;
+                aoa = 3.14159f - aoa;
             }
-            if (i < 10)
-            {
-                cells[i].AoA += (float)(10 - i) * 0.005f;
-            }
-            if (i > spanSize - 11)
-            {
-                cells[i].AoA += (float)(i - (spanSize - 11)) * 0.005f;
-            }
+            cells[i].AoA = glm::lerp(cells[i].AoA, aoa, 0.5f);  // very slightly smoothed
+        }
 
-            cells[i].reynolds = (1.125f * cells[i].cellVelocity * cells[i].chordLength) / (0.0000186);     // dynamic viscocity 25C air
-            cells[i].cD = 0.027f / pow(cells[i].reynolds, 1.f / 7.f);
+
+
+        for (int i = 0; i < spanSize; i++)
+        {
 
             // cell pressure
             float AoAlookup = ((cells[i].AoA * 57.f) + 6.f) / 3.f;
@@ -243,11 +278,11 @@ void _gliderRuntime::solve(float _dT)
             if (idx == 0) dL = __max(0, dL);
             float pressure10 = __max(0, glm::lerp(CPbrakes[0][idx][10], CPbrakes[0][idx + 1][10], dL));
             float pressure11 = __max(0, glm::lerp(CPbrakes[0][idx][11], CPbrakes[0][idx + 1][11], dL));
-            float P = __max(pressure10, pressure11);
+            float P =  __max(pressure10, pressure11);
             float windPscale = __min(1.f, cells[i].cellVelocity / 4.f);
             P *= pow(windPscale, 4);
 
-            cells[i].old_pressure = glm::lerp(cells[i].old_pressure, P, 0.01f);
+            cells[i].old_pressure = glm::lerp(cells[i].old_pressure, P, 0.35f);
         }
 
 
@@ -267,7 +302,7 @@ void _gliderRuntime::solve(float _dT)
 
             else
             {
-                float MAX = __max(__max(cells[i].old_pressure, cells[i - 1].old_pressure * 0.80f), cells[i + 1].old_pressure * 0.80f);
+                float MAX = __max(__max(cells[i].old_pressure, cells[i - 1].old_pressure * 0.70f), cells[i + 1].old_pressure * 0.70f);
                 cells[i].pressure = lerp(cells[i].old_pressure, MAX, 1.0f);
             }
         }
@@ -282,26 +317,14 @@ void _gliderRuntime::solve(float _dT)
             float3 r = glm::normalize(glm::cross(n[i], -v[i]));
             t[i] = glm::cross(r, n[i]);
 
-            float AoAlookup = ((cells[span].AoA * 57.f) + 6.f) / 3.f;
-            int idx = __max(0, __min(9, (int)floor(AoAlookup)));
-            float dL = __min(1, AoAlookup - idx);
-            if (idx == 0) dL = __max(0, dL);
-            float cp = glm::lerp(CPbrakes[0][idx][chord], CPbrakes[0][idx + 1][chord], dL);
 
-            float brake = __max(0.f, __min(4.9f, cells[span].AoBrake * 6.95f));
-            cells[span].brakeSetting = brake;
-            int idxBrake = (int)floor(brake);
-            float dB = __min(1, brake - idxBrake);
-            float CP_B0 = glm::lerp(CPbrakes[idxBrake][idx][chord], CPbrakes[idxBrake + 1][idx][chord], dB);
-            float CP_B1 = glm::lerp(CPbrakes[idxBrake][idx + 1][chord], CPbrakes[idxBrake + 1][idx + 1][chord], dB);
-            cp = glm::lerp(CP_B0, CP_B1, dL);
+            float cp = Pressure.get(cells[span].AoBrake, cells[span].AoA, chord);
 
             // rag doll pressures
-            cells[span].ragdoll = 0;
-            if (idx > 8) cells[span].ragdoll = __min(0.6f, __max(0, AoAlookup - 8));
-            if (cells[span].AoA <= -0.1) cells[span].ragdoll = __min(1, __max(0, (0.1f - cells[span].AoA) * 40.f));
+            cells[span].ragdoll = glm::clamp(cells[span].pressure * 3.f, 0.f, 1.f); // bottom 33% of pressure
             float cpRagdoll = -glm::dot(glm::normalize(n[i]), glm::normalize(cells[span].rel_wind));
-            cp = glm::lerp(cp, __max(0, cpRagdoll), cells[span].ragdoll);
+            cpRagdoll = glm::clamp(cpRagdoll, 0.f, 1.f);
+            cp = glm::lerp(cpRagdoll, cp, cells[span].ragdoll);
 
 
             n[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
@@ -362,7 +385,7 @@ void _gliderRuntime::solve(float _dT)
     x[start + 2] += w[start + 2] * tensionCarabinerRight * _dT * _dT;
     // drag on the body
     vBody = glm::length(v[start] - wind);
-    float rho = 0.5 * 1.11225f * vBody * vBody;
+    float rho = 0.5 * airDensity * vBody * vBody;
     if (vBody > 1) {
         pilotDrag = -glm::normalize(v[start] - wind) * rho * 0.7f * 1.3f;
         x[start] += _dT * w[start] * pilotDrag * _dT;
@@ -399,10 +422,10 @@ void _gliderRuntime::solve(float _dT)
         float dS = 0.8f;
         for (int k = 0; k < 3; k++)
         {
-            for (int l = 0; l < 3; l++)
+            for (int l = 0; l < 6; l++)
             {
                 bool last = false;
-                if (l == 2) last = true;
+                if (l == 5) last = true;
                 linesLeft.solveUp(x, last);
                 linesRight.solveUp(x, last);
             }

@@ -1650,6 +1650,7 @@ void _gliderBuilder::xfoil_shape(std::string _name)
         CP.close();
     }
 
+    //std::string folder = xfoilDir + "/" + wingName;
     name = folder + "/cp.bin";
     std::ofstream CPbin(name, std::ios::binary);
     if (CPbin.good())
@@ -1755,9 +1756,11 @@ void _gliderBuilder::xfoil_buildCP(int _flaps, int _aoa, std::string _name)
         std::getline(infile, line);
         std::getline(infile, line);
         std::getline(infile, line);
-        float x, y, cp;
-        while (infile >> x >> y >> cp)
+        float x, y, cp_in;
+        float cp = 0.f;
+        while (infile >> x >> y >> cp_in)
         {
+            cp += cp_in;
             if (idx >= wingIdxB[idxW])
             {
                 cp_temp[_flaps][_aoa][24 - idxW] = cp / count;
