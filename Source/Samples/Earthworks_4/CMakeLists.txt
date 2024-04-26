@@ -37,6 +37,7 @@ target_sources(Earthworks_4 PRIVATE
 	terrain.cpp
     terrain.h
     glider.cpp
+    glider_runtime.cpp
     glider.h
 	
 	hlsl/terrain/compute_tileVertices.hlsl

@@ -7,6 +7,9 @@
 #include "../../external/cereal-master/include/cereal/archives/xml.hpp"
 #include <fstream>
 
+
+
+
 using namespace Falcor;
 
 struct rvPackedGlider
@@ -95,16 +98,17 @@ public:
     glm::vec3 P3 = float3(10, -4, 0);
     float arcLength;
 
+#define archive_float3g(v) {archive(CEREAL_NVP(v.x)); archive(CEREAL_NVP(v.y)); archive(CEREAL_NVP(v.z));}
     template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const _version)
+    void serialize(Archive& archive)
     {
-        archive_float3(P0);
-        archive_float3(P1);
-        archive_float3(P2);
-        archive_float3(P3);
+        archive_float3g(P0);
+        archive_float3g(P1);
+        archive_float3g(P2);
+        archive_float3g(P3);
     }
 };
-CEREAL_CLASS_VERSION(_bezierGlider, 100);
+
 
 
 struct _cell
@@ -139,6 +143,11 @@ struct _constraint
     _constraint(uint _a, uint _b, uint _cell, float _l, float _sa, float _sb, float _sc) : idx_0(_a), idx_1(_b),
         cell(_cell), l(_l), tensileStiff(_sa), compressStiff(_sb), pressureStiff(_sc){ l = __max(0.01, l); }
 
+    _constraint(uint _a, uint _b, uint _cell, float _l, float3 _s) : idx_0(_a), idx_1(_b),
+        cell(_cell), l(_l), tensileStiff(_s.x), compressStiff(_s.y), pressureStiff(_s.z) {
+        l = __max(0.01, l);
+    }
+
     uint    idx_0;
     uint    idx_1;
     uint    cell;              // for pressure values
@@ -154,7 +163,7 @@ class _lineBuilder
 {
 public:
     uint calcVerts(float _spacing);
-    void addVerts(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, uint& _idx, uint _parentidx, float _spacing);
+    void addVerts(std::vector<float3>& _x, std::vector<float>& _w, uint& _idx, uint _parentidx, float _spacing);
     void set(std::string _n, float _l, float _r, float3 _color, int2 _attach = uint2(0, 0), float3 _p = float3(0, 0, 0));
     _lineBuilder& pushLine(std::string _n, float _l, float _d, float3 _color, int2 _attach = uint2(0, 0), float3 _dir = float3(0, 0, 0), int _segments = 1);
     void mirror(int _span);
@@ -210,6 +219,61 @@ public:
 };
 
 
+class wingShape
+{
+public:
+    void load(std::string _root);
+    void load(std::string _root, std::string _path);
+    void save();
+
+    _bezierGlider leadingEdge;
+    _bezierGlider trailingEdge;
+    _bezierGlider curve;
+
+    uint spanSize = 50;
+    uint chordSize = 25;
+    float maxChord = 2.97f;
+    float wingWeight = 5.0f;        //kg
+
+    std::vector<float> chordSpacing;    // for half span
+    std::string wingName = "naca4415";
+    std::string spacingFile = "NOVA_AONIC.spacing.txt";
+
+private:
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(CEREAL_NVP(leadingEdge));
+        archive(CEREAL_NVP(trailingEdge));
+        archive(CEREAL_NVP(curve));
+
+        archive(CEREAL_NVP(spanSize));
+        archive(CEREAL_NVP(chordSize));
+        archive(CEREAL_NVP(maxChord));
+        archive(CEREAL_NVP(wingWeight));
+
+        archive(CEREAL_NVP(wingName));
+        archive(CEREAL_NVP(spacingFile));
+    }
+};
+
+
+struct _constraintSetup
+{
+    float3 chord = float3(1.f, 0.f, 0.8f);     // pull, push, pressure
+    float3 chord_verticals = float3(1.f, 0.f, 0.7f);     // pull, push, pressure
+    float3 chord_diagonals = float3(1.f, 0.f, 0.1f);     // pull, push, pressure
+    // ??? nose stiffner
+
+    float3 span = float3(1.f, 0.f, 0.7f);
+    float3 surface = float3(.5f, 0.f, 0.5f);
+    // ??? trailing edge span stiffner
+
+    float3 pressure_volume = float3(0.f, 0.f, 0.6f);
+
+    float3 line_bracing = float3(1.f, 0.f, 0.f);
+};
+
 
 class _gliderBuilder
 {
@@ -223,27 +287,45 @@ public:
     uint4 crossIdx(int _s, int _c);
     uint4 quadIdx(int _s, int _c);
 
-    std::vector<float3> wingshape;
-    std::vector<std::vector<float>> Cp;
-    float CPbrakes[6][11][25];
-    //float Cp[15][23];
+    void setxfoilDir(std::string dir) { xfoilDir = dir; }
     void buildCp();
     void analizeCp(std::string name, int idx);
+    std::string xfoilDir;
+    
+    std::vector<std::vector<float>> Cp;
+    float CPbrakes[6][11][25];              // F Aoa Vtx  own class with lerp lookup
 
-    _bezierGlider leadingEdge;
-    _bezierGlider trailingEdge;
-    _bezierGlider curve;
+
+    // wingShape code, includes saving out files for
+    void xfoil_shape(std::string _name);
+    void xfoil_createFlaps(float _dst, std::string _name);
+    void xfoil_simplifyWing();
+    void xfoil_buildCP(int _flaps, int _aoa, std::string _name);
+    std::string wingName = "naca4415";
+    std::vector<float2> wingshapeFull;
+    std::vector<float2> wingshape;
+    uint wingIdx[25];
+    uint wingIdxB[25];
+    float cp_temp[6][36][25];
+
+    // buolding
+    wingShape shape;
+    _constraintSetup cnst;
+
+    //_bezierGlider leadingEdge;
+    //_bezierGlider trailingEdge;
+    //_bezierGlider curve;
     _lineBuilder linesLeft;
     _lineBuilder linesRight;
 
     uint spanSize = 50;
     uint chordSize = 25;
-    float maxChord = 2.97f;
-    float wingWeight = 5.0f;        //kg
+    //float maxChord = 2.97f;
+    //float wingWeight = 5.0f;        //kg
 
     std::vector<float3> x;              //position      {_gliderBuilder}
     std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
-    std::vector<float>  cdA;             // drag - for lines etc      {_gliderBuilder}
+    //..std::vector<float>  cdA;             // NORT USED
     std::vector<uint4>  cross;          // Index of cross verticies for normal calculation      {_gliderBuilder}
     std::vector<float>  area;
 
@@ -284,7 +366,7 @@ class _gliderRuntime
 {
 public:
     void renderGui(Gui* mpGui);
-    void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
+    void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
     void solve(float _dT);
     void pack_canopy();
     void pack_lines();
@@ -318,7 +400,7 @@ public:
 
     std::vector<float3> x;              //position      {_gliderBuilder}
     std::vector<float>  w;              // weight = 1/mass      {_gliderBuilder}
-    std::vector<float>  cd;             // drag - for lines etc      {_gliderBuilder}
+    //std::vector<float>  cd;             // drag - for lines etc      {_gliderBuilder}
     std::vector<uint4>  cross;          // Index of cross verticies for normal calculation      {_gliderBuilder}
     std::vector<float3> v;              // velocity
     std::vector<float3> n;              // normal - scaled with area

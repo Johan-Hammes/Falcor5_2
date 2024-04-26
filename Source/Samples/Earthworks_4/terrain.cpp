@@ -3895,6 +3895,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
     AirSim.setup();
+    paraBuilder.setxfoilDir(settings.dirResource + "/xfoil");
+    paraBuilder.xfoil_shape("naca4415");
     paraBuilder.buildCp();
     paraBuilder.buildWing();
     paraBuilder.buildLines();
@@ -3907,7 +3909,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     paraBuilder.visualsPack(paraRuntime.ribbon, paraRuntime.packedRibbons, paraRuntime.ribbonCount, paraRuntime.changed);
 
-    paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cdA, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
+    paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
     paraRuntime.Cp = paraBuilder.Cp;
     memcpy(paraRuntime.CPbrakes, paraBuilder.CPbrakes, sizeof(float) * 6 * 11 * 25);
     //paraRuntime.CPbrakes = paraBuilder.CPbrakes;
@@ -4402,7 +4404,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
             if (ImGui::Button("restart"))
             {
-                paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cdA, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
+                paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
                 //paraRuntime.Cp = paraBuilder.Cp;
                 //paraRuntime.linesLeft = paraBuilder.linesLeft;
                 //paraRuntime.linesRight = paraBuilder.linesRight;

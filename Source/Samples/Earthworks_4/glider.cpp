@@ -2,6 +2,12 @@
 #include "imgui.h"
 #include <imgui_internal.h>
 
+#pragma optimize("", off)
+
+
+extern float3 AllSummedForce;
+extern float3 AllSummedLinedrag;
+
 void setupVert(rvB_Glider* r, int start, float3 pos, float radius, int _mat = 0)
 {
     r->type = false;
@@ -434,7 +440,7 @@ uint _lineBuilder::calcVerts(float _spacing)
 }
 
 
-void _lineBuilder::addVerts(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, uint& _idx, uint _parentidx, float _spacing)
+void _lineBuilder::addVerts(std::vector<float3>& _x, std::vector<float>& _w, uint& _idx, uint _parentidx, float _spacing)
 {
     isLineEnd = children.size() == 0;
     isCarabiner = name.find("Carabiner") != std::string::npos;
@@ -449,12 +455,12 @@ void _lineBuilder::addVerts(std::vector<float3>& _x, std::vector<float>& _w, std
         float t = (float)(i + 1) / (float)numSegments;
         _x[start_Idx + i] = glm::lerp(_x[parent_Idx], endPos, t);
         _w[start_Idx + i] = 1.f / (_spacing * 1000.f * diameter * diameter);            // EDELRID SPEC
-        _cd[start_Idx + i] = 1.f;
+        //_cd[start_Idx + i] = 1.f;
     }
 
     _idx += numSegments;
     for (auto& Ch : children) {
-        Ch.addVerts(_x, _w, _cd, _idx, end_Idx, _spacing);
+        Ch.addVerts(_x, _w, _idx, end_Idx, _spacing);
     }
 }
 
@@ -618,8 +624,7 @@ void _lineBuilder::addRibbon(rvB_Glider* _r, std::vector<float3>& _x, int& _c)
     }
 }
 
-float3 AllSummedForce;
-float3 AllSummedLinedrag;
+
 
 
 void _lineBuilder::wingLoading(std::vector<float3>& _x, std::vector<float3>& _n)
@@ -810,6 +815,74 @@ _lineBuilder* _lineBuilder::getLine(std::string _s)
 
 
 
+void wingShape::load(std::string _root)
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"wingShape"} };
+    if (openFileDialog(filters, path))
+    {
+        load(_root, path.string());
+    }
+}
+
+
+void wingShape::load(std::string _root, std::string _path)
+{
+    std::ifstream is(_path);
+    cereal::JSONInputArchive archive(is);
+    serialize(archive);
+
+    // chordSpacing
+    chordSpacing.resize(spanSize >> 1);
+    float scale = (float)(spanSize >> 1) + 0.5f;
+    for (int i = 0; i < chordSpacing.size(); i++)
+    {
+        chordSpacing[i] = 1.f - (float)i / scale;
+    }
+
+    std::ifstream infile(_root + "/" + spacingFile);
+    if (infile.good())
+    {
+        float x;
+        int i = 0;
+        while (infile >> x)
+        {
+            chordSpacing[i] = x;
+            i++;
+        }
+        infile.close();
+    }
+}
+
+void wingShape::save()
+{
+    leadingEdge.set(float3(0, 0, 0), float3(3, 0, 0), float3(8, 0, 0), float3(10, 0, 1.43f));
+    trailingEdge.set(float3(0, 0, 0), float3(3, 0, 0), float3(7, 0, 0), float3(10, 0, 0.94f));
+    curve.set(float3(0, 7.3, 0), float3(0.9, 7.3, 0), float3(4.2f, 7.3, 0), float3(4.7f, 4.55f, 0));
+
+    float SPAN[25] = { 1, 0.976f, 0.949f, 0.918f, 0.887f, 0.854f, 0.819f, 0.783f, 0.745f, 0.706f, 0.666f, 0.624f, 0.581f, 0.539f, 0.495f, 0.449f, 0.404f, 0.358f, 0.311f, 0.264f, 0.216f, 0.169f, 0.121f, 0.073f, 0.025f };
+    chordSpacing.resize(25);
+    for (int i = 0; i < 25; i++)
+    {
+        chordSpacing[i] = SPAN[i];
+    }
+
+
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"wingShape"} };
+    if (saveFileDialog(filters, path))
+    {
+        std::ofstream os(path.string());
+        cereal::JSONOutputArchive archive(os);
+        serialize(archive);
+    }
+}
+
+
+
+
+
+
 
 
 uint4 _gliderBuilder::crossIdx(int _s, int _c)
@@ -839,17 +912,13 @@ uint4 _gliderBuilder::quadIdx(int _s, int _c)
 
 void _gliderBuilder::buildWing()
 {
-    leadingEdge.set(float3(0, 0, 0), float3(3, 0, 0), float3(8, 0, 0), float3(10, 0, 1.43f));
-    trailingEdge.set(float3(0, 0, 0), float3(3, 0, 0), float3(7, 0, 0), float3(10, 0, 0.94f));
-    curve.set(float3(0, 7.3, 0), float3(0.9, 7.3, 0), float3(4.2f, 7.3, 0), float3(4.7f, 4.55f, 0));
-
-    float SPAN[25] = { 1, 0.976f, 0.949f, 0.918f, 0.887f, 0.854f, 0.819f, 0.783f, 0.745f, 0.706f, 0.666f, 0.624f, 0.581f, 0.539f, 0.495f, 0.449f, 0.404f, 0.358f, 0.311f, 0.264f, 0.216f, 0.169f, 0.121f, 0.073f, 0.025f };
-
+    //shape.save();
+    shape.load(xfoilDir, xfoilDir + "/NOVA_AONIC_medium.wingShape");
 
     uint numV = spanSize * chordSize;
     x.resize(numV);
     w.resize(numV);
-    cdA.resize(numV);
+    //cdA.resize(numV);
     cross.resize(numV);
     area.resize(numV);
     cellWidth.resize(spanSize);
@@ -861,34 +930,36 @@ void _gliderBuilder::buildWing()
     mid.resize(spanSize);
     trail.resize(spanSize);
 
-    curve.solveArcLenght();
-    leadingEdge.solveArcLenght();
-    trailingEdge.solveArcLenght();
-    flatSpan = curve.arcLength * 2;
+    shape.curve.solveArcLenght();
+    shape.leadingEdge.solveArcLenght();
+    shape.trailingEdge.solveArcLenght();
+    flatSpan = shape.curve.arcLength * 2;
+    spanSize = shape.spanSize;
+    chordSize = shape.chordSize;
 
+    uint halfSpan = spanSize >> 1;
     //  build leading and trailing edge
     /// #######################################################################################################
     for (int s = 0; s < spanSize; s++)
     {
         float t;
-        if (s < 25)   t = SPAN[s];
-        else t = SPAN[49 - s];
-        //float t = fabs(1.f - (2.f * (float)s / float(spanSize - 1)));
+        if (s < halfSpan)   t = shape.chordSpacing[s];
+        else t = shape.chordSpacing[spanSize - 1 - s];
 
-        glm::vec3 P, T, B, LEAD, TRAIL;
-        LEAD = leadingEdge.pos(t);
-        TRAIL = trailingEdge.pos(t);
-        mid[s] = curve.pos(t);    // FIXME bad - we need measured values
-        mid[s].y += 0.05f;
+        float3 LEAD = shape.leadingEdge.pos(t);
+        float3 TRAIL = shape.trailingEdge.pos(t);
+        mid[s] = shape.curve.pos(t);
 
-        if (s >= spanSize / 2) {
-            mid[s].x *= -1;
+        if (s >= halfSpan) {
+            mid[s].x *= -1;         // mirror x for second half
         }
 
+        // shift moves it rouhly overhead of the pilot
+        float shift = shape.maxChord * 0.5f;
         lead[s] = mid[s];
-        lead[s].z = LEAD.z - 1.7;                         // also move 1 m forward to help with start solve - above CG
+        lead[s].z = LEAD.z - shift;
         trail[s] = mid[s];
-        trail[s].z += maxChord - TRAIL.z - 1.7;
+        trail[s].z += shape.maxChord - TRAIL.z - shift;
 
         cellChord[s] = glm::length(lead[s] - trail[s]);
         cellWidth[s] = 0;
@@ -912,10 +983,17 @@ void _gliderBuilder::buildWing()
         float chordLength = cellChord[s];
         for (int c = 0; c < chordSize; c++)
         {
+            float wingY = wingshape[c].y * chordLength;
+            // now crimp edges
+            if (s == 0 || s == (spanSize - 1))
+            {
+                wingY = 0;
+                if (c < (chordSize / 2 - 1)) wingY = -0.01f;
+                if (c >= (chordSize / 2 + 1)) wingY = 0.01f;
+            }
             float3 P = glm::lerp(lead[s], trail[s], wingshape[c].x);
-            x[index(s, c)] = P + ribNorm[s] * (wingshape[c].y * chordLength);     // scaled with chord
+            x[index(s, c)] = P + ribNorm[s] * (wingY);     // scaled with chord
             cross[index(s, c)] = crossIdx(s, c);
-            cdA[index(s, c)] = 0.f;
         }
     }
 
@@ -944,7 +1022,7 @@ void _gliderBuilder::buildWing()
     {
         for (int c = 0; c < chordSize; c++)
         {
-            float m = (wingWeight * area[index(s, c)] / totalArea);
+            float m = (shape.wingWeight * area[index(s, c)] / totalArea);
             w[index(s, c)] = 1.f / m;
         }
     }
@@ -955,135 +1033,109 @@ void _gliderBuilder::buildWing()
 void _gliderBuilder::builWingConstraints()
 {
     uint4 idx;
+    uint a, b;
 
+    // chord
     for (int s = 0; s < spanSize; s++)
     {
-        bool odd = s % 2;
-        if (s == 25) odd = !odd;
-
-        // span chord and diagonal
-        if (s < spanSize - 1)
-        {
-            for (int c = 0; c < chordSize - 1; c++)
-            {
-                float chordPush = 0.1f;
-                if (c > 12) chordPush = 0.2f;
-                if (c == 11 || c == 12)chordPush = 0.f;
-                idx = quadIdx(s, c);
-                constraints.push_back(_constraint(idx.x, idx.y, s, L(idx.x, idx.y), 1.f, 0.1f, chordPush));  // chord
-                constraints.push_back(_constraint(idx.x, idx.w, s, L(idx.x, idx.w), 1.f, 0.1f, 0.4f));  // span
-                if (c < 10)
-                {
-                    // Pust only diagonals top to bottom
-                    // cross diagonals at the bottom
-                    uint4 idxTop = quadIdx(s, 21 - c);
-                    constraints.push_back(_constraint(idx.x, idxTop.w, s, L(idx.x, idxTop.w), 0.f, 0.f, 0.7f));  // diagonal and zigzag them
-                    constraints.push_back(_constraint(idx.y, idxTop.z, s, L(idx.y, idxTop.z), 0.f, 0.f, 0.7f));  // diagonal and zigzag them
-
-                    constraints.push_back(_constraint(idx.w, idxTop.x, s, L(idx.w, idxTop.x), 0.f, 0.f, 0.7f));  // diagonal and zigzag them
-                    constraints.push_back(_constraint(idx.z, idxTop.y, s, L(idx.z, idxTop.y), 0.f, 0.f, 0.7f));  // diagonal and zigzag them
-                }
-
-                if (s < 4 || (s >= 46)) {
-                    constraints.push_back(_constraint(idx.x, idx.z, s, L(idx.x, idx.z), 1.f, 0.f, 0.4f));  // diagonal and zigzag them
-                    constraints.push_back(_constraint(idx.y, idx.w, s, L(idx.y, idx.w), 1.f, 0.f, 0.4f));  // diagonal and zigzag them
-                }
-                else {
-                    if (odd) {
-                        constraints.push_back(_constraint(idx.x, idx.z, s, L(idx.x, idx.z), 0.9f, 0.f, 0.4f));  // diagonal and zigzag them
-                    }
-                    else {
-                        constraints.push_back(_constraint(idx.y, idx.w, s, L(idx.y, idx.w), 0.9f, 0.f, 0.4f));  // diagonal and zigzag them
-                    }
-                }
-                odd = !odd;
-                if (c == 11) odd = !odd;
-
-            }
-            // last span, close it off - is it nesesary, although it does stiffen the trailing edge
-            constraints.push_back(_constraint(idx.w, idx.z, s, L(idx.w, idx.z), 1.f, 0.f, 0.8f));  // span
-        }
-
-        // LAST CHORD constraint
-
         for (int c = 0; c < chordSize - 1; c++)
         {
-            float chordPush = 0.1f;
-            if (c > 12) chordPush = 0.7f;
-            idx = quadIdx(spanSize - 1, c);
-            constraints.push_back(_constraint(idx.x, idx.y, s, L(idx.x, idx.y), 1.f, 0.f, chordPush));  // chord
+            idx = quadIdx(s, c);
+            constraints.push_back(_constraint(idx.x, idx.y, s, L(idx.x, idx.y), cnst.chord));
         }
 
+        // stitch sides
+        if (s == 0 || s == (spanSize-1))
+        {
+            for (int c = 0; c < chordSize / 2 - 1; c++)
+            {
+                a = index(s, c);
+                b = index(s, chordSize - 1 - c);
+                constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_verticals));
+            }
+        }
+        else
+        {
+            // verticals
+            a = index(s, 0);
+            b = index(s, chordSize - 1);
+            constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_verticals));  // trail
 
-        // verticals
-        uint a = index(s, 0);
-        uint b = index(s, chordSize - 1);
-        constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.6f));  // trail
+            a = index(s, 1);
+            b = index(s, chordSize - 2);
+            constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_verticals));  // trail-1
 
-        a = index(s, 1);
-        b = index(s, chordSize - 2);
-        constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.6f));  // trail-1
+            a = index(s, 11);
+            b = index(s, 13);
+            constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_verticals));  // lead-1
+        }
 
-        a = index(s, 11);
-        b = index(s, 13);
-        constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.4f));  // chord-1
-
-        // diagobnal verticals in rib
+        // cross members
         for (int c = 1; c < chordSize / 2 - 1; c++)
         {
             a = index(s, c);
             b = index(s, chordSize - 2 - c);
-            constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.4f));  // vertical
+            constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_diagonals));
 
             a = index(s, c + 1);
             b = index(s, chordSize - 1 - c);
-            constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.4f));  // vertical
+            constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_diagonals));
         }
+    }
 
-        if (s < 4 || s >= 46)
+    // span
+    for (int s = 0; s < spanSize - 1; s++)
+    {
+        for (int c = 0; c < chordSize - 1; c++)
         {
-            for (int c = 1; c < chordSize / 2 - 1; c++)
-            {
-                a = index(s, c);
-                b = index(s, chordSize - 1 - c);
-                constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 1.f));  // vertical
-                /*
-                a = index(s, c);
-                b = index(s, chordSize - 2 - c);
-                constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 1.f));  // vertical
+            idx = quadIdx(s, c);
+            constraints.push_back(_constraint(idx.x, idx.w, s, L(idx.x, idx.w), cnst.span));
 
-                a = index(s, c + 1);
-                b = index(s, chordSize - 1 - c);
-                constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 1.f));  // vertical
-                */
+            // surface crossBracing
+            constraints.push_back(_constraint(idx.x, idx.z, s, L(idx.x, idx.z), cnst.surface));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.y, idx.w, s, L(idx.y, idx.w), cnst.surface));  // diagonal and zigzag them
+        }
+    }
+
+
+    // volume pressure push - simulates the bulging effect thats missing in geometry
+    for (int s = 0; s < spanSize - 1; s++)
+    {
+        for (int c = 2; c < chordSize / 2 - 1; c++)
+        {
+            idx = quadIdx(s, c);
+            uint4 idxTop = quadIdx(s, chordSize - 2 - c);
+            constraints.push_back(_constraint(idx.x, idxTop.w, s, L(idx.x, idxTop.w), cnst.pressure_volume));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.y, idxTop.z, s, L(idx.y, idxTop.z), cnst.pressure_volume));  // diagonal and zigzag them
+
+            constraints.push_back(_constraint(idx.w, idxTop.x, s, L(idx.w, idxTop.x), cnst.pressure_volume));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.z, idxTop.y, s, L(idx.z, idxTop.y), cnst.pressure_volume));  // diagonal and zigzag them
+        }
+    }
+    
+
+    // Line attacment cross bracing
+    uint braced[14] = { 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44 };
+    uint bracedC[3] = { 3, 6, 9 };
+    for (int i = 0; i < 14; i++)
+    {
+        int s = braced[i];
+        for (int j = 0; j < 3; j++)
+        {
+            uint c = bracedC[j];
+            uint cTop = chordSize - 1 - c;
+            a = index(s, c);
+            b = index(s, cTop);
+            constraints.push_back(_constraint(a, b, s, L(a, b), cnst.line_bracing));  // striaght up
+
+            for (uint dc = cTop - 1; dc <= cTop + 1; dc++)
+            {
+                b = index(s - 1, dc);
+                constraints.push_back(_constraint(a, b, s, L(a, b), cnst.line_bracing));  // diagonal right
+                b = index(s + 1, dc);
+                constraints.push_back(_constraint(a, b, s, L(a, b), cnst.line_bracing));  // diagonal left
             }
         }
-
-        // diagonal ribs at lines
-        // FIXME specify in file format where the lines attach
-        if ((s == 5) || (s == 8) || (s == 11) || (s == 14) || (s == 17) || (s == 20) || (s == 23) ||
-            (s == 26) || (s == 29) || (s == 32) || (s == 35) || (s == 38) || (s == 41) || (s == 44))
-        {
-            for (int c = 0; c < chordSize - 1; c++)
-            {
-                if ((c == 9) || (c == 6) || (c == 3))
-                {
-                    uint cTop = chordSize - 1 - c;
-                    a = index(s, c);
-                    b = index(s, cTop);
-                    constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.7f));  // striaghht up
-
-                    for (uint dc = cTop - 1; dc <= cTop + 1; dc++)
-                    {
-                        b = index(s - 1, dc);
-                        constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.7f));  // diagonal
-                        b = index(s + 1, dc);
-                        constraints.push_back(_constraint(a, b, s, L(a, b), 1.f, 0.f, 0.7f));  // diagonal
-                    }
-                }
-            }
-        }
-
     }
 }
 
@@ -1240,28 +1292,28 @@ void _gliderBuilder::generateLines()
     uint totalVerts = startVert + numVerts;
     x.resize(totalVerts);
     w.resize(totalVerts);
-    cdA.resize(totalVerts);
+    //cdA.resize(totalVerts);
 
     // two caribiners
     // FIXME in future start from CG
     x[startVert + 0] = float3(0.0f, -0.2f, 0);
     w[startVert + 0] = 1.f / 90.f;
-    cdA[startVert + 0] = 0.7f * 0.4f;      // Cd * A
+    //cdA[startVert + 0] = 0.7f * 0.4f;      // Cd * A
 
     x[startVert + 1] = float3(-0.15f, 0, 0);
     x[startVert + 2] = float3(0.15f, 0, 0);
     w[startVert + 1] = 1.f / 3.f;
     w[startVert + 2] = 1.f / 3.f;
-    cdA[startVert + 1] = 0;
-    cdA[startVert + 2] = 0;
+    // cdA[startVert + 1] = 0;
+     //cdA[startVert + 2] = 0;
 
     constraints.push_back(_constraint(startVert + 1, startVert + 2, 0, glm::length(x[startVert + 1] - x[startVert + 2]), 1.f, 1.f, 0.f));
     constraints.push_back(_constraint(startVert + 0, startVert + 1, 0, glm::length(x[startVert + 1] - x[startVert]), 1.f, 1.f, 0.f));
     constraints.push_back(_constraint(startVert + 0, startVert + 2, 0, glm::length(x[startVert + 2] - x[startVert]), 1.f, 1.f, 0.f));
 
     uint idx = startVert + 3;
-    linesLeft.addVerts(x, w, cdA, idx, startVert + 1, spacing);
-    linesRight.addVerts(x, w, cdA, idx, startVert + 2, spacing);
+    linesLeft.addVerts(x, w, idx, startVert + 1, spacing);
+    linesRight.addVerts(x, w, idx, startVert + 2, spacing);
 }
 
 
@@ -1324,11 +1376,11 @@ void _gliderBuilder::buildCp()
     {
         Cp[i].resize(25);
         char name[256];
-        sprintf(name, "F:\\xfoil\\naca4415_A_%d.txt", i);
+        sprintf(name, "%s/naca4415_A_%d.txt", xfoilDir.c_str(), i);
         analizeCp(name, i);
     }
 
-    std::ofstream outfile("F:\\xfoil\\wing_10.txt");    // 9 degrees
+    std::ofstream outfile(xfoilDir + "/wing_10.txt");    // 9 degrees
     for (int i = 0; i < wingshape.size(); i++)
     {
         float shp = 0.4f;
@@ -1346,7 +1398,7 @@ void _gliderBuilder::buildCp()
     }
     outfile.close();
 
-    std::ofstream out2file("F:\\xfoil\\wing_30.txt");    // 9 degrees
+    std::ofstream out2file(xfoilDir + "/wing_30.txt");    // 9 degrees
     for (int i = 0; i < wingshape.size(); i++)
     {
         float shp = 0.3f;
@@ -1369,34 +1421,34 @@ void _gliderBuilder::buildCp()
     std::string line;
     float x, y, cp;
 
-    std::ofstream outcpfile("F:\\xfoil\\wing_CP.txt");    // 9 degrees
+    std::ofstream outcpfile(xfoilDir + "/wing_CP.txt");    // 9 degrees
     for (int j = 0; j < 11; j++)
     {
-        sprintf(name, "F:\\xfoil\\naca4415_A_%d_FLAP10.txt", j);
+        sprintf(name, "%s/naca4415_A_%d_FLAP10.txt", xfoilDir.c_str(), j);
         std::ifstream flap10(name);
         std::getline(flap10, line);
         std::getline(flap10, line);
         std::getline(flap10, line);
 
-        sprintf(name, "F:\\xfoil\\naca4415_A_%d_FLAP20.txt", j);
+        sprintf(name, "%s/naca4415_A_%d_FLAP20.txt", xfoilDir.c_str(), j);
         std::ifstream flap20(name);
         std::getline(flap20, line);
         std::getline(flap20, line);
         std::getline(flap20, line);
 
-        sprintf(name, "F:\\xfoil\\naca4415_A_%d_FLAP30.txt", j);
+        sprintf(name, "%s/naca4415_A_%d_FLAP30.txt", xfoilDir.c_str(), j);
         std::ifstream flap30(name);
         std::getline(flap30, line);
         std::getline(flap30, line);
         std::getline(flap30, line);
 
-        sprintf(name, "F:\\xfoil\\naca4415_A_%d_FLAP40.txt", j);
+        sprintf(name, "%s/naca4415_A_%d_FLAP40.txt", xfoilDir.c_str(), j);
         std::ifstream flap40(name);
         std::getline(flap40, line);
         std::getline(flap40, line);
         std::getline(flap40, line);
 
-        sprintf(name, "F:\\xfoil\\naca4415_A_%d_FLAP50.txt", j);
+        sprintf(name, "%s/naca4415_A_%d_FLAP50.txt", xfoilDir.c_str(), j);
         std::ifstream flap50(name);
         std::getline(flap50, line);
         std::getline(flap50, line);
@@ -1437,7 +1489,7 @@ void _gliderBuilder::buildCp()
 
 
 
-    std::ofstream outTfile("F:\\xfoil\\T.txt");    // 9 degrees
+    std::ofstream outTfile(xfoilDir + "/T.txt");    // 9 degrees
     //for (float r = 1.02f; r > 0.8f; r -= 0.001f)
 
     float Ta = 1.1f;
@@ -1483,6 +1535,220 @@ void _gliderBuilder::buildCp()
 
 
 
+
+
+void _gliderBuilder::xfoil_shape(std::string _name)
+{
+    wingName = _name;
+    std::string line;
+    std::string folder = xfoilDir + "/" + wingName;
+    wingshapeFull.clear();
+
+    std::ifstream infile(folder + "/" + wingName + ".txt");     // read teh wing shape
+    if (infile.good())
+    {
+        std::getline(infile, line);
+        float x, y;
+        while (infile >> x >> y)
+        {
+            wingshapeFull.push_back(float2(x, y));
+        }
+        infile.close();
+    }
+
+
+    for (int i = 0; i < 6; i++)
+    {
+        std::string flapName = folder + "/" + wingName + "_flaps_" + std::to_string(i) + ".txt";
+        float flapDst = (float(i) * 0.2f * 0.2f);   // 20% of chord at max
+        xfoil_createFlaps(flapDst, flapName);
+
+        std::ofstream xfoilcmd(xfoilDir + "/" + wingName + "_solveFlaps_" + std::to_string(i) + ".txt");
+        if (xfoilcmd.good())
+        {
+            xfoilcmd << "LOAD " << flapName << "\n";
+            xfoilcmd << "OPER\n";
+            xfoilcmd << "Visc 1000000\n";
+            xfoilcmd << "Iter 5000\n";
+
+            for (int j = 0; j <= 36; j += 1)
+            {
+                int aoa = j - 6;
+                xfoilcmd << "Alfa" << aoa << "\n";
+                xfoilcmd << "CPWR " << folder << "/cp/cp_" << i << "_" << j << ".txt\n";
+            }
+            xfoilcmd << "\n";
+
+            xfoilcmd.close();
+        }
+    }
+
+    xfoil_simplifyWing();
+
+    for (int i = 0; i < 6; i++)
+    {
+        for (int j = 0; j <= 36; j += 1)
+        {
+            std::string flapName = folder + "/cp/cp_" + std::to_string(i) + "_" + std::to_string(j) + ".txt";
+            xfoil_buildCP(i, j, flapName);
+        }
+    }
+
+    // now save the shape and CP data, while flipping around            //??? CEREAL
+    std::string name = folder + "/wingshape.txt";
+    std::ofstream shape(name);
+    if (shape.good())
+    {
+        for (int i = 0; i < 25; i++)
+        {
+            shape << wingshape[24 - i].x << " " << wingshape[24 - i].y << "\n";
+        }
+        shape.close();
+    }
+
+    name = folder + "/cp.txt";
+    std::ofstream CP(name);
+    if (CP.good())
+    {
+
+        for (int i = 0; i < 6; i++)
+        {
+            for (int j = 0; j <= 36; j += 1)
+            {
+                for (int k = 0; k < 25; k++)
+                {
+                    CP << cp_temp[i][j][k] << " ";  // already flipped
+                }
+                CP << "\n";
+            }
+            CP << "\n\n";
+        }
+
+        CP.close();
+    }
+
+    name = folder + "/cp.bin";
+    std::ofstream CPbin(name, std::ios::binary);
+    if (CPbin.good())
+    {
+        CPbin.write(reinterpret_cast<char*>(&cp_temp), sizeof(float) * 6 * 36 * 25);
+        CPbin.close();
+    }
+
+
+}
+
+
+
+void _gliderBuilder::xfoil_createFlaps(float _dst, std::string _name)
+{
+    std::ofstream flap(_name);
+    if (flap.good())
+    {
+        flap << _name.c_str() << "\n";
+        for (auto p : wingshapeFull)
+        {
+            float r = 0;
+            float zero = 1.f - (2.f * _dst);
+            if (_dst > 0)
+            {
+                r = (p.x - zero) / (2.f * _dst);
+            }
+            r = pow(__max(0, r), 2.f);    // 0-1 at trailng edge
+            float y = p.y - r * _dst;
+            flap << p.x << "   " << y << "\n";
+        }
+
+        flap.close();
+    }
+}
+
+
+void _gliderBuilder::xfoil_simplifyWing()
+{
+    float lineChord[8] = { 1.f, 0.73f, 0.37f, 0.09f, 0.09f, 0.37f, 0.73f, 1.f };  //FIXME from file
+    uint mainline[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    mainline[7] = wingshapeFull.size() - 1;
+    uint idx = 1;
+    uint wIdx = 0;
+    for (auto& w : wingshapeFull)
+    {
+        if (idx < 4)
+        {
+            if (w.x < lineChord[idx])
+            {
+                mainline[idx] = wIdx;
+                idx++;
+            }
+        }
+        else
+        {
+            if (w.x > lineChord[idx])
+            {
+                mainline[idx] = wIdx;
+                idx++;
+            }
+        }
+        wIdx++;
+    }
+
+    wingshape.resize(25);
+    uint start = 0;
+    for (int j = 0; j < 7; j++)
+    {
+        uint steps = 3;
+        if (j == 3) steps = 6;
+        uint a = mainline[j];
+        uint diff = (mainline[j + 1] - mainline[j]) / steps;
+        for (int k = 0; k < steps; k++) {
+            wingIdx[start] = a + diff * k;
+            wingshape[start] = wingshapeFull[a + diff * k];
+            start++;
+        }
+    }
+    wingIdx[24] = mainline[7];
+    wingshape[24] = wingshapeFull[mainline[7]];
+
+    for (int i = 0; i < 24; i++)
+    {
+        wingIdxB[i] = (wingIdx[i] + wingIdx[i + 1]) / 2;
+    }
+    wingIdxB[24] = wingIdx[24];
+}
+
+
+
+void _gliderBuilder::xfoil_buildCP(int _flaps, int _aoa, std::string _name)
+{
+    std::string line;
+    uint idx = 0;
+    uint idxW = 0;
+    float count = 0;
+    float cp = 0;
+
+    std::ifstream infile(_name);     // read the cp
+    if (infile.good())
+    {
+        std::getline(infile, line);
+        std::getline(infile, line);
+        std::getline(infile, line);
+        float x, y, cp;
+        while (infile >> x >> y >> cp)
+        {
+            if (idx >= wingIdxB[idxW])
+            {
+                cp_temp[_flaps][_aoa][24 - idxW] = cp / count;
+                cp = 0.f;
+                idxW++;
+                count = 0.f;
+            }
+
+            idx++;
+            count += 1.f;
+        }
+        infile.close();
+    }
+}
 
 
 
@@ -1650,589 +1916,5 @@ void _gliderBuilder::analizeCp(std::string name, int cp_idx)
 
 }
 
-
-
-
-
-
-
-
-
-void _gliderRuntime::renderGui(Gui* mpGui)
-{
-    ImGui::Columns(2);
-
-    uint triangle = chordSize * spanSize;
-
-    if (ImGui::SliderFloat("weight", &weightShift, 0, 1))
-    {
-        constraints[1].l = weightShift * weightLength;
-        constraints[2].l = (1.0f - weightShift) * weightLength;
-    }
-    ImGui::Checkbox("symmetry", &symmetry);
-
-    if (pBrakeLeft) ImGui::SliderFloat("F left", &pBrakeLeft->length, 0.1f, maxBrake);
-    if (pBrakeRight) ImGui::SliderFloat("F right", &pBrakeRight->length, 0.1f, maxBrake);
-
-    if (pEarsLeft) ImGui::SliderFloat("ears left", &pEarsLeft->length, 0.1f, maxEars);
-    if (pEarsRight) ImGui::SliderFloat("ears right", &pEarsRight->length, 0.1f, maxEars);
-
-    if (pSLeft) ImGui::SliderFloat("S left", &pSLeft->length, 0.1f, maxS);
-    if (pSRight) ImGui::SliderFloat("S right", &pSRight->length, 0.1f, maxS);
-
-    if (symmetry)
-    {
-        if (pBrakeLeft) pBrakeRight->length = pBrakeLeft->length;
-        if (pEarsLeft) pEarsRight->length = pEarsLeft->length;
-        if (pSLeft) pSRight->length = pSLeft->length;
-    }
-
-    ImGui::Checkbox("step", &singlestep);
-    ImGui::SameLine(0, 50);
-    ImGui::Text("%d", frameCnt);
-
-    ImGui::NewLine();
-    
-    ImGui::Text("pilot / lines/ wing %2.1fkg, %2.1f g, %2.1fkg", weightPilot, weightLines * 1000.f, weightWing);
-    ImGui::Text("altitude %2.1fm", x[triangle].y);
-
-    float3 velHor = v[triangle];
-    velHor.y = 0;
-    float Vh = glm::length(velHor) * 3.6f;
-    ImGui::Text("speed %2.1f km/h", Vh);
-    ImGui::Text("vertical %2.1f m/s", v[triangle].y);
-
-    ImGui::NewLine();
-    ImGui::Text("wing surface drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumDragWing), sumDragWing.x, sumDragWing.y, sumDragWing.z);
-    ImGui::Text("line drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(AllSummedLinedrag), AllSummedLinedrag.x, AllSummedLinedrag.y, AllSummedLinedrag.z);
-    ImGui::Text("pilot drag %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(pilotDrag), pilotDrag.x, pilotDrag.y, pilotDrag.z);
-    
-    ImGui::NewLine();
-    ImGui::Text("wing force %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sumFwing), sumFwing.x, sumFwing.y, sumFwing.z);
-    ImGui::Text("ALLSUMMED %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(AllSummedForce), AllSummedForce.x, AllSummedForce.y, AllSummedForce.z);
-    //ImGui::Text("carabiner Left %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(tensionCarabinerLeft), tensionCarabinerLeft.x, tensionCarabinerLeft.y, tensionCarabinerLeft.z);
-    //ImGui::Text("carabinerRight %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(tensionCarabinerRight), tensionCarabinerRight.x, tensionCarabinerRight.y, tensionCarabinerRight.z);
-    float3 sum = tensionCarabinerLeft + tensionCarabinerRight;
-    ImGui::Text("BODY %2.1f N    (%2.1f, %2.1f, %2.1f)", glm::length(sum), sum.x, sum.y, sum.z);
-
-
-    ImGui::NewLine();
-    ImGui::Text("AoA, cellV, brake, pressure, ragdoll");
-    for (int i = 0; i < spanSize; i += 3)
-    {
-        ImGui::Text("%2d : %4.1f, %4.1f, %4d%%, %4.1f, %2.1f ", i, cells[i].cellVelocity, cells[i].brakeSetting, (int)(cells[i].pressure * 99.f), cells[i].ragdoll, cells[i].AoA * 57 );
-    }
-
-    ImGui::NextColumn();
-
-    static char SEARCH[256];
-    ImGui::InputText("search", SEARCH, 256);
-    linesLeft.renderGui(SEARCH);
-    linesRight.renderGui(SEARCH);
-
-}
-
-
-// it gets parabuilder data
-void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float>& _cd, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints)
-{
-    x = _x;
-    w = _w;
-    cd = _cd;
-    cross = _cross;
-
-    v.resize(x.size());
-    memset(&v[0], 0, sizeof(float3) * v.size());
-    n.resize(_span * _chord);
-    t.resize(_span * _chord);
-
-    x_old.resize(x.size());
-    l_old.resize(x.size());
-
-    constraints = _constraints;
-
-    spanSize = _span;
-    chordSize = _chord;
-
-    cells.resize(_span);
-
-
-
-    //ROOT = float3(5500, 1900, 11500);   // walensee
-    ROOT = float3(-7500, 1000, -10400);// hulftegg
-
-    for (int i = 0; i < spanSize; i++)
-    {
-        cells[i].v = float3(0, -1.5, -7);
-        cells[i].pressure = 1;
-        cells[i].chordLength = glm::length(x[index(i, 12)] - x[index(i, 0)]); // fixme
-    }
-
-    for (int i = 0; i < x.size(); i++)
-    {
-        x[i] += float3(0, 0, 0);
-        v[i] = float3(0, -1.5, -7);
-    }
-
-    for (int i = 0; i < n.size(); i++)
-    {
-        n[i] = 0.125f * glm::cross((x[cross[i].z] - x[cross[i].w]), (x[cross[i].x] - x[cross[i].y]));
-        // this should be on disk
-    }
-
-    frameCnt = 0;
-    vBody = 0;
-
-    pBrakeLeft = linesLeft.getLine("FF1");
-    pBrakeRight = linesRight.getLine("FF1");
-    pEarsLeft = linesLeft.getLine("ears");
-    pEarsRight = linesRight.getLine("ears");
-    pSLeft = linesLeft.getLine("S1");
-    pSRight = linesRight.getLine("S1");
-
-    static bool first = true;
-    if (first && pBrakeLeft)
-    {
-        first = false;
-        if (pBrakeLeft)      maxBrake = pBrakeLeft->length;
-        if (pEarsLeft)  maxEars = pEarsLeft->length;
-        if (pSLeft)  maxS = pSLeft->length;
-    }
-}
-
-
-
-void _gliderRuntime::solve(float _dT)
-{
-    if (runcount == 0)
-    {
-        return; // convenient breakpoint
-    }
-    runcount--;
-    frameCnt++;
-
-    _dT = 0.002f;
-
-    // fixme later per cell
-    float3 wind = float3(0, 0.f, 0.01f);
-
-    sumFwing = float3(0, 0, 0);
-    sumDragWing = float3(0, 0, 0);
-    AllSummedForce = float3(0, 0, 0);
-    AllSummedLinedrag = float3(0, 0, 0);
-
-    {
-        FALCOR_PROFILE("wing");
-        for (int i = 0; i < spanSize; i++)
-        {
-            cells[i].old_pressure = cells[i].pressure;
-        }
-
-        for (int i = 0; i < spanSize; i++)
-        {
-            cells[i].front = glm::normalize(x[index(i, 12)] - x[index(i, 3)]);  // From C forward
-
-            // up vector ####################################################################
-            cells[i].up = float3(0, 0, 0);
-            for (int j = 0; j < 10; j++)
-            {
-                cells[i].up -= n[index(i, j)];
-                cells[i].up += n[index(i, 24 - j)];
-            }
-            float3 r = glm::cross(cells[i].up, cells[i].front);
-            cells[i].up = glm::normalize(glm::cross(cells[i].front, r));
-
-            float3 frontBrake = glm::normalize(x[index(i, 3)] - x[index(i, 0)]);
-            float3 upBrake = glm::normalize(glm::cross(frontBrake, r));
-
-            cells[i].AoBrake = -glm::dot(upBrake, cells[i].front) * 0.8f;
-            cells[i].AoBrake = __min(1.f, cells[i].AoBrake);
-            cells[i].AoBrake = __max(0.f, cells[i].AoBrake);
-
-            cells[i].v = float3(0, 0, 0);
-            for (int j = 0; j < chordSize; j++)
-            {
-                cells[i].v += v[index(i, j)];
-            }
-            cells[i].v /= chordSize;
-
-            cells[i].rel_wind = wind - cells[i].v;
-            cells[i].cellVelocity = glm::length(cells[i].rel_wind);
-            cells[i].rho = 0.5 * 1.11225f * cells[i].cellVelocity * cells[i].cellVelocity;       // dynamic pressure
-
-            float3 windDir = glm::normalize(cells[i].rel_wind);
-            cells[i].AoA = asin(glm::dot(cells[i].up, windDir));
-            if (glm::dot(windDir, cells[i].front) > 0) {
-                cells[i].AoA = 3.141592653589793238462f - cells[i].AoA;
-            }
-            if (i < 10)
-            {
-                cells[i].AoA += (float)(10 - i) * 0.005f;
-            }
-            if (i > spanSize - 11)
-            {
-                cells[i].AoA += (float)(i - (spanSize - 11)) * 0.005f;
-            }
-            
-            cells[i].reynolds = (1.125f * cells[i].cellVelocity * cells[i].chordLength) / (0.0000186);     // dynamic viscocity 25C air
-            cells[i].cD = 0.027f / pow(cells[i].reynolds, 1.f / 7.f);
-
-            // cell pressure
-            float AoAlookup = ((cells[i].AoA * 57.f) + 6.f) / 3.f;
-            int idx = __max(0, __min(9, (int)floor(AoAlookup)));
-            float dL = __min(1, AoAlookup - idx);
-            if (idx == 0) dL = __max(0, dL);
-            float pressure10 = __max(0, glm::lerp(CPbrakes[0][idx][10], CPbrakes[0][idx + 1][10], dL));
-            float pressure11 = __max(0, glm::lerp(CPbrakes[0][idx][11], CPbrakes[0][idx + 1][11], dL));
-            float P = __max(pressure10, pressure11);
-            float windPscale = __min(1.f, cells[i].cellVelocity / 4.f);
-            P *= pow(windPscale, 4);
-
-            cells[i].old_pressure = glm::lerp(cells[i].old_pressure, P, 0.01f);
-        }
-
-
-        // the pressure distribution
-        for (int i = 0; i < spanSize; i++)
-        {
-            cells[i].pressure = cells[i].old_pressure;
-
-            if (i < 5)
-            {
-                cells[i].pressure = cells[5].old_pressure;
-            }
-            else if (i >= spanSize - 5)
-            {
-                cells[i].pressure = cells[spanSize - 6].old_pressure;
-            }
-
-            else
-            {
-                float MAX = __max(__max(cells[i].old_pressure, cells[i - 1].old_pressure * 0.80f), cells[i + 1].old_pressure * 0.80f);
-                cells[i].pressure = lerp(cells[i].old_pressure, MAX, 1.0f);
-            }
-        }
-
-        // face normals
-        for (int i = 0; i < spanSize * chordSize; i++)
-        {
-            int chord = i % chordSize;
-            int span = i / chordSize;
-
-            n[i] = 0.125f * glm::cross((x[cross[i].z] - x[cross[i].w]), (x[cross[i].x] - x[cross[i].y]));
-            float3 r = glm::normalize(glm::cross(n[i], -v[i]));
-            t[i] = glm::cross(r, n[i]);
-
-            float AoAlookup = ((cells[span].AoA * 57.f) + 6.f) / 3.f;
-            int idx = __max(0, __min(9, (int)floor(AoAlookup)));
-            float dL = __min(1, AoAlookup - idx);
-            if (idx == 0) dL = __max(0, dL);
-            float cp = glm::lerp(CPbrakes[0][idx][chord], CPbrakes[0][idx + 1][chord], dL);
-
-            float brake = __max(0.f, __min(4.9f, cells[span].AoBrake * 6.95f));
-            cells[span].brakeSetting = brake;
-            int idxBrake = (int)floor(brake);
-            float dB = __min(1, brake - idxBrake);
-            float CP_B0 = glm::lerp(CPbrakes[idxBrake][idx][chord], CPbrakes[idxBrake + 1][idx][chord], dB);
-            float CP_B1 = glm::lerp(CPbrakes[idxBrake][idx + 1][chord], CPbrakes[idxBrake + 1][idx + 1][chord], dB);
-            cp = glm::lerp(CP_B0, CP_B1, dL);
-
-            // rag doll pressures
-            cells[span].ragdoll = 0;
-            if (idx > 8) cells[span].ragdoll = __min(0.6f, __max(0, AoAlookup - 8));
-            if (cells[span].AoA <= -0.1) cells[span].ragdoll = __min(1, __max(0, (0.1f - cells[span].AoA) * 40.f));
-            float cpRagdoll = -glm::dot(glm::normalize(n[i]), glm::normalize(cells[span].rel_wind));
-            cp = glm::lerp(cp, __max(0, cpRagdoll), cells[span].ragdoll);
-
-
-            n[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
-            sumFwing += n[i];
-
-            n[i] = 0.125f * glm::cross((x[cross[i].z] - x[cross[i].w]), (x[cross[i].x] - x[cross[i].y]));
-            n[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
-
-            float dragIncrease = pow(2.f - cells[span].pressure, 5.f);
-            float drag = 0.0039 * cells[span].rho * 1.5f * dragIncrease;    // double it for rib turbulece
-            t[i] *= drag;
-            sumDragWing += t[i];
-        }
-        bool bCm = true;
-    }
-
-
-    uint start = chordSize * spanSize;
-
-    weightLines = 0;
-    weightPilot = 0;
-    weightWing = 0;
-    pilotDrag = float3(0, 0, 0);
-    lineDrag = float3(0, 0, 0);
-
-    {
-        FALCOR_PROFILE("pre");
-        // Pre solve
-        memcpy(&x_old[0], &x[0], sizeof(float3) * x.size());
-        for (int i = 0; i < x.size(); i++)
-        {
-            float3 a = float3(0, -9.8, 0);      // gravity
-            if (i < spanSize * chordSize) {
-                a += w[i] * n[i];
-                a += w[i] * t[i];
-                weightWing += 1.f / w[i];
-            }
-            else if (i < spanSize * chordSize + 3)
-            {
-                weightPilot += 1.f / w[i];
-            }
-            else if (w[i] > 0)
-            {
-                weightLines += 1.f / w[i];
-            }
-
-            x[i] += (_dT * v[i]) + (a * _dT * _dT);
-        }
-    }
-
-    linesLeft.windAndTension(x, w, n, v, wind, _dT * _dT);
-    linesRight.windAndTension(x, w, n, v, wind, _dT * _dT);
-    tensionCarabinerLeft = linesLeft.tencileVector * 0.94f;
-    tensionCarabinerRight = linesRight.tencileVector * 0.94f;
-
-    // Solve the body and carabiners
-    x[start + 1] += w[start + 1] * tensionCarabinerLeft * _dT * _dT;
-    x[start + 2] += w[start + 2] * tensionCarabinerRight * _dT * _dT;
-    // drag on the body
-    vBody = glm::length(v[start] - wind);
-    float rho = 0.5 * 1.11225f * vBody * vBody;
-    if (vBody > 1) {
-        pilotDrag = -glm::normalize(v[start] - wind) * rho * 0.7f * 1.3f;
-        x[start] += _dT * w[start] * pilotDrag * _dT;
-    }
-
-
-    // Now solve the first 3 constraints multiple times
-    for (int k = 0; k < 10; k++)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            uint& idx0 = constraints[i].idx_0;
-            uint& idx1 = constraints[i].idx_1;
-            float Wsum = w[idx0] + w[idx1];
-
-            if (Wsum > 0)
-            {
-                float3 S = x[idx1] - x[idx0];
-                float L = glm::length(S);
-                float3 Snorm = glm::normalize(S);
-                float C = L - (constraints[i].l);
-
-                float s = C / Wsum;
-                x[idx0] += Snorm * s * w[idx0];
-                x[idx1] -= Snorm * s * w[idx1];
-            }
-        }
-    }
-
-
-    {
-        FALCOR_PROFILE("wing constraints");
-        // solve
-        float dS = 0.8f;
-        for (int k = 0; k < 3; k++)
-        {
-            for (int l = 0; l < 3; l++)
-            {
-                bool last = false;
-                if (l == 2) last = true;
-                linesLeft.solveUp(x, last);
-                linesRight.solveUp(x, last);
-            }
-
-            for (int i = 3; i < constraints.size(); i++)
-            {
-                solveConstraint(i, dS);
-            }
-        }
-    }
-
-
-
-    v_oldRoot = v[spanSize * chordSize];
-    {
-        FALCOR_PROFILE("post");
-        for (int i = 0; i < x.size(); i++)
-        {
-            v[i] = (x[i] - x_old[i]) / _dT;
-            if (std::isnan(x[i].x))
-            {
-                bool bcm = true;
-            }
-            if (glm::length(v[i]) > 100)
-            {
-                bool bcm = true;
-            }
-
-            if ((x[i].y + ROOT.y) < 0)
-            {
-                x[i].y = -ROOT.y;
-                v[i] *= 0.3f;
-            }
-        }
-
-        a_root = (v[spanSize * chordSize] - v_oldRoot) / _dT;
-
-        // NOW reset all x to keep human at 0
-        //float3 offset = (x[spanSize / 4 * chordSize] + x[spanSize * chordSize]) * 0.5f;
-        //float3 offset = (x[spanSize / 2 * chordSize] );
-        float3 offset = (x[spanSize * chordSize]) + float3(0, 0.5, 0);
-        //int3 offsetI = offset;
-        //offset = offsetI;
-        ROOT += offset;
-        for (int i = 0; i < x.size(); i++)
-        {
-            x[i] -= offset;
-        }
-
-        if (glm::length(pilotDrag) > 1.f) pilotYaw = atan2(pilotDrag.x, pilotDrag.z);
-    }
-    
-}
-
-
-void _gliderRuntime::solveConstraint(uint _i, float _step)
-{
-#define Cst constraints[_i]
-#define idx0 Cst.idx_0
-#define idx1 Cst.idx_1
-
-    float Wsum = w[idx0] + w[idx1];
-    float3 S = x[idx1] - x[idx0];
-    float L = glm::length(S);
-    float C = (L - Cst.l) / L * _step;
-    if (C > 0) {
-        C *= Cst.tensileStiff;
-    }
-    else {
-        C *= __max(Cst.compressStiff, Cst.pressureStiff * cells[Cst.cell].pressure * cells[Cst.cell].pressure);
-    }
-
-    x[idx0] += S * C / Wsum * w[idx0];
-    x[idx1] -= S * C / Wsum * w[idx1];
-}
-
-
-void _gliderRuntime::pack_canopy()
-{
-    ribbonCount = 0;
-
-    // chord
-    for (int s = 0; s < spanSize; s++)
-    {
-        for (int c = 0; c < chordSize; c++)
-        {
-            setupVert(&ribbon[ribbonCount], c == 0 ? 0 : 1, x[index(s, c)], 0.005f);     ribbonCount++;
-        }
-    }
-
-    // span
-    for (int c = 0; c < chordSize; c++)
-    {
-        for (int s = 0; s < spanSize; s++)
-        {
-            setupVert(&ribbon[ribbonCount], s == 0 ? 0 : 1, x[index(s, c)], 0.005f);     ribbonCount++;
-        }
-    }
-
-    // triangle
-    uint triangle = spanSize * chordSize;
-    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, 7);     ribbonCount++;
-    setupVert(&ribbon[ribbonCount], 1, x[triangle + 1], 0.01f, 7);     ribbonCount++;
-
-    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, 7);     ribbonCount++;
-    setupVert(&ribbon[ribbonCount], 1, x[triangle + 2], 0.01f, 7);     ribbonCount++;
-
-    setupVert(&ribbon[ribbonCount], 0, x[triangle + 1], 0.01f, 7);     ribbonCount++;
-    setupVert(&ribbon[ribbonCount], 1, x[triangle + 2], 0.01f, 7);     ribbonCount++;
-
-    // constraints
-    for (int i = 0; i < constraints.size(); i++)
-    {
-        //setupVert(&ribbon[ribbonCount], 0, x[constraints[i].idx_0], 0.004f, 7);     ribbonCount++;
-        //setupVert(&ribbon[ribbonCount], 1, x[constraints[i].idx_1], 0.004f, 7);     ribbonCount++;
-    }
-}
-
-
-void _gliderRuntime::pack_lines()
-{
-    linesLeft.addRibbon(ribbon, x, ribbonCount);
-    linesRight.addRibbon(ribbon, x, ribbonCount);
-}
-
-void _gliderRuntime::pack_feedback()
-{
-    uint triangle = spanSize * chordSize;
-    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.001f, 1);     ribbonCount++;
-    setupVert(&ribbon[ribbonCount], 1, x[triangle] + pilotDrag * 0.05f, 0.1f, 1);     ribbonCount++;
-
-    // normals and tangetns
-    int ribcount = 0;
-    for (int s = 0; s < spanSize; s++)
-    {
-        for (int c = 0; c < chordSize; c++)
-        {
-            ribcount++;
-            ribcount = ribcount % 5;
-            //if (ribcount == 0)
-            {
-                uint color = 1;
-                if (c < 12) color = 2;
-
-                //setupVert(&ribbon[count], 0, x[index(s, c)], 0.001f, color);     count++;
-                //setupVert(&ribbon[count], 1, x[index(s, c)] + n[index(s, c)] * 0.3f, 0.004f, color);     count++;
-                //setupVert(&ribbon[count], 1, x[index(s, c)] + t[index(s, c)] * 20.f, 0.01f, 4);     count++;
-            }
-        }
-    }
-
-    /*
-    for (int s = 0; s < spanSize; s += 1)
-    {
-        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 2);     ribbonCount++;
-        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + cells[s].rel_wind * 0.2f, 0.016f, 2);     ribbonCount++;
-
-        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 2);     ribbonCount++;
-        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] - cells[s].rel_wind * 0.3f, 0.016f, 2);     ribbonCount++;
-
-        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.001f, 1);     ribbonCount++;
-        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + pilotDrag * 0.05f, 0.016f, 1);     ribbonCount++;
-
-        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 7);     ribbonCount++;
-        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + cells[s].front * 3.3f, 0.016f, 7);     ribbonCount++;
-
-        setupVert(&ribbon[ribbonCount], 0, x[index(s, 0)], 0.005f, 7);     ribbonCount++;
-        setupVert(&ribbon[ribbonCount], 1, x[index(s, 0)] + cells[s].up * 3.3f, 0.016f, 7);     ribbonCount++;
-
-        //        setupVert(&ribbon[ribbonCount], 0, x[index(s, 12)], 0.005f, 1);     ribbonCount++;
-        //        setupVert(&ribbon[ribbonCount], 1, x[index(s, 12)] + cells[s].v * 0.2f, 0.02f, 1);     ribbonCount++;
-    } */
-}
-
-void _gliderRuntime::pack()
-{
-    for (int i = 0; i < ribbonCount; i++)
-    {
-        packedRibbons[i] = ribbon[i].pack();
-    }
-    changed = true;
-}
-
-void _gliderRuntime::load()
-{
-}
-
-void _gliderRuntime::save()
-{
-}
 
 
