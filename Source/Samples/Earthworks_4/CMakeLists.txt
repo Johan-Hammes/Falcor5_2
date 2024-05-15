@@ -1,5 +1,6 @@
 add_falcor_executable(Earthworks_4)
 
+
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:18388608")
 
 target_sources(Earthworks_4 PRIVATE
@@ -72,6 +73,7 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/terrain/render_tile_sprite.hlsl
     hlsl/terrain/render_Tiles.hlsl
     hlsl/terrain/render_triangles.hlsl
+    hlsl/terrain/render_Buildings_Far.hlsl
 
     hlsl/atmosphere/compute_fogCloudAtmosphereCommon.hlsli
     hlsl/atmosphere/compute_volumeFog.hlsli
@@ -95,3 +97,6 @@ target_copy_shaders(Earthworks_4 Samples/Earthworks_4)
 target_source_group(Earthworks_4 "Samples")
 
 
+target_link_libraries(Earthworks_4 PUBLIC Dinput8.lib PUBLIC DXGuid.lib PUBLIC  Xinput9_1_0.lib)
+
+target_include_directories(Earthworks_4 PUBLIC "nlohmann")

@@ -7,8 +7,14 @@
 #include "../../external/cereal-master/include/cereal/archives/xml.hpp"
 #include "../../external/cereal-master/include/cereal/types/vector.hpp"
 #include <fstream>
+#include <xinput.h>
 
 
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/Exporter.hpp>
 
 
 using namespace Falcor;
@@ -302,12 +308,14 @@ private:
 
 struct _constraintSetup
 {
-    float3 chord = float3(1.f, 0.f, 0.5f);              // pull, push, pressure
+    float3 chord = float3(1.f, 0.f, 0.7f);              // pull, push, pressure
     float3 chord_verticals = float3(1.f, 0.f, 0.f);     // pull, push, pressure
-    float3 chord_diagonals = float3(0.7f, 0.f, 0.f);    // pull, push, pressure
+    float3 chord_diagonals = float3(0.7f, 0.f, 0.1f);    // pull, push, pressure
     // ??? nose stiffner
+    float3 leadingEdge = float3(0.f, 0.6f, 0.4f);    // pull, push, pressure
+    float3 trailingEdge = float3(0.f, 0.0f, 0.2f);    // pull, push, pressure
 
-    float3 span = float3(0.7f, 0.f, 0.7f);
+    float3 span = float3(0.7f, 0.1f, 0.9f);
     float3 surface = float3(.5f, 0.f, 0.5f);
     // ??? trailing edge span stiffner
 
@@ -400,6 +408,176 @@ CEREAL_CLASS_VERSION(_gliderBuilder, 100);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+/*  Look at ribbons for packing, especailly normals
+    recon I can get this into 4 uints - damn awesome, but needs individual buildings*/
+struct _buildingVertex
+{
+    float3 pos;
+    uint material;
+    float3 normal;
+    float something;
+    float3 uv;
+    float somethignesle;
+};
+
+enum edgeType { internal, edgefloor, leading, roof, trailing };
+struct _edge
+{
+    float3 normal;
+    float length;
+    edgeType type;      // internal floot, roof, prev, next
+};
+
+struct _faceInfo
+{
+    float3  normal;
+    float   planeW;
+    bool    isFlat;
+    uint    type;   // floot, wall, roof
+    uint    index;  // for walls and roofs, group together
+    uint    vertIndex[4];
+
+    _edge edges[4];
+};
+
+struct _wallinfo
+{
+    float3 normal;
+    float3 right;
+    float W;
+    std::vector<uint> faces;
+    bool isFlat;
+    float length;
+    float height;
+    uint stories = 1;
+};
+
+struct _swissBuildings
+{
+    aiVector3D reproject(aiVector3D v);
+    glm::dvec3 reproject(double x, double y, double z);
+    void process(std::string _name);
+    void processWallRoof(std::string _name);
+    void processGeoJSON(std::string _path, std::string _name);
+    void exportBuilding(std::string _path, std::vector<float3> _v, std::vector<unsigned int>f);
+    void findWalls();
+    void findWallEdges(_wallinfo &_wall);
+
+    
+
+    uint numBuildings = 0;
+    std::vector<float3> verts;
+    std::vector<glm::dvec3> vertsDouble;
+    std::vector<uint> faces;
+    std::vector <_faceInfo> faceInfo;
+    std::vector <_wallinfo> wallInfo;
+
+    std::vector<float3> all_verts;
+    std::vector<uint>   all_faces;
+};
+
+
+struct _windTerrain
+{
+    float height[4096][4096];
+    float3 norm[4096][4096];   // temp
+    float3 wind[4096][4096];
+    float3 windTop[4096][4096];
+    float3 windTemp[4096][4096];
+    unsigned char image[4096][4096];
+    unsigned char Nc[4096][4096][3];
+    // plus some blurrign for higher
+
+
+    void load(std::string filename, float3 _wind);
+    void setWind(float3 _wind = float3(-1, 0, 0));
+    void normalizeWind();
+    void normalizeWindLinear();
+    float3 normProj(float3 w, float3 half);
+    void solveWind();
+    void saveRaw();
+
+    float3 N(float2 _uv);
+    void loadRaw();
+    float H(float3 _pos);
+    float3 W(float3 _pos);
+
+    float Hrel(float2 _pos);
+    //float3 Wrel(float2 _pos);
+};
+
+
+
+
+
+class _lineRuntime
+{
+public:
+    void addRibbon(rvB_Glider* _r, std::vector<float3>& _x, int& _c);
+    void renderGui(char* search, int tab = -1);
+
+    void wingLoading(std::vector<float3>& _x, std::vector<float3>& _n);
+    float maxT(float _r, float _dT);
+    void windAndTension(std::vector<float3>& _x, std::vector<float>& _w, std::vector<float3>& _n, std::vector<float3>& _v, float3 _wind, float _dtSquare);
+    void solveUp(std::vector<float3>& _x, bool _lastRound, float _ratio = 1.f, float _w0 = 0.f);
+
+    _lineRuntime* getLine(std::string _s);
+
+    // This parth is in CEREAL
+    std::string name;
+    float   length = 1.f;
+    float   diameter = 0.04f;
+    float3  color;
+    std::vector<_lineRuntime> children;
+    //int2    attachment;                 // (span, coord)        only used if no children to attach to wing
+    int     wingIdx;
+    bool    isLineEnd = false;            // is this attached to the wing
+    bool    isCarabiner = false;            // is this attached to the wing
+
+    // add an x, v, w here for end point
+//    uint    parent_Idx;                // points to parent vertex, vetex[0]
+//    uint    start_Idx;                 // points to vertex[1]
+//    uint    end_Idx;
+//    uint    numSegments;               // number of segments in 
+
+//    float3 endPos;
+
+    
+
+    // runtime only components ---------------------------------------------
+    // tensile weight distribution
+    float   maxTencileForce;
+    float3  tencileVector;
+    float   tencileForce;
+    float  tencileRequest;
+    float straightRatio;
+
+    // new tensile
+    float t_ratio;      // ratio of
+    float t_combined;
+    float stretchRatio;
+
+    // New new new
+    float rho_Line;
+    float f_Line;
+    float rho_End;
+    float m_Line;
+    float m_End;
+};
+
+
 class _cp
 {
 public:
@@ -417,6 +595,7 @@ class _gliderRuntime
 public:
     void renderGui(Gui* mpGui);
     void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
+    void setupLines();
     void solve(float _dT);
     void pack_canopy();
     void pack_lines();
@@ -427,7 +606,12 @@ public:
     uint index(uint _s, uint _c) { return _s * chordSize + _c; } 
     void solveConstraint(uint _i, float _step);
 
+    void setJoystick();
+
+    void setWind(std::string file, float3 _wind) { windTerrain.load(file, _wind); }
+    void loadWind() { windTerrain.loadRaw(); }
     void setxfoilDir(std::string dir) { xfoilDir = dir; }
+    void setWing(std::string _name) { wingName = _name; }
     std::string xfoilDir;
     std::string wingName = "naca4415";
     _cp Pressure;
@@ -473,6 +657,7 @@ public:
     std::vector<float3> v;              // velocity
     std::vector<float3> n;              // normal - scaled with area
     std::vector<float3> t;              // tangent - scaled with area
+    std::vector<float3> cp_feedback;     
 
     std::vector<float3> x_old;
     
@@ -481,8 +666,8 @@ public:
 
     std::vector <_cell>     cells;
 
-    std::vector<std::vector<float>> Cp;
-    float CPbrakes[6][11][25];
+    std::vector<std::vector<float>> Cp;// deprecated
+    float CPbrakes[6][11][25];              // deprecated
 
     _lineBuilder linesLeft;
     _lineBuilder linesRight;
@@ -491,6 +676,7 @@ public:
     uint spanSize = 50;
     uint chordSize = 25;
 
+    float3 EyeLocal = float3(0, 0, 0);
     float3 ROOT = float3(0, 0, 0);
     float3 OFFSET = float3(0, 0, 0);
     float3 sumFwing;
@@ -510,7 +696,10 @@ public:
     float vBody = 0;
 
     // stepping
-    uint runcount = 0;
+    float relAlt;
+    float relDist;
+    float glideRatio;
+    uint runcount = 10000000;
     uint frameCnt = 0;
     bool singlestep = false;
     void playpause() {
@@ -522,8 +711,28 @@ public:
         singlestep = !singlestep;
     }
 
-    float pilotYaw;
+    float pilotYaw = 0.f;
+    float cameraYaw = 0.f;
+    float cameraPitch = 0.f;
+    float cameraDistance = 0.f;
+    float3 cameraUp = float3(0, 1, 0);
 
+    float rumbleLeft = 0.f;
+    float rumbleLeftAVS = 0.f;
+    float rumbleRight = 0.f;
+
+    float3 camUp;
+    float3 camRight;
+    float3 camDir;
+    float3 camPos;
+
+    BYTE leftTrigger;
+    BYTE rightTrigger;
+
+
+    _windTerrain windTerrain;
+         
+    float energy, energyOld, d_energy;
 private:
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)

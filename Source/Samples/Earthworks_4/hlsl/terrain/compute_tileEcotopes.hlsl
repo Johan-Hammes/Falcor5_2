@@ -202,7 +202,8 @@ void main(int2 crd : SV_DispatchThreadId)
 
         int sum = 0;
         int ecotopeForPlants = 20;
-        
+        // FIXME, This shoudl be done with some interlocked add function on a wider tile bases but per plant
+        // problem wiuth that is that its not repeatble, order of writes matter
         for (i = 0; i < numEcotopes; i++)
         {
             uint density = plantIndex.Load(i * (16 * 65) + (lod * 65));
@@ -219,7 +220,7 @@ void main(int2 crd : SV_DispatchThreadId)
         if (crd.y >= 252)ecotopeForPlants = 20;;
 
 
-
+        
         int offset = rnd & 0x3ff;
         if(ecotopeForPlants < numEcotopes)
         {

@@ -44,7 +44,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
     DrawArgs_Terrain[0].vertexCountPerInstance = 3;
 
     DrawArgs_Quads[0].instanceCount = 0;
-    DrawArgs_Quads[0].vertexCountPerInstance = 16;
+    DrawArgs_Quads[0].vertexCountPerInstance = 64;
 
     DrawArgs_Plants[0].instanceCount = 0;
     DrawArgs_Plants[0].vertexCountPerInstance = 128;

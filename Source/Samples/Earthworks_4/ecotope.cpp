@@ -66,11 +66,11 @@ void ecotope::loadTexture(int i) {
 
 void ecotope::reloadTextures()
 {
-    texAlbedo = Texture::createFromFile(albedoName, true, false);
-    texNoise = Texture::createFromFile(noiseName, false, false);
-    texDisplacement = Texture::createFromFile(displacementName, false, false);
-    texRoughness = Texture::createFromFile(roughnessName, false, false);
-    texAO = Texture::createFromFile(aoName, false, false);
+    texAlbedo = Texture::createFromFile("E:/terrains/_resources/" + albedoName, true, false);
+    texNoise = Texture::createFromFile("E:/terrains/_resources/" + noiseName, false, false);
+    texDisplacement = Texture::createFromFile("E:/terrains/_resources/" + displacementName, false, false);
+    texRoughness = Texture::createFromFile("E:/terrains/_resources/" + roughnessName, false, false);
+    texAO = Texture::createFromFile("E:/terrains/_resources/" + aoName, false, false);
 }
 
 std::array<std::string, 5> tfWeights = { "Height", "Concavity", "Slope", "Aspect", "Texture" };

@@ -9,6 +9,7 @@ Texture3D<float3>       cube : register(t0);
 
 cbuffer gConstants
 {
+    float avsLum;
 };
 
 

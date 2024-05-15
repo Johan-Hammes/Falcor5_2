@@ -39,6 +39,7 @@ using namespace Assimp;
 
 
 
+
 _lastFile terrainManager::lastfile;
 //materialCache_plants    terrainManager::vegetationMaterialCache;
 materialCache_plants _plantMaterial::static_materials_veg;
@@ -222,7 +223,7 @@ void _shadowEdges::load(std::string filename, float _angle)
 
 
 
-float objectScale = 0.002f;  //0.002 for trees
+float objectScale = 0.002f;  //0.002 for trees  // 32meter block 2mm presision
 float radiusScale = 2.0f;//  so biggest radius now objectScale / 2.0f;
 float O = 16384.0f * objectScale * 0.5f;
 float3 objectOffset = float3(O, O * 0.5f, O);
@@ -3578,7 +3579,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.drawArgs_tiles = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
         split.dispatchArgs_plants = Buffer::createStructured(sizeof(t_DispatchArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
 
-
         split.buffer_feedback = Buffer::createStructured(sizeof(GC_feedback), 1);
         split.buffer_feedback_read = Buffer::createStructured(sizeof(GC_feedback), 1, Resource::BindFlags::None, Buffer::CpuAccess::Read);
 
@@ -3641,7 +3641,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
-        ribbonData = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
+        ribbonData[0] = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
+        ribbonData[1] = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
 
         _plantMaterial::static_materials_veg.sb_vegetation_Materials = Buffer::createStructured(sizeof(sprite_material), 1024 * 8);      // just a lot
 
@@ -3658,16 +3659,51 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         tex = Texture::createFromFile(settings.dirResource + "/textures/twigs/dandelion_leaf1_normal.dds", false, false);
         ribbonTextures.emplace_back(tex);
         */
+        {
+            std::string filerappersville = settings.dirRoot + "/buildings/rappersville";
+            std::ifstream ifs;
+            ifs.open(filerappersville + ".info.txt");
+            int numVerts = 0;
+            if (ifs)
+            {
+                ifs >> numVerts;
+                ifs.close();
+            }
+            numVerts = __max(numVerts, 128);    // jusy not zeo
+
+            std::vector<_buildingVertex> VERTS;
+            VERTS.resize(numVerts);
+            ifs.open(filerappersville + ".raw", std::ios::binary);
+            if (ifs)
+            {
+                ifs.read((char*)VERTS.data(), VERTS.size() * sizeof(_buildingVertex));
+                ifs.close();
+            }
+
+            rappersvilleData = Buffer::createStructured(sizeof(_buildingVertex), numVerts); // just a nice amount for now
+            rappersvilleData->setBlob(VERTS.data(), 0, numVerts * sizeof(_buildingVertex));
+
+
+            rappersvilleShader.load("Samples/Earthworks_4/hlsl/terrain/render_Buildings_Far.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
+            rappersvilleShader.Vars()->setBuffer("vertexBuffer", rappersvilleData);
+
+            numrapperstri = numVerts / 3;
+            //drawArgs_rappersville = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+        }
+
+
 
         ribbonShader.load("Samples/Earthworks_4/hlsl/terrain/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
-        ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData);
+        ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[0]);
         ribbonShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
+        ribbonShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
+        
 
         ribbonShader_Bake.add("_BAKE", "");
         ribbonShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
-        ribbonShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonData);
+        ribbonShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonData[0]);
         ribbonShader_Bake.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
         ribbonShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader_Bake.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
@@ -3910,12 +3946,25 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraBuilder.visualsPack(paraRuntime.ribbon, paraRuntime.packedRibbons, paraRuntime.ribbonCount, paraRuntime.changed);
 
     paraRuntime.setxfoilDir(settings.dirResource + "/xfoil");
+    paraRuntime.setWing("naca4415");
+    
+    //paraRuntime.setWind(settings.dirRoot + "/gis/_export/root4096.bil", glm::normalize(float3(-1, 0, 0.4f)));
+    paraRuntime.loadWind();
+
     paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
     paraRuntime.Cp = paraBuilder.Cp;
     memcpy(paraRuntime.CPbrakes, paraBuilder.CPbrakes, sizeof(float) * 6 * 11 * 25);
     //paraRuntime.CPbrakes = paraBuilder.CPbrakes;
     paraRuntime.linesLeft = paraBuilder.linesLeft;
     paraRuntime.linesRight = paraBuilder.linesRight;
+
+    _swissBuildings buildings;
+    //buildings.process(settings.dirRoot + "/buildings/testQGISDXF.dxf");
+    //buildings.processGeoJSON(settings.dirRoot + "/buildings/QGIS.geojson");
+    //buildings.processGeoJSON("E:/rappersville/", "walls");
+    //buildings.processGeoJSON("E:/rappersville/", "roofs");
+    //buildings.processWallRoof(settings.dirRoot + "/buildings/");
+    buildings.processWallRoof("E:/rappersville/");
 
 
     //_plantMaterial::static_materials_veg.materialVector.emplace_back();
@@ -5020,7 +5069,7 @@ void terrainManager::bakeVegetation()
 
     _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
-    ribbonData->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(unsigned int) * 6);
+    ribbonData[0]->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(unsigned int) * 6);
     groveTree.bChanged = false;
 
     ribbonShader_Bake.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
@@ -5914,7 +5963,43 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 {
     //gisReload(_camera->getPosition());
 
-   
+    rmcv::mat4 view_ribbon, proj_ribbon, viewproj_ribbon;
+
+
+    if (terrainMode == 4)
+    {
+        {
+            FALCOR_PROFILE("SOLVE_glider");
+            paraRuntime.solve(0.0005f);
+        }
+        paraRuntime.pack_canopy();
+        paraRuntime.pack_lines();
+        paraRuntime.pack_feedback();
+        paraRuntime.pack();
+        _camera->setFarPlane(40000);
+        _camera->setUpVector(paraRuntime.camUp);
+        _camera->setTarget(paraRuntime.EyeLocal + paraRuntime.camDir * 100.f);
+        _camera->setPosition(paraRuntime.EyeLocal);
+
+        glm::mat4 V = toGLM(_camera->getViewMatrix());
+        glm::mat4 P = toGLM(_camera->getProjMatrix());
+        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                view_ribbon[j][i] = V[j][i];
+                proj_ribbon[j][i] = P[j][i];
+                viewproj_ribbon[j][i] = VP[j][i];
+            }
+        }
+
+        _camera->setTarget(paraRuntime.camPos + paraRuntime.camDir * 100.f);
+        _camera->setPosition(paraRuntime.camPos);
+    }
+    else
+    {
+        _camera->setUpVector(float3(0, 1, 0));
+    }
+
 
 
     glm::mat4 V = toGLM(_camera->getViewMatrix());
@@ -5943,35 +6028,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
           */
     }
 
-    if (terrainMode == 4)
-    {
-        
-
-        {
-            FALCOR_PROFILE("SOLVE_glider");
-            paraRuntime.solve(0.0005f);
-        }
-
-        paraRuntime.pack_canopy();
-        paraRuntime.pack_lines();
-        paraRuntime.pack_feedback();
-        paraRuntime.pack();
-
-
-        {
-            FALCOR_PROFILE("SOLVE_AIR");
-            //AirSim.update(0.001f);
-        }
-        //AirSim.pack();
-
-        glm::vec3 camPos;
-        camPos.y = sin(mouseVegPitch);
-        camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw + paraRuntime.pilotYaw);
-        camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw + paraRuntime.pilotYaw);
-        _camera->setPosition(paraRuntime.ROOT + camPos * mouseVegOrbit);
-        _camera->setTarget(paraRuntime.ROOT);
-        _camera->setFarPlane(40000);
-    }
+    
 
     if ((terrainMode == 0) || (terrainMode == 4))
     {
@@ -6015,7 +6072,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
-            ribbonData->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(unsigned int) * 6);
+            ribbonData[0]->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(unsigned int) * 6);
             groveTree.bChanged = false;
 
             ribbonShader.State()->setFbo(_fbo);
@@ -6075,14 +6132,18 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         // PARAGLIDER BUILDER
         // ########################################################################################################################
 
-        if ((terrainMode == 4) && paraRuntime.changed)
+        //if ((terrainMode == 4) && paraRuntime.changed)
+        if ((terrainMode == 4))
             //if ((terrainMode == 4) && AirSim.changed)
         {
+            FALCOR_PROFILE("setBlob");
             paraRuntime.changed = false;
             ribbonInstanceNumber = 1;
-            ribbonData->setBlob(paraRuntime.packedRibbons, 0, paraRuntime.ribbonCount * sizeof(unsigned int) * 6);
+            bufferidx = (bufferidx + 1) % 2;
+            ribbonData[bufferidx]->setBlob(paraRuntime.packedRibbons, 0, paraRuntime.ribbonCount * sizeof(unsigned int) * 6);
             //ribbonData->setBlob(AirSim.packedRibbons, 0, AirSim.ribbonCount * sizeof(unsigned int) * 6);
 
+            ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[bufferidx]);
 
             ribbonShader.State()->setFbo(_fbo);
             ribbonShader.State()->setViewport(0, _viewport, true);
@@ -6099,8 +6160,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         if ((terrainMode == 4) && paraRuntime.ribbonCount > 1)
             //if ((terrainMode == 4) && AirSim.ribbonCount > 1)
         {
-            ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-            ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
+            ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj_ribbon;
+            ribbonShader.Vars()["gConstantBuffer"]["eyePos"] = paraRuntime.EyeLocal;// _camera->getPosition();
 
             static float spacing = 1.0f;
 
@@ -6118,7 +6179,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["bDepth"] = static_bDepth;
             ribbonShader.Vars()["gConstantBuffer"]["bScale"] = static_bScale;
 
-            ribbonShader.Vars()["gConstantBuffer"]["ROOT"] = paraRuntime.ROOT;
+            ribbonShader.Vars()["gConstantBuffer"]["ROOT"] = float3(0, 0, 0);// paraRuntime.ROOT;
 
             static float time = 0.0f;
             time += 0.01f;  // FIXME I NEED A Timer
@@ -6157,17 +6218,27 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainSpiteShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
 
         glm::vec3 D = glm::vec3(view[2][0], view[2][1], -view[2][2]);
+        //D = paraRuntime.camDir;
         glm::vec3 R = glm::normalize(glm::cross(glm::vec3(0, 1, 0), D));
         terrainSpiteShader.Vars()["gConstantBuffer"]["right"] = R;
         terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 0;
 
-        terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
-        terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
+        //terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
+        //terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
 
         terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
 
         //terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
         //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
+    }
+
+    {
+        FALCOR_PROFILE("Rappersville");
+        rappersvilleShader.State()->setFbo(_fbo);
+        rappersvilleShader.State()->setViewport(0, _viewport, true);
+        rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
+        rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
+        rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
     }
 
     {
@@ -6299,7 +6370,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         sprintf(debugTxt, "%d tiles / triangles  %d  {%d}max", split.feedback.numTerrainTiles, split.feedback.numTerrainVerts, split.feedback.maxTriangles);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 320 });
 
-        sprintf(debugTxt, "%d tiles with quads    %d total quads  {%d}max", split.feedback.numQuadTiles, split.feedback.numQuads, split.feedback.maxQuads);
+        sprintf(debugTxt, "%d tiles with quads    %d total quads, %d blocks, {%d}max", split.feedback.numQuadTiles, split.feedback.numQuads, split.feedback.numQuadBlocks, split.feedback.maxQuads);
         TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 340 });
 
         sprintf(debugTxt, "%d tiles with plants    %d total plants (%d)  {%d}max", split.feedback.numPlantTiles, split.feedback.numPlants, split.feedback.numPlantBlocks, split.feedback.maxPlants);

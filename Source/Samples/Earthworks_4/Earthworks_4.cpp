@@ -30,7 +30,7 @@
 #include "imgui.h"
 #include "Core/Platform/MonitorInfo.h"
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 FILE* logFile;
 
@@ -112,6 +112,32 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
 void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
+    float2 A = float2(-20906.8073893663f, 21854.7731031066f);
+    float2 B = float2(-21739.4126790621f, -18140.4947773098f);
+    float2 C = float2(19087.8133413223f, 21022.9225606067f);
+    float2 D = float2(18256.7017062721f, -18972.3242194264f);
+
+    float2 H1 = C - A;
+    float2 H2 = D - B;
+
+    float2 V1 = B - A;
+    float2 V2 = D - C;
+
+    float lh1 = glm::length(H1);
+    float lh2 = glm::length(H2);
+    float lv1 = glm::length(V1);
+    float lv2 = glm::length(V2);
+
+    double th1 = atan2(H1.y, H1.x);
+    double th2 = atan2(H2.y, H2.x);
+    double tv1 = atan2(V1.y, V1.x);
+    double tv2 = atan2(V2.y, V2.x);
+
+    float left = 2702000;
+    float right = 2742000;
+    float top = 1218000;
+    float bottom = 1218000;
+
     graphicsState = GraphicsState::create();
 
     BlendState::Desc bsDesc;
@@ -145,7 +171,11 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.terrainSpiteShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
-    
+
+
+    terrain.rappersvilleShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
+    terrain.rappersvilleShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
+    terrain.rappersvilleShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
     
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
@@ -204,7 +234,7 @@ void Earthworks_4::loadColorCube(std::string name)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
-    global_sun_direction = glm::normalize(float3(-1, -0.09f, 0));
+    global_sun_direction = glm::normalize(float3(-1, -0.244f, 0));
 
     static bool first = true;
     if (first)
@@ -215,7 +245,8 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         terrain.terrainShadowTexture = Texture::create2D(4096, 4096, Falcor::ResourceFormat::RG32Float, 1, 1, terrain.shadowEdges.shadowH, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
 
         terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
-        terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        terrain.rappersvilleShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
     }
 
@@ -226,6 +257,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     atmosphere.computeVolumetric(_renderContext);
 
     terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+    terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
     //terrain.terrainShader.Vars()["LightsCB"]["sunColour"] = float3(10, 10, 10);
 
     terrain.terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
@@ -240,6 +272,11 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
     terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
     terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+
+    terrain.rappersvilleShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+    terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+    terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+    terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     terrain.update(_renderContext);
@@ -283,6 +320,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     {
         Sleep(30);      // aim for 15fps in this mode
     }*/
+    
 }
 
 
@@ -435,5 +473,6 @@ int main(int argc, char** argv)
     logFile = fopen("log.txt", "w");
 
     Sample::run(config, pRenderer);
+    
     return 0;
 }

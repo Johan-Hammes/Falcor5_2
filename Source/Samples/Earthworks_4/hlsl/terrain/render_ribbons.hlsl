@@ -81,6 +81,7 @@ Tangent space -> texture normal mapping ??? can we do somethign to simplify this
 
 
 SamplerState gSampler;
+SamplerState gSamplerClamp;
 Texture2D gAlbedo : register(t0);
 TextureCube gEnv : register(t1);
 Texture2D gHalfBuffer : register(t2);
@@ -367,8 +368,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     rootPosition += (-0.5 * repeatScale) + 0.9f * repeatScale * float3(rand_1_05(float2(iId * 0.0092356, iId * 0.003568)), 0, rand_1_05(float2(iId * 0.002356, iId * 0.003568)));
     rootPosition.y = 0;
     rootPosition = ROOT;
-    float scale = 0.9f + 0.2f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
-    float rotation = 2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
+    float scale = 1;//    0.9f + 0.2f * rand_1_05(float2(iId * 0.0002356, iId * 0.00303568));
+    float rotation = 0;//    2 * 3.14f * rand_1_05(float2(frac(iId * 2.2356), iId * 0.00703568));
     const RV6 v = instanceBuffer[vId];
 
 #if defined(_BAKE)
@@ -593,29 +594,31 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         }
 */
 
-    float3 cSolid = 1;
+    float3 cSolid = float3(1, 1 ,1) * 0.3;
     if (vOut.flags.x == 1)
-        cSolid = float3(0.8f, 0.01f, 0.01f) * 0.1;
+        cSolid = float3(0.8f, 0.01f, 0.01f) * 0.2;
     if (vOut.flags.x == 2)
-        cSolid = float3(0.8f, 0.8f, 0.01f) * 0.1;
+        cSolid = float3(0.8f, 0.8f, 0.01f) * 0.2;
     if (vOut.flags.x == 3)
-        cSolid = float3(0.01f, 0.8f, 0.01f) * 0.1;
+        cSolid = float3(0.01f, 0.8f, 0.01f) * 0.2;
     if (vOut.flags.x == 4)
-        cSolid = float3(0.01f, 0.01f, 0.7f) * 0.1;
+        cSolid = float3(0.01f, 0.01f, 0.7f) * 0.2;
     if (vOut.flags.x == 5)
-        cSolid = float3(0.01f, 0.7f, 0.7f) * 0.1;
+        cSolid = float3(0.01f, 0.7f, 0.7f) * 0.2;
     if (vOut.flags.x == 6)
-        cSolid = float3(0.9f, 0.1f, 0.01f) * 0.1;
+        cSolid = float3(0.9f, 0.1f, 0.01f) * 0.2;
     if (vOut.flags.x == 7)
-        cSolid = float3(0.01f, 0.01f, 0.01f) * 0.1;
+        cSolid = float3(0.01f, 0.01f, 0.01f) * 0.2;
 
+    cSolid *= 0.5;
 
     float alphaC = min(saturate(vOut.uv.x * 0.9), saturate((1 - vOut.uv.x) * 0.9));
+    
     //alphaC = min(alphaC, pow(saturate(vOut.flags.w * 0.000901), 0.91));
     if (alphaC < 0.99)
     {
         float2 uv = vOut.pos.xy / float2(2560, 1440);
-        float3 prev = gHalfBuffer.Sample(gSampler, uv).rgb;
+        float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         cSolid = lerp(prev, cSolid, alphaC);
     }
     return float4(cSolid, 1);
@@ -713,11 +716,11 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     {
         float2 uv = vOut.pos.xy / float2(2560, 1440);
         //uv.y = 1 - uv.y;
-        float3 prev = gHalfBuffer.Sample(gSampler, uv).rgb;
+        float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         //int3 sample = vOut.pos.xyz / 2;
         //sample.z = 0;
         //float3 prev = gHalfBuffer.Load(sample).rgb;
-        color = lerp(prev, color, alpha);
+        //color = lerp(prev, color, alpha);
     }
     
     //return float4(color, saturate(alpha + 0.2));

@@ -31,6 +31,8 @@
 #include "atmosphere.h"
 #include "RenderGraph/RenderGraph.h"
 
+
+
 using namespace Falcor;
 
 float3 global_sun_direction = float3(0.96592582628906f, -0.2588190451f, 0.f);

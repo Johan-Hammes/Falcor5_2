@@ -104,6 +104,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     VSOut output = (VSOut)0;
 
+    
     uint tileIDX = tileLookup[iId].tile & 0xffff;
     uint numQuad = tileLookup[iId].tile >> 16;
     uint blockID = vId;// (iId & 0x3f);
@@ -120,6 +121,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.sunlight = sunLight(output.rootPos.xyz * 0.001).rgb;
 
         // Now for my atmospeher code --------------------------------------------------------------------------------------------------------
+
         float3 atmosphereUV;
         float4 pos = mul(output.rootPos, viewproj);
         atmosphereUV.xy = pos.xy / pos.w / screenSize;
@@ -129,8 +131,14 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.outscatter = gAtmosphereOutscatter.SampleLevel(gSmpLinearClamp, atmosphereUV, 0 ).rgb;
         output.inscatter = gAtmosphereInscatter.SampleLevel(gSmpLinearClamp, atmosphereUV, 0).rgb;
 
+
         output.worldPos = output.rootPos.xyz;
         output.eye = output.rootPos.xyz - eye.xyz;
+
+       //output.rootPos.xyz -= normalize(output.eye) * 100.f;
+        //output.rootPos.y += 300;
+        //output.rootPos.x += 7000;
+
     }
     return output;
 }
@@ -142,11 +150,13 @@ void gsMain(point VSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
 {
     GSOut v;
 
+    
     uint I = sprite[0].index;
     int dx = I & 0xf;
     int dy = I >> 4;
-    float SZ = sprite[0].scale * size[I];
+    float SZ =     sprite[0].scale * size[I];
 
+    
     //create sprite quad
     //--------------------------------------------
     float3 texRoot = float3(dx, dy, 0) * 0.0625;
@@ -157,27 +167,39 @@ void gsMain(point VSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
     v.worldPos = sprite[0].worldPos;
     v.eye = sprite[0].eye;
 
+    v.pos = mul(sprite[0].rootPos, viewproj);
+    v.texCoords = float3(0, 0, 0);
+
+    float X = abs(v.pos.x / v.pos.z);
+    float Y = abs(v.pos.y / v.pos.z);
+    if (v.pos.z < 0 || X > 1.3 || Y > 2.1)
+    {
     
+        OutputStream.Append(v);
+    }
+    else
+    {
     //bottom left
-    v.pos = mul(sprite[0].rootPos - float4(right, 0)*0.5* SZ, viewproj);
-    v.texCoords = texRoot + float3(0.1, 0.9, 0) * 0.0625;
-    OutputStream.Append(v);
+        v.pos = mul(sprite[0].rootPos - float4(right, 0) * 0.5 * SZ, viewproj);
+        v.texCoords = texRoot + float3(0.1, 0.9, 0) * 0.0625;
+        OutputStream.Append(v);
 
     //top left
-    v.pos = mul(sprite[0].rootPos - float4(right, 0) * 0.5* SZ + float4(0, SZ, 0, 0), viewproj);
-    v.texCoords = texRoot + float3(0.1, 0.1, 0) * 0.0625;
-    OutputStream.Append(v);
+        v.pos = mul(sprite[0].rootPos - float4(right, 0) * 0.5 * SZ + float4(0, SZ, 0, 0), viewproj);
+        v.texCoords = texRoot + float3(0.1, 0.1, 0) * 0.0625;
+        OutputStream.Append(v);
 
     //bottom right
-    v.pos = mul(sprite[0].rootPos + float4(right, 0) * 0.5* SZ, viewproj);
-    v.texCoords = texRoot + float3(0.9, 0.9, 0) * 0.0625;
-    OutputStream.Append(v);
+        v.pos = mul(sprite[0].rootPos + float4(right, 0) * 0.5 * SZ, viewproj);
+        v.texCoords = texRoot + float3(0.9, 0.9, 0) * 0.0625;
+        OutputStream.Append(v);
 
     //top right
-    v.pos = mul(sprite[0].rootPos + float4(right, 0) * 0.5* SZ + float4(0, SZ, 0, 0), viewproj);
-    v.texCoords = texRoot + float3(0.9, 0.1, 0) * 0.0625;
-    OutputStream.Append(v);
-
+        v.pos = mul(sprite[0].rootPos + float4(right, 0) * 0.5 * SZ + float4(0, SZ, 0, 0), viewproj);
+        v.texCoords = texRoot + float3(0.9, 0.1, 0) * 0.0625;
+        OutputStream.Append(v);
+    }
+ 
 }
 
 
@@ -185,19 +207,21 @@ void gsMain(point VSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
 float4 psMain(GSOut vOut) : SV_TARGET
 {
     
+    
     float4 samp = gAlbedo.Sample(gSampler, vOut.texCoords.xy);
     float3 norm = gNorm.Sample(gSampler, vOut.texCoords.xy).rgb;
     //samp.a = saturate(samp.a * 2);
     
-    if (alpha_pass == 0) {
-        clip(samp.a - 0.6);
+    //if (alpha_pass == 0)
+    {
+        clip(samp.a - 0.4);
         samp.a = 1;
     }
-    else
-    {
-        clip(samp.a - 0.1); // all the trabnsparent stuff
-        clip(0.6 - samp.a);
-    }
+//    else
+ //   {
+  //      clip(samp.a - 0.1); // all the trabnsparent stuff
+   //     clip(0.6 - samp.a);
+    //}
     samp.rgb *=  0.02;//    saturate(dot(norm, -sunDirection)) * vOut.sunlight;
     //samp.rgb *= vOut.outscatter;
     //samp.rgb += vOut.inscatter;

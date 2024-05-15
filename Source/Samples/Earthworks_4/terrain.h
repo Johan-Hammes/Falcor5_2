@@ -1029,7 +1029,8 @@ private:
 
     pixelShader ribbonShader;
     pixelShader ribbonShader_Bake;
-    Buffer::SharedPtr       ribbonData;
+    Buffer::SharedPtr       ribbonData[2];
+    uint bufferidx = 0;
     //std::vector< Texture::SharedPtr> ribbonTextures;        // remove becomes part of the cache
     pixelShader triangleShader;
     Buffer::SharedPtr       triangleData;
@@ -1043,7 +1044,12 @@ private:
     float ribbonSpacing = 3.0f;             // the size fo the extents
     bool spacingFromExtents = true;
 
-    
+    public:
+    pixelShader         rappersvilleShader;
+    Buffer::SharedPtr   rappersvilleData;
+    Buffer::SharedPtr   drawArgs_rappersville;
+    int numrapperstri;
+    private:
     
     int terrainMode = 4;
     bool hasChanged = false;

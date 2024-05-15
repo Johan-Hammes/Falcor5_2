@@ -55,8 +55,8 @@ float shadow(float3 pos, float step)
     float2 uv = saturate((pos.xz / (4096 * 9.765625)) + 0.5);
     float2 params = terrainShadow.SampleLevel(gSmpLinear, uv, 0).rg;
     float h = (pos.y + params.g * 0.3 - params.r) / (params.g); //    (pos.y - params.r) / params.g;
-    h = (pos.y - params.r) / (params.g / 20); //    (pos.y - params.r) / params.g;
-    return saturate(h);
+    h = (pos.y - params.r) / (params.g / 30); //    (pos.y - params.r) / params.g;
+    return pow(saturate(h),1.5);
 }
 
 /*

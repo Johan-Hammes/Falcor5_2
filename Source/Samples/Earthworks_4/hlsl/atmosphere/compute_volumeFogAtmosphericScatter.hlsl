@@ -70,6 +70,7 @@ float shadow(float3 pos, float step)
     float VoL = dot(direction, -sun_direction);
     float phaseRayleigh = 0.785398 * (1.2 + 0.8 * VoL * VoL + 0.5 * VoL);
 	float2 phaseUV = sqrt(acos(VoL) * 0.31830988618379);
+    phaseUV.y = min(phaseUV.y, 0.99f);
 
 	float3 IBLdir = direction;
 	IBLdir.z *= -1;

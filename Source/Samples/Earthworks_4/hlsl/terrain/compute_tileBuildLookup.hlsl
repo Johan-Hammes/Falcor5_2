@@ -54,7 +54,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
         if ((unpackFrustum(t) & (1 << 20)))
         {
             InterlockedAdd(feedback[0].numTiles[lod], 1, S);
-            InterlockedMax(feedback[0].numSprite[lod], tiles[t].numQuads, S);
+            InterlockedAdd(feedback[0].numSprite[lod], tiles[t].numQuads, S);
             InterlockedMax(feedback[0].numPlantsLOD[lod], tiles[t].numPlants, S);
             InterlockedMax(feedback[0].numTris[lod], tiles[t].numTriangles, S);
         }
@@ -65,7 +65,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		{
 			
 			uint totalQuads = tiles[t].numQuads;
-            uint numB = (totalQuads >> 4) + 1;		// FIXME hardcoded move to header
+            uint numB = (totalQuads >> 6) + 1;		// FIXME hardcoded move to header
 
             uint numQuadLookupBlocks;
             InterlockedAdd(feedback[0].numLookupBlocks_Quads, numB, numQuadLookupBlocks);
@@ -79,8 +79,8 @@ void main(uint dispatchId : SV_DispatchThreadId)
 
 			for (uint i = 0; i < numB; i++)
 			{
-				uint numPlants = min(totalQuads, 16);  // number of plants on this block
-				totalQuads -= 16;
+				uint numPlants = min(totalQuads, 64);  // number of plants on this block
+				totalQuads -= 64;
 				tileLookup[numQuadLookupBlocks + i].tile = t + (numPlants << 16);
 				tileLookup[numQuadLookupBlocks + i].offset = (t * numQuadsPerTile) + (i * 16);
 			}

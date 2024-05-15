@@ -444,6 +444,7 @@ void _lineBuilder::addVerts(std::vector<float3>& _x, std::vector<float>& _w, uin
 {
     isLineEnd = children.size() == 0;
     isCarabiner = name.find("carabiner") != std::string::npos;
+    isCarabiner |= name.find("ROOT") != std::string::npos;
 
     numSegments = 1;// (uint)ceil((float)length / _spacing);
     parent_Idx = _parentidx;
@@ -523,6 +524,23 @@ float3 _lineBuilder::averageEndpoint(float3 _start)
 
 void _lineBuilder::solveLayout(float3 _start, uint _chord)
 {
+    float3 red = float3(0.8f, 0.01f, 0.01f);
+    float3 yellow = float3(0.8f, 0.8f, 0.01f);
+    float3 green = float3(0.01f, 0.8f, 0.01f);
+    float3 blue = float3(0.01f, 0.01f, 0.7f);
+    float3 turqoise = float3(0.01f, 0.7f, 0.7f);
+    float3 orange = float3(0.7f, 0.3f, 0.01f);
+    float3 black = float3(0.01f, 0.01f, 0.01f);
+
+    if (name.find("A") != std::string::npos)    color = red;
+    if (name.find("B") != std::string::npos)    color = yellow;
+    if (name.find("C") != std::string::npos)    color = turqoise;
+    if (name.find("S") != std::string::npos)    color = green;
+    if (name.find("F") != std::string::npos)    color = orange;
+    if (name.find("strap") != std::string::npos)    color = black;
+    if (name.find("carabiner") != std::string::npos)    color = float3(1, 1, 1);
+    
+
     rho_Line = (0.5 * 1.11225f) * 1.2f * (diameter * length);       // 1.2 seems betetr Cd for cylinder
     rho_End = 0.5f * rho_Line;
 
@@ -552,12 +570,16 @@ void _lineBuilder::renderGui(char* search, int tab)
     if (((name.find(search) == 0) || (name.find("carabiner") != std::string::npos) || (name.find("strap") != std::string::npos)) && (name.find("L_") == std::string::npos))
     {
         ImGui::NewLine();
+        if (stretchRatio > 1.05f)
+        {
+            ImGui::Button(name.c_str(), ImVec2(200, 30));
+            ImGui::SameLine(0, 0);
+        }
         ImGui::SameLine(0, (float)(tab * 10));
         ImGui::Text("%s", name.c_str());
         ImGui::SameLine(150, 0);
         ImGui::Text("%1.5f %2d%%, %2d%%     %3dN    %3dN ", stretchRatio, (int)(t_ratio * 99), (int)(t_combined * 99), (int)maxTencileForce, (int)tencileForce);
         //ImGui::Text("%dmm, %1.2fmm %3.1fg   %3.2fg   %3.2fmm", (int)(length * 1000.f), diameter * 1000.f, 1000.f * m_End, 1000.f * m_Line, f_Line);
-
     }
 
     for (auto& C : children) {
@@ -587,8 +609,8 @@ void _lineBuilder::addRibbon(rvB_Glider* _r, std::vector<float3>& _x, int& _c)
 
 
     {
-        setupVert(&_r[_c], 0, _x[parent_Idx], diameter + 0.005f, cIndex);     _c++;
-        setupVert(&_r[_c], 1, _x[end_Idx], diameter + 0.005f, cIndex);     _c++;
+        setupVert(&_r[_c], 0, _x[parent_Idx], diameter* 0.5f + 0.004f, cIndex);     _c++;
+        setupVert(&_r[_c], 1, _x[end_Idx], diameter * 0.5f + 0.004f, cIndex);     _c++;
     }
 
     /*
@@ -654,11 +676,14 @@ void _lineBuilder::wingLoading(std::vector<float3>& _x, std::vector<float3>& _n)
             break;
         }
     }
+    //tencileVector *= 0.5f;
     AllSummedForce += tencileVector;
 
 
     float3 lineNormal = glm::normalize(_x[end_Idx] - _x[parent_Idx]);
     tencileRequest = __max(0.0001f, glm::dot(lineNormal, tencileVector));
+
+    
 
     tencileForce = __min(tencileRequest, maxTencileForce);
     tencileVector = tencileForce * lineNormal;
@@ -667,7 +692,11 @@ void _lineBuilder::wingLoading(std::vector<float3>& _x, std::vector<float3>& _n)
 float _lineBuilder::maxT(float _r, float _dT)
 {
     float K = __max(0, (_r - 0.98f) * 50.f);
-    return K * 200.f;
+
+    
+
+    if (diameter < 0.005)   return K * 200.f;
+    else                    return K * 400.f;
 
     _dT = 1;
     float SLOPE = -100;
@@ -782,6 +811,7 @@ void _lineBuilder::solveUp(std::vector<float3>& _x, bool _lastRound, float _rati
     if (_lastRound && isLineEnd)
     {
         float3 Pfinal = glm::lerp(_x[wingIdx], _x[end_Idx], t_combined);
+        //float3 Pfinal = _x[end_Idx];
         _x[wingIdx] = Pfinal;
         _x[end_Idx] = Pfinal;
 
@@ -1062,7 +1092,9 @@ void _gliderBuilder::builWingConstraints()
         for (int c = 0; c < chordSize - 1; c++)
         {
             idx = quadIdx(s, c);
-            constraints.push_back(_constraint(idx.x, idx.y, s, L(idx.x, idx.y), cnst.chord));
+            float3 push = cnst.chord;
+            //if (c < 5) push.z = 0;
+            constraints.push_back(_constraint(idx.x, idx.y, s, L(idx.x, idx.y), push));
         }
 
         // stitch sides
@@ -1102,19 +1134,31 @@ void _gliderBuilder::builWingConstraints()
             b = index(s, chordSize - 1 - c);
             constraints.push_back(_constraint(a, b, s, L(a, b), cnst.chord_diagonals));
         }
+
+        //leadingEdge
+        a = index(s, 12);
+        b = index(s, 15);
+        constraints.push_back(_constraint(a, b, s, L(a, b), cnst.leadingEdge));
+
+        //trailingEdge
+        a = index(s, 0);
+        b = index(s, 5);
+        constraints.push_back(_constraint(a, b, s, L(a, b), cnst.trailingEdge));
     }
 
     // span
     for (int s = 0; s < spanSize - 1; s++)
     {
+        uint cell = s;
+        if (s < spanSize / 2) cell += 1;    // use the inside cell
         for (int c = 0; c < chordSize - 1; c++)
         {
             idx = quadIdx(s, c);
-            constraints.push_back(_constraint(idx.x, idx.w, s, L(idx.x, idx.w), cnst.span));
+            constraints.push_back(_constraint(idx.x, idx.w, cell, L(idx.x, idx.w), cnst.span));
 
             // surface crossBracing
-            constraints.push_back(_constraint(idx.x, idx.z, s, L(idx.x, idx.z), cnst.surface));  // diagonal and zigzag them
-            constraints.push_back(_constraint(idx.y, idx.w, s, L(idx.y, idx.w), cnst.surface));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.x, idx.z, cell, L(idx.x, idx.z), cnst.surface));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.y, idx.w, cell, L(idx.y, idx.w), cnst.surface));  // diagonal and zigzag them
         }
     }
 
@@ -1122,15 +1166,25 @@ void _gliderBuilder::builWingConstraints()
     // volume pressure push - simulates the bulging effect thats missing in geometry
     for (int s = 0; s < spanSize - 1; s++)
     {
-        for (int c = 2; c < chordSize / 2 - 1; c++)
+        uint cell = s;
+        if (s < spanSize / 2) cell += 1;    // use the inside cell
+
+        for (int c = 1; c < chordSize / 2 - 1; c++)
         {
             idx = quadIdx(s, c);
             uint4 idxTop = quadIdx(s, chordSize - 2 - c);
-            constraints.push_back(_constraint(idx.x, idxTop.w, s, L(idx.x, idxTop.w), cnst.pressure_volume));  // diagonal and zigzag them
-            constraints.push_back(_constraint(idx.y, idxTop.z, s, L(idx.y, idxTop.z), cnst.pressure_volume));  // diagonal and zigzag them
+            
+            //cross
+            constraints.push_back(_constraint(idx.x, idxTop.z, cell, L(idx.x, idxTop.z), cnst.pressure_volume));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.y, idxTop.w, cell, L(idx.y, idxTop.w), cnst.pressure_volume));  // diagonal and zigzag them
 
-            constraints.push_back(_constraint(idx.w, idxTop.x, s, L(idx.w, idxTop.x), cnst.pressure_volume));  // diagonal and zigzag them
-            constraints.push_back(_constraint(idx.z, idxTop.y, s, L(idx.z, idxTop.y), cnst.pressure_volume));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.w, idxTop.x, cell, L(idx.w, idxTop.x), cnst.pressure_volume));  // diagonal and zigzag them
+            constraints.push_back(_constraint(idx.z, idxTop.y, cell, L(idx.z, idxTop.y), cnst.pressure_volume));  // diagonal and zigzag them
+            
+
+            // just span wise
+            //constraints.push_back(_constraint(idx.x, idxTop.z, s, L(idx.x, idxTop.z), cnst.pressure_volume));  // diagonal and zigzag them
+            //constraints.push_back(_constraint(idx.y, idxTop.w, s, L(idx.y, idxTop.w), cnst.pressure_volume));  // diagonal and zigzag them
         }
     }
 
@@ -1154,6 +1208,11 @@ void _gliderBuilder::builWingConstraints()
             }
         }
     }
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    std::shuffle(constraints.begin()+3, constraints.end(), g);
 }
 
 
@@ -1323,8 +1382,8 @@ void _gliderBuilder::generateLines()
     w[startVert + 0] = 1.f / 90.f;
     //cdA[startVert + 0] = 0.7f * 0.4f;      // Cd * A
 
-    x[startVert + 1] = float3(-0.15f, 0, 0);
-    x[startVert + 2] = float3(0.15f, 0, 0);
+    x[startVert + 1] = float3(-0.25f, 0, 0);
+    x[startVert + 2] = float3(0.25f, 0, 0);
     w[startVert + 1] = 1.f / 3.f;
     w[startVert + 2] = 1.f / 3.f;
     // cdA[startVert + 1] = 0;
@@ -1672,6 +1731,23 @@ void _gliderBuilder::xfoil_createFlaps(float _dst, std::string _name)
         flap << _name.c_str() << "\n";
         for (auto p : wingshapeFull)
         {
+            float pOut = p.y;
+            // air intake
+            if (p.y < 0 && p.x>0.02f && p.x < 0.06f)
+            {
+                float d = 1.f - fabs((p.x - 0.04f) * 50.f);
+                //pOut += 0.01f * d;
+                //pOut += 0.02f;
+            }
+
+            // general inflate
+            float backScale = glm::clamp(1.f - (p.x - 0.9f) * 10.f, 0.f, 1.f);
+            //if (p.x < 0.98)
+            {
+                if (p.y > 0)    pOut += 0.0051f * backScale;
+                else            pOut -= 0.0051f * backScale;
+            }
+
             float r = 0;
             float zero = 1.f - (2.f * _dst);
             if (_dst > 0)
@@ -1679,7 +1755,7 @@ void _gliderBuilder::xfoil_createFlaps(float _dst, std::string _name)
                 r = (p.x - zero) / (2.f * _dst);
             }
             r = pow(__max(0, r), 2.f);    // 0-1 at trailng edge
-            float y = p.y - r * _dst;
+            float y = pOut - r * _dst;
             flap << p.x << "   " << y << "\n";
         }
 

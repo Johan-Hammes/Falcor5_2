@@ -1339,7 +1339,8 @@ void terrafectorElement::loadPath(std::string _path)
         {
             std::string ext = entry.path().extension().string();
             if (ext.find("fbx") != std::string::npos ||
-                ext.find("obj") != std::string::npos) {
+                ext.find("obj") != std::string::npos ||
+                ext.find("dxf") != std::string::npos){
                 terrafectorElement& e = find_insert(entry.path().filename().string(), tf_fbx, newPath);
             }
         }
