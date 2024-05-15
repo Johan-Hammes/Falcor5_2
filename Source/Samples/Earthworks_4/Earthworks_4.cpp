@@ -176,6 +176,10 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.rappersvilleShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.rappersvilleShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.rappersvilleShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+
+    terrain.gliderwingShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
+    terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
+    terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
     
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
@@ -246,6 +250,8 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
         terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.rappersvilleShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        terrain.gliderwingShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
     }
@@ -258,6 +264,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
     terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
     terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+    terrain.gliderwingShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
     //terrain.terrainShader.Vars()["LightsCB"]["sunColour"] = float3(10, 10, 10);
 
     terrain.terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
@@ -277,6 +284,11 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
     terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
     terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+
+    terrain.gliderwingShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+    terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+    terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+    terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     terrain.update(_renderContext);

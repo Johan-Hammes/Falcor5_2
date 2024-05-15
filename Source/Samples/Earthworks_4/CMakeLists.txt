@@ -74,6 +74,7 @@ target_sources(Earthworks_4 PRIVATE
     hlsl/terrain/render_Tiles.hlsl
     hlsl/terrain/render_triangles.hlsl
     hlsl/terrain/render_Buildings_Far.hlsl
+    hlsl/terrain/render_GliderWing.hlsl
 
     hlsl/atmosphere/compute_fogCloudAtmosphereCommon.hlsli
     hlsl/atmosphere/compute_volumeFog.hlsli

@@ -308,15 +308,15 @@ private:
 
 struct _constraintSetup
 {
-    float3 chord = float3(1.f, 0.f, 0.7f);              // pull, push, pressure
+    float3 chord = float3(1.f, 0.f, 0.2f);              // pull, push, pressure
     float3 chord_verticals = float3(1.f, 0.f, 0.f);     // pull, push, pressure
-    float3 chord_diagonals = float3(0.7f, 0.f, 0.1f);    // pull, push, pressure
+    float3 chord_diagonals = float3(0.7f, 0.f, 0.0f);    // pull, push, pressure
     // ??? nose stiffner
     float3 leadingEdge = float3(0.f, 0.6f, 0.4f);    // pull, push, pressure
     float3 trailingEdge = float3(0.f, 0.0f, 0.2f);    // pull, push, pressure
 
     float3 span = float3(0.7f, 0.1f, 0.9f);
-    float3 surface = float3(.5f, 0.f, 0.5f);
+    float3 surface = float3(.5f, 0.f, 0.1f);
     // ??? trailing edge span stiffner
 
     float3 pressure_volume = float3(0.f, 0.f, 0.4f);
@@ -413,7 +413,15 @@ CEREAL_CLASS_VERSION(_gliderBuilder, 100);
 
 
 
-
+struct _gliderwingVertex
+{
+    float3 pos;
+    uint material;
+    float3 normal;
+    float something;
+    float3 uv;
+    float somethignesle;
+};
 
 
 
@@ -597,6 +605,7 @@ public:
     void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
     void setupLines();
     void solve(float _dT);
+    void packWing(float3 pos, float3 norm, float3 uv);
     void pack_canopy();
     void pack_lines();
     void pack_feedback();
@@ -621,6 +630,9 @@ public:
     rvPackedGlider packedRibbons[1024 * 1024];
     int ribbonCount = 0;
     bool changed = false;
+
+    int wingVertexCount = 0;
+    _gliderwingVertex packedWing[16384];
 
     // Play
     float weightShift = 0.5f;

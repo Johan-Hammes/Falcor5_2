@@ -710,10 +710,90 @@ void _gliderRuntime::solveConstraint(uint _i, float _step)
 }
 
 
+void _gliderRuntime::packWing(float3 pos, float3 norm, float3 uv)
+{
+    packedWing[wingVertexCount].pos = pos;
+    packedWing[wingVertexCount].normal = norm;
+    packedWing[wingVertexCount].uv = uv;
+    wingVertexCount++;
+}
+
 void _gliderRuntime::pack_canopy()
 {
     ribbonCount = 0;
 
+    // into the new solid wing
+    for (int i = 0; i < spanSize * chordSize; i++)
+    {
+        int chord = i % chordSize;
+        int span = i / chordSize;
+
+        n[i] = glm::normalize(glm::cross((x[cross[i].z] - x[cross[i].w]), (x[cross[i].x] - x[cross[i].y])));
+    }
+
+    wingVertexCount = 0;
+    float3 P, P2, N, N2, UV, UV2;
+    int c;
+    float dC;   // expand ratio
+    float dU = 1.f / (float)(spanSize);
+    float dV = 1.f / (float)(chordSize);
+    for (int s = 0; s < spanSize-1; s++)
+    {
+        for (int expand = 0; expand < 4; expand++)
+        {
+            c = 0;
+
+            float dP = 0.f;
+            float dP2 = 0.7f;
+            float dS = 0;
+            float dS2 = 0.2f;
+            float dR = 0;
+            float dR2 = -1;
+            if (expand == 1) { dS = 0.2f; dS2 = 0.5f; dP = 0.7f; dP2 = 1.f;  dR = -1; dR2 = 0; }
+            if (expand == 2) { dS = 0.5f; dS2 = 0.8f; dP = 1.f; dP2 = 0.7f;  dR2 = 1; }
+            if (expand == 3) { dS = 0.8f; dS2 = 1.0f; dP = 0.7f; dP2 = 0.f;  dR = 1; dR2 = 0; } // bit arb
+
+            P = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS);
+            N = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS);
+            UV = float3((s + dS) * dU, c * dV, 0);
+            UV2 = float3((s + dS + 0.25) * dU, c * dV, 0);
+
+            packWing(ROOT + P, N, UV);
+
+            for (int c = 0; c < chordSize; c++)
+            {
+                float PRES = pow(cells[s].pressure, 2);
+                UV.y = c * dV;
+                UV2.y = c * dV;
+                dC = 0.04f;
+                if (c <= 6) dC *= (float)c / 6.f;
+                if (c >= chordSize - 7) dC *= (float)(chordSize - 1 - c) / 6.f;
+
+                P = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS);
+                N = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS);
+                N = glm::normalize(N + cells[s].right * dR * PRES);
+                P += N * dC * dP * PRES;
+                
+                packWing(ROOT + P, N, UV);
+
+                P2 = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS2);
+                N2 = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS2);
+                N2 = glm::normalize(N2 + cells[s].right * dR2 * PRES);
+                P2 += N2 * dC * dP2 * PRES;
+                
+                packWing(ROOT + P2, N2, UV2);
+
+            }
+
+            c = chordSize - 1;
+            P2 = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS2);
+            N2 = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS2);
+            P2 += N2 * dC;
+            packWing(ROOT + P2, N2, UV2);
+        }
+    }
+
+    /*
     // chord
     for (int s = 0; s < spanSize; s++)
     {
@@ -731,6 +811,7 @@ void _gliderRuntime::pack_canopy()
             setupVert(&ribbon[ribbonCount], s == 0 ? 0 : 1, x[index(s, c)], 0.005f);     ribbonCount++;
         }
     }
+    */
 
     // triangle
     uint triangle = spanSize * chordSize;

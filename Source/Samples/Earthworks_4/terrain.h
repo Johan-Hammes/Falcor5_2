@@ -1047,8 +1047,13 @@ private:
     public:
     pixelShader         rappersvilleShader;
     Buffer::SharedPtr   rappersvilleData;
-    Buffer::SharedPtr   drawArgs_rappersville;
+    //Buffer::SharedPtr   drawArgs_rappersville;
     int numrapperstri;
+
+    pixelShader         gliderwingShader;
+    Buffer::SharedPtr   gliderwingData[2];
+    RasterizerState::SharedPtr      rasterstateGliderWing;
+
     private:
     
     int terrainMode = 4;

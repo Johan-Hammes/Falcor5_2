@@ -3692,6 +3692,19 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         }
 
 
+        {
+            gliderwingData[0] = Buffer::createStructured(sizeof(_buildingVertex), 16384); // will be arounf 1300 so just enough
+            gliderwingData[1] = Buffer::createStructured(sizeof(_buildingVertex), 16384); // will be arounf 1300 so just enough
+
+            gliderwingShader.load("Samples/Earthworks_4/hlsl/terrain/render_GliderWing.hlsl", "vsMain", "psMain", Vao::Topology::TriangleStrip);
+
+            
+            RasterizerState::Desc rsDesc;
+            rsDesc.setFillMode(RasterizerState::FillMode::Solid).setCullMode(RasterizerState::CullMode::Front);
+            rasterstateGliderWing = RasterizerState::create(rsDesc);
+        }
+
+
 
         ribbonShader.load("Samples/Earthworks_4/hlsl/terrain/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[0]);
@@ -3964,7 +3977,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     //buildings.processGeoJSON("E:/rappersville/", "walls");
     //buildings.processGeoJSON("E:/rappersville/", "roofs");
     //buildings.processWallRoof(settings.dirRoot + "/buildings/");
-    buildings.processWallRoof("E:/rappersville/");
+    //buildings.processWallRoof("E:/rappersville/");
 
 
     //_plantMaterial::static_materials_veg.materialVector.emplace_back();
@@ -6028,7 +6041,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
           */
     }
 
-    
+
 
     if ((terrainMode == 0) || (terrainMode == 4))
     {
@@ -6083,7 +6096,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
             ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
 
-            
+
 
             ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
             ribbonShader.State()->setBlendState(split.blendstateSplines);
@@ -6141,6 +6154,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonInstanceNumber = 1;
             bufferidx = (bufferidx + 1) % 2;
             ribbonData[bufferidx]->setBlob(paraRuntime.packedRibbons, 0, paraRuntime.ribbonCount * sizeof(unsigned int) * 6);
+            
             //ribbonData->setBlob(AirSim.packedRibbons, 0, AirSim.ribbonCount * sizeof(unsigned int) * 6);
 
             ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[bufferidx]);
@@ -6155,6 +6169,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
             ribbonShader.State()->setBlendState(split.blendstateSplines);
+
+
+            gliderwingData[bufferidx]->setBlob(paraRuntime.packedWing, 0, paraRuntime.wingVertexCount * sizeof(_gliderwingVertex));
+            gliderwingShader.Vars()->setBuffer("vertexBuffer", gliderwingData[bufferidx]);
         }
 
         if ((terrainMode == 4) && paraRuntime.ribbonCount > 1)
@@ -6233,13 +6251,24 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
-        FALCOR_PROFILE("Rappersville");
+        FALCOR_PROFILE("buildings");
         rappersvilleShader.State()->setFbo(_fbo);
         rappersvilleShader.State()->setViewport(0, _viewport, true);
         rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
         rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
     }
+
+    {
+        FALCOR_PROFILE("glider wing");
+        gliderwingShader.State()->setFbo(_fbo);
+        gliderwingShader.State()->setViewport(0, _viewport, true);
+        gliderwingShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
+        gliderwingShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
+        gliderwingShader.State()->setRasterizerState(rasterstateGliderWing);
+        gliderwingShader.drawInstanced(_renderContext, paraRuntime.wingVertexCount, 1);
+    }
+
 
     {
 
