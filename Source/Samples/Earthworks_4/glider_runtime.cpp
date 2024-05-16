@@ -771,14 +771,14 @@ void _gliderRuntime::pack_canopy()
 
                 P = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS);
                 N = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS);
-                N = glm::normalize(N + cells[s].right * dR * PRES);
+                N = glm::normalize(N + cells[s].right * dR * PRES * 0.5f);
                 P += N * dC * dP * PRES;
                 
                 packWing(ROOT + P, N, UV);
 
                 P2 = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS2);
                 N2 = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS2);
-                N2 = glm::normalize(N2 + cells[s].right * dR2 * PRES);
+                N2 = glm::normalize(N2 + cells[s].right * dR2 * PRES * 0.5f);
                 P2 += N2 * dC * dP2 * PRES;
                 
                 packWing(ROOT + P2, N2, UV2);

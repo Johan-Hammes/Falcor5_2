@@ -4659,6 +4659,376 @@ void terrainManager::onGuiRender(Gui* _gui)
 }
 
 
+void terrainManager::generateGdalPhotos()
+{
+    float leftT, bottomT, rightT, topT, sizeT, sizeBrd, sizeTotal;
+    int lod = 0;
+    int x = 0;
+    int y = 0;
+    float sizeWorld = 40000;
+    float offset = -20000;
+    float scale;
+
+    std::ofstream ofs, ofSummary;
+    //ofs.open(settings.dirGis + "/photos/gdal_photos.bat");
+    ofSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary.txt");
+    ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos.bat");
+    if (ofs)
+    {
+        lod = 0;
+        scale = 1.f / (float)pow(2, lod);
+        sizeT = sizeWorld * scale;
+        sizeTotal = sizeT * tile_toBorder;
+        sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+        leftT = offset - sizeBrd;
+        bottomT = offset - sizeBrd;
+        rightT = leftT + sizeTotal;
+        topT = bottomT + sizeTotal;
+
+        std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+        ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+        ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+        ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+        ofs << "Images_2m.tif ";
+        //ofs << "Images_2m.tif A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+        //ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+        ofs << "../_temp/" << imageName << ".tif \n";
+        ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+        ofs << "\n\n\n\n\n";
+
+        ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+        ofSummary << " orthophoto/" << imageName << ".jp2\n";
+
+        lod = 4;
+        scale = 1.f / (float)pow(2, lod);
+        sizeT = sizeWorld * scale;
+        sizeTotal = sizeT * tile_toBorder;
+        sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+        for (y = 0; y < 16; y++)
+        {
+            for (x = 0; x < 16; x++)
+            {
+                leftT = offset + x * sizeT - sizeBrd;
+                bottomT = offset + (15 - y) * sizeT - sizeBrd;
+                rightT = leftT + sizeTotal;
+                topT = bottomT + sizeTotal;
+
+                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                ofs << "Images_2m.tif ";
+                //ofs << "Images_2m.tif A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                //ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                ofs << "../_temp/" << imageName << ".tif \n";
+                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+            }
+        }
+
+        ofs.close();
+        ofSummary.close();
+    }
+
+
+    
+    ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_lod_wattwil.bat");
+    if (ofs)
+    {
+        lod = 7;
+        scale = 1.f / (float)pow(2, lod);
+        sizeT = sizeWorld * scale;
+        sizeTotal = sizeT * tile_toBorder;
+        sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+        for (y = 48; y < 58; y++)
+        {
+            for (x = 64; x < 74; x++)
+            {
+                leftT = offset + x * sizeT - sizeBrd;
+                bottomT = offset + (127 - y) * sizeT - sizeBrd;
+                rightT = leftT + sizeTotal;
+                topT = bottomT + sizeTotal;
+
+                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                ofs << "Images_2m.tif ";
+                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                ofs << "../_temp/" << imageName << ".tif \n";
+                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+                
+            }
+        }
+        ofs.close();
+        
+    }
+
+
+    ofSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary_lod7.txt");
+    {
+        
+        lod = 7;
+        scale = 1.f / (float)pow(2, lod);
+        sizeT = sizeWorld * scale;
+        sizeTotal = sizeT * tile_toBorder;
+        sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+
+        // Steg
+        for (y = 24; y < 40; y++)
+        {
+            for (x = 28; x < 48; x++)
+            {
+                leftT = offset + x * sizeT - sizeBrd;
+                bottomT = offset + (127 - y) * sizeT - sizeBrd;
+                rightT = leftT + sizeTotal;
+                topT = bottomT + sizeTotal;
+
+                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+            }
+        }
+
+        // Wattwil
+        for (y = 48; y < 58; y++)
+        {
+            for (x = 64; x < 74; x++)
+            {
+                leftT = offset + x * sizeT - sizeBrd;
+                bottomT = offset + (127 - y) * sizeT - sizeBrd;
+                rightT = leftT + sizeTotal;
+                topT = bottomT + sizeTotal;
+
+                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+            }
+        }
+
+        // Walensee
+        for (y = 104; y < 128; y++)
+        {
+            for (x = 56; x < 128; x++)
+            {
+                leftT = offset + x * sizeT - sizeBrd;
+                bottomT = offset + (127 - y) * sizeT - sizeBrd;
+                rightT = leftT + sizeTotal;
+                topT = bottomT + sizeTotal;
+
+                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+            }
+        }
+
+        ofSummary.close();
+    }
+    
+}
+
+void terrainManager::bil_to_jp2Photos()
+{
+    float leftT, topT, size;
+    int lod, y, x, pixSize;
+    //char name[256];
+    std::string name;
+    std::string filename;
+    std::ifstream ifSummary;
+    
+    ifSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary_lod7.txt");
+    if (ifSummary)
+    {
+        ifSummary >> lod >> y >> x >> pixSize >>leftT >> topT >> size >> name;
+        filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+        bil_to_jp2Photos(filename, 1024, lod, y, x);
+        while (!ifSummary.eof())
+        {
+            ifSummary >> lod >> y >> x >> pixSize >> leftT >> topT >> size >> name;
+            filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+            bil_to_jp2Photos(filename, 1024, lod, y, x);
+        }
+        
+        ifSummary.close();
+    }
+    
+    /*
+    FILE* file;
+    fopen_s(&file, "E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary.txt", "r");
+    int numread;
+    do
+    {
+        char filename[256];
+        int lod, y, x, blockSize;
+        float xstart, ystart, size;
+        memset(filename, 0, 256);
+        //numread = fscanf_s(file, "%d %d %d %d %f %f %f %s", &lod, &y, &x, &blockSize, &xstart, &ystart, &size, filename, 256);
+        numread = fscanf_s(file, "%d %d %d %d %f %f %f %s", &lod, &y, &x, &blockSize, &xstart, &ystart, &size, filename, 256);
+        filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+        if (numread > 0) {
+            bil_to_jp2Photos(pathOnly + filename, blockSize, summary, lod, y, x, xstart, ystart, size);
+        }
+    } while (numread > 0);
+
+    fclose(file);
+    */
+
+}
+
+
+#pragma optimize("", off)
+
+void terrainManager::bil_to_jp2Photos(std::string file, const uint size, uint _lod, uint _y, uint _x)
+{
+    unsigned char data[1024][3][1024];
+    unsigned char data1[1024][1024];
+
+
+    ojph::codestream codestream;
+    ojph::j2c_outfile j2c_file;
+    j2c_file.open((file + ".jp2").c_str());
+    {
+        // set up
+        ojph::param_siz siz = codestream.access_siz();
+        siz.set_image_extent(ojph::point(size, size));
+        siz.set_num_components(3);
+        siz.set_component(0, ojph::point(1, 1), 8, false);
+        siz.set_component(1, ojph::point(1, 1), 8, false);
+        siz.set_component(2, ojph::point(1, 1), 8, false);
+        siz.set_image_offset(ojph::point(0, 0));
+        siz.set_tile_size(ojph::size(size, size));
+        siz.set_tile_offset(ojph::point(0, 0));
+
+        ojph::param_cod cod = codestream.access_cod();
+        cod.set_num_decomposition(5);
+        cod.set_block_dims(64, 64);
+        //if (num_precints != -1)
+        //	cod.set_precinct_size(num_precints, precinct_size);
+        //cod.set_progression_order("RPCL");
+        cod.set_progression_order("CPRL");
+        cod.set_color_transform(true);
+        cod.set_reversible(false);
+        
+        codestream.access_qcd().set_irrev_quant(0.05f);
+        codestream.set_planar(false);
+
+
+
+
+
+        FILE* bilData = fopen((file + ".bil").c_str(), "rb");
+        if (bilData)
+        {
+            fread(data, sizeof(char), size * size * 3, bilData);
+            codestream.write_headers(&j2c_file);
+
+            int next_comp;
+            ojph::line_buf* cur_line = codestream.exchange(NULL, next_comp);
+
+            //for (uint cmp = 0; cmp < 3; cmp++)
+            {
+                for (uint i = 0; i < size; i++)
+                {
+                    //base->read(cur_line, next_comp);
+                    //fread(data, sizeof(float), size, bilData);
+
+                    for (uint cmp = 0; cmp < 3; cmp++)
+                    {
+
+                        if (cmp != next_comp)
+                        {
+                            bool cm = true;
+                        }
+                        int32_t* dp = cur_line->i32;
+                        for (uint j = 0; j < size; j++) {
+                            *dp++ = (int32_t)data[i][cmp][j];
+                        }
+                        cur_line = codestream.exchange(cur_line, next_comp);
+                    }
+                }
+            }
+            fclose(bilData);
+
+            if (_lod == 4 && _y == 4 && _x == 13)
+            {
+                std::ofstream ofs;
+                ofs.open("E:/terrains/switserland_Steg/gis/temp_rgb.raw", std::ios::binary);
+                if (ofs)
+                {
+                    for (uint i = 0; i < size; i++) {
+                        for (uint j = 0; j < size; j++) {
+                            ofs.write((char*)&data[i][0][j], 1);
+                            ofs.write((char*)&data[i][1][j], 1);
+                            ofs.write((char*)&data[i][2][j], 1);
+                        }
+                    }
+                    ofs.close();
+                }
+
+                
+                ofs.open("E:/terrains/switserland_Steg/gis/temp_red.raw", std::ios::binary);
+                if (ofs)
+                {
+                    for (uint i = 0; i < size; i++) {
+                        for (uint j = 0; j < size; j++) {
+                            data1[i][j] = data[i][0][j];
+                        }
+                    }
+
+                    ofs.write((char*)data1, 1024*1024);
+                    
+                    ofs.close();
+                }
+
+                ofs.open("E:/terrains/switserland_Steg/gis/temp_green.raw", std::ios::binary);
+                if (ofs)
+                {
+                    for (uint i = 0; i < size; i++) {
+                        for (uint j = 0; j < size; j++) {
+                            ofs.write((char*)&data[i][1][j], 1);
+                        }
+                    }
+
+                    ofs.close();
+                }
+
+                ofs.open("E:/terrains/switserland_Steg/gis/temp_blue.raw", std::ios::binary);
+                if (ofs)
+                {
+                    for (uint i = 0; i < size; i++) {
+                        for (uint j = 0; j < size; j++) {
+                            ofs.write((char*)&data[i][2][j], 1);
+                        }
+                    }
+
+                    ofs.close();
+                }
+            }
+        }
+
+
+    }
+    codestream.flush();
+    codestream.close();
+
+
+    //fprintf(summary, "%d %d %d %d %f %f %f %f %f elevation/hgt_%d_%d_%d.jp2\n", _lod, _y, _x, size, _xstart, _ystart, _size, data_min, (data_max - data_min), _lod, _y, _x);
+}
+
+
+
+
+
+
+
 
 void terrainManager::bil_to_jp2()
 {
@@ -4807,6 +5177,14 @@ void terrainManager::onGuiMenubar(Gui* pGui)
         if (ImGui::MenuItem("process bil -> jp2"))
         {
             bil_to_jp2();
+        }
+        if (ImGui::MenuItem("generatePhotoGdal"))
+        {
+            generateGdalPhotos();
+        }
+        if (ImGui::MenuItem("process bil -> jp2 - Photos"))
+        {
+            bil_to_jp2Photos();
         }
         if (ImGui::MenuItem("settings"))
         {

@@ -90,33 +90,46 @@ float4 psMain(gliderwingVSOut vIn) : SV_TARGET0
     //colour = float3(0.1, 0.015, 0.01) * 0.1;
     
 
-    if (vIn.texCoords.y > 0.37 && vIn.texCoords.y < 0.60)
+    if (vIn.texCoords.y > 0.47 && vIn.texCoords.y < 0.60)
     {
-        diffuse = float3(0.5, 0.8, 0.1);
+        diffuse = float3(0.2, 0.3, 0.5) * 0.5;
 
         if (vIn.texCoords.y > 0.42 && vIn.texCoords.y < 0.47)
         {
-            diffuse = float3(0.15, 0.15, 0.15);
+            //diffuse = float3(0.15, 0.15, 0.15);
         }
     }
     else
     {
         if (vIn.texCoords.x > 0.45 && vIn.texCoords.x < 0.55)
         {
-            diffuse = float3(0.6, 0.1, 0.1);
+            //diffuse = float3(0.6, 0.1, 0.1);
         }
     }
 
-    if (vIn.texCoords.x > 0.92 || vIn.texCoords.x < 0.08)
+
+    float dv = 0.2 * saturate((vIn.texCoords.x - 0.7) / 0.3);
+
+    if (vIn.texCoords.y > 0.6 && vIn.texCoords.y < 0.8 + pow(dv, 1.5))
     {
-        diffuse = float3(0.0, 0.1, 0.2);
+        diffuse = float3(0.5, 0.3, 0.1);
+    }
+
+    if (vIn.texCoords.y > 0.2 && vIn.texCoords.y < 0.4)
+    {
+        diffuse = float3(0.5, 0.3, 0.1);
+    }
+    
+    if ((vIn.texCoords.x > 0.86 && vIn.texCoords.x < 0.88) || (vIn.texCoords.x < 0.14 && vIn.texCoords.x > 0.12))
+    {
+        diffuse = float3(0.5, 0.2, 0.1);
     }
     
     
     float rib = frac(vIn.texCoords.x * 50);
     if (rib > 0.95)
     {
-        diffuse *= 0.9;
+        //diffuse *= 0.9;
     }
     
 	

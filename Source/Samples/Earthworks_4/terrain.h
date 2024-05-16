@@ -963,6 +963,10 @@ public:
     void bil_to_jp2();
     void bil_to_jp2(std::string file, const uint size, FILE* summary, uint _lod, uint _y, uint _x, float _xstart, float _ystart, float _size);
 
+    void generateGdalPhotos();
+    void bil_to_jp2Photos();
+    void bil_to_jp2Photos(std::string file, const uint size, uint _lod, uint _y, uint _x);
+
     void clearCameras();
     void setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution);
     bool update(RenderContext* pRenderContext);

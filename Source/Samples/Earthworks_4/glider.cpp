@@ -1034,7 +1034,7 @@ void _gliderBuilder::buildWing()
         float chordLength = cellChord[s];
         for (int c = 0; c < chordSize; c++)
         {
-            float wingY = wingshape[c].y * chordLength;
+            float wingY = wingshape[c].y * chordLength * 0.8;
             // now crimp edges
             if (s == 0 || s == (spanSize - 1))
             {

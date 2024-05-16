@@ -85,11 +85,11 @@ float4 sunLight(float3 posKm)
 
 float4 psMain(buildingFarVSOut vIn) : SV_TARGET0
 {
-    float3 colour = 0.25f;
+    float3 colour = 0.35f;
     //colour = float3(0.1, 0.015, 0.01) * 0.1;
     if (vIn.normal.y > 0.1f)
     {
-        colour = float3(0.35, 0.15, 0.1);
+        colour = float3(0.2, 0.15, 0.15);
     }
 	
 	
