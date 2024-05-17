@@ -20,6 +20,9 @@ RWTexture2D<float> gOutput;
 RWTexture2D<float4> gDebug;
 //RWTexture2D<float> gOuthgt_TEMPTILLTR;		// just here to replicate hieghts untill I add the rende to texture pass
 
+Texture2D<float4> gInputAlbedo;
+RWTexture2D<float4> gOutputAlbedo;
+RWTexture2D<float4> gOutputPermanence;
 
 cbuffer gConstants
 {
@@ -27,6 +30,7 @@ cbuffer gConstants
 	float2 size;
 	float hgt_offset;
 	float hgt_scale;
+    int isHeight;
 };
 
 
@@ -51,71 +55,61 @@ void main(int2 crd : SV_DispatchThreadId)
 	float2 invTexSize = 1.0 / texSize;
 
 
-	float2 iTc = ((crd - 4.0)  * size + offset) * texSize - 0.5;
+	
+
+    if (isHeight == 1)
+    {
+        float2 iTc = ((crd - 4.0) * size + offset) * texSize - 0.5;
 	//float2 tc = floor(iTc-0.5) + 0.5;											// This term is very diffirent in pixel shader   floor(iTc - 0.5) + 0.5; for alf pixel offsets
     //float2 tc = floor(iTc);
     //iTc.x -= 1;
+        
+        float2 f = frac(iTc); // iTc - tc;
+        iTc -= f;
 
-    float2 f = frac(iTc);// iTc - tc;
-    iTc -= f;
+        float4 xcubic = cubic(f.x);
+        float4 ycubic = cubic(f.y);
 
-    float4 xcubic = cubic(f.x);
-    float4 ycubic = cubic(f.y);
+        float4 c = iTc.xxyy + float2(-0.5, +1.5).xyxy;
 
-    float4 c = iTc.xxyy + float2(-0.5, +1.5).xyxy;
+        float4 s = float4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
+        float4 offsetB = c + float4(xcubic.yw, ycubic.yw) / s;
 
-    float4 s = float4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
-    float4 offsetB = c + float4(xcubic.yw, ycubic.yw) / s;
+        offsetB *= invTexSize.xxyy;
 
-    offsetB *= invTexSize.xxyy;
-
-    float sample0 = gInput.SampleLevel(linearSampler, offsetB.xz, 0).r;
-    float sample1 = gInput.SampleLevel(linearSampler, offsetB.yz, 0).r;
-    float sample2 = gInput.SampleLevel(linearSampler, offsetB.xw, 0).r;
-    float sample3 = gInput.SampleLevel(linearSampler, offsetB.yw, 0).r;
-
-
-    float sx = s.x / (s.x + s.y);
-    float sy = s.z / (s.z + s.w);
-
-    float H =  lerp(   lerp(sample3, sample2, sx), lerp(sample1, sample0, sx), sy);
+        float sample0 = gInput.SampleLevel(linearSampler, offsetB.xz, 0).r;
+        float sample1 = gInput.SampleLevel(linearSampler, offsetB.yz, 0).r;
+        float sample2 = gInput.SampleLevel(linearSampler, offsetB.xw, 0).r;
+        float sample3 = gInput.SampleLevel(linearSampler, offsetB.yw, 0).r;
 
 
-    gOutput[crd] = (H * hgt_scale) + hgt_offset;
+        float sx = s.x / (s.x + s.y);
+        float sy = s.z / (s.z + s.w);
 
-/*
-	float2 f2 = f * f;
-	float2 f3 = f2 * f; 
-
-	float2 w0 = f2 - (0.5 * (f3 + f));
-	float2 w1 = 1.5 * f3 - 2.5 * f2 + 1.0;
-	float2 w3 = 0.5 * (f3 - f2);
-	float2 w2 = 1.0 - w0 - w1 - w3;
-
-	float2 s0 = w0 + w1;
-	float2 s1 = w2 + w3;
-
-	float2 f0 = w1 / s0;
-	float2 f1 = w3 / s1;
-
-	float2 t0 = tc - 1 + f0;
-	float2 t1 = tc + 1 + f1;
-
-	t0 *= invTexSize;
-	t1 *= invTexSize;
-
-	float4 result =   (gInput.SampleLevel(linearSampler, float2(t0.x, t0.y), 0) * s0.x
-					+ gInput.SampleLevel(linearSampler, float2(t1.x, t0.y), 0) * s1.x) * s0.y
-					+ (gInput.SampleLevel(linearSampler, float2(t0.x, t1.y), 0) * s0.x
-					+ gInput.SampleLevel(linearSampler, float2(t1.x, t1.y), 0) * s1.x) * s1.y;
+        float H = lerp(lerp(sample3, sample2, sx), lerp(sample1, sample0, sx), sy);
 
 
+        gOutput[crd] = (H * hgt_scale) + hgt_offset;
+    }
+    else
+    {
+        float2 iTc = offset + ((crd - 4.0) * size);
+        //iTc = frac(crd / 256);
+        //iTc.x = crd.x / 512;
+        float4 col = gInputAlbedo.SampleLevel(linearSampler, iTc, 0);
+        //col *= 0.9;
+        col.r = pow(col.r, 0.8);
+        col.g = pow(col.g, 0.95);
+        col.b = pow(col.b, 0.8);
+        //col = pow(col, 0.8);
+        col *= 0.9;
+        col = max(0.03, col);
+        gOutputAlbedo[crd] = col;
+        //gOutputAlbedo[crd].rg = iTc;
+        //gOutputAlbedo[crd].b = 0;
 
-    result.r *= hgt_scale;
-	result.r += hgt_offset;
-	
-	gOutput[crd] = result.r;
-    */
+    }
+
 }
 
 

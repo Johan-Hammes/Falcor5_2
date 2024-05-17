@@ -30,7 +30,7 @@
 #include "imgui.h"
 #include "Core/Platform/MonitorInfo.h"
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 FILE* logFile;
 
@@ -238,7 +238,7 @@ void Earthworks_4::loadColorCube(std::string name)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
-    global_sun_direction = glm::normalize(float3(-1, -0.244f, 0));
+    global_sun_direction = glm::normalize(float3(-1, -0.444f, 0));
 
     static bool first = true;
     if (first)

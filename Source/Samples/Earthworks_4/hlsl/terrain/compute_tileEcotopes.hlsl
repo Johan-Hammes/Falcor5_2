@@ -239,7 +239,7 @@ void main(int2 crd : SV_DispatchThreadId)
         // write final colours
         if (debug > 12) {
             //gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
-            gAlbedo[crd] = lerp(gAlbedo[crd], col_new *2, permanence.g);
+  //          gAlbedo[crd] = lerp(gAlbedo[crd], col_new *2, permanence.g);
             //gAlbedo[crd] = gInEct[1][crd].rgb;
         }
     }

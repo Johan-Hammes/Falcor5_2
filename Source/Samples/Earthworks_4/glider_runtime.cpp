@@ -1409,6 +1409,50 @@ void _swissBuildings::exportBuilding(std::string _path, std::vector<float3> _v, 
 
 void _swissBuildings::processWallRoof(std::string _path)
 {
+    // misuse for thermal process
+    int cnt, alt1, alt2, alt3, year, month, day, hours, minutes, flightseconds, id;
+    double latt, lon, lattBottom, lonBottom, lattTop, lonTop;
+    std::string date, time;
+    
+
+    std::ofstream ofs;
+    ofs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.csv");
+    std::ifstream ifs;
+    ifs.open("E:/thermal_waalenstadt.csv");
+    if (ifs)
+    {
+        while (!ifs.eof())
+        {
+            ifs >> cnt;
+            ifs >> latt >> lon >> alt1;
+            ifs >> lattBottom >> lonBottom >> alt2;
+            ifs >> lattTop >> lonTop >> alt3;
+            //ifs >> date >> time;
+            ifs >> year >> month >> day >> hours >> minutes;
+            ifs >> flightseconds >> id;
+
+            if (lon > 9.25f && lon < 9.333 && latt > 47.1 && latt < 47.2 && month >=7 && month <=8 && hours >= 12 &&
+                lonTop > lonBottom)
+            {
+                ofs << cnt << " ";
+                ofs << latt << " " << lon << " " << alt1 << " ";
+                ofs << lattBottom << " " << lonBottom << " " << alt2 << " ";
+                ofs << lattTop << " " << lonTop << " " << alt3 << " ";
+                //ofs << date << " " << time << " ";
+                ofs << year << " " << month << " " << day << " " << hours << " " << minutes << "  ";
+                ofs << flightseconds << " " << id << "\n";
+            }
+        }
+
+
+        ifs.close();
+        ofs.close();
+    }
+    return;
+
+
+
+
     Assimp::Importer importer;
     unsigned int flags = aiProcess_Triangulate | aiProcess_PreTransformVertices;
     const aiScene* sceneWall = importer.ReadFile((_path + "optimized.dae").c_str(), flags);

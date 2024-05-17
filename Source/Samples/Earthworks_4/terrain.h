@@ -901,6 +901,7 @@ public:
     uint    numQuads = 0;
     uint    numPlants = 0;
     uint    elevationHash;
+    uint    imageHash;
 };
 
 
@@ -959,6 +960,7 @@ public:
     void allocateTiles(uint numT);			// ??? FIXME pass shader in as well to allocate GPU memory
     void reset(bool _fullReset = false);
     void loadElevationHash(RenderContext* pRenderContext);
+    void loadImageHash(RenderContext* pRenderContext);
 
     void bil_to_jp2();
     void bil_to_jp2(std::string file, const uint size, FILE* summary, uint _lod, uint _y, uint _x, float _xstart, float _ystart, float _size);
@@ -981,6 +983,7 @@ private:
     void markChildrenForRemove(quadtree_tile* _tile);
 
     void hashAndCache(quadtree_tile* pTile);
+    void hashAndCacheImages(quadtree_tile* pTile);
     void setChild(quadtree_tile* pTile, int y, int x);
     void splitOne(RenderContext* _renderContext);
     void splitChild(quadtree_tile* _pTile, RenderContext* _renderContext);
@@ -1082,6 +1085,9 @@ private:
         Texture::SharedPtr	  texture = nullptr;
     };
     LRUCache<uint32_t, textureCacheElement> elevationCache;
+
+    std::map<uint32_t, heightMap> imageTileHashmap;
+    LRUCache<uint32_t, textureCacheElement> imageCache;
 
     terrafectorSystem		terrafectors;
     ecotopeSystem			mEcosystem;
