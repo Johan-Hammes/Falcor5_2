@@ -36,7 +36,7 @@
 
 
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 uint menuHeight = 64;
 Kolskoot::UniquePtr pKolskoot;
@@ -327,14 +327,14 @@ void _setup::load()
     {
         std::ifstream is("screenInfo.json");
         cereal::JSONInputArchive archive(is);
-        serialize(archive, 100);
+        serialize(archive, 101);
     }
 }
 void _setup::save()
 {
     std::ofstream os("screenInfo.json");
     cereal::JSONOutputArchive archive(os);
-    serialize(archive, 100);
+    serialize(archive, 101);
 }
 
 
@@ -1165,12 +1165,12 @@ float quickRange::renderScope(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     auto& target = Ex.target;
 
     // fixed height of 200 pixels
-    float2 pixSize = target.size * (_size / target.size.y);
+    float2 pixSize = target.size * (_size / target.size.y) * 0.95f;
     float2 topleft = float2(10, 10);// Kolskoot::setupInfo.laneCenter(_lane, Ex.pose);
     if (_inst)
     {
-        pixSize = target.size * (_size / target.size.x);
-        topleft = float2(0, 10);
+        pixSize = target.size * (_size / target.size.x) * 0.95f;
+        topleft = float2(10, 10);
     }
     //topleft.y = _y;
     //topleft -= (pixSize * 0.5f);
@@ -1278,7 +1278,7 @@ void quickRange::renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::
                             float w = renderScope(_gui, _window, _bulletHole, lane, scopeWidth, 10, true);
 
                             //ImGui::SetCursorPos(ImVec2(scopeWidth - 150, 54));
-                            ImGui::SetCursorPos(ImVec2(10, scopeHeight - 60));
+                            ImGui::SetCursorPos(ImVec2(10, scopeHeight - 80));
                             ImGui::Text("%d/%d", score.lane_exercise.at(lane).at(currentExercise).score, target.maxScore * Ex.numRounds);
                         }
                         ImGui::EndChildFrame();
@@ -1287,7 +1287,7 @@ void quickRange::renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::
                     ImGui::PopStyleColor();
                 }
 
-                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - 50));
+                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - menuHeight - 80));
                 ImGui::Text(".");   // just somethign to force teh down lines
 
                 ImGui::NextColumn();
@@ -1424,7 +1424,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                     adjustBoresight(lane);                                  // test if we are adjusting boresigth and do it
                 }
 
-                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - 50));
+                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - menuHeight - 80));
                 ImGui::Text(".");   // just somethign to force teh down lines
 
                 ImGui::NextColumn();
@@ -1459,7 +1459,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
                 if (Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane])
                 {
-                    float scopeWidth = laneWidth * 0.6;
+                    float scopeWidth = laneWidth - 10;// *0.6;
                     float scopeHeight = scopeWidth * 2.0;
                     ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 20, 20, 30));
                     ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(100, 100, 100, 255));
@@ -1469,7 +1469,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                         {
                             float w = renderScope(_gui, _window, _bulletHole, lane, scopeWidth, 10, true);
 
-                            ImGui::SetCursorPos(ImVec2(10, scopeHeight-60));
+                            ImGui::SetCursorPos(ImVec2(10, scopeHeight-80));
                             ImGui::Text("%d/%d", score.lane_exercise.at(lane).at(currentExercise).score, target.maxScore * Ex.numRounds);
                         }
                         ImGui::EndChildFrame();
@@ -1478,7 +1478,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                     ImGui::PopStyleColor();
                 }
 
-                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - 50));
+                ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - menuHeight - 80));
                 ImGui::Text(".");   // just somethign to force teh down lines
 
                 ImGui::NextColumn();
@@ -2050,14 +2050,14 @@ void Kolskoot::renderTargets(Gui* _gui, Gui::Window& _window, uint2 _size)
 void Kolskoot::renderLiveInstructor(Gui* _gui, Gui::Window& _window, uint2 _size)
 {
     QR.renderLiveInstructor(_gui, _window, bulletHole);
-    /*
+    
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
         nextButton();
         menuButton();
     }
     ImGui::PopFont();
-    */
+    
 }
 
 
@@ -2944,13 +2944,17 @@ void Kolskoot::mouseShot()
         ImVec2 mouse = ImGui::GetMousePos();
         if ((mouse.y > 150) && mouse.y < (screenSize.y - 100))         // ignore the bottom of teh screen so we can click next etc
         {
-            int lane = (int)floor(mouse.x / (screenSize.x / setup.numLanes));
-            if (QR.getRoundsLeft(lane) > 0)
+            float offsetX = mouse.x - setup.XOffset3D;
+            int lane = (int)floor(offsetX / (screenSize.x / setup.numLanes));
+            if ((lane >= 0) && (lane < setup.numLanes))
             {
-                QR.mouseShot(mouse.x, mouse.y, setup);
-                zigbeeFire(lane);                   // R4 / AK
+                if (QR.getRoundsLeft(lane) > 0)
+                {
+                    QR.mouseShot(offsetX, mouse.y, setup);
+                    zigbeeFire(lane);                   // R4 / AK
 
-                PlaySoundA((LPCSTR)(setup.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+                    PlaySoundA((LPCSTR)(setup.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+                }
             }
         }
     }
