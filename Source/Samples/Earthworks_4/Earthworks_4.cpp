@@ -238,7 +238,7 @@ void Earthworks_4::loadColorCube(std::string name)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
-    global_sun_direction = glm::normalize(float3(-1, -0.444f, 0));
+    global_sun_direction = glm::normalize(float3(-1, -0.344f, 0));
 
     static bool first = true;
     if (first)
@@ -332,7 +332,8 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     {
         Sleep(30);      // aim for 15fps in this mode
     }*/
-    
+
+    Sleep(2);
 }
 
 

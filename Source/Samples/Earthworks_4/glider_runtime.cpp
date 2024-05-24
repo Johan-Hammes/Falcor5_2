@@ -1104,6 +1104,36 @@ glm::dvec3 _swissBuildings::reproject(double x, double y, double z)
     return vout;
 }
 
+glm::dvec3 _swissBuildings::reprojectLL(double latt, double lon, double alt)
+{
+    glm::dvec2 rp_A = float2(-12832.706486136117746, 14467.072170339033619);
+    glm::dvec2 rp_B = float2(17361.895270298864489, 14478.709804310250547);
+    glm::dvec2 rp_C = float2(17489.612316045942862, -28879.451053363558458);
+    glm::dvec2 rp_D = float2(-12927.105836690829165, -28891.100647661860421);
+    double rp_left = 8.9;
+    double rp_right = 9.3;
+    double rp_dW = rp_right - rp_left;
+    double rp_top = 47.4;
+    double rp_bottom = 47.01;
+    double rp_dH = rp_top - rp_bottom;
+
+
+    double dx = (lon - rp_left) / rp_dW;
+    double dz = (latt - rp_bottom) / rp_dH;
+    glm::dvec2 A1 = glm::lerp(rp_D, rp_C, dx);    // bottom
+    glm::dvec2 A2 = glm::lerp(rp_A, rp_B, dx);    // tpp
+    glm::dvec2 P = glm::lerp(A1, A2, dz);
+
+    glm::dvec3 vout;
+    vout.x = P.x;
+    vout.y = alt;
+    vout.z = -P.y;
+    return vout;
+}
+
+
+
+
 //#include "json.hpp
 #include "json.hpp"
 using json = nlohmann::json;
@@ -1413,10 +1443,13 @@ void _swissBuildings::processWallRoof(std::string _path)
     int cnt, alt1, alt2, alt3, year, month, day, hours, minutes, flightseconds, id;
     double latt, lon, lattBottom, lonBottom, lattTop, lonTop;
     std::string date, time;
-    
 
-    std::ofstream ofs;
+    uint dCount = 0;
+    float4 data[1024][3];
+
+    std::ofstream ofs, ofsBin;
     ofs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.csv");
+    ofsBin.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.raw", std::ios::binary);
     std::ifstream ifs;
     ifs.open("E:/thermal_waalenstadt.csv");
     if (ifs)
@@ -1441,12 +1474,29 @@ void _swissBuildings::processWallRoof(std::string _path)
                 //ofs << date << " " << time << " ";
                 ofs << year << " " << month << " " << day << " " << hours << " " << minutes << "  ";
                 ofs << flightseconds << " " << id << "\n";
+
+
+                float3 ground = reprojectLL(latt, lon, alt1);
+                float3 bottom = reprojectLL(lattBottom, lonBottom, alt2);
+                float3 top = reprojectLL(lattTop, lonTop, alt3);
+                float speed = (float)(alt3 - alt2) / (float)flightseconds;
+                //ofsBin << ground.x << ground.y << ground.z << speed;
+                //ofsBin << bottom.x << bottom.y << bottom.z << speed;
+                //ofsBin << top.x << top.y << top.z << speed;
+
+                
+                data[dCount][0] = float4(ground.x, ground.y, ground.z, speed);
+                data[dCount][1] = float4(bottom.x, bottom.y, bottom.z, speed);
+                data[dCount][2] = float4(top.x, top.y, top.z, speed);
+                dCount++;
             }
         }
 
+        ofsBin.write((char*)data, sizeof(float4) * 3 * dCount);
 
         ifs.close();
         ofs.close();
+        ofsBin.close();
     }
     return;
 

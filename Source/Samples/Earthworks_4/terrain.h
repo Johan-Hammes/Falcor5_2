@@ -30,15 +30,23 @@
 #include "computeShader.h"
 #include "pixelShader.h"
 
+#include <thread>
+
 #include"terrafector.h"
 #include "roadNetwork.h"
 #include "Sprites.h"
 #include "ecotope.h"
 
-#include "../../external/cereal-master/include/cereal/cereal.hpp"
-#include "../../external/cereal-master/include/cereal/archives/binary.hpp"
-#include "../../external/cereal-master/include/cereal/archives/json.hpp"
-#include "../../external/cereal-master/include/cereal/archives/xml.hpp"
+#include "cereal/cereal.hpp"
+#include "cereal/archives/binary.hpp"
+#include "cereal/archives/json.hpp"
+#include "cereal/archives/xml.hpp"
+#include "cereal/types/map.hpp"
+#include "cereal/types/vector.hpp"
+#include "cereal/types/list.hpp"
+#include "cereal/types/array.hpp"
+#include "cereal/types/string.hpp"
+
 #include <fstream>
 
 #include "../../external/openJPH/include/openjph/ojph_arg.h"
@@ -940,6 +948,100 @@ struct heightMap {
     uint x;
 };
 
+struct jp2Map {
+    void set(uint lod, uint y, uint x, float wSize = 40000.f, float wOffset = -20000.f);
+    void save(std::ofstream &_os);
+    void saveBinary(std::ofstream &_os);
+    void loadBinary(std::ifstream &_is);
+
+    uint lod;
+    uint y;
+    uint x;
+
+    float2 origin;
+    float size;
+
+    float hgt_offset = 0;       // elevation on;y
+    float hgt_scale = 0;
+
+    uint fileOffset = 0;
+    uint sizeInBytes = 0;
+
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(CEREAL_NVP(lod));
+        archive(CEREAL_NVP(y));
+        archive(CEREAL_NVP(x));
+
+        archive(CEREAL_NVP(origin.x));
+        archive(CEREAL_NVP(origin.y));
+        archive(CEREAL_NVP(size));
+
+        archive(CEREAL_NVP(hgt_offset));
+        archive(CEREAL_NVP(hgt_scale));
+
+        archive(CEREAL_NVP(fileOffset));
+        archive(CEREAL_NVP(sizeInBytes));
+    }
+};
+
+struct jp2File
+{
+    void save(std::ofstream &_os);
+    void saveBinary(std::ofstream &_os);
+    void loadBinary(std::ifstream &_is);
+    std::string filename;
+    std::vector<jp2Map> tiles;
+    uint sizeInBytes;
+    uint32_t hash;
+
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(CEREAL_NVP(filename));
+        archive(CEREAL_NVP(hash));
+        archive(CEREAL_NVP(sizeInBytes));
+        archive(CEREAL_NVP(tiles));
+    }
+};
+
+
+struct jp2data {
+    std::vector<unsigned char> data;
+};
+
+struct jp2Dir
+{
+    void save(std::string _name);
+    void load(std::string _name);
+    void cache0(std::string _path);
+    void cacheHash(uint32_t hash);
+    std::string path;
+
+
+    void saveBinary(std::string _name);
+    void loadBinary(std::string _name);
+
+
+    std::vector<jp2File> files;
+
+    std::map<uint32_t, uint> fileHashmap;
+    std::map<uint32_t, uint2> tileHash;
+    LRUCache<uint32_t, std::shared_ptr<std::vector<unsigned char>>> cache;
+    //LRUCache<uint32_t, std::vector<unsigned char>> cache;
+    std::vector<unsigned char> dataRoot;
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(files);
+    }
+};
+
+
 class terrainManager
 {
 public:
@@ -966,8 +1068,11 @@ public:
     void bil_to_jp2(std::string file, const uint size, FILE* summary, uint _lod, uint _y, uint _x, float _xstart, float _ystart, float _size);
 
     void generateGdalPhotos();
+    void writeGdal(jp2Map _map, std::ofstream &_gdal, std::string _input);
+    void writeGdalClear(std::ofstream &_gdal);
     void bil_to_jp2Photos();
     void bil_to_jp2Photos(std::string file, const uint size, uint _lod, uint _y, uint _x);
+    uint bil_to_jp2PhotosMemory(std::ofstream& _file, std::string filename, const uint size, uint _lod, uint _y, uint _x);
 
     void clearCameras();
     void setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::mat4 projMatrix, float3 position, bool b_use, float _resolution);
@@ -1051,6 +1156,10 @@ private:
     float ribbonSpacing = 3.0f;             // the size fo the extents
     bool spacingFromExtents = true;
 
+    pixelShader thermalsShader;
+    Buffer::SharedPtr       thermalsData;
+    uint numThermals;
+
     public:
     pixelShader         rappersvilleShader;
     Buffer::SharedPtr   rappersvilleData;
@@ -1086,8 +1195,9 @@ private:
     };
     LRUCache<uint32_t, textureCacheElement> elevationCache;
 
-    std::map<uint32_t, heightMap> imageTileHashmap;
-    LRUCache<uint32_t, textureCacheElement> imageCache;
+    jp2Dir imageDirectory;  
+    //std::map<uint32_t, heightMap> imageTileHashmap;
+    LRUCache<uint32_t, textureCacheElement> imageCache; // move t indese jp2 calss
 
     terrafectorSystem		terrafectors;
     ecotopeSystem			mEcosystem;

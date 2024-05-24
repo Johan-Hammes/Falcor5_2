@@ -3734,6 +3734,30 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         triangleShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         triangleShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
 
+
+        {
+            
+            numThermals = 287;
+            std::vector<float4> thermals;
+            thermals.resize(numThermals);
+            std::ifstream ifs;
+            ifs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.raw", std::ios::binary);
+            if (ifs)
+            {
+                ifs.read((char*)thermals.data(), numThermals * 3  * sizeof(float4));
+                ifs.close();
+            }
+            thermalsData = Buffer::createStructured(sizeof(float4), numThermals * 3); // just a nice amount for now
+            thermalsData->setBlob(thermals.data(), 0, numThermals * 3 * sizeof(float4));
+
+            
+            thermalsShader.load("Samples/Earthworks_4/hlsl/terrain/render_thermalRibbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+            thermalsShader.Vars()->setBuffer("vertexBuffer", thermalsData);        // WHY BOTH
+            thermalsShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+        }
+
+        
+
         vegetation.skyTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_bc.dds", false, true);
         vegetation.envTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_IR_bc.dds", false, true);
         triangleShader.Vars()->setTexture("gSky", vegetation.skyTexture);
@@ -3933,7 +3957,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     elevationCache.resize(45);
     loadElevationHash(pRenderContext);
 
-    imageCache.resize(145);
+    imageCache.resize(45);
     loadImageHash(pRenderContext);
 
     init_TopdownRender();
@@ -3983,7 +4007,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     //buildings.processGeoJSON("E:/rappersville/", "roofs");
     //buildings.processWallRoof(settings.dirRoot + "/buildings/");
     //buildings.processWallRoof("E:/rappersville/");
-    //buildings.processWallRoof("E:/rappersville/");
+    buildings.processWallRoof("E:/rappersville/");
 
 
     //_plantMaterial::static_materials_veg.materialVector.emplace_back();
@@ -4196,6 +4220,7 @@ void terrainManager::loadElevationHash(RenderContext* pRenderContext)
 
 void terrainManager::loadImageHash(RenderContext* pRenderContext)
 {
+    /*
     heightMap map;
     int texSize;
     std::ifstream ifs;
@@ -4213,6 +4238,16 @@ void terrainManager::loadImageHash(RenderContext* pRenderContext)
         }
         ifs.close();
     }
+    */
+
+    std::string fullpath = settings.dirRoot + "/orthophotos.json";
+    imageDirectory.load(fullpath);
+    imageDirectory.cache0(settings.dirRoot + "/orthophoto/");
+    //and load 0, 0, 0
+    
+    //imageDirectory.cache.set(imageDirectory.files[0].hash, )
+
+    
 }
 
 
@@ -4689,8 +4724,340 @@ void terrainManager::onGuiRender(Gui* _gui)
 }
 
 
+// Fixme input files to a list on disk
+void terrainManager::writeGdal(jp2Map _map, std::ofstream &_gdal, std::string _input)
+{
+    std::string imageName = "img_" + std::to_string(_map.lod) + "_" + std::to_string(_map.y) + "_" + std::to_string(_map.x);
+    //_gdal << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+    _gdal << "gdalwarp -t_srs " << settings.projection;
+    _gdal << " -te " << _map.origin.x << " " << (-1 * _map.origin.y) - _map.size << " " << _map.origin.x + _map.size << " " << (- 1 * _map.origin.y) << " ";
+    _gdal << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+    _gdal << _input << " ";
+    _gdal << "../_temp/" << imageName << ".tif \n";
+    _gdal << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n";
+}
+
+void terrainManager::writeGdalClear(std::ofstream &_gdal)
+{
+    _gdal << "\n\n";
+    _gdal << "del \"../_temp/*.tif\"\n";
+    _gdal << "del \"../_temp/*.hdr\"\n";
+    _gdal << "del \"../_temp/*.prj\"\n";
+    _gdal << "del \"../_temp/*.xml\"\n";
+    _gdal << "\n\n";
+}
+
+
+void jp2Map::set(uint _lod, uint _y, uint _x, float _wSize, float _wOffset)
+{
+    lod = _lod;
+    y = _y;
+    x = _x;
+
+    float scale = 1.f / (float)pow(2, lod);
+    float sizeT = _wSize * scale;
+    float sizeTotal = sizeT * tile_toBorder;
+    float sizeBorder = (sizeTotal - sizeT) / 2.f;
+
+    size = sizeTotal;
+    origin.x = _wOffset - sizeBorder + (x * sizeT);
+    origin.y = _wOffset - sizeBorder + (y * sizeT);
+}
+
+
+void jp2Map::save(std::ofstream &_os)
+{
+    _os << lod << " " << y << " " << x << " " << origin.x << " " << origin.y << " " << size << " ";
+    _os << hgt_offset << " " << hgt_scale << " " << fileOffset << "\n";
+}
+
+void jp2Map::saveBinary(std::ofstream &_os)
+{
+    _os << lod << y << x << origin.x << origin.y << size << hgt_offset << hgt_scale << fileOffset;
+}
+
+void jp2Map::loadBinary(std::ifstream &_is)
+{
+    _is >> lod >> y >> x >> origin.x >> origin.y >> size >> hgt_offset >> hgt_scale >> fileOffset;
+}
+
+
+
+
+void jp2File::save(std::ofstream &_os)
+{
+    _os << filename << "\n";
+    for (auto& T : tiles)
+    {
+        T.save(_os);
+    }
+}
+
+void jp2File::saveBinary(std::ofstream &_os)
+{
+    _os << filename << "\n";
+    uint numTiles = tiles.size();
+    _os << numTiles;
+    for (auto& T : tiles)
+    {
+        T.saveBinary(_os);
+    }
+}
+
+void jp2File::loadBinary(std::ifstream &_is)
+{
+    uint numTiles;
+    _is >> filename;
+    _is >> numTiles;
+    for (int i = 0; i < numTiles; i++)
+    {
+        tiles.emplace_back();
+        tiles.back().loadBinary(_is);
+    }
+}
+
+
+
+
+
+void jp2Dir::save(std::string _name)
+{
+    std::ofstream os(_name.c_str());
+    if (os.good()) {
+        cereal::JSONOutputArchive archive(os);
+        serialize(archive);
+        /*
+        for (auto F : files)
+        {
+            F.save(os);
+        }*/
+    }
+}
+
+void jp2Dir::load(std::string _name)
+{
+    std::ifstream is(_name.c_str());
+    if (is.good()) {
+        cereal::JSONInputArchive archive(is);
+        serialize(archive);
+    }
+
+    fileHashmap.clear();
+    tileHash.clear();
+    for (int i = 0; i < files.size(); i++)
+    {
+        fileHashmap[files[i].hash] = i;
+
+        
+        //if (i == 0)// TMEP totdat ek .bin strem en cache
+        {
+            for (int j = 0; j < files[i].tiles.size(); j++)
+            {
+                uint32_t hash = getHashFromTileCoords(files[i].tiles[j].lod, files[i].tiles[j].y, files[i].tiles[j].x);
+                tileHash[hash] = uint2(i, j);
+            }
+        }
+    }
+
+    cache.resize(16);   // can add up if I get this wrong
+}
+
+
+//#pragma optimize("", off)
+void jp2Dir::cache0(std::string _path)
+{
+    path = _path;   // save for rest of session
+
+    dataRoot.clear();
+    dataRoot.resize(files[0].sizeInBytes);
+    std::ifstream is(_path + files[0].filename, std::ios::binary);
+    if (is.good()) {
+        is.read((char*)dataRoot.data(), files[0].sizeInBytes);
+        is.close();
+    }
+    /*
+    std::vector<unsigned char> data(files[0].sizeInBytes);
+    std::ifstream is(files[0].filename, std::ios::binary);
+    if (is.good()) {
+        is.read((char *)data.data(), files[0].sizeInBytes);
+        auto sharedPtr = std::make_shared<std::vector<uint8_t>>(data);
+        cache.set(files[0].hash, sharedPtr);
+        is.close();
+    }
+    */
+}
+
+//std::thread t1(imageDirectory.cacheHash(), hash);
+void jp2Dir::cacheHash(uint32_t hash)
+{
+    if (hash == 0) return;  // because that is all pre loaded
+
+    std::map<uint32_t, uint>::iterator file_it = fileHashmap.find(hash);
+    if (file_it != fileHashmap.end())
+    {
+        // such a file exists
+        uint idx = file_it->second;
+        std::shared_ptr<std::vector<unsigned char>> data;
+        if (!cache.get(hash, data))
+        {
+            // but not cahched, so cache it
+            std::vector<unsigned char> dataRoot;
+            dataRoot.resize(files[idx].sizeInBytes);
+            std::ifstream is(path + files[idx].filename, std::ios::binary);
+            if (is.good()) {
+                is.read((char*)dataRoot.data(), files[idx].sizeInBytes);
+                is.close();
+            }
+            auto share = std::make_shared<std::vector<unsigned char>>(dataRoot);
+            cache.set(hash, share);
+        }
+    }
+}
+
+
+void jp2Dir::saveBinary(std::string _name)
+{
+    std::ofstream os(_name.c_str(), std::ios::binary);
+    if (os.good()) {
+        uint numFiles = files.size();
+        os << numFiles;
+        for (auto F : files)
+        {
+            F.saveBinary(os);
+        }
+    }
+}
+
+void jp2Dir::loadBinary(std::string _name)
+{
+    std::ifstream is(_name.c_str(), std::ios::binary);
+    if (is.good()) {
+        uint numFiles;
+        is >> numFiles;
+        for (int i=0; i< numFiles; i++)
+        {
+            files.emplace_back();
+            files.back().loadBinary(is);
+        }
+    }
+}
+
+
+
 void terrainManager::generateGdalPhotos()
 {
+    jp2Dir data;
+    jp2Map _mapElement;
+    jp2Dir jp2;
+    std::ofstream of_gdal;
+    std::string inLow = "Images_2m.tif";
+    std::string inAll = "Images_2m.tif A1.tif A2.tif A3.tif B1.tif B2.tif B3.tif C1.tif C2.tif C3.tif D1.tif D2.tif D3.tif ";
+
+    std::ifstream ifLOD68map;
+    unsigned char map[256][256];
+
+    ifLOD68map.open("E:/terrains/switserland_Steg/gis/photos/LOD_6_8.raw", std::ios::binary);
+    if (ifLOD68map)
+    {
+        ifLOD68map.read((char*)&map[0][0], 256 * 256);
+        ifLOD68map.close();
+    }
+
+    of_gdal.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_NEW.bat");
+    if (of_gdal)
+    {
+        jp2.files.emplace_back();
+        jp2.files.back().filename = "0_0_0.bin";
+        jp2.files.back().hash = getHashFromTileCoords(0, 0, 0);
+
+        _mapElement.set(0, 0, 0);
+        jp2.files.back().tiles.push_back(_mapElement);
+        writeGdal(_mapElement, of_gdal, inLow);
+
+        for (uint y = 0; y < 4; y++)          {
+            for (uint x = 0; x < 4; x++)              {
+                _mapElement.set(2, y, x);
+                jp2.files.back().tiles.push_back(_mapElement);
+                writeGdal(_mapElement, of_gdal, inLow);
+            }
+        }
+
+        for (uint y = 0; y < 16; y++) {
+            for (uint x = 0; x < 16; x++) {
+                _mapElement.set(4, y, x);
+                jp2.files.back().tiles.push_back(_mapElement);
+                writeGdal(_mapElement, of_gdal, inLow);
+            }
+        }
+
+        writeGdalClear(of_gdal);
+
+
+
+        std::vector<jp2Map> block_files;
+        for (uint ty = 0; ty < 16; ty++)
+        {
+            for (uint tx = 0; tx < 16; tx++)
+            {
+                block_files.clear();
+
+                for (uint y = ty*4; y < ty*4 + 4; y++) {
+                    for (uint x = tx*4; x < tx*4 + 4; x++) {
+                        if (map[y * 4][x * 4] > 100)
+                        {
+                            _mapElement.set(6, y, x);
+                            block_files.push_back(_mapElement);
+                            writeGdal(_mapElement, of_gdal, inAll);
+                        }
+                    }
+                }
+
+                for (uint y = ty*16; y < ty * 16 + 16; y++) {
+                    for (uint x = tx * 16; x < tx * 16 + 16; x++) {
+                        if (map[y][x] > 200)
+                        {
+                            _mapElement.set(8, y, x);
+                            block_files.push_back(_mapElement);
+                            writeGdal(_mapElement, of_gdal, inAll);
+                        }
+                    }
+                }
+
+                // push if we have any
+                if (block_files.size() > 0)
+                {
+                    jp2.files.emplace_back();
+                    jp2.files.back().filename = "4_" + std::to_string(ty) + "_" + std::to_string(tx) + ".bin";
+                    jp2.files.back().hash = getHashFromTileCoords(4, ty, tx);
+                    for (auto& t : block_files) {
+                        jp2.files.back().tiles.push_back(t);
+                    }
+
+                    writeGdalClear(of_gdal);
+                }
+            }
+        }
+
+
+
+        of_gdal.close();
+
+        jp2.save("E:/terrains/switserland_Steg/gis/photos/photo_tiles.json");
+        //jp2.saveBinary("E:/terrains/switserland_Steg/gis/photos/photo_tiles.bin");
+
+        //jp2Dir jp2Test;
+        //jp2Test.loadBinary("E:/terrains/switserland_Steg/gis/photos/photo_tiles.bin");
+        /*
+        std::ofstream os("E:/terrains/switserland_Steg/gis/photos/photo_tiles.json");
+        if (os.good()) {
+            cereal::JSONOutputArchive archive(os);
+            jp2.serialize(archive);
+        }*/
+    }
+
+    return;
+
+
     float leftT, bottomT, rightT, topT, sizeT, sizeBrd, sizeTotal;
     int lod = 0;
     int x = 0;
@@ -4699,12 +5066,16 @@ void terrainManager::generateGdalPhotos()
     float offset = -20000;
     float scale;
 
+    
+
+
     std::ofstream ofs, ofSummary;
     //ofs.open(settings.dirGis + "/photos/gdal_photos.bat");
-    ofSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary.txt");
-    ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos.bat");
+    ofSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_0_2_4.txt");
+    ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_0_2_4.bat");
     if (ofs)
     {
+        jp2Map _mapElement;
         lod = 0;
         scale = 1.f / (float)pow(2, lod);
         sizeT = sizeWorld * scale;
@@ -4796,6 +5167,106 @@ void terrainManager::generateGdalPhotos()
         ofSummary.close();
     }
 
+
+    //std::ifstream ifLOD68map;
+    //unsigned char map[256][256];
+
+    ifLOD68map.open("E:/terrains/switserland_Steg/gis/photos/LOD_6_8.raw", std::ios::binary);
+    if (ifLOD68map)
+    {
+        ifLOD68map.read((char*)&map[0][0], 256 * 256);
+        ifLOD68map.close();
+
+        // Step through at LOD 4
+        for (uint ty = 0; ty < 16; ty++)
+        {
+            for (uint tx = 0; tx < 16; tx++)
+            {
+                std::string name = "E:/terrains/switserland_Steg/gis/photos/gdal_photos_lod4_";
+                name += std::to_string(ty) + "_" + std::to_string(tx) + ".txt";
+                ofSummary.open(name.c_str());
+                name += ".bat";
+                ofs.open(name.c_str());
+                if (ofs)
+                {
+                    lod = 6;
+                    scale = 1.f / (float)pow(2, lod);
+                    sizeT = sizeWorld * scale;
+                    sizeTotal = sizeT * tile_toBorder;
+                    sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+                    for (y = ty * 4; y < ty * 4 + 4; y++)
+                    {
+                        for (x = tx * 4; x < tx * 4 + 4; x++)
+                        {
+                            if (map[y * 4][x * 4] > 100)
+                            {
+                                leftT = offset + x * sizeT - sizeBrd;
+                                bottomT = offset + (63 - y) * sizeT - sizeBrd;
+                                rightT = leftT + sizeTotal;
+                                topT = bottomT + sizeTotal;
+
+                                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                                ofs << "Images_2m.tif ";
+                                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                                ofs << "../_temp/" << imageName << ".tif \n";
+                                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+
+                                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                            }
+                        }
+                    }
+
+
+
+
+                    lod = 8;
+                    scale = 1.f / (float)pow(2, lod);
+                    sizeT = sizeWorld * scale;
+                    sizeTotal = sizeT * tile_toBorder;
+                    sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+                    for (y = ty*16; y < ty*16 + 16; y++)
+                    {
+                        for (x = tx * 16; x < tx * 16 + 16; x++)
+                        {
+                            if (map[y][x] > 200)
+                            {
+                                leftT = offset + x * sizeT - sizeBrd;
+                                bottomT = offset + (255 - y) * sizeT - sizeBrd;
+                                rightT = leftT + sizeTotal;
+                                topT = bottomT + sizeTotal;
+
+                                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                                ofs << "Images_2m.tif ";
+                                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                                ofs << "../_temp/" << imageName << ".tif \n";
+                                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+                                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                            }
+                        }
+                    }
+
+
+                    ofSummary.close();
+                    ofs.close();
+                }
+            }
+        }
+    }
+/*
 
     // steg 6 y 12-20  x 12-24  
     // steg 8 y 32-40  x 29-33
@@ -5031,9 +5502,9 @@ void terrainManager::generateGdalPhotos()
 
         ofSummary.close();
     }
-    
+    */
 }
-
+#pragma optimize("", off)
 void terrainManager::bil_to_jp2Photos()
 {
     float leftT, topT, size;
@@ -5043,6 +5514,30 @@ void terrainManager::bil_to_jp2Photos()
     std::string filename;
     std::ifstream ifSummary;
     
+    jp2Dir jp2;
+    jp2.load("E:/terrains/switserland_Steg/gis/photos/photo_tiles.json");
+    for (auto &F : jp2.files)
+    {
+        std::string binfile = "E:/terrains/switserland_Steg/gis/_temp/" + F.filename;
+        std::ofstream of_jp2;
+        of_jp2.open(binfile, std::ios::binary);
+        if (of_jp2.good())
+        {
+            F.sizeInBytes = 0;
+            for (auto &T : F.tiles)
+            {
+                T.fileOffset = F.sizeInBytes;
+                filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(T.lod) + "_" + std::to_string(T.y) + "_" + std::to_string(T.x);
+                T.sizeInBytes = bil_to_jp2PhotosMemory(of_jp2, filename, 1024, T.lod, T.y, T.x);
+                F.sizeInBytes += T.sizeInBytes;
+            }
+            of_jp2.close();
+        }
+    }
+    jp2.save("E:/terrains/switserland_Steg/gis/photos/photo_tiles_JP2.json");
+    return;
+
+
     ifSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary_lod7.txt");
     if (ifSummary)
     {
@@ -5083,7 +5578,83 @@ void terrainManager::bil_to_jp2Photos()
 }
 
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
+uint terrainManager::bil_to_jp2PhotosMemory(std::ofstream& _file, std::string filename, const uint size, uint _lod, uint _y, uint _x)
+{
+    unsigned char data[1024][3][1024];
+    unsigned char data1[1024][1024];
+
+
+    ojph::codestream codestream;
+    ojph::mem_outfile j2c_file;
+    j2c_file.open();
+    {
+        // set up
+        ojph::param_siz siz = codestream.access_siz();
+        siz.set_image_extent(ojph::point(size, size));
+        siz.set_num_components(3);
+        siz.set_component(0, ojph::point(1, 1), 8, false);
+        siz.set_component(1, ojph::point(1, 1), 8, false);
+        siz.set_component(2, ojph::point(1, 1), 8, false);
+        siz.set_image_offset(ojph::point(0, 0));
+        siz.set_tile_size(ojph::size(size, size));
+        siz.set_tile_offset(ojph::point(0, 0));
+
+        ojph::param_cod cod = codestream.access_cod();
+        cod.set_num_decomposition(5);
+        cod.set_block_dims(64, 64);
+        cod.set_progression_order("CPRL");      // ??? "RPCL"
+        cod.set_color_transform(true);
+        cod.set_reversible(false);
+
+        codestream.access_qcd().set_irrev_quant(0.05f);
+        codestream.set_planar(false);
+
+        FILE* bilData = fopen((filename + ".bil").c_str(), "rb");
+        if (bilData)
+        {
+            fread(data, sizeof(char), size * size * 3, bilData);
+            codestream.write_headers(&j2c_file);
+
+            int next_comp;
+            ojph::line_buf* cur_line = codestream.exchange(NULL, next_comp);
+
+            //for (uint cmp = 0; cmp < 3; cmp++)
+            {
+                for (uint i = 0; i < size; i++)
+                {
+                    //base->read(cur_line, next_comp);
+                    //fread(data, sizeof(float), size, bilData);
+
+                    for (uint cmp = 0; cmp < 3; cmp++)
+                    {
+
+                        if (cmp != next_comp)
+                        {
+                            bool cm = true;
+                        }
+                        int32_t* dp = cur_line->i32;
+                        for (uint j = 0; j < size; j++) {
+                            *dp++ = (int32_t)data[i][cmp][j];
+                        }
+                        cur_line = codestream.exchange(cur_line, next_comp);
+                    }
+                }
+            }
+            fclose(bilData);
+        }
+    }
+    codestream.flush();
+    
+
+    _file.write((char *)j2c_file.get_data(), j2c_file.tell());
+    uint numBytes = j2c_file.tell();
+
+    codestream.close();
+    return numBytes;
+}
+
+
 
 void terrainManager::bil_to_jp2Photos(std::string file, const uint size, uint _lod, uint _y, uint _x)
 {
@@ -5979,31 +6550,55 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
 }
 
 
-
+/*  The weird carsh comes from my cache being too small, so tiles gets deleted tehn needed at another resolution
+*/
 void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 {
-    if (imageTileHashmap.size() == 0) return;
-    bool found = false;
-
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
-    std::map<uint32_t, heightMap>::iterator it = imageTileHashmap.find(hash);
-    if (it != imageTileHashmap.end()) {
+
+    // First load the JP2 Data, BUT 0,0,0 IS  PRELOADED, thisis n own thread so should look like no time
+    imageDirectory.cacheHash(hash);
+    
+    
+    std::map<uint32_t, uint2>::iterator it = imageDirectory.tileHash.find(hash);
+    if (it != imageDirectory.tileHash.end()) {
         pTile->imageHash = hash;
-        found = true;
     }
 
     if (pTile->imageHash > 0)
-    //if (found)
     {
         textureCacheElement map;
 
         if (!imageCache.get(pTile->imageHash, map))
         {
             std::array<unsigned char, 1024 * 1024 * 4> data;
+            std::shared_ptr<std::vector<unsigned char>> dataCache;
 
             ojph::codestream codestream;
-            ojph::j2c_infile j2c_file;
-            j2c_file.open(it->second.filename.c_str());
+            ojph::mem_infile j2c_file;
+            //j2c_file.open(imageTileHashmap[pTile->imageHash].filename.c_str());
+            std::map<uint32_t, uint2>::iterator itH = imageDirectory.tileHash.find(pTile->imageHash);
+            jp2File& file = imageDirectory.files[itH->second.x];
+            jp2Map& mapTile = imageDirectory.files[itH->second.x].tiles[itH->second.y];
+
+            if (itH->second.x == 0)
+            {
+                j2c_file.open(&imageDirectory.dataRoot[mapTile.fileOffset], mapTile.sizeInBytes);
+            }
+            else
+            {
+                if (imageDirectory.cache.get(file.hash, dataCache))
+                {
+                    j2c_file.open(dataCache->data() + mapTile.fileOffset, mapTile.sizeInBytes);
+                }
+                else
+                {
+                    bool bCM = true;
+                    // should never get here but handle it somehow
+                    // split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
+                    // I think it was with very fast movement, not sure how that was possible
+                }
+            }
             codestream.enable_resilience();
             codestream.set_planar(false);
             codestream.read_headers(&j2c_file);
@@ -6029,6 +6624,58 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 
         split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
     }
+
+    /*
+
+
+    if (imageTileHashmap.size() == 0) return;
+    bool found = false;
+
+    uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
+    std::map<uint32_t, heightMap>::iterator it = imageTileHashmap.find(hash);
+    if (it != imageTileHashmap.end()) {
+        pTile->imageHash = hash;
+        found = true;
+    }
+
+    if (pTile->imageHash > 0)
+    //if (found)
+    {
+        textureCacheElement map;
+
+        if (!imageCache.get(pTile->imageHash, map))
+        {
+            std::array<unsigned char, 1024 * 1024 * 4> data;
+
+            ojph::codestream codestream;
+            ojph::j2c_infile j2c_file;
+            j2c_file.open(imageTileHashmap[pTile->imageHash].filename.c_str());
+            codestream.enable_resilience();
+            codestream.set_planar(false);
+            codestream.read_headers(&j2c_file);
+            codestream.create();
+            int next_comp;
+
+            for (int i = 0; i < 1024; ++i)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    ojph::line_buf* line = codestream.pull(next_comp);
+                    int32_t* dp = line->i32;
+                    for (int j = 0; j < 1024; j++) {
+                        data[(i * 1024 * 4) + (j * 4) + next_comp] = (unsigned char)*dp++;
+                    }
+                }
+            }
+            codestream.close();
+
+            map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
+            imageCache.set(pTile->imageHash, map);
+        }
+
+        split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
+    }
+    */
 }
 
 
@@ -6062,8 +6709,9 @@ void terrainManager::splitOne(RenderContext* _renderContext)
         {
             hasChanged = true;
             hashAndCache(tile);
-            hashAndCacheImages(tile);
 
+            hashAndCacheImages(tile);
+ 
             if (true)	// antani, check for hashAndCache() return value is it ready
             {
 
@@ -6200,10 +6848,15 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
     {
         // copy the image tiles to diffuse
-        heightMap& imageMap = imageTileHashmap[_tile->imageHash];
+        //heightMap& imageMap = imageTileHashmap[_tile->imageHash];
+        //heightMap& imageMap = imageDirectory.tileHash
 
-        float S = pixelSize / imageMap.size;
-        split.compute_tileBicubic.Vars()["gConstants"]["offset"] = (origin - imageMap.origin) / imageMap.size;
+        std::map<uint32_t, uint2>::iterator itH = imageDirectory.tileHash.find(_tile->imageHash);
+        //jp2File& file = imageDirectory.files[itH->second.x];
+        jp2Map& mapTile = imageDirectory.files[itH->second.x].tiles[itH->second.y];
+
+        float S = pixelSize / mapTile.size;
+        split.compute_tileBicubic.Vars()["gConstants"]["offset"] = (origin - mapTile.origin) / mapTile.size;
         split.compute_tileBicubic.Vars()["gConstants"]["size"] = float2(S, S);
         split.compute_tileBicubic.Vars()["gConstants"]["isHeight"] = 0;
         split.compute_tileBicubic.dispatch(_renderContext, cs_w, cs_w);
@@ -6700,7 +7353,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             //triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
         }
 
+        
 
+        
 
         if (_plantMaterial::static_materials_veg.modified)
         {
@@ -6899,6 +7554,20 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
         rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
     }
+
+    {
+        FALCOR_PROFILE("Thermals");
+        
+        thermalsShader.State()->setFbo(_fbo);
+        thermalsShader.State()->setViewport(0, _viewport, true);
+        thermalsShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        thermalsShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
+        thermalsShader.State()->setRasterizerState(rasterstateGliderWing);
+        thermalsShader.drawInstanced(_renderContext, paraRuntime.wingVertexCount, 1);
+        thermalsShader.drawInstanced(_renderContext, 3, numThermals);
+        
+    }
+
 
     {
         FALCOR_PROFILE("glider wing");

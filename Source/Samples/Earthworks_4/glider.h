@@ -476,6 +476,7 @@ struct _swissBuildings
 {
     aiVector3D reproject(aiVector3D v);
     glm::dvec3 reproject(double x, double y, double z);
+    glm::dvec3 reprojectLL(double latt, double lon, double alt);
     void process(std::string _name);
     void processWallRoof(std::string _name);
     void processGeoJSON(std::string _path, std::string _name);
