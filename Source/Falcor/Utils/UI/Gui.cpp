@@ -220,7 +220,7 @@ namespace Falcor
 
         pGui->addFont("roboto_48", "Framework/Fonts/Roboto-Regular.ttf", 48);
 
-        pGui->addFont("roboto_64", "Framework/Fonts/Roboto-Regular.ttf", 64);
+        pGui->addFont("roboto_48_bold", "Framework/Fonts/Roboto-Bold.ttf", 48);
 
         pGui->setActiveFont("");
 
