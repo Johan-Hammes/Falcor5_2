@@ -590,14 +590,15 @@ public:
     void onGuiRender(Gui* pGui) override;
     void renderBranding(Gui* _gui, Gui::Window& _window, uint2 _size);
     void renderTargets(Gui* _gui, Gui::Window& _window, uint2 _size);
+    void renderExerciseBuilder(Gui* _gui, Gui::Window& _window, uint2 _size);
     void renderCamera(Gui* _gui, Gui::Window& _window, uint2 _size);
     void renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, uint _screen);
     void renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen);
     void renderLive(Gui* _gui, Gui::Window& _window, uint2 _size);
     void renderLiveInstructor(Gui* _gui, Gui::Window& _window, uint2 _size);
     void onGuiMenubar(Gui* _gui);
-    void menuButton();
-    void nextButton();
+    //void menuButton();
+    //void nextButton();
     void guiStyle();
     void playQR(std::string file);
 

@@ -536,7 +536,7 @@ void _target::renderGui(Gui* _gui, Gui::Window& _window)
 
     //if (showGui)
     {
-        ImGui::PushFont(_gui->getFont("roboto_64"));
+        ImGui::PushFont(_gui->getFont("roboto_48_bold"));
         //ImGui::SameLine(100);
         char T[256];
         sprintf(T, "%s", title.c_str());
@@ -1088,21 +1088,19 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
 void quickRange::renderLiveMenubar(Gui* _gui)
 {
-    //ImGui::SameLine(0, 50);
-    ImGui::Text("     %s", title.c_str());
+    ImGui::SameLine(Kolskoot::setup.screen_pixelsX * 0.25, 0);
+    ImGui::Text("%s", title.c_str());
 
-    ImGui::SameLine(Kolskoot::setup.screen_pixelsX * 0.2, 0);
-    ImGui::Text("Exercise %d / %d", currentExercise + 1, exercises.size());
-
-    ImGui::SameLine(Kolskoot::setup.screen_pixelsX * 0.4, 0);
-
-    ImGui::PushFont(_gui->getFont("roboto_48"));
-    {
-        ImGui::SetCursorPosY(-10);
-        ImGui::Text("%s", exercises[currentExercise].title.c_str());
-    }
+    ImGui::SameLine(Kolskoot::setup.screen_pixelsX * 0.5, 0);
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    ImGui::SetCursorPosY(10);
+    ImGui::Text("Exercise", currentExercise + 1, exercises.size());
     ImGui::PopFont();
+    ImGui::SetCursorPosY(0);
+    ImGui::Text("%d / %d", currentExercise + 1, exercises.size());
 
+    ImGui::SameLine(0, 100);
+    ImGui::Text("%s", exercises[currentExercise].title.c_str());
 }
 
 
@@ -1201,7 +1199,7 @@ void quickRange::renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::
     auto& Ex = exercises[currentExercise];
     auto& target = Ex.target;
 
-    ImGui::PushFont(_gui->getFont("roboto_64"));
+    ImGui::PushFont(_gui->getFont("roboto_48_bold"));
     {
         switch (currentStage)
         {
@@ -1223,8 +1221,8 @@ void quickRange::renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::
                     ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - 40, 5));
                     ImGui::BeginChildFrame(33 + lane, ImVec2(80.f, 60.f));
                     {
-                        ImGui::SetCursorPos(ImVec2(25, -3));
-                        if (lane >= 9) ImGui::SetCursorPos(ImVec2(5, -3));
+                        ImGui::SetCursorPos(ImVec2(30, 3));
+                        if (lane >= 9) ImGui::SetCursorPos(ImVec2(15, 3));
                         ImGui::Text("%d", lane + 1);
                     }
                     ImGui::EndChildFrame();
@@ -1255,8 +1253,8 @@ void quickRange::renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::
                     ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - 40, 5));
                     ImGui::BeginChildFrame(33 + lane, ImVec2(80.f, 60.f));
                     {
-                        ImGui::SetCursorPos(ImVec2(25, -3));
-                        if (lane >= 9) ImGui::SetCursorPos(ImVec2(5, -3));
+                        ImGui::SetCursorPos(ImVec2(30, 3));
+                        if (lane >= 9) ImGui::SetCursorPos(ImVec2(15, 3));
                         ImGui::Text("%d", lane + 1);
                     }
                     ImGui::EndChildFrame();
@@ -1288,7 +1286,9 @@ void quickRange::renderLiveInstructor(Gui* _gui, Gui::Window& _window, Texture::
                 }
 
                 ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - menuHeight - 80));
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));
                 ImGui::Text(".");   // just somethign to force teh down lines
+                ImGui::PopStyleColor();
 
                 ImGui::NextColumn();
             }
@@ -1312,7 +1312,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
 
 
-    ImGui::PushFont(_gui->getFont("roboto_64"));
+    ImGui::PushFont(_gui->getFont("roboto_48_bold"));
     {
         switch (currentStage)
         {
@@ -1352,8 +1352,8 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                     ImGui::SetCursorPos(ImVec2(laneLeft + laneWidth * 0.5 - 40, 5));
                     ImGui::BeginChildFrame(33 + lane, ImVec2(80.f, 60.f));
                     {
-                        if (lane < 9) ImGui::SetCursorPos(ImVec2(25, -3));
-                        else ImGui::SetCursorPos(ImVec2(5, -3));
+                        if (lane < 9) ImGui::SetCursorPos(ImVec2(30, 3));
+                        else ImGui::SetCursorPos(ImVec2(15, 3));
                         ImGui::Text("%d", lane + 1);
                     }
                     ImGui::EndChildFrame();
@@ -1425,7 +1425,9 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                 }
 
                 ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - menuHeight - 80));
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));
                 ImGui::Text(".");   // just somethign to force teh down lines
+                ImGui::PopStyleColor();
 
                 ImGui::NextColumn();
             }
@@ -1479,7 +1481,9 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                 }
 
                 ImGui::SetCursorPos(ImVec2(laneLeft, Kolskoot::setup.screen_pixelsY - menuHeight - 80));
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));
                 ImGui::Text(".");   // just somethign to force teh down lines
+                ImGui::PopStyleColor();
 
                 ImGui::NextColumn();
             }
@@ -1887,8 +1891,30 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
     {
         ImGui::SetCursorPosX((float)setup.instructorOffet.x);
 
+        {
+            if (ImGui::Button("Menu", ImVec2(100, 0)))
+            {
+                guiMode = gui_menu;
+                zigbeeRounds(0, 0, true);		// turn all air off
+            }
+            TOOLTIP("'esc'");
+        }
+
+
         if (guiMode == gui_live)
         {
+            //ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 120));
+            ImGui::SameLine(0, 50);
+            if (ImGui::Button("Next >", ImVec2(150, 0)))
+            {
+                if (QR.liveNext())
+                {
+                    guiMode = gui_menu;
+                    zigbeeRounds(0, 0, true);		// turn all air off
+                }
+            }
+            TOOLTIP("'space-bar'");
+
             QR.renderLiveMenubar(_gui);
 
             ImGui::SameLine(800, 0);
@@ -1896,7 +1922,16 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
         else
         {
             bool selected = false;
-            ImGui::Text("Kolskoot");
+            //ImGui::SameLine(0, 20);
+            //ImGui::Text("Kolskoot");
+
+            {
+                ImGui::SameLine(0, 50);
+                ImGui::SetNextItemWidth(250);
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+                ballistics.renderGuiAmmo(_gui);
+                ImGui::PopStyleColor();
+            }
 
             ImGui::SameLine(0, 200);
             ImGui::SetNextItemWidth(150);
@@ -1929,15 +1964,8 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
             }
 
 
-            ImGui::PushFont(_gui->getFont("roboto_48"));
-            {
-                ImGui::SameLine(Kolskoot::setup.screen_pixelsX / 2, 0);
-                ImGui::SetNextItemWidth(300);
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
-                ballistics.renderGuiAmmo(_gui);
-                ImGui::PopStyleColor();
-            }
-            ImGui::PopFont();
+            
+
 
             if (ballistics.hasChanged)
             {
@@ -1950,18 +1978,22 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 
         }
 
-        ImGui::SetCursorPos(ImVec2((float)(setup.instructorSize.x - 180), 0));
-        ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+        ImGui::PushFont(_gui->getFont("roboto_20"));
+        {
+            ImGui::SetCursorPos(ImVec2((float)(setup.instructorSize.x - 120), 25));
+            ImGui::Text("%d fps", (int)(1000.0 / gpFramework->getFrameRate().getAverageFrameTime()));
+        }
+        ImGui::PopFont();
 
-        ImGui::SetCursorPos(ImVec2((float)(setup.instructorSize.x - 30), 0.f));
-        if (ImGui::Button("X")) { gpFramework->getWindow()->shutdown(); }
+        ImGui::SetCursorPos(ImVec2((float)(setup.instructorSize.x - 60), 0.f));
+        if (ImGui::Button("X", ImVec2(60, 0))) { gpFramework->getWindow()->shutdown(); }
 
     }
     ImGui::EndMainMenuBar();
     ImGui::PopStyleVar();
 }
 
-
+/*
 void Kolskoot::nextButton()
 {
     ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 120));
@@ -1986,7 +2018,7 @@ void Kolskoot::menuButton()
     }
     TOOLTIP("esc");
 }
-
+*/
 
 void Kolskoot::renderBranding(Gui* _gui, Gui::Window& _window, uint2 _size)
 {
@@ -2042,8 +2074,20 @@ void Kolskoot::renderTargets(Gui* _gui, Gui::Window& _window, uint2 _size)
     }
     ImGui::EndChildFrame();
 
-    menuButton();
+    //menuButton();
 
+}
+
+void Kolskoot::renderExerciseBuilder(Gui* _gui, Gui::Window& _window, uint2 _size)
+{
+    QR.renderGui(_gui, screenSize, _window);
+
+    if (requestLive)
+    {
+        requestLive = false;
+        Kolskoot::guiMode = gui_live;
+    }
+    //menuButton();
 }
 
 
@@ -2053,8 +2097,8 @@ void Kolskoot::renderLiveInstructor(Gui* _gui, Gui::Window& _window, uint2 _size
     
     ImGui::PushFont(_gui->getFont("roboto_32"));
     {
-        nextButton();
-        menuButton();
+        //nextButton();
+        //menuButton();
     }
     ImGui::PopFont();
     
@@ -2361,6 +2405,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                     renderTargets(_gui, Inst, InstSize);
                     break;
                 case gui_exercises:
+                    renderExerciseBuilder(_gui, Inst, InstSize);
                     break;
                 case gui_live:
                     renderLiveInstructor(_gui, Inst, LiveSize);
@@ -2388,6 +2433,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                     renderBranding(_gui, Live, LiveSize);
                     break;
                 case gui_exercises:
+                    renderBranding(_gui, Live, LiveSize);
                     break;
                 case gui_live:
                     renderLive(_gui, Live, LiveSize);
@@ -2417,13 +2463,14 @@ void Kolskoot::onGuiRender(Gui* _gui)
                     renderTargets(_gui, Live, LiveSize);
                     break;
                 case gui_exercises:
+                    renderExerciseBuilder(_gui, Live, LiveSize);
                     break;
                 case gui_live:
                     QR.renderLive(_gui, Live, bulletHole);
                     ImGui::PushFont(_gui->getFont("roboto_32"));
                     {
-                        nextButton();
-                        menuButton();
+                        //nextButton();
+                        //menuButton();
                     }
                     ImGui::PopFont();
                     break;
@@ -2477,7 +2524,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
         break;
 
         case gui_camera:
-            menuButton();
+            //menuButton();
             break;
 
         case gui_screen:
@@ -2510,7 +2557,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             }
             screenPanel.release();
 
-            menuButton();
+            //menuButton();
         }
         break;
 
@@ -2544,7 +2591,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
             targetPanel.windowPos((int)screenSize.x / 2, menuHeight);
             targetBuilder.renderGui(_gui, targetPanel);
             targetPanel.release();
-            menuButton();
+            //menuButton();
         }
         break;
 
@@ -2561,7 +2608,7 @@ void Kolskoot::onGuiRender(Gui* _gui)
                 requestLive = false;
                 Kolskoot::guiMode = gui_live;
             }
-            menuButton();
+            //menuButton();
         }
         break;
 
@@ -2574,8 +2621,8 @@ void Kolskoot::onGuiRender(Gui* _gui)
             QR.renderLive(_gui, livePanel, bulletHole);
             ImGui::PushFont(_gui->getFont("roboto_32"));
             {
-                nextButton();
-                menuButton();
+                //nextButton();
+                //menuButton();
             }
             ImGui::PopFont();
             livePanel.release();
@@ -3053,7 +3100,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
     {
         // at the moment all renderign is doen with imGui so just clear
         FALCOR_PROFILE("clear");
-        const float4 clearColor(0.2f, 0.02f, 0.02f, 1);
+        const float4 clearColor(0.2f, 0.02f, 0.2f, 1);
         pRenderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
         mpGraphicsState->setFbo(pTargetFbo);
     }
@@ -3219,7 +3266,7 @@ void Kolskoot::guiStyle()
     style.Colors[ImGuiCol_ButtonHovered] = DARKLIME(1.f);
     style.Colors[ImGuiCol_HeaderHovered] = DARKLIME(1.f);
 
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0, 0.03f, 0.03f, 0);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0, 0.03f, 0.03f, 0.5);
 
     style.Colors[ImGuiCol_Tab] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
     style.Colors[ImGuiCol_TabHovered] = DARKLIME(1.f);
@@ -3237,7 +3284,7 @@ void Kolskoot::guiStyle()
 
     style.FrameRounding = 0.0f;
 
-    style.ScrollbarSize = 10;
+    style.ScrollbarSize = 30;
     style.FrameBorderSize = 0;
     //style.FramePadding = ImVec2(0, 0);
 
