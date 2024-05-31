@@ -99,14 +99,15 @@ void _shadowEdges::load(std::string filename, float _angle)
             for (int x = 0; x < 4095; x++)
             {
                 Nx[y][x] = (height[y][x] - height[y][x + 1]) / 9.765625f;    // 10 meter between pixels SHIT NOT TRUE
-                shadowH[y][x] = float2(height[y][x] - 5.f, 0.f);
+                //                shadowH[y][x] = float2(height[y][x] - 5.f, 0.f);
+                // remove this and pass terrein height seperate
             }
         }
 
 
-        float angle = -_angle;  // about 10 degrees
-        float a_min = -angle;
-        float a_max = -angle - 0.05f;
+        float angle = _angle;  // about 10 degrees
+        float a_min = angle;
+        float a_max = angle + 0.05f;
 
         memset(edge, 0, 4096 * 4096);
         for (int y = 1; y < 4094; y++)
@@ -124,7 +125,7 @@ void _shadowEdges::load(std::string filename, float _angle)
                     edge[y][x] = 255;
                     edgeCnt++;
 
-
+                    /*
                     float H = height[y][x];
                     for (int j = x - 1; j > 0; j--)
                     {
@@ -140,6 +141,7 @@ void _shadowEdges::load(std::string filename, float _angle)
                         }
                         else break;
                     }
+                    */
                 }
 
 
@@ -3634,7 +3636,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-        
+
 
 
 
@@ -3646,7 +3648,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         _plantMaterial::static_materials_veg.sb_vegetation_Materials = Buffer::createStructured(sizeof(sprite_material), 1024 * 8);      // just a lot
 
-        
+
 
         /*
         Texture::SharedPtr tex = Texture::createFromFile(settings.dirResource + "/textures/bark/Oak1_albedo.dds", false, true);
@@ -3698,7 +3700,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
             gliderwingShader.load("Samples/Earthworks_4/hlsl/terrain/render_GliderWing.hlsl", "vsMain", "psMain", Vao::Topology::TriangleStrip);
 
-            
+
             RasterizerState::Desc rsDesc;
             rsDesc.setFillMode(RasterizerState::FillMode::Solid).setCullMode(RasterizerState::CullMode::Front);
             rasterstateGliderWing = RasterizerState::create(rsDesc);
@@ -3712,7 +3714,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         ribbonShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
         ribbonShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
-        
+
 
         ribbonShader_Bake.add("_BAKE", "");
         ribbonShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
@@ -3736,27 +3738,86 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
         {
-            
-            numThermals = 287;
             std::vector<float4> thermals;
-            thermals.resize(numThermals);
+            numThermals = 200 * 100;
+            thermals.resize(numThermals * 100);
+
+            //_cfdClipmap cfdClip;
+            //cfdClip.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
+            cfdClip.build(settings.dirRoot + "/cfd");
+
+            cfdClip.setWind(float3(3, 0, 0), float3(4, 0, 0));
+            cfdClip.simulate_start(20.0f);
+
+            for (int k = 0; k < 1500; k++)   //1500 = 937 seconds in 210
+            {
+          //      cfdClip.simulate(20.0f);
+            }
+            cfdClip.streamlines(float3(-3000, 450, 8000), thermals.data());
+
+            /*
+             ofs.open(filename + "128_Cut.raw", std::ios::binary);
+             if (ofs)
+             {
+                 for (int y = 15; y >= 0; y--)
+                 {
+                     for (int x = 0; x < 128; x++)
+                     {
+                         glm::u8vec4 s = smap_128.getS(uint3(x, y, 109));
+                         ofs.write((char*)&s.z, 1);
+                     }
+                 }
+                 ofs.close();
+             }
+            */
+
+            //thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
+
+
+            /*
+            CFD.init();
+            //CFD.loadHeight(settings.dirRoot + "/gis/_export/root4096.bil");
+            //CFD.export_S(settings.dirRoot + "/cfd_S_1024.bin");
+            CFD.import_S(settings.dirRoot + "/cfd_S_1024.bin");
+            //CFD.setWind(float3(2, 0, 0), float3(4, 0, 0));
+            CFD.import_V(settings.dirRoot + "/cfd_V_1024_largeRun.bin");
+            /*
+            for (int k = 0; k < 500; k++)
+            {
+                CFD.simulate(5.0f);
+            }
+            CFD.export_V(settings.dirRoot + "/cfd_V_1024_largeRun.bin");
+            */
+            //CFD.exportStreamlines(settings.dirRoot + "/cfd_streamlines.bin", uint3(500, 10, 400));
+
+
+            /*
+            //numThermals = 1073;
+
+            //thermals.resize(numThermals * 3);
             std::ifstream ifs;
-            ifs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.raw", std::ios::binary);
+            //ifs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.raw", std::ios::binary);
+
+
+            ifs.open(settings.dirRoot + "/cfd_streamlines.bin", std::ios::binary);
+
             if (ifs)
             {
-                ifs.read((char*)thermals.data(), numThermals * 3  * sizeof(float4));
+                //ifs.read((char*)thermals.data(), numThermals * 3  * sizeof(float4));
+                ifs.read((char*)thermals.data(), numThermals * 100 * sizeof(float4));
                 ifs.close();
             }
-            thermalsData = Buffer::createStructured(sizeof(float4), numThermals * 3); // just a nice amount for now
-            thermalsData->setBlob(thermals.data(), 0, numThermals * 3 * sizeof(float4));
+            */
+            thermalsData = Buffer::createStructured(sizeof(float4), numThermals * 100); // just a nice amount for now
+            thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
 
-            
+
             thermalsShader.load("Samples/Earthworks_4/hlsl/terrain/render_thermalRibbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
             thermalsShader.Vars()->setBuffer("vertexBuffer", thermalsData);        // WHY BOTH
             thermalsShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
         }
 
-        
+
 
         vegetation.skyTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_bc.dds", false, true);
         vegetation.envTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_IR_bc.dds", false, true);
@@ -3950,7 +4011,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     }
 
-    
+
 
     allocateTiles(numTiles);
 
@@ -3972,6 +4033,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
+
+
+
+
+
     AirSim.setup();
     paraBuilder.setxfoilDir(settings.dirResource + "/xfoil");
     paraBuilder.xfoil_shape("naca4415");
@@ -3989,7 +4055,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     paraRuntime.setxfoilDir(settings.dirResource + "/xfoil");
     paraRuntime.setWing("naca4415");
-    
+
     //paraRuntime.setWind(settings.dirRoot + "/gis/_export/root4096.bil", glm::normalize(float3(-1, 0, 0.4f)));
     paraRuntime.loadWind();
 
@@ -4007,7 +4073,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     //buildings.processGeoJSON("E:/rappersville/", "roofs");
     //buildings.processWallRoof(settings.dirRoot + "/buildings/");
     //buildings.processWallRoof("E:/rappersville/");
-    buildings.processWallRoof("E:/rappersville/");
+    //buildings.processWallRoof("E:/rappersville/");
 
 
     //_plantMaterial::static_materials_veg.materialVector.emplace_back();
@@ -4244,10 +4310,10 @@ void terrainManager::loadImageHash(RenderContext* pRenderContext)
     imageDirectory.load(fullpath);
     imageDirectory.cache0(settings.dirRoot + "/orthophoto/");
     //and load 0, 0, 0
-    
+
     //imageDirectory.cache.set(imageDirectory.files[0].hash, )
 
-    
+
 }
 
 
@@ -4725,19 +4791,19 @@ void terrainManager::onGuiRender(Gui* _gui)
 
 
 // Fixme input files to a list on disk
-void terrainManager::writeGdal(jp2Map _map, std::ofstream &_gdal, std::string _input)
+void terrainManager::writeGdal(jp2Map _map, std::ofstream& _gdal, std::string _input)
 {
     std::string imageName = "img_" + std::to_string(_map.lod) + "_" + std::to_string(_map.y) + "_" + std::to_string(_map.x);
     //_gdal << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
     _gdal << "gdalwarp -t_srs " << settings.projection;
-    _gdal << " -te " << _map.origin.x << " " << (-1 * _map.origin.y) - _map.size << " " << _map.origin.x + _map.size << " " << (- 1 * _map.origin.y) << " ";
+    _gdal << " -te " << _map.origin.x << " " << (-1 * _map.origin.y) - _map.size << " " << _map.origin.x + _map.size << " " << (-1 * _map.origin.y) << " ";
     _gdal << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
     _gdal << _input << " ";
     _gdal << "../_temp/" << imageName << ".tif \n";
     _gdal << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n";
 }
 
-void terrainManager::writeGdalClear(std::ofstream &_gdal)
+void terrainManager::writeGdalClear(std::ofstream& _gdal)
 {
     _gdal << "\n\n";
     _gdal << "del \"../_temp/*.tif\"\n";
@@ -4765,18 +4831,18 @@ void jp2Map::set(uint _lod, uint _y, uint _x, float _wSize, float _wOffset)
 }
 
 
-void jp2Map::save(std::ofstream &_os)
+void jp2Map::save(std::ofstream& _os)
 {
     _os << lod << " " << y << " " << x << " " << origin.x << " " << origin.y << " " << size << " ";
     _os << hgt_offset << " " << hgt_scale << " " << fileOffset << "\n";
 }
 
-void jp2Map::saveBinary(std::ofstream &_os)
+void jp2Map::saveBinary(std::ofstream& _os)
 {
     _os << lod << y << x << origin.x << origin.y << size << hgt_offset << hgt_scale << fileOffset;
 }
 
-void jp2Map::loadBinary(std::ifstream &_is)
+void jp2Map::loadBinary(std::ifstream& _is)
 {
     _is >> lod >> y >> x >> origin.x >> origin.y >> size >> hgt_offset >> hgt_scale >> fileOffset;
 }
@@ -4784,7 +4850,7 @@ void jp2Map::loadBinary(std::ifstream &_is)
 
 
 
-void jp2File::save(std::ofstream &_os)
+void jp2File::save(std::ofstream& _os)
 {
     _os << filename << "\n";
     for (auto& T : tiles)
@@ -4793,7 +4859,7 @@ void jp2File::save(std::ofstream &_os)
     }
 }
 
-void jp2File::saveBinary(std::ofstream &_os)
+void jp2File::saveBinary(std::ofstream& _os)
 {
     _os << filename << "\n";
     uint numTiles = tiles.size();
@@ -4804,7 +4870,7 @@ void jp2File::saveBinary(std::ofstream &_os)
     }
 }
 
-void jp2File::loadBinary(std::ifstream &_is)
+void jp2File::loadBinary(std::ifstream& _is)
 {
     uint numTiles;
     _is >> filename;
@@ -4848,7 +4914,7 @@ void jp2Dir::load(std::string _name)
     {
         fileHashmap[files[i].hash] = i;
 
-        
+
         //if (i == 0)// TMEP totdat ek .bin strem en cache
         {
             for (int j = 0; j < files[i].tiles.size(); j++)
@@ -4859,7 +4925,7 @@ void jp2Dir::load(std::string _name)
         }
     }
 
-    cache.resize(16);   // can add up if I get this wrong
+    cache.resize(26);   // can add up if I get this wrong
 }
 
 
@@ -4934,7 +5000,7 @@ void jp2Dir::loadBinary(std::string _name)
     if (is.good()) {
         uint numFiles;
         is >> numFiles;
-        for (int i=0; i< numFiles; i++)
+        for (int i = 0; i < numFiles; i++)
         {
             files.emplace_back();
             files.back().loadBinary(is);
@@ -4974,8 +5040,8 @@ void terrainManager::generateGdalPhotos()
         jp2.files.back().tiles.push_back(_mapElement);
         writeGdal(_mapElement, of_gdal, inLow);
 
-        for (uint y = 0; y < 4; y++)          {
-            for (uint x = 0; x < 4; x++)              {
+        for (uint y = 0; y < 4; y++) {
+            for (uint x = 0; x < 4; x++) {
                 _mapElement.set(2, y, x);
                 jp2.files.back().tiles.push_back(_mapElement);
                 writeGdal(_mapElement, of_gdal, inLow);
@@ -5001,8 +5067,8 @@ void terrainManager::generateGdalPhotos()
             {
                 block_files.clear();
 
-                for (uint y = ty*4; y < ty*4 + 4; y++) {
-                    for (uint x = tx*4; x < tx*4 + 4; x++) {
+                for (uint y = ty * 4; y < ty * 4 + 4; y++) {
+                    for (uint x = tx * 4; x < tx * 4 + 4; x++) {
                         if (map[y * 4][x * 4] > 100)
                         {
                             _mapElement.set(6, y, x);
@@ -5012,7 +5078,7 @@ void terrainManager::generateGdalPhotos()
                     }
                 }
 
-                for (uint y = ty*16; y < ty * 16 + 16; y++) {
+                for (uint y = ty * 16; y < ty * 16 + 16; y++) {
                     for (uint x = tx * 16; x < tx * 16 + 16; x++) {
                         if (map[y][x] > 200)
                         {
@@ -5066,7 +5132,7 @@ void terrainManager::generateGdalPhotos()
     float offset = -20000;
     float scale;
 
-    
+
 
 
     std::ofstream ofs, ofSummary;
@@ -5232,7 +5298,7 @@ void terrainManager::generateGdalPhotos()
                     sizeTotal = sizeT * tile_toBorder;
                     sizeBrd = (sizeTotal - sizeT) / 2.f;
 
-                    for (y = ty*16; y < ty*16 + 16; y++)
+                    for (y = ty * 16; y < ty * 16 + 16; y++)
                     {
                         for (x = tx * 16; x < tx * 16 + 16; x++)
                         {
@@ -5266,243 +5332,243 @@ void terrainManager::generateGdalPhotos()
             }
         }
     }
-/*
+    /*
 
-    // steg 6 y 12-20  x 12-24  
-    // steg 8 y 32-40  x 29-33
+        // steg 6 y 12-20  x 12-24
+        // steg 8 y 32-40  x 29-33
 
-    // walensee 6  y 48-64 x 20-64
-    // walensee 8  y 112-120  x 120-128
-    ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_lod_steg.bat");
-    if (ofs)
-    {
-        lod = 6;
-        scale = 1.f / (float)pow(2, lod);
-        sizeT = sizeWorld * scale;
-        sizeTotal = sizeT * tile_toBorder;
-        sizeBrd = (sizeTotal - sizeT) / 2.f;
-
-        for (y = 12; y < 20; y++)
-        {
-            for (x = 12; x < 24; x++)
-            {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (63 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
-
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
-                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
-                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
-                ofs << "Images_2m.tif ";
-                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
-                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
-                ofs << "../_temp/" << imageName << ".tif \n";
-                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
-
-                
-            }
-        }
-
-        // steg 8 y 32-40  x 29-33  // Fre
-        lod = 8;
-        scale = 1.f / (float)pow(2, lod);
-        sizeT = sizeWorld * scale;
-        sizeTotal = sizeT * tile_toBorder;
-        sizeBrd = (sizeTotal - sizeT) / 2.f;
-
-        for (y = 64; y < 80; y++)
-        {
-            for (x = 58; x < 66; x++)
-            {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (255 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
-
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
-                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
-                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
-                ofs << "Images_2m.tif ";
-                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
-                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
-                ofs << "../_temp/" << imageName << ".tif \n";
-                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
-
-
-            }
-        }
-        ofs.close();
-        
-    }
-
-
-    // walensee 6  y 48-64 x 20-64
-    // walensee 8  y 112-120  x 120-128
-    ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_lod_walensee.bat");
-    if (ofs)
-    {
-        lod = 6;
-        scale = 1.f / (float)pow(2, lod);
-        sizeT = sizeWorld * scale;
-        sizeTotal = sizeT * tile_toBorder;
-        sizeBrd = (sizeTotal - sizeT) / 2.f;
-
-        for (y = 48; y < 64; y++)
-        {
-            for (x = 20; x < 64; x++)
-            {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (63 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
-
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
-                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
-                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
-                ofs << "Images_2m.tif ";
-                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
-                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
-                ofs << "../_temp/" << imageName << ".tif \n";
-                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
-
-
-            }
-        }
-
+        // walensee 6  y 48-64 x 20-64
         // walensee 8  y 112-120  x 120-128
-        lod = 8;
-        scale = 1.f / (float)pow(2, lod);
-        sizeT = sizeWorld * scale;
-        sizeTotal = sizeT * tile_toBorder;
-        sizeBrd = (sizeTotal - sizeT) / 2.f;
-
-        for (y = 224; y < 240; y++)
+        ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_lod_steg.bat");
+        if (ofs)
         {
-            for (x = 240; x < 256; x++)
+            lod = 6;
+            scale = 1.f / (float)pow(2, lod);
+            sizeT = sizeWorld * scale;
+            sizeTotal = sizeT * tile_toBorder;
+            sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+            for (y = 12; y < 20; y++)
             {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (255 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
+                for (x = 12; x < 24; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (63 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
 
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
-                ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
-                ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
-                ofs << "Images_2m.tif ";
-                ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
-                ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
-                ofs << "../_temp/" << imageName << ".tif \n";
-                ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                    ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                    ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                    ofs << "Images_2m.tif ";
+                    ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                    ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                    ofs << "../_temp/" << imageName << ".tif \n";
+                    ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
 
 
+                }
             }
-        }
-        ofs.close();
-    }
 
+            // steg 8 y 32-40  x 29-33  // Fre
+            lod = 8;
+            scale = 1.f / (float)pow(2, lod);
+            sizeT = sizeWorld * scale;
+            sizeTotal = sizeT * tile_toBorder;
+            sizeBrd = (sizeTotal - sizeT) / 2.f;
 
-
-    ofSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary_lod7.txt");
-    {
-        // steg 6 y 12-20  x 12-24  
-    // steg 8 y 32-40  x 29-33
-
-    // walensee 6  y 48-64 x 20-64
-    // walensee 8  y 112-120  x 120-128
-
-        lod = 6;
-        scale = 1.f / (float)pow(2, lod);
-        sizeT = sizeWorld * scale;
-        sizeTotal = sizeT * tile_toBorder;
-        sizeBrd = (sizeTotal - sizeT) / 2.f;
-
-
-        // Steg
-        for (y = 12; y < 20; y++)
-        {
-            for (x = 12; x < 24; x++)
+            for (y = 64; y < 80; y++)
             {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (63 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
+                for (x = 58; x < 66; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (255 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
 
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
-                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                    ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                    ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                    ofs << "Images_2m.tif ";
+                    ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                    ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                    ofs << "../_temp/" << imageName << ".tif \n";
+                    ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+
+                }
             }
-        }
+            ofs.close();
 
-        
-        // Walensee
-        for (y = 48; y < 64; y++)
-        {
-            for (x = 20; x < 64; x++)
-            {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (63 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
-
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
-                ofSummary << " orthophoto/" << imageName << ".jp2\n";
-            }
-        }
-
-        // steg 6 y 12-20  x 12-24  
-   // steg 8 y 32-40  x 29-33
-
-   // walensee 6  y 48-64 x 20-64
-   // walensee 8  y 112-120  x 120-128
-        lod = 8;
-        scale = 1.f / (float)pow(2, lod);
-        sizeT = sizeWorld * scale;
-        sizeTotal = sizeT * tile_toBorder;
-        sizeBrd = (sizeTotal - sizeT) / 2.f;
-
-
-        // Steg
-        for (y = 64; y < 80; y++)
-        {
-            for (x = 58; x < 66; x++)
-            {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (255 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
-
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
-                ofSummary << " orthophoto/" << imageName << ".jp2\n";
-            }
         }
 
 
-        // Walensee
-        for (y = 224; y < 240; y++)
+        // walensee 6  y 48-64 x 20-64
+        // walensee 8  y 112-120  x 120-128
+        ofs.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_lod_walensee.bat");
+        if (ofs)
         {
-            for (x = 240; x < 256; x++)
-            {
-                leftT = offset + x * sizeT - sizeBrd;
-                bottomT = offset + (255 - y) * sizeT - sizeBrd;
-                rightT = leftT + sizeTotal;
-                topT = bottomT + sizeTotal;
+            lod = 6;
+            scale = 1.f / (float)pow(2, lod);
+            sizeT = sizeWorld * scale;
+            sizeTotal = sizeT * tile_toBorder;
+            sizeBrd = (sizeTotal - sizeT) / 2.f;
 
-                std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
-                ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
-                ofSummary << " orthophoto/" << imageName << ".jp2\n";
+            for (y = 48; y < 64; y++)
+            {
+                for (x = 20; x < 64; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (63 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
+
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                    ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                    ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                    ofs << "Images_2m.tif ";
+                    ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                    ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                    ofs << "../_temp/" << imageName << ".tif \n";
+                    ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+
+                }
             }
+
+            // walensee 8  y 112-120  x 120-128
+            lod = 8;
+            scale = 1.f / (float)pow(2, lod);
+            sizeT = sizeWorld * scale;
+            sizeTotal = sizeT * tile_toBorder;
+            sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+            for (y = 224; y < 240; y++)
+            {
+                for (x = 240; x < 256; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (255 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
+
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofs << "gdalwarp -t_srs \"+proj=tmerc +lat_0=47.27 +lon_0=9.07 +k_0=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m\" -te ";
+                    ofs << leftT << " " << bottomT << " " << rightT << " " << topT << " ";
+                    ofs << "-ts 1024 1024 -r cubicspline -multi -overwrite -ot byte ";
+                    ofs << "Images_2m.tif ";
+                    ofs << "A1.tif  A2.tif  A3.tif B1.tif  B2.tif  B3.tif ";
+                    ofs << "C1.tif  C2.tif  C3.tif D1.tif  D2.tif  D3.tif ";
+                    ofs << "../_temp/" << imageName << ".tif \n";
+                    ofs << "gdal_translate -ot byte ../_temp/" << imageName << ".tif ../_temp/" << imageName << ".bil \n\n\n";
+
+
+                }
+            }
+            ofs.close();
         }
 
-        ofSummary.close();
-    }
-    */
+
+
+        ofSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary_lod7.txt");
+        {
+            // steg 6 y 12-20  x 12-24
+        // steg 8 y 32-40  x 29-33
+
+        // walensee 6  y 48-64 x 20-64
+        // walensee 8  y 112-120  x 120-128
+
+            lod = 6;
+            scale = 1.f / (float)pow(2, lod);
+            sizeT = sizeWorld * scale;
+            sizeTotal = sizeT * tile_toBorder;
+            sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+
+            // Steg
+            for (y = 12; y < 20; y++)
+            {
+                for (x = 12; x < 24; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (63 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
+
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                    ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                }
+            }
+
+
+            // Walensee
+            for (y = 48; y < 64; y++)
+            {
+                for (x = 20; x < 64; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (63 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
+
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                    ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                }
+            }
+
+            // steg 6 y 12-20  x 12-24
+       // steg 8 y 32-40  x 29-33
+
+       // walensee 6  y 48-64 x 20-64
+       // walensee 8  y 112-120  x 120-128
+            lod = 8;
+            scale = 1.f / (float)pow(2, lod);
+            sizeT = sizeWorld * scale;
+            sizeTotal = sizeT * tile_toBorder;
+            sizeBrd = (sizeTotal - sizeT) / 2.f;
+
+
+            // Steg
+            for (y = 64; y < 80; y++)
+            {
+                for (x = 58; x < 66; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (255 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
+
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                    ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                }
+            }
+
+
+            // Walensee
+            for (y = 224; y < 240; y++)
+            {
+                for (x = 240; x < 256; x++)
+                {
+                    leftT = offset + x * sizeT - sizeBrd;
+                    bottomT = offset + (255 - y) * sizeT - sizeBrd;
+                    rightT = leftT + sizeTotal;
+                    topT = bottomT + sizeTotal;
+
+                    std::string imageName = "img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
+                    ofSummary << lod << " " << y << " " << x << " 1024 " << leftT << " " << topT * -1 << " " << sizeTotal;
+                    ofSummary << " orthophoto/" << imageName << ".jp2\n";
+                }
+            }
+
+            ofSummary.close();
+        }
+        */
 }
 #pragma optimize("", off)
 void terrainManager::bil_to_jp2Photos()
@@ -5513,10 +5579,10 @@ void terrainManager::bil_to_jp2Photos()
     std::string name;
     std::string filename;
     std::ifstream ifSummary;
-    
+
     jp2Dir jp2;
     jp2.load("E:/terrains/switserland_Steg/gis/photos/photo_tiles.json");
-    for (auto &F : jp2.files)
+    for (auto& F : jp2.files)
     {
         std::string binfile = "E:/terrains/switserland_Steg/gis/_temp/" + F.filename;
         std::ofstream of_jp2;
@@ -5524,7 +5590,7 @@ void terrainManager::bil_to_jp2Photos()
         if (of_jp2.good())
         {
             F.sizeInBytes = 0;
-            for (auto &T : F.tiles)
+            for (auto& T : F.tiles)
             {
                 T.fileOffset = F.sizeInBytes;
                 filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(T.lod) + "_" + std::to_string(T.y) + "_" + std::to_string(T.x);
@@ -5541,7 +5607,7 @@ void terrainManager::bil_to_jp2Photos()
     ifSummary.open("E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary_lod7.txt");
     if (ifSummary)
     {
-        ifSummary >> lod >> y >> x >> pixSize >>leftT >> topT >> size >> name;
+        ifSummary >> lod >> y >> x >> pixSize >> leftT >> topT >> size >> name;
         filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
         bil_to_jp2Photos(filename, 1024, lod, y, x);
         while (!ifSummary.eof())
@@ -5550,10 +5616,10 @@ void terrainManager::bil_to_jp2Photos()
             filename = "E:/terrains/switserland_Steg/gis/_temp/img_" + std::to_string(lod) + "_" + std::to_string(y) + "_" + std::to_string(x);
             bil_to_jp2Photos(filename, 1024, lod, y, x);
         }
-        
+
         ifSummary.close();
     }
-    
+
     /*
     FILE* file;
     fopen_s(&file, "E:/terrains/switserland_Steg/gis/photos/gdal_photos_Summary.txt", "r");
@@ -5645,9 +5711,9 @@ uint terrainManager::bil_to_jp2PhotosMemory(std::ofstream& _file, std::string fi
         }
     }
     codestream.flush();
-    
 
-    _file.write((char *)j2c_file.get_data(), j2c_file.tell());
+
+    _file.write((char*)j2c_file.get_data(), j2c_file.tell());
     uint numBytes = j2c_file.tell();
 
     codestream.close();
@@ -5686,7 +5752,7 @@ void terrainManager::bil_to_jp2Photos(std::string file, const uint size, uint _l
         cod.set_progression_order("CPRL");
         cod.set_color_transform(true);
         cod.set_reversible(false);
-        
+
         codestream.access_qcd().set_irrev_quant(0.05f);
         codestream.set_planar(false);
 
@@ -5743,7 +5809,7 @@ void terrainManager::bil_to_jp2Photos(std::string file, const uint size, uint _l
                     ofs.close();
                 }
 
-                
+
                 ofs.open("E:/terrains/switserland_Steg/gis/temp_red.raw", std::ios::binary);
                 if (ofs)
                 {
@@ -5753,8 +5819,8 @@ void terrainManager::bil_to_jp2Photos(std::string file, const uint size, uint _l
                         }
                     }
 
-                    ofs.write((char*)data1, 1024*1024);
-                    
+                    ofs.write((char*)data1, 1024 * 1024);
+
                     ofs.close();
                 }
 
@@ -6328,10 +6394,10 @@ bool terrainManager::update(RenderContext* _renderContext)
     {
     }
 
-    
 
 
-    
+
+
 
 
     FALCOR_PROFILE("update");
@@ -6558,19 +6624,25 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 
     // First load the JP2 Data, BUT 0,0,0 IS  PRELOADED, thisis n own thread so should look like no time
     imageDirectory.cacheHash(hash);
-    
-    
+    //std::thread T0(&jp2Dir::cacheHash, &imageDirectory, hash);
+
+
     std::map<uint32_t, uint2>::iterator it = imageDirectory.tileHash.find(hash);
     if (it != imageDirectory.tileHash.end()) {
         pTile->imageHash = hash;
     }
 
-    if (pTile->imageHash > 0)
+    //if (pTile->imageHash > 0)
     {
         textureCacheElement map;
 
         if (!imageCache.get(pTile->imageHash, map))
         {
+            if (pTile->imageHash == 0)
+            {
+                bool CM = true;
+            }
+
             std::array<unsigned char, 1024 * 1024 * 4> data;
             std::shared_ptr<std::vector<unsigned char>> dataCache;
 
@@ -6711,7 +6783,7 @@ void terrainManager::splitOne(RenderContext* _renderContext)
             hashAndCache(tile);
 
             hashAndCacheImages(tile);
- 
+
             if (true)	// antani, check for hashAndCache() return value is it ready
             {
 
@@ -7353,9 +7425,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             //triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
         }
 
-        
 
-        
+
+
 
         if (_plantMaterial::static_materials_veg.modified)
         {
@@ -7450,7 +7522,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonInstanceNumber = 1;
             bufferidx = (bufferidx + 1) % 2;
             ribbonData[bufferidx]->setBlob(paraRuntime.packedRibbons, 0, paraRuntime.ribbonCount * sizeof(unsigned int) * 6);
-            
+
             //ribbonData->setBlob(AirSim.packedRibbons, 0, AirSim.ribbonCount * sizeof(unsigned int) * 6);
 
             ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[bufferidx]);
@@ -7557,15 +7629,23 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     {
         FALCOR_PROFILE("Thermals");
-        
+
+        //std::vector<float4> thermals;
+        //numThermals = 200 * 100;
+        //thermals.resize(numThermals * 100);
+
+        //cfdClip.simulate(20.0f);
+        //cfdClip.lods[0].streamlines(float3(-3000, 500, 5000), thermals.data());
+        //thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
+
         thermalsShader.State()->setFbo(_fbo);
         thermalsShader.State()->setViewport(0, _viewport, true);
         thermalsShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         thermalsShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
         thermalsShader.State()->setRasterizerState(rasterstateGliderWing);
-        thermalsShader.drawInstanced(_renderContext, paraRuntime.wingVertexCount, 1);
-        thermalsShader.drawInstanced(_renderContext, 3, numThermals);
-        
+        //thermalsShader.drawInstanced(_renderContext, 3, numThermals);
+        thermalsShader.drawInstanced(_renderContext, 100, numThermals);
+
     }
 
 

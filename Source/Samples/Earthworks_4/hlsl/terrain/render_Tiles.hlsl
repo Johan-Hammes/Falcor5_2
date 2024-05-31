@@ -220,7 +220,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
     Attr.T = cross(Attr.B, Attr.N);
 	
 	Attr.uv = vIn.texCoords.xy;
-	Attr.diffuse = gAlbedoArray.SampleLevel(gSmpAniso, vIn.texCoords, 0).rgb;
+    Attr.diffuse = 0.2;//    gAlbedoArray.SampleLevel(gSmpAniso, vIn.texCoords, 0).rgb;
 	
 	float3 PBR = gPBRArray.SampleLevel(gSmpAniso, vIn.texCoords, 0).rgb;
 	Attr.alpha = 1.0;
@@ -238,7 +238,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	
 	//mat.AO = PBR.b;
 	
-	mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
+    mat.diff = gAlbedoArray.Sample(gSmpAniso, vIn.texCoords);
    // mat.diff.rgb = 0.5;
     //float3 light = saturate(   dot(Attr.N_mesh, float3(0.5, 0.9, 0.0)) * float3(2.02, 1.53, 1.05)   + float3(0.07, 0.1, 0.2)     );
     float3 light = float3(0.04, 0.08, 0.15) + saturate(dot(Attr.N_mesh, normalize(float3(0.5, 0.2, 0.0))));
@@ -275,7 +275,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	diffuse *= (1 - mat.fresnel);
 	specular *= mat.fresnel;
 
-    diffuse += float3(0.01, 0.02, 0.04) * 1.2 * mat.diff.rgb;
+    diffuse += float3(0.01, 0.02, 0.04) * 0.2 * mat.diff.rgb;
 	float3 colour = diffuse + specular * 0.1;
 	
 	

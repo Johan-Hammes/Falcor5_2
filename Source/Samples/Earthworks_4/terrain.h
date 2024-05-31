@@ -58,6 +58,7 @@
 
 
 #include "glider.h"
+#include "cfd.h"
 using namespace Falcor;
 
 struct rvPacked
@@ -1403,4 +1404,6 @@ private:
     _gliderBuilder paraBuilder;
     _gliderRuntime paraRuntime;
     _airSim AirSim;
+    _cfd CFD;
+    _cfdClipmap cfdClip;
 };

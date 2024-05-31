@@ -146,6 +146,8 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     x = _x;
     w = _w;
 
+    exportGliderShape();
+
     cross = _cross;
 
     v.resize(x.size());
@@ -170,6 +172,8 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     //ROOT = float3(5500, 1900, 11500);   // walensee
     ROOT = float3(-7500, 1000, -10400);// hulftegg
     //ROOT = float3(20000, 1000, 20000);// hulftegg
+
+    ROOT = float3(-1500, 1000, 15400);// windy
 
     for (int i = 0; i < spanSize; i++)
     {
@@ -737,7 +741,7 @@ void _gliderRuntime::pack_canopy()
     float dC;   // expand ratio
     float dU = 1.f / (float)(spanSize);
     float dV = 1.f / (float)(chordSize);
-    for (int s = 0; s < spanSize-1; s++)
+    for (int s = 0; s < spanSize - 1; s++)
     {
         for (int expand = 0; expand < 4; expand++)
         {
@@ -773,14 +777,14 @@ void _gliderRuntime::pack_canopy()
                 N = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS);
                 N = glm::normalize(N + cells[s].right * dR * PRES * 0.5f);
                 P += N * dC * dP * PRES;
-                
+
                 packWing(ROOT + P, N, UV);
 
                 P2 = glm::lerp(x[index(s, c)], x[index(s + 1, c)], dS2);
                 N2 = glm::lerp(n[index(s, c)], n[index(s + 1, c)], dS2);
                 N2 = glm::normalize(N2 + cells[s].right * dR2 * PRES * 0.5f);
                 P2 += N2 * dC * dP2 * PRES;
-                
+
                 packWing(ROOT + P2, N2, UV2);
 
             }
@@ -939,6 +943,68 @@ void _gliderRuntime::save()
 
 
 
+void _gliderRuntime::exportGliderShape()
+{
+    aiScene* scene = new aiScene;
+    scene->mRootNode = new aiNode();
+
+    scene->mNumMaterials = 1;
+    scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
+    for (int i = 0; i < scene->mNumMaterials; i++)
+        scene->mMaterials[i] = new aiMaterial();
+
+    scene->mNumMeshes = 1;
+    scene->mMeshes = new aiMesh * [scene->mNumMeshes];
+    scene->mRootNode->mNumMeshes = scene->mNumMeshes;   // insert all into root
+    scene->mRootNode->mMeshes = new unsigned int[scene->mRootNode->mNumMeshes];
+    for (int i = 0; i < scene->mNumMeshes; i++) {
+        scene->mMeshes[i] = new aiMesh();
+        scene->mMeshes[i]->mMaterialIndex = i;
+        scene->mRootNode->mMeshes[i] = i;
+    }
+
+
+    for (int i = 0; i < scene->mNumMeshes; i++)
+    {
+        auto pMesh = scene->mMeshes[i];
+        pMesh->mVertices = new aiVector3D[spanSize * chordSize];       // for now just insert all verts
+        memcpy(pMesh->mVertices, x.data(), sizeof(float3) * spanSize * chordSize);
+        pMesh->mNumVertices = spanSize * chordSize;
+
+        pMesh->mNumFaces = (spanSize - 1) * (chordSize - 1);
+        pMesh->mFaces = new aiFace[pMesh->mNumFaces];
+        pMesh->mPrimitiveTypes = aiPrimitiveType_POLYGON;
+
+        //for (uint i = 0; i < pMesh->mNumFaces; i++)
+        for (uint s = 0; s < spanSize - 1; s++)
+            for (uint c = 0; c < chordSize - 1; c++)
+            {
+                {
+                    uint idx = s * (chordSize - 1) + c;
+                    aiFace& face = pMesh->mFaces[idx];
+
+                    face.mIndices = new unsigned int[4];
+                    face.mNumIndices = 4;
+
+                    face.mIndices[0] = s * chordSize + c;
+                    face.mIndices[1] = s * chordSize + c + 1;
+                    face.mIndices[2] = (s + 1) * chordSize + c + 1;
+                    face.mIndices[3] = (s + 1) * chordSize + c;
+
+                    // close the back
+                    if (c == chordSize - 2)
+                    {
+                        face.mIndices[1] = s * chordSize + 0;
+                        face.mIndices[2] = (s + 1) * chordSize + 0;
+                    }
+                }
+            }
+    }
+
+    Assimp::Exporter exp;
+    exp.Export(scene, "obj", "E:/glider.obj");
+}
+
 
 void _gliderRuntime::setJoystick()
 {
@@ -961,6 +1027,10 @@ void _gliderRuntime::setJoystick()
         XINPUT_STATE state;
         if (XInputGetState(controllerId, &state) == ERROR_SUCCESS)
         {
+            if ((state.Gamepad.wButtons & XINPUT_GAMEPAD_X) != 0)
+            {
+                exportGliderShape();
+            }
 
 
             float normLX = fmaxf(-1, (float)state.Gamepad.sThumbRX / 32767);
@@ -1340,7 +1410,7 @@ void _swissBuildings::findWallEdges(_wallinfo& _wall)
         for (int vrt = 0; vrt < 4; vrt++)
         {
             auto& edge = face.edges[vrt];
-            edge.normal = verts[face.vertIndex[(vrt + 1)%4]] - verts[face.vertIndex[vrt]];
+            edge.normal = verts[face.vertIndex[(vrt + 1) % 4]] - verts[face.vertIndex[vrt]];
             edge.length = glm::length(edge.normal);
             edge.normal = glm::normalize(edge.normal);
 
@@ -1410,7 +1480,7 @@ void _swissBuildings::exportBuilding(std::string _path, std::vector<float3> _v, 
                 face.mIndices[3] = F.vertIndex[3];
 
                 faceNum++;
-            }
+}
         }
 #else
         pMesh->mNumFaces = _f.size() / 4;
@@ -1444,14 +1514,17 @@ void _swissBuildings::processWallRoof(std::string _path)
     double latt, lon, lattBottom, lonBottom, lattTop, lonTop;
     std::string date, time;
 
+    uint inCount = 0;
     uint dCount = 0;
-    float4 data[1024][3];
+    float4 data[16384][3];
 
     std::ofstream ofs, ofsBin;
-    ofs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.csv");
+    ofs.open("E:/thermal_Summer_West.csv");
     ofsBin.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.raw", std::ios::binary);
     std::ifstream ifs;
-    ifs.open("E:/thermal_waalenstadt.csv");
+    //ifs.open("E:/thermal_waalenstadt.csv");
+    ifs.open("E:/thermal_Summer.csv");
+
     if (ifs)
     {
         while (!ifs.eof())
@@ -1464,8 +1537,22 @@ void _swissBuildings::processWallRoof(std::string _path)
             ifs >> year >> month >> day >> hours >> minutes;
             ifs >> flightseconds >> id;
 
-            if (lon > 9.25f && lon < 9.333 && latt > 47.1 && latt < 47.2 && month >=7 && month <=8 && hours >= 12 &&
-                lonTop > lonBottom)
+            //if (lon > 9.25f && lon < 9.333 && latt > 47.1 && latt < 47.2 && month >=7 && month <=8 && hours >= 12 &&
+            //    lonTop > lonBottom)
+
+            float3 ground = reprojectLL(latt, lon, alt1);
+            float3 bottom = reprojectLL(lattBottom, lonBottom, alt2);
+            float3 top = reprojectLL(lattTop, lonTop, alt3);
+            float3 dir = glm::normalize(top - bottom);
+            float3 selectDir = normalize(float3(1, 5, -0.5));
+            float DOT = dot(dir, selectDir);
+
+            inCount++;
+
+            //if (lon > 9.00f && lon < 9.333 && latt > 47.1 && latt < 47.4 &&
+            //    month >= 7 && month <= 8 && hours >= 12) // && dir.y > 0.9f)
+            if (lon > 9.00f && lon < 9.333 && latt > 47.1 && latt < 47.3 &&
+                month >= 6 && month <= 9 && DOT > 0.95f)
             {
                 ofs << cnt << " ";
                 ofs << latt << " " << lon << " " << alt1 << " ";
@@ -1475,7 +1562,7 @@ void _swissBuildings::processWallRoof(std::string _path)
                 ofs << year << " " << month << " " << day << " " << hours << " " << minutes << "  ";
                 ofs << flightseconds << " " << id << "\n";
 
-
+                /*
                 float3 ground = reprojectLL(latt, lon, alt1);
                 float3 bottom = reprojectLL(lattBottom, lonBottom, alt2);
                 float3 top = reprojectLL(lattTop, lonTop, alt3);
@@ -1484,11 +1571,13 @@ void _swissBuildings::processWallRoof(std::string _path)
                 //ofsBin << bottom.x << bottom.y << bottom.z << speed;
                 //ofsBin << top.x << top.y << top.z << speed;
 
-                
+                */
+                float speed = (float)(alt3 - alt2) / (float)flightseconds;
                 data[dCount][0] = float4(ground.x, ground.y, ground.z, speed);
                 data[dCount][1] = float4(bottom.x, bottom.y, bottom.z, speed);
                 data[dCount][2] = float4(top.x, top.y, top.z, speed);
                 dCount++;
+
             }
         }
 
@@ -1521,7 +1610,7 @@ void _swissBuildings::processWallRoof(std::string _path)
         {
             numfaces += sceneRoof->mMeshes[m]->mNumFaces;
         }*/
-        
+
         VERTS.resize(numfaces * 3);
 
         uint vidx = 0;

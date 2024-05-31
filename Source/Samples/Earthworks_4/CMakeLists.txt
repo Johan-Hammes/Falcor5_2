@@ -40,6 +40,8 @@ target_sources(Earthworks_4 PRIVATE
     glider.cpp
     glider_runtime.cpp
     glider.h
+    cfd.h
+    cfd.cpp
 	
 	hlsl/terrain/compute_tileVertices.hlsl
 	hlsl/terrain/compute_bc6h_functions.hlsli

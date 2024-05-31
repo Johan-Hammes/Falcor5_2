@@ -618,6 +618,8 @@ public:
 
     void setJoystick();
 
+    void exportGliderShape();
+
     void setWind(std::string file, float3 _wind) { windTerrain.load(file, _wind); }
     void loadWind() { windTerrain.loadRaw(); }
     void setxfoilDir(std::string dir) { xfoilDir = dir; }

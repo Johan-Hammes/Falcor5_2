@@ -238,7 +238,7 @@ void Earthworks_4::loadColorCube(std::string name)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
-    global_sun_direction = glm::normalize(float3(-1, -0.344f, 0));
+    global_sun_direction = glm::normalize(float3(1, -0.544f, -0.72));
 
     static bool first = true;
     if (first)
