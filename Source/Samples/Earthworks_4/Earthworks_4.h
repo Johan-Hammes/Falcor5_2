@@ -30,6 +30,7 @@
 #include "terrain.h"
 #include "atmosphere.h"
 #include "RenderGraph/RenderGraph.h"
+#include "Utils/Video/VideoEncoderUI.h"
 
 
 
@@ -75,9 +76,7 @@ private:
     bool showAbout = false;
     Texture::SharedPtr aboutTex;
     int slowTimer = 0;      // this is used to alow donw framerate
-    
-
-    
+        
 
     struct {
         bool    vsync = true;

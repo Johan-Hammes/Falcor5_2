@@ -56,7 +56,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     }
     else
     {
-        tangent.xyz = right * 2;
+        tangent.xyz = right * 1;
     }
         
 
@@ -86,6 +86,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 float4 psMain(PSIn vOut) : SV_TARGET
 {
     float speed = pow(vOut.uv.y / 2.3, 2.82);
+    //float speed = vOut.uv.y * 1000;
     float3 col = 0;
 
     if (speed < 1)         col = lerp(float3(0, 0, 0), float3(0, 0, 1), speed);

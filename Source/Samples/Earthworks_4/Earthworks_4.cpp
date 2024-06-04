@@ -236,6 +236,9 @@ void Earthworks_4::loadColorCube(std::string name)
 
 
 
+
+
+
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
     global_sun_direction = glm::normalize(float3(1, -0.544f, -0.72));
@@ -332,6 +335,14 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     {
         Sleep(30);      // aim for 15fps in this mode
     }*/
+    static uint cnt = 0;
+
+    if (terrain.recordingCFD)
+    {
+        pTargetFbo->getColorTexture(0)->captureToFile(0, 0, "E:/record/frame__" + std::to_string(cnt) + ".png");
+        cnt++;
+    }
+
 
     Sleep(2);
 }
@@ -382,6 +393,16 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 {
     slowTimer = 10;
     terrain.onKeyEvent(_keyEvent);
+
+    if (_keyEvent.type == KeyboardEvent::Type::KeyPressed)
+    {
+        if (_keyEvent.key == Input::Key::G)
+        {
+            terrain.recordingCFD = true;
+            terrain.cfd_play_k = 0;
+        }
+    }
+
     return false;
 }
 

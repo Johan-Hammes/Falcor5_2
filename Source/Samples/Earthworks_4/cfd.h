@@ -84,6 +84,8 @@ struct _cfd_Smap
     void save(std::string filename);
     void load(std::string filename);
     void mipDown(_cfd_Smap& top);
+    void saveNormals(std::string filename);
+    
 
     uint width;
     const glm::u8vec4 solid = {0, 0, 0, 0};
@@ -92,6 +94,8 @@ struct _cfd_Smap
     std::vector<glm::u8vec4> S;     //sx, sy, sz, volume
 
     glm::u8vec4 getS(uint3 _p);
+
+    std::vector<float4> normals;
 };
 
 
@@ -103,16 +107,34 @@ struct _cfd_lod
     float3& getV(uint3 _p) { return v[idx(_p)]; }
     void setV(uint3 _p, float3 _v);
 
+    void loadNormals(std::string filename);
+    std::vector<float4> normals;
+
+    inline float3 fromRoot(float3 _r);
+    inline float3 toRoot(float3 _r);
+    float3 to_Root;
+    float3 from_Root;
+
     // lodding
     void fromRoot();
     void fromRootEdges();
     void toRoot();
 
+    void fromRoot_Alpha();
+    void toRoot_Alpha();
+
+    void export_V(std::string filename);
+    bool import_V(std::string filename);
+
     // simulate
     void incompressibility(uint _num);
+    void Normal();
+    void incompressibilityNormal(uint _num);
     void edges();
     void advect(float _dt);
+    void vorticty_confine(float _dt);
     float3 sample(float3 _p);
+    float3 sampleCurl(float3 _p);
     void clamp(float3 &_p);
     float sample_x(float3 _p);
     float sample_y(float3 _p);
@@ -132,8 +154,13 @@ struct _cfd_lod
     float frameTime = 0;
 
     _cfd_Smap smap;
+
     std::vector<float3> v;
     std::vector<float3> v2;
+
+    std::vector<float3> curl;
+    std::vector<float> mag;
+    std::vector<float3> vorticity;
 };
 
 
@@ -149,6 +176,9 @@ struct _cfdClipmap
     void simulate(float _dt);
     uint counter = 0;
     void streamlines(float3 _p, float4* _data);
+
+    void export_V(std::string _name);
+    bool import_V(std::string _name);
 
 
     std::array<_cfd_lod, 6>    lods;

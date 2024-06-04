@@ -1406,4 +1406,7 @@ private:
     _airSim AirSim;
     _cfd CFD;
     _cfdClipmap cfdClip;
+    public:
+    bool recordingCFD = false;
+    int cfd_play_k = 0;
 };

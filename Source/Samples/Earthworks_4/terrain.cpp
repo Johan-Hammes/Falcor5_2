@@ -3742,19 +3742,32 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             numThermals = 200 * 100;
             thermals.resize(numThermals * 100);
 
-            //_cfdClipmap cfdClip;
             //cfdClip.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
             cfdClip.build(settings.dirRoot + "/cfd");
 
-            cfdClip.setWind(float3(3, 0, 0), float3(4, 0, 0));
+            uint seconds = 0;// 27040;
+            cfdClip.import_V(settings.dirRoot + "/cfd/east3ms__" + std::to_string(seconds) + "sec");
+            
+            cfdClip.setWind(float3(3, 0, -3), float3(4, 0, -3));
             cfdClip.simulate_start(20.0f);
 
-            for (int k = 0; k < 1500; k++)   //1500 = 937 seconds in 210
+            /*
+            uint saveidx = 0;
+            for (int k = 0; k < 256 * 64 * 100; k++)   //1500 = 937 seconds in 210
+            //for (int k = 0; k < 256 * 300; k++)   //1500 = 937 seconds in 210
             {
-          //      cfdClip.simulate(20.0f);
-            }
-            cfdClip.streamlines(float3(-3000, 450, 8000), thermals.data());
+                cfdClip.simulate(20.0f);
+                if (k % 64 == 0)
+                {
+                    uint seconds = (k * 20) / 32;
+                    cfdClip.export_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(saveidx) + "sec");
+                    saveidx++;
+                }
+            } /**/
 
+            //cfdClip.streamlines(float3(-2800, 400, 12500), thermals.data());
+            //cfdClip.streamlines(float3(-6000, 450, 6000), thermals.data());
+            cfdClip.streamlines(float3(-9800, 450, 11500), thermals.data());
             /*
              ofs.open(filename + "128_Cut.raw", std::ios::binary);
              if (ofs)
@@ -7647,6 +7660,26 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         thermalsShader.drawInstanced(_renderContext, 100, numThermals);
 
     }
+
+    if (recordingCFD)
+    {
+        {
+            std::vector<float4> thermals;
+            numThermals = 200 * 100;
+            thermals.resize(numThermals * 100);
+
+            bool loaded = cfdClip.import_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(cfd_play_k) + "sec");
+            //cfdClip.streamlines(float3(2800, 900, 10500), thermals.data());
+            cfdClip.streamlines(float3(-2800, 450, 12500), thermals.data());
+            thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
+
+            if (!loaded) recordingCFD = false;
+        } /**/
+        cfd_play_k++;
+        //if (k == 78) recordingCFD = false;
+
+    }
+
 
 
     {
