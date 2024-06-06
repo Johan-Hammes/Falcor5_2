@@ -251,13 +251,13 @@ void Earthworks_4::loadColorCube(std::string name)
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
     //global_sun_direction = glm::normalize(float3(1, -0.544f, -0.72));
-    global_sun_direction = glm::normalize(float3(-1, -0.244f, 0));
+    global_sun_direction = glm::normalize(float3(1, -0.244f, 0));
 
     static bool first = true;
     if (first)
     {
         first = false;
-        terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", global_sun_direction.y);
+        terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
 
         terrain.terrainShadowTexture = Texture::create2D(4096, 4096, Falcor::ResourceFormat::RG32Float, 1, 1, terrain.shadowEdges.shadowH, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
 

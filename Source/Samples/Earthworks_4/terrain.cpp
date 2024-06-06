@@ -109,7 +109,7 @@ void _shadowEdges::load(std::string filename, float _angle)
 
         float angle = _angle;  // about 10 degrees
         float a_min = angle;
-        float a_max = angle + 0.05f;
+        float a_max = angle -0.01f;
 
         memset(edge, 0, 4096 * 4096);
         for (int y = 1; y < 4094; y++)
@@ -122,21 +122,21 @@ void _shadowEdges::load(std::string filename, float _angle)
                 }
 
 
-                if ((Nx[y][x] < a_min) && (Nx[y][x + 1] > a_max))
+                if ((Nx[y][x-1] < a_min) && (Nx[y][x] > a_max))
                 {
                     edge[y][x] = 255;
                     edgeCnt++;
 
                     
                     float H = height[y][x];
-                    for (int j = x - 1; j > 0; j--)
+                    for (int j = x + 1; j < 4096; j++)
                     {
                         H -= angle * 9.765625f;
                         if (H > shadowH[y][j].x)
                         {
                             edge[y][j] = 0;
 
-                            float softDepth = (float)j * 9.765625f / 100.f;
+                            float softDepth = (float)(j-x) * 9.765625f / 10.f;
                             shadowH[y][j] = float2(H - 0.f, softDepth);
                             //shadowEdge++;
                             //break;
@@ -7598,7 +7598,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         thermalsShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         thermalsShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
         thermalsShader.State()->setRasterizerState(rasterstateGliderWing);
-        thermalsShader.drawInstanced(_renderContext, 100, numThermals);
+        //thermalsShader.drawInstanced(_renderContext, 100, numThermals);
 
     }
 
