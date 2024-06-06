@@ -51,6 +51,7 @@ void _gliderRuntime::renderGui(Gui* mpGui)
 
     uint triangle = chordSize * spanSize;
 
+    
     if (ImGui::SliderFloat("weight", &weightShift, 0, 1))
     {
         constraints[1].l = weightShift * weightLength;
@@ -173,7 +174,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     ROOT = float3(-7500, 1000, -10400);// hulftegg
     //ROOT = float3(20000, 1000, 20000);// hulftegg
 
-    ROOT = float3(-1500, 1000, 15400);// windy
+    ROOT = float3(-1500, 1500, 11400);// windy south
 
     for (int i = 0; i < spanSize; i++)
     {
@@ -254,7 +255,8 @@ void _gliderRuntime::solve(float _dT)
 
 
     // fixme later per cell
-    float3 wind = windTerrain.W(ROOT + x[spanSize * chordSize]);;
+    // Just use the middle wind for now
+    float3 wind = wingWind[1];// windTerrain.W(ROOT + x[spanSize * chordSize]);;
 
     sumFwing = float3(0, 0, 0);
     sumDragWing = float3(0, 0, 0);
@@ -510,8 +512,8 @@ void _gliderRuntime::solve(float _dT)
         }
     }
 
-    linesLeft.windAndTension(x, w, n, v, wind, _dT * _dT);
-    linesRight.windAndTension(x, w, n, v, wind, _dT * _dT);
+    linesLeft.windAndTension(x, w, n, v, pilotWind, _dT * _dT);
+    linesRight.windAndTension(x, w, n, v, pilotWind, _dT * _dT);
     tensionCarabinerLeft = linesLeft.tencileVector;
     tensionCarabinerRight = linesRight.tencileVector;
 
@@ -519,10 +521,10 @@ void _gliderRuntime::solve(float _dT)
     x[start + 1] += w[start + 1] * tensionCarabinerLeft * _dT * _dT;
     x[start + 2] += w[start + 2] * tensionCarabinerRight * _dT * _dT;
     // drag on the body
-    vBody = glm::length(v[start] - wind);
+    vBody = glm::length(v[start] - pilotWind);
     float rho = 0.5 * airDensity * vBody * vBody;
     if (vBody > 1) {
-        pilotDrag = -glm::normalize(v[start] - wind) * rho * 0.7f * 1.3f;
+        pilotDrag = -glm::normalize(v[start] - pilotWind) * rho * 0.7f * 1.3f;
         x[start] += _dT * w[start] * pilotDrag * _dT;
     }
 
@@ -594,7 +596,7 @@ void _gliderRuntime::solve(float _dT)
             if (p.y < H)
             {
                 x[i].y = H - ROOT.y;
-                v[i] *= 0.3f;
+                v[i] *= 0.15f;
             }
         }
 
@@ -907,6 +909,22 @@ void _gliderRuntime::pack_feedback()
         float3 W = windTerrain.W(ROOT + x[triangle]);
         setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.001f, color);     ribbonCount++;
         setupVert(&ribbon[ribbonCount], 1, x[triangle] + W * 1.f, 0.029f, color);     ribbonCount++;
+
+
+        /*
+        color = 1;
+        setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, color);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[triangle] + pilotWind * 5.f, 0.1f, color);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, x[0 * chordSize + 12], 0.01f, color);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[0 * chordSize + 12] + wingWind[0] * 5.f, 0.1f, color);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, x[25 * chordSize + 12], 0.01f, color);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[25 * chordSize + 12] + wingWind[1] * 5.f, 0.1f, color);     ribbonCount++;
+
+        setupVert(&ribbon[ribbonCount], 0, x[49 * chordSize + 12], 0.01f, color);     ribbonCount++;
+        setupVert(&ribbon[ribbonCount], 1, x[49 * chordSize + 12] + wingWind[2] * 5.f, 0.1f, color);     ribbonCount++;
+        */
     }
     /*
     for (int y = -10; y < 10; y++)
@@ -1035,12 +1053,12 @@ void _gliderRuntime::setJoystick()
 
             float normLX = fmaxf(-1, (float)state.Gamepad.sThumbRX / 32767);
             float normLY = fmaxf(-1, (float)state.Gamepad.sThumbRY / 32767);
-            cameraDistance -= ((state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0) * 0.1001f;
-            cameraDistance += ((state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0) * 0.1001f;
+            cameraDistance -= ((state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0) * 0.2001f;
+            cameraDistance += ((state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0) * 0.2001f;
             cameraDistance = glm::clamp(cameraDistance, 0.1f, 1000.f);
 
-            cameraYaw -= normLX * 0.003f;
-            cameraPitch -= normLY * 0.005f;
+            cameraYaw -= normLX * 0.03f;
+            cameraPitch -= normLY * 0.015f;
             cameraPitch = glm::clamp(cameraPitch, -1.3f, 1.3f);
 
             if (runcount == 0)  return;

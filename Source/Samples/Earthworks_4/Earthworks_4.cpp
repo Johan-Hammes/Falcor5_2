@@ -187,6 +187,9 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     std::thread thread_obj_cfd(&terrainManager::cfdThread, &terrain);
     thread_obj_cfd.detach();
 
+    std::thread thread_obj_paraglider(&terrainManager::paragliderThread, &terrain);
+    thread_obj_paraglider.detach();
+
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
 
@@ -247,7 +250,8 @@ void Earthworks_4::loadColorCube(std::string name)
 
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
-    global_sun_direction = glm::normalize(float3(1, -0.544f, -0.72));
+    //global_sun_direction = glm::normalize(float3(1, -0.544f, -0.72));
+    global_sun_direction = glm::normalize(float3(-1, -0.244f, 0));
 
     static bool first = true;
     if (first)

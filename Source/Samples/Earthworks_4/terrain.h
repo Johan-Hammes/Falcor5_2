@@ -1411,6 +1411,7 @@ private:
 
     void cfdStart();
     void cfdThread();
+    void paragliderThread();
 
     struct
     {
@@ -1423,12 +1424,24 @@ private:
         float stepTime;
         bool realTime = true;   // if false we run as fast as posible to solve as much time
         uint exportFrameStep = 0;   // 0 does not export, typical is repeating frame 2^lod - 1 every time we have sync
-        
+
+        std::array<float3, 10> velocityRequets;
+        float3 originRequest;
+
 
         // output
         bool newFlowLines = false;
         uint numLines = 0;
         std::vector<float4> flowlines;
 
+        std::array<float3, 10> velocityAnswers;
+
     } cfd;      // guess this needs to become its own class or move into _cfdClipmap
+
+
+    struct
+    {
+        bool loaded = false;
+        double frameTime;
+    } glider;
 };

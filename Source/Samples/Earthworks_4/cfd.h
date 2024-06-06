@@ -54,9 +54,14 @@ struct _cfd_Smap
 struct _cfd_lod
 {
     void init(uint _w, uint _h, float _worldSize);
-    inline uint idx(uint3 _p) { return _p.y * w2 + _p.z * width + _p.x;  }  // do a safe version
-    inline uint idx(uint x, uint y, uint z) { return y * w2 + z * width + x; }  // do a safe version
-    float3& getV(uint3 _p) { return v[idx(_p)]; }
+    //inline uint idx(uint3 _p) { return _p.y * w2 + _p.z * width + _p.x;  }  // do a safe version
+    //inline uint idx(uint x, uint y, uint z) { return y * w2 + z * width + x; }  // do a safe version
+
+    //inline uint idx(uint3 _p) { return ((_p.y + offset.y) % height) * w2 + ((_p.z + offset.z) % width) * width + ((_p.x + offset.x) % width); }  // do a safe version
+    inline uint idx(uint x, uint y, uint z) { return ((y + offset.y) % height) * w2 + ((z + offset.z) % width) * width + ((x + offset.x) % width);
+    }  // do a safe version
+
+    float3& getV(uint3 _p) { return v[idx(_p.x, _p.y, _p.z)]; }
     void setV(uint3 _p, float3 _v);
 
     void loadNormals(std::string filename);
@@ -64,6 +69,8 @@ struct _cfd_lod
 
     float3 to_Root;
     float3 from_Root;
+
+    void shiftOrigin(int3 _shift);
 
     // lodding
     void fromRoot();
@@ -91,7 +98,7 @@ struct _cfd_lod
     //float3 sample_xyz(float3 _p);
     void simulate(float _dt);
 
-    uint3 offset = {0, 0, 0};
+    int3 offset = {0, 0, 0};
     _cfd_lod* root = nullptr;
 
     uint width, w2;
@@ -132,6 +139,8 @@ struct _cfdClipmap
 
     void export_V(std::string _name);
     bool import_V(std::string _name);
+
+    void shiftOrigin(float3 _origin);
 
 
     std::array<_cfd_lod, 6>    lods;

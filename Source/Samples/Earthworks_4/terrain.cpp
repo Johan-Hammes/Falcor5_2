@@ -32,6 +32,7 @@
 #include "Utils/UI/TextRenderer.h"
 #include "assimp/Exporter.hpp"
 using namespace Assimp;
+#include <chrono>
 
 //#pragma optimize("", off)
 
@@ -99,7 +100,8 @@ void _shadowEdges::load(std::string filename, float _angle)
             for (int x = 0; x < 4095; x++)
             {
                 Nx[y][x] = (height[y][x] - height[y][x + 1]) / 9.765625f;    // 10 meter between pixels SHIT NOT TRUE
-                //                shadowH[y][x] = float2(height[y][x] - 5.f, 0.f);
+
+                shadowH[y][x] = float2(height[y][x] - 5.f, 0.f);
                 // remove this and pass terrein height seperate
             }
         }
@@ -125,7 +127,7 @@ void _shadowEdges::load(std::string filename, float _angle)
                     edge[y][x] = 255;
                     edgeCnt++;
 
-                    /*
+                    
                     float H = height[y][x];
                     for (int j = x - 1; j > 0; j--)
                     {
@@ -141,7 +143,7 @@ void _shadowEdges::load(std::string filename, float _angle)
                         }
                         else break;
                     }
-                    */
+                    
                 }
 
 
@@ -3994,6 +3996,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     //paraRuntime.CPbrakes = paraBuilder.CPbrakes;
     paraRuntime.linesLeft = paraBuilder.linesLeft;
     paraRuntime.linesRight = paraBuilder.linesRight;
+    glider.loaded = true;
 
     _swissBuildings buildings;
     //buildings.process(settings.dirRoot + "/buildings/testQGISDXF.dxf");
@@ -4535,7 +4538,7 @@ void terrainManager::onGuiRender(Gui* _gui)
                 //paraRuntime.linesLeft = paraBuilder.linesLeft;
                 //paraRuntime.linesRight = paraBuilder.linesRight;
             }
-
+            ImGui::Text("simtime ms %f", glider.frameTime);
             paraRuntime.renderGui(_gui);
             break;
 
@@ -7281,12 +7284,24 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     {
         {
             FALCOR_PROFILE("SOLVE_glider");
-            paraRuntime.solve(0.0005f);
+            //paraRuntime.solve(0.0005f);
         }
+
+        cfd.originRequest = paraRuntime.pilotPos();
+        cfd.velocityRequets[0] = paraRuntime.pilotPos();
+        cfd.velocityRequets[1] = paraRuntime.wingPos(0);
+        cfd.velocityRequets[2] = paraRuntime.wingPos(25);
+        cfd.velocityRequets[3] = paraRuntime.wingPos(49);
+
+        paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
+        paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
+
         paraRuntime.pack_canopy();
         paraRuntime.pack_lines();
         paraRuntime.pack_feedback();
         paraRuntime.pack();
+
+
         _camera->setFarPlane(40000);
         _camera->setUpVector(paraRuntime.camUp);
         _camera->setTarget(paraRuntime.EyeLocal + paraRuntime.camDir * 100.f);
@@ -9524,7 +9539,7 @@ void terrainManager::cfdThread()
     //uint seconds = 0;// 27040;
     //cfd.clipmap.import_V(settings.dirRoot + "/cfd/east3ms__" + std::to_string(seconds) + "sec");
 
-    cfd.clipmap.setWind(float3(3, 0, 0), float3(4, 0, 0));
+    cfd.clipmap.setWind(float3(5, 0, 0), float3(8, 0, 0));
     cfd.clipmap.simulate_start(20.0f);
 
     //cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data());
@@ -9550,13 +9565,50 @@ void terrainManager::cfdThread()
     static uint k = 0;
     while (1)
     {
+        cfd.clipmap.shiftOrigin(cfd.originRequest);
+        
         cfd.clipmap.simulate(20.0f);
         if (k % 2 == 0)
         {
-            cfd.clipmap.streamlines(float3(650, 1450,11400), cfd.flowlines.data());
+            //cfd.clipmap.streamlines(float3(650, 1450,11400), cfd.flowlines.data());
             //cfd.clipmap.streamlines(float3(-20000, 450, -20000), cfd.flowlines.data());
+
+            //cfd.clipmap.streamlines(cfd.originRequest + float3(-1500, -200, -600), cfd.flowlines.data());
+            cfd.clipmap.streamlines(cfd.originRequest - 100.f * cfd.velocityAnswers[0], cfd.flowlines.data());
+            
+
             cfd.newFlowLines = true;
         }
+
+        for (int i = 0; i < 4; i++)
+        {
+            float rootAltitude = 350.f;   // in voxel space
+            float3 origin = float3(-20000, rootAltitude, -20000);
+            float3 P = (cfd.velocityRequets[i] - origin) * cfd.clipmap.lods[0].oneOverSize;
+            float3 p5 = P * 32.f;
+            p5 -= cfd.clipmap.lods[5].offset;
+            cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(p5);
+        }
+
         k++;
+    }
+}
+
+using namespace std::chrono;
+
+void terrainManager::paragliderThread()
+{
+    while (1)
+    {
+        if (glider.loaded)
+        {
+            auto a = high_resolution_clock::now();
+            
+            paraRuntime.solve(0.0005f);
+
+            auto b = high_resolution_clock::now();
+            glider.frameTime = (double)duration_cast<microseconds>(b - a).count() / 1000.;
+
+        }
     }
 }

@@ -620,6 +620,14 @@ public:
 
     void exportGliderShape();
 
+    // interaction with wind
+    float3 pilotPos() { return ROOT + x[spanSize * chordSize]; }
+    float3 wingPos(uint span) { return ROOT + x[span * chordSize + 12]; }
+    float3 pilotWind = {0, 0, 0};
+    std::array<float3, 3> wingWind = { float3(0, 0, 0), float3(0, 0, 0) , float3(0, 0, 0) };
+    void setPilotWind(float3 _v) { pilotWind = _v; }
+    void setWingWind(float3 _v0, float3 _v1, float3 _v2) { wingWind[0] = _v0; wingWind[1] = _v1; wingWind[2] = _v2;  }
+
     void setWind(std::string file, float3 _wind) { windTerrain.load(file, _wind); }
     void loadWind() { windTerrain.loadRaw(); }
     void setxfoilDir(std::string dir) { xfoilDir = dir; }
