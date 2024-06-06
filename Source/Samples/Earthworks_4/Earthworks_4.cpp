@@ -112,6 +112,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
 void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
+    /*
     float2 A = float2(-20906.8073893663f, 21854.7731031066f);
     float2 B = float2(-21739.4126790621f, -18140.4947773098f);
     float2 C = float2(19087.8133413223f, 21022.9225606067f);
@@ -137,6 +138,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     float right = 2742000;
     float top = 1218000;
     float bottom = 1218000;
+    */
 
     graphicsState = GraphicsState::create();
 
@@ -180,7 +182,11 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
-    
+
+    terrain.cfdStart();
+    std::thread thread_obj_cfd(&terrainManager::cfdThread, &terrain);
+    thread_obj_cfd.detach();
+
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
 
@@ -337,7 +343,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     }*/
     static uint cnt = 0;
 
-    if (terrain.recordingCFD)
+    if (terrain.cfd.recordingCFD)
     {
         pTargetFbo->getColorTexture(0)->captureToFile(0, 0, "E:/record/frame__" + std::to_string(cnt) + ".png");
         cnt++;
@@ -398,8 +404,8 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
     {
         if (_keyEvent.key == Input::Key::G)
         {
-            terrain.recordingCFD = true;
-            terrain.cfd_play_k = 0;
+            terrain.cfd.recordingCFD = true;
+            terrain.cfd.cfd_play_k = 0;
         }
     }
 

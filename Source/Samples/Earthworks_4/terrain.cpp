@@ -3738,92 +3738,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
         {
-            std::vector<float4> thermals;
-            numThermals = 200 * 100;
-            thermals.resize(numThermals * 100);
-
-            //cfdClip.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
-            cfdClip.build(settings.dirRoot + "/cfd");
-
-            uint seconds = 0;// 27040;
-            cfdClip.import_V(settings.dirRoot + "/cfd/east3ms__" + std::to_string(seconds) + "sec");
-            
-            cfdClip.setWind(float3(3, 0, -3), float3(4, 0, -3));
-            cfdClip.simulate_start(20.0f);
-
-            /*
-            uint saveidx = 0;
-            for (int k = 0; k < 256 * 64 * 100; k++)   //1500 = 937 seconds in 210
-            //for (int k = 0; k < 256 * 300; k++)   //1500 = 937 seconds in 210
-            {
-                cfdClip.simulate(20.0f);
-                if (k % 64 == 0)
-                {
-                    uint seconds = (k * 20) / 32;
-                    cfdClip.export_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(saveidx) + "sec");
-                    saveidx++;
-                }
-            } /**/
-
-            //cfdClip.streamlines(float3(-2800, 400, 12500), thermals.data());
-            //cfdClip.streamlines(float3(-6000, 450, 6000), thermals.data());
-            cfdClip.streamlines(float3(-9800, 450, 11500), thermals.data());
-            /*
-             ofs.open(filename + "128_Cut.raw", std::ios::binary);
-             if (ofs)
-             {
-                 for (int y = 15; y >= 0; y--)
-                 {
-                     for (int x = 0; x < 128; x++)
-                     {
-                         glm::u8vec4 s = smap_128.getS(uint3(x, y, 109));
-                         ofs.write((char*)&s.z, 1);
-                     }
-                 }
-                 ofs.close();
-             }
-            */
-
-            //thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
-
-
-            /*
-            CFD.init();
-            //CFD.loadHeight(settings.dirRoot + "/gis/_export/root4096.bil");
-            //CFD.export_S(settings.dirRoot + "/cfd_S_1024.bin");
-            CFD.import_S(settings.dirRoot + "/cfd_S_1024.bin");
-            //CFD.setWind(float3(2, 0, 0), float3(4, 0, 0));
-            CFD.import_V(settings.dirRoot + "/cfd_V_1024_largeRun.bin");
-            /*
-            for (int k = 0; k < 500; k++)
-            {
-                CFD.simulate(5.0f);
-            }
-            CFD.export_V(settings.dirRoot + "/cfd_V_1024_largeRun.bin");
-            */
-            //CFD.exportStreamlines(settings.dirRoot + "/cfd_streamlines.bin", uint3(500, 10, 400));
-
-
-            /*
-            //numThermals = 1073;
-
-            //thermals.resize(numThermals * 3);
-            std::ifstream ifs;
-            //ifs.open("E:/thermal_waalenstadt_July_Aug_Afternoons_WindEast.raw", std::ios::binary);
-
-
-            ifs.open(settings.dirRoot + "/cfd_streamlines.bin", std::ios::binary);
-
-            if (ifs)
-            {
-                //ifs.read((char*)thermals.data(), numThermals * 3  * sizeof(float4));
-                ifs.read((char*)thermals.data(), numThermals * 100 * sizeof(float4));
-                ifs.close();
-            }
-            */
             thermalsData = Buffer::createStructured(sizeof(float4), numThermals * 100); // just a nice amount for now
-            thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
-
+            //            thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
 
             thermalsShader.load("Samples/Earthworks_4/hlsl/terrain/render_thermalRibbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
             thermalsShader.Vars()->setBuffer("vertexBuffer", thermalsData);        // WHY BOTH
@@ -4097,6 +4013,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     //_plantMaterial::static_materials_veg.find_insert_texture(terrafectorEditorMaterial::rootFolder + "textures\\bark\\Oak1_sprite_normal.dds", false);
     //_plantMaterial::static_materials_veg.find_insert_texture(terrafectorEditorMaterial::rootFolder + "textures\\twigs\\dandelion_leaf1_albedo.dds", true);
     //_plantMaterial::static_materials_veg.find_insert_texture(terrafectorEditorMaterial::rootFolder + "textures\\twigs\\dandelion_leaf1_normal.dds", false);
+
+
+    
 }
 
 
@@ -7640,45 +7559,35 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
     }
 
+
+    if (cfd.newFlowLines)
     {
-        FALCOR_PROFILE("Thermals");
+        FALCOR_PROFILE("CFD update");
+        thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
+        cfd.newFlowLines = false;
+    }
 
-        //std::vector<float4> thermals;
-        //numThermals = 200 * 100;
-        //thermals.resize(numThermals * 100);
+    if (cfd.recordingCFD)
+    {
+        cfd.recordingCFD = cfd.clipmap.import_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(cfd.cfd_play_k) + "sec");
+        cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data());
+        thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
+        cfd.cfd_play_k++;
+    }
 
-        //cfdClip.simulate(20.0f);
-        //cfdClip.lods[0].streamlines(float3(-3000, 500, 5000), thermals.data());
-        //thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
+    {
+        FALCOR_PROFILE("CFD");
 
         thermalsShader.State()->setFbo(_fbo);
         thermalsShader.State()->setViewport(0, _viewport, true);
         thermalsShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         thermalsShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
         thermalsShader.State()->setRasterizerState(rasterstateGliderWing);
-        //thermalsShader.drawInstanced(_renderContext, 3, numThermals);
         thermalsShader.drawInstanced(_renderContext, 100, numThermals);
 
     }
 
-    if (recordingCFD)
-    {
-        {
-            std::vector<float4> thermals;
-            numThermals = 200 * 100;
-            thermals.resize(numThermals * 100);
 
-            bool loaded = cfdClip.import_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(cfd_play_k) + "sec");
-            //cfdClip.streamlines(float3(2800, 900, 10500), thermals.data());
-            cfdClip.streamlines(float3(-2800, 450, 12500), thermals.data());
-            thermalsData->setBlob(thermals.data(), 0, numThermals * 100 * sizeof(float4));
-
-            if (!loaded) recordingCFD = false;
-        } /**/
-        cfd_play_k++;
-        //if (k == 78) recordingCFD = false;
-
-    }
 
 
 
@@ -9593,4 +9502,61 @@ void terrainManager::bezierRoadstoLOD(uint _lod)
     }
 
 
+}
+
+
+
+
+void terrainManager::cfdStart()
+{
+    
+}
+
+void terrainManager::cfdThread()
+{
+    
+    cfd.numLines = 200;
+    cfd.flowlines.resize(cfd.numLines * 100);
+
+    //cfdClip.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
+    cfd.clipmap.build(settings.dirRoot + "/cfd");
+
+    //uint seconds = 0;// 27040;
+    //cfd.clipmap.import_V(settings.dirRoot + "/cfd/east3ms__" + std::to_string(seconds) + "sec");
+
+    cfd.clipmap.setWind(float3(3, 0, 0), float3(4, 0, 0));
+    cfd.clipmap.simulate_start(20.0f);
+
+    //cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data());
+    //cfd.newFlowLines = true;
+    //cfd.clipmap.streamlines(float3(-6000, 450, 6000), cfd.flowlines.data());
+    //cfd.clipmap.streamlines(float3(-9800, 450, 11500), cfd.flowlines.data());
+
+    /*
+    uint saveidx = 0;
+    for (int k = 0; k < 256 * 64 * 100; k++)   //1500 = 937 seconds in 210
+    //for (int k = 0; k < 256 * 300; k++)   //1500 = 937 seconds in 210
+    {
+        cfd.clipmap.simulate(20.0f);
+        if (k % 64 == 0)
+        {
+            uint seconds = (k * 20) / 32;
+            cfd.clipmap.export_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(saveidx) + "sec");
+            saveidx++;
+        }
+    } /**/
+
+    // infinite loop
+    static uint k = 0;
+    while (1)
+    {
+        cfd.clipmap.simulate(20.0f);
+        if (k % 2 == 0)
+        {
+            cfd.clipmap.streamlines(float3(650, 1450,11400), cfd.flowlines.data());
+            //cfd.clipmap.streamlines(float3(-20000, 450, -20000), cfd.flowlines.data());
+            cfd.newFlowLines = true;
+        }
+        k++;
+    }
 }

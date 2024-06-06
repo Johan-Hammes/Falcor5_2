@@ -50,43 +50,49 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     float3 right = normalize(cross(up, L[0].eye));
     
     float4 tangent = 0;
-    if (L[0].uv.x < 0.5)
+    if (L[0].uv.x < 0.6)
     {
-        tangent.xyz = right * 1;
+        tangent.xyz = right * 2;
     }
     else
     {
-        tangent.xyz = right * 1;
+        tangent.xyz = right * 2;
     }
+
+    tangent.xyz = right * 0.94;
+
+//    if (L[1].uv.y < .05)
+ //       tangent *= 10;
         
 
-    if (L[0].uv.x < 99.5)
-    {
+        if (L[0].uv.x < 99.5)
+        {
     
-        v = L[0];
-        v.pos = mul(L[0].pos - tangent, viewproj);
-        OutputStream.Append(v);
+            v = L[0];
+            v.pos = mul(L[0].pos - tangent, viewproj);
+            OutputStream.Append(v);
 
-        v.pos = mul(L[0].pos + tangent, viewproj);
-        OutputStream.Append(v);
+            v.pos = mul(L[0].pos + tangent, viewproj);
+            OutputStream.Append(v);
 
         
-        v = L[1];
-        v.uv.x = L[0].uv.x;
-        v.pos = mul(L[1].pos - tangent, viewproj);
-        OutputStream.Append(v);
+            v = L[1];
+            v.uv.x = L[0].uv.x;
+            v.pos = mul(L[1].pos - tangent, viewproj);
+            OutputStream.Append(v);
 
-        v.pos = mul(L[1].pos + tangent, viewproj);
-        OutputStream.Append(v);
-    }
+            v.pos = mul(L[1].pos + tangent, viewproj);
+            OutputStream.Append(v);
+        }
 }
 
 
 
 float4 psMain(PSIn vOut) : SV_TARGET
 {
-    float speed = pow(vOut.uv.y / 2.3, 2.82);
-    //float speed = vOut.uv.y * 1000;
+    float speed = pow(vOut.uv.y / 2.0, 2.2);
+    //float speed = vOut.uv.y * 100;
+    //float speed = vOut.uv.y / 1;
     float3 col = 0;
 
     if (speed < 1)         col = lerp(float3(0, 0, 0), float3(0, 0, 1), speed);

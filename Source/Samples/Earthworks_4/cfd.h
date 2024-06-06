@@ -8,6 +8,8 @@
 #include "../../external/cereal-master/include/cereal/types/vector.hpp"
 #include <fstream>
 #include <xinput.h>
+#include <chrono>
+#include <random>
 
 
 
@@ -18,56 +20,6 @@
 
 
 using namespace Falcor;
-
-#define cfdW 1024
-#define cfdH 128
-#define cfdMinAlt 350           // zurichsee - at least 40 - remove for GPU where we can clamp
-#define cfdSize 39.0625f        // 40000 / 1024
-
-
-// in general 16 or 8 Bit on GPU, way good enough
-struct _cfd
-{
-    // temp
-    float height[4096][4096];   // should really be temporary inside load
-
-    //float p[cfdH][cfdW][cfdW];  // h, y, x  center of cell
-    //float3 s[cfdH][cfdW][cfdW]; // bottom left corner of cell
-    //float3 v[cfdH][cfdW][cfdW]; // GPU split into 3 of we re using edges
-    //float3 v2[cfdH][cfdW][cfdW]; // GPU split into 3 of we re using edges
-    std::vector<float3> s;
-    std::vector<float3> v;
-    std::vector<float3> v2;
-
-    uint inline idx(int x, int y, int z);
-    uint inline idx(uint3 p);
-
-    void init();
-    void loadHeight(std::string filename);
-    void export_S(std::string filename);
-    void import_S(std::string filename);
-    void export_V(std::string filename);
-    void import_V(std::string filename);
-
-    void setWind(float3 _windBottom = float3(-1, 0, 0), float3 _windTop = float3(-5, 0, 0));
-
-    // simulate
-    void gavity(float _dt);
-    void solveIncompressibility(uint _num);
-    void edges();
-    void advect(float _dt);
-    float sampleVx(float3 _p);
-    float sampleVy(float3 _p);
-    float sampleVz(float3 _p);
-
-    void solveIncompressibilityCenter(uint _num);
-    void advectCenter(float _dt);
-    float3 sample(float3 _p);
-    void simulate(float _dt);
-    uint tickCount = 0;
-
-    void exportStreamlines(std::string filename, uint3 _p);
-};
 
 
 struct _cfd_map
@@ -110,15 +62,12 @@ struct _cfd_lod
     void loadNormals(std::string filename);
     std::vector<float4> normals;
 
-    inline float3 fromRoot(float3 _r);
-    inline float3 toRoot(float3 _r);
     float3 to_Root;
     float3 from_Root;
 
     // lodding
     void fromRoot();
-    void fromRootEdges();
-    void toRoot();
+
 
     void fromRoot_Alpha();
     void toRoot_Alpha();
@@ -127,7 +76,7 @@ struct _cfd_lod
     bool import_V(std::string filename);
 
     // simulate
-    void incompressibility(uint _num);
+    void incompressibility_SMAP(uint _num);
     void Normal();
     void incompressibilityNormal(uint _num);
     void edges();
@@ -136,12 +85,11 @@ struct _cfd_lod
     float3 sample(float3 _p);
     float3 sampleCurl(float3 _p);
     void clamp(float3 &_p);
-    float sample_x(float3 _p);
-    float sample_y(float3 _p);
-    float sample_z(float3 _p);
-    float3 sample_xyz(float3 _p);
+    //float sample_x(float3 _p);
+    //float sample_y(float3 _p);
+    //float sample_z(float3 _p);
+    //float3 sample_xyz(float3 _p);
     void simulate(float _dt);
-    void streamlines(float3 _p, float4* _data);
 
     uint3 offset = {0, 0, 0};
     _cfd_lod* root = nullptr;
@@ -161,6 +109,11 @@ struct _cfd_lod
     std::vector<float3> curl;
     std::vector<float> mag;
     std::vector<float3> vorticity;
+
+    double simTimeLod_advect_ms;
+    double simTimeLod_incompress_ms;
+    double simTimeLod_vorticity_ms;
+    double simTimeLod_edges_ms;
 };
 
 
@@ -182,6 +135,9 @@ struct _cfdClipmap
 
 
     std::array<_cfd_lod, 6>    lods;
+
+    double simTimeLod_ms;
+    
     /*
     uint inline idx(int x, int y, int z);
     uint inline idx(uint3 p);

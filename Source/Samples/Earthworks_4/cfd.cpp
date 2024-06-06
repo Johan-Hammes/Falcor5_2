@@ -4,481 +4,12 @@
 #include <iostream>
 #include <fstream>
 
+using namespace std::chrono;
+//#define GLM_FORCE_SSE2
+//#define GLM_FORCE_ALIGNED
+
 
 //#pragma optimize("", off)
-
-
-uint _cfd::idx(int x, int y, int z)
-{
-    return (y * cfdW * cfdW) + (z * cfdW) + (x);
-}
-
-uint _cfd::idx(uint3 p)
-{
-    return (p.y * cfdW * cfdW) + (p.z * cfdW) + (p.x);
-}
-
-
-void _cfd::init()
-{
-    s.resize(cfdH * cfdW * cfdW);
-    v.resize(cfdH * cfdW * cfdW);
-    v2.resize(cfdH * cfdW * cfdW);
-}
-
-
-void _cfd::loadHeight(std::string filename)
-{
-    std::ifstream ifs;
-    ifs.open(filename, std::ios::binary);
-    if (ifs)
-    {
-        ifs.read((char*)height, 4096 * 4096 * 4);
-        ifs.close();
-    }
-
-
-
-    // depth of each vertex
-    for (uint h = 0; h < cfdH; h++)
-    {
-        float hgt = cfdMinAlt + h * cfdSize;
-        for (uint y = 0; y < cfdW; y++) {
-            for (uint x = 0; x < cfdW; x++)
-            {
-                float3 sum = float3(0, 0, 0);
-                for (uint i = 0; i < 4; i++)
-                {
-                    // edgees
-                    float Hy = hgt - height[y * 4 + 0][x * 4 + i];
-                    float Hx = hgt - height[y * 4 + i][x * 4 + 0];
-                    float dhx = glm::clamp(Hx / cfdSize, 0.f, 1.f);
-                    float dhy = glm::clamp(Hy / cfdSize, 0.f, 1.f);
-                    sum.x += dhx * 0.25f;
-                    sum.z += dhy * 0.25f;
-
-                    for (uint j = 0; j < 4; j++)
-                    {
-                        // bottom
-                        if (hgt - height[y * 4 + i][x * 4 + j] > 0) sum.y += 0.0625f;
-                    }
-                }
-                if (sum.y > 0.1f && sum.y < 0.9f)
-                {
-                    bool cm = true;
-                }
-
-                s[idx(x, h, y)] = sum;
-            }
-        }
-    }
-}
-
-void _cfd::export_S(std::string filename)
-{
-    std::ofstream ofs;
-    ofs.open(filename, std::ios::binary);
-    if (ofs)
-    {
-        ofs.write((char*)s.data(), cfdW * cfdW * cfdH * sizeof(float3));
-        ofs.close();
-    }
-}
-
-void _cfd::import_S(std::string filename)
-{
-    std::ifstream ifs;
-    ifs.open(filename, std::ios::binary);
-    if (ifs)
-    {
-        ifs.read((char*)s.data(), cfdW * cfdW * cfdH * sizeof(float3));
-        ifs.close();
-    }
-}
-
-void _cfd::export_V(std::string filename)
-{
-    std::ofstream ofs;
-    ofs.open(filename, std::ios::binary);
-    if (ofs)
-    {
-        ofs.write((char*)v.data(), cfdW * cfdW * cfdH * sizeof(float3));
-        ofs.close();
-    }
-}
-
-void _cfd::import_V(std::string filename)
-{
-    std::ifstream ifs;
-    ifs.open(filename, std::ios::binary);
-    if (ifs)
-    {
-        ifs.read((char*)v.data(), cfdW * cfdW * cfdH * sizeof(float3));
-        ifs.close();
-    }
-}
-
-
-void _cfd::setWind(float3 _windBottom, float3 _windTop)
-{
-    for (uint h = 0; h < cfdH; h++) {
-        float3 wind = glm::lerp(_windBottom, _windTop, (float)h / (float)cfdH);
-        for (uint y = 0; y < cfdW; y++) {
-            for (uint x = 0; x < cfdW; x++)
-            {
-                uint i = idx(x, h, y);
-                v[i].x = s[i].x * wind.x;
-                v[i].y = s[i].y * wind.y;
-                v[i].z = s[i].z * wind.z;
-            }
-        }
-    }
-}
-
-
-
-// simulate
-void _cfd::gavity(float _dt)
-{
-    for (uint h = 0; h < cfdH; h++) {
-        for (uint y = 0; y < cfdW; y++) {
-            for (uint x = 0; x < cfdW; x++) {
-                uint i = idx(x, h, y);
-                v[i].y -= 9.8f * _dt * s[i].y;  // not 100% but the general flow shoul fix it where we  touch
-            }
-        }
-    }
-}
-
-
-// without pressure for now - SPEED ;-)
-void _cfd::solveIncompressibility(uint _num)
-{
-    float3 smin, smax;
-    for (uint n = 0; n < _num; n++)
-    {
-        for (uint h = 0; h < cfdH - 1; h++) {
-            for (uint y = 1; y < cfdW - 1; y++) {
-                for (uint x = 1; x < cfdW - 1; x++) {
-                    smin = s[idx(x, h, y)];
-                    smax.x = s[idx(x + 1, h, y)].x;
-                    smax.y = s[idx(x, h + 1, y)].y;
-                    smax.z = s[idx(x, h, y + 1)].z;
-                    float sum = smin.x + smin.y + smin.z + smax.x + smax.y + smax.z;
-                    if (sum > 0.00001f)
-                    {
-                        // not sdure I like this but lets see
-                        // isntivntively WROGN scale with S to gel flow rate
-                        float vx0 = smin.x * v[idx(x, h, y)].x;
-                        float vx1 = smax.x * v[idx(x + 1, h, y)].x;
-                        float vy0 = smin.y * v[idx(x, h, y)].y;
-                        float vy1 = smax.y * v[idx(x, h + 1, y)].y;
-                        float vz0 = smin.z * v[idx(x, h, y)].z;
-                        float vz1 = smax.z * v[idx(x, h, y + 1)].z;
-                        float div = vx0 - vx1 + vy0 - vy1 + vz0 - vz1;
-                        float P = div / sum * 1.9f;    // overrelaxed
-
-                        // gauss seidel verwag oorskryf van waardes maat ons propagate in een rigting
-                        v[idx(x, h, y)].x -= smin.x * P;
-                        v[idx(x, h, y)].y -= smin.y * P;
-                        v[idx(x, h, y)].z -= smin.z * P;
-
-                        v[idx(x + 1, h, y)].x += smax.x * P;
-                        v[idx(x, h + 1, y)].y += smax.y * P;
-                        v[idx(x, h, y + 1)].z += smax.z * P;
-
-                        float vv = glm::length(v[idx(x, h, y)]);
-                        bool cm = true;
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-void _cfd::edges()
-{
-}
-
-/*  While the edge metod is interesting is does m,ale 3 times the work in here , is it really worth it for that
-*   etra info?
-*   I doubt a GPU will love it
-*/
-void _cfd::advect(float _dt)
-{
-    float3 V, P;
-
-    for (uint h = 0; h < cfdH - 1; h++) {
-        for (uint y = 2; y < cfdW - 2; y++) {
-            for (uint x = 2; x < cfdW - 2; x++) {
-                //x
-                V = (v[idx(x, h, y)] + v[idx(x + 1, h, y)] + v[idx(x, h + 1, y)] + v[idx(x + 1, h + 1, y)]) * 0.25f;
-                P = float3(x, h + 0.5f, y + 0.5f);    // in texture pixel space
-                P -= V * _dt / cfdSize;
-                v2[idx(x, h, y)].x = sampleVx(P);
-
-                //y
-                V = (v[idx(x, h, y)] + v[idx(x + 1, h, y)] + v[idx(x, h, y + 1)] + v[idx(x + 1, h, y + 1)]) * 0.25f;
-                P = float3(x + 0.5f, h, y + 0.5f);
-                P -= V * _dt / cfdSize;
-                v2[idx(x, h, y)].y = sampleVy(P);
-
-                //z
-                V = (v[idx(x, h, y)] + v[idx(x, h, y + 1)] + v[idx(x, h + 1, y)] + v[idx(x, h + 1, y + 1)]) * 0.25f;
-                P = float3(x + 0.5f, h + 0.5f, y);
-                P -= V * _dt / cfdSize;
-                v2[idx(x, h, y)].z = sampleVz(P);
-            }
-        }
-    }
-
-    memcpy(v.data(), v2.data(), cfdW * cfdW * cfdH * sizeof(float3));
-}
-
-float _cfd::sampleVx(float3 _p)
-{
-    int3 i = _p;
-    float3 fract = _p - (float3)i;
-
-    float a = glm::lerp(v[idx(i.x, i.y, i.z)].x, v[idx(i.x + 1, i.y, i.z)].x, fract.x);
-    float b = glm::lerp(v[idx(i.x, i.y, i.z + 1)].x, v[idx(i.x + 1, i.y, i.z + 1)].x, fract.x);
-    float bottom = glm::lerp(a, b, fract.z);
-
-    a = glm::lerp(v[idx(i.x, i.y + 1, i.z)].x, v[idx(i.x + 1, i.y + 1, i.z)].x, fract.x);
-    b = glm::lerp(v[idx(i.x, i.y + 1, i.z + 1)].x, v[idx(i.x + 1, i.y + 1, i.z + 1)].x, fract.x);
-    float top = glm::lerp(a, b, fract.z);
-
-    return glm::lerp(bottom, top, fract.y);
-}
-
-float _cfd::sampleVy(float3 _p)
-{
-    int3 i = _p;
-    float3 fract = _p - (float3)i;
-
-    float a = glm::lerp(v[idx(i.x, i.y, i.z)].y, v[idx(i.x + 1, i.y, i.z)].y, fract.x);
-    float b = glm::lerp(v[idx(i.x, i.y, i.z + 1)].y, v[idx(i.x + 1, i.y, i.z + 1)].y, fract.x);
-    float bottom = glm::lerp(a, b, fract.z);
-
-    a = glm::lerp(v[idx(i.x, i.y + 1, i.z)].y, v[idx(i.x + 1, i.y + 1, i.z)].y, fract.x);
-    b = glm::lerp(v[idx(i.x, i.y + 1, i.z + 1)].y, v[idx(i.x + 1, i.y + 1, i.z + 1)].y, fract.x);
-    float top = glm::lerp(a, b, fract.z);
-
-    return glm::lerp(bottom, top, fract.y);
-}
-
-float _cfd::sampleVz(float3 _p)
-{
-    int3 i = _p;
-    float3 fract = _p - (float3)i;
-
-    float a = glm::lerp(v[idx(i.x, i.y, i.z)].z, v[idx(i.x + 1, i.y, i.z)].z, fract.x);
-    float b = glm::lerp(v[idx(i.x, i.y, i.z + 1)].z, v[idx(i.x + 1, i.y, i.z + 1)].z, fract.x);
-    float bottom = glm::lerp(a, b, fract.z);
-
-    a = glm::lerp(v[idx(i.x, i.y + 1, i.z)].z, v[idx(i.x + 1, i.y + 1, i.z)].z, fract.x);
-    b = glm::lerp(v[idx(i.x, i.y + 1, i.z + 1)].z, v[idx(i.x + 1, i.y + 1, i.z + 1)].z, fract.x);
-    float top = glm::lerp(a, b, fract.z);
-
-    return glm::lerp(bottom, top, fract.y);
-}
-
-
-
-
-
-
-
-// without pressure for now - SPEED ;-)
-void _cfd::solveIncompressibilityCenter(uint _num)
-{
-    float3 smin, smax;
-    for (uint n = 0; n < _num; n++)
-    {
-        for (uint h = 1; h < 120; h++) {
-            for (uint y = 5; y < 1020; y++) {
-                for (uint x = 5; x < 1020; x++)
-                {
-                    uint i = idx(x, h, y);
-                    smin = s[i];
-                    smax.x = s[idx(x + 1, h, y)].x;
-                    smax.y = s[idx(x, h + 1, y)].y;
-                    smax.z = s[idx(x, h, y + 1)].z;
-                    float sum = smin.x + smin.y + smin.z + smax.x + smax.y + smax.z;
-                    if (sum > 0.00001f)
-                    {
-                        // not sdure I like this but lets see
-                        // isntivntively WROGN scale with S to gel flow rate
-                        /*
-                        float vx0 = smin.x * v[idx(x - 1, h, y)].x;
-                        float vx1 = smax.x * v[idx(x + 1, h, y)].x;
-                        float vy0 = smin.y * v[idx(x, h - 1, y)].y;
-                        float vy1 = smax.y * v[idx(x, h + 1, y)].y;
-                        float vz0 = smin.z * v[idx(x, h, y - 1)].z;
-                        float vz1 = smax.z * v[idx(x, h, y + 1)].z;
-                        */
-                        // odd tweede weergawe werk, nie seker hoekom nie
-                        float vx0 = v[idx(x - 1, h, y)].x;
-                        float vx1 = v[idx(x + 1, h, y)].x;
-
-                        float vy0 = v[idx(x, h - 1, y)].y;
-                        float vy1 = v[idx(x, h + 1, y)].y;
-
-                        float vz0 = v[idx(x, h, y - 1)].z;
-                        float vz1 = v[idx(x, h, y + 1)].z;
-
-                        float div = vx0 - vx1 + vy0 - vy1 + vz0 - vz1;
-                        float P = div / sum * 1.9f / 2;    // overrelaxed
-
-                        // gauss seidel verwag oorskryf van waardes maar ons propagate in een rigting
-                        // random or black / red
-                        v[idx(x - 1, h, y)].x -= smin.x * P;
-                        v[idx(x + 1, h, y)].x += smax.x * P;
-
-                        v[idx(x, h - 1, y)].y -= smin.y * P;
-                        v[idx(x, h + 1, y)].y += smax.y * P;
-
-                        v[idx(x, h, y - 1)].z -= smin.z * P;
-                        v[idx(x, h, y + 1)].z += smax.z * P;
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-void _cfd::advectCenter(float _dt)
-{
-    float3 V, P;
-
-    //    for (uint h = 0; h < cfdH - 1; h++) {
-    //        for (uint y = 2; y < cfdW - 2; y++) {
-    //            for (uint x = 2; x < cfdW - 2; x++) {
-    for (uint h = 0; h < 120; h++) {
-        for (uint y = 5; y < 1020; y++) {
-            for (uint x = 5; x < 1020; x++) {
-                uint i = idx(x, h, y);
-                P = float3(x, h, y) - v[i] / cfdSize * _dt;
-                v2[i] = sample(P);                // we can alwasy do more smaller steps for betet acuracy, migth work great
-            }
-        }
-    }
-
-    // copy back
-    for (uint h = 0; h < 120; h++) {
-        for (uint y = 5; y < 1020; y++) {
-            for (uint x = 5; x < 1020; x++) {
-                uint i = idx(x, h, y);
-                v[i] = v2[i];
-            }
-        }
-    }
-
-    //memcpy(v.data(), v2.data(), cfdW * cfdW * cfdH * sizeof(float3));
-}
-
-
-float3 _cfd::sample(float3 _p)
-{
-    _p.y = __max(_p.y, 0);
-
-
-    int3 i = _p;
-    float3 fract = _p - (float3)i;
-
-
-
-    float3 a = glm::lerp(v[idx(i.x, i.y, i.z)], v[idx(i.x + 1, i.y, i.z)], fract.x);
-    float3 b = glm::lerp(v[idx(i.x, i.y, i.z + 1)], v[idx(i.x + 1, i.y, i.z + 1)], fract.x);
-    float3 bottom = glm::lerp(a, b, fract.z);
-
-    a = glm::lerp(v[idx(i.x, i.y + 1, i.z)], v[idx(i.x + 1, i.y + 1, i.z)], fract.x);
-    b = glm::lerp(v[idx(i.x, i.y + 1, i.z + 1)], v[idx(i.x + 1, i.y + 1, i.z + 1)], fract.x);
-    float3 top = glm::lerp(a, b, fract.z);
-
-    return glm::lerp(bottom, top, fract.y);
-}
-
-void _cfd::simulate(float _dt)
-{
-    //gavity(_dt);
-    //gavity(0.01f);// this is messing me up
-    solveIncompressibilityCenter(5); // Mathias uses 100, excessive for this slow air, as LOW as possible, look at feedback
-    //edges();
-    advectCenter(_dt);        // just do smkoe temperature etc as well
-    tickCount++;
-}
-
-
-void _cfd::exportStreamlines(std::string filename, uint3 _p)
-{
-    std::ofstream ofs;
-    ofs.open(filename, std::ios::binary);
-    if (ofs)
-    {
-        for (int h = 0; h < 10; h++)
-        {
-            for (int y = 0; y < 20; y++)
-            {
-                float3 P = (float3)_p;
-                float4 P_save;
-                P.y += h * 5;
-                P.z += y * 8;
-
-                for (int j = 0; j < 100; j++)
-                {
-                    float3 V = sample(P);
-
-                    P_save.xyz = P * cfdSize + float3(-20000, cfdMinAlt, -20000);
-                    P_save.w = glm::length(V);
-                    ofs.write((char*)&P_save, sizeof(float4));
-
-                    P += V * 30.f / cfdSize;
-                }
-
-            }
-        }
-
-
-        ofs.close();
-    }
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -623,6 +154,13 @@ void _cfd_Smap::mipDown(_cfd_Smap& top_map)
 
 
 
+
+
+
+
+
+
+
 void _cfd_lod::init(uint _w, uint _h, float _worldSize)
 {
     width = _w;
@@ -638,83 +176,6 @@ void _cfd_lod::init(uint _w, uint _h, float _worldSize)
     curl.resize(_h * _w * _w);
     mag.resize(_h * _w * _w);
     vorticity.resize(_h * _w * _w);
-
-}
-
-void _cfd_lod::loadNormals(std::string filename)
-{
-    std::ifstream ifs;
-    ifs.open(filename, std::ios::binary);
-    if (ifs)
-    {
-        uint msize;
-        ifs.read((char*)&msize, sizeof(uint));
-        normals.resize(msize);
-        ifs.read((char*)normals.data(), msize * sizeof(float4));
-        ifs.close();
-    }
-}
-
-void _cfd_lod::setV(uint3 _p, float3 _v)
-{
-    //glm::u8vec4 s = smap.getS(_p);
-    //v[idx(_p)] = _v * ((float)s.x / 255.f);
-    //v2[idx(_p)] = _v * ((float)s.x / 255.f);
-
-    v[idx(_p)] = _v;
-    v2[idx(_p)] = _v;
-}
-
-
-
-
-
-// lodding
-void _cfd_lod::fromRoot()
-{
-    if (!root) return;
-
-    to_Root = offset;
-    to_Root *= 0.5f;
-    to_Root -= root->offset;
-
-    for (uint h = 0; h < height; h++) {
-        for (uint z = 0; z < width; z++) {
-            for (uint x = 0; x < width; x++)
-            {
-                //glm::u8vec4 s = smap.getS(uint3(x, h, z) + offset);
-                //v[idx(x, h, z)] = root->sample(float3(x, h, z) * 0.5f + to_Root) * ((float)s.y / 255.f);
-                v[idx(x, h, z)] = root->sample(float3(x, h, z) * 0.5f + to_Root);
-            }
-        }
-    }
-}
-
-
-void _cfd_lod::fromRoot_Alpha()
-{
-    if (!root) return;
-
-    to_Root = offset;
-    to_Root *= 0.5f;
-    to_Root -= root->offset;
-
-    for (uint h = 0; h < height; h++) {
-        for (uint z = 0; z < width; z++) {
-            for (uint x = 0; x < width; x++)
-            {
-                float alpha = __min(x / 10.f, z / 10.f);
-                alpha = __min(alpha, (width - x - 1) / 10.f);
-                alpha = __min(alpha, (width - z - 1) / 10.f);
-                alpha = __min(1.f, alpha);
-                alpha = __max(0.f, alpha);
-
-                glm::u8vec4 s = smap.getS(uint3(x, h, z) + offset);
-                float3 rootV = root->sample(float3(x, h, z) * 0.5f + to_Root) * ((float)s.y / 255.f);
-                v[idx(x, h, z)] = glm::lerp(v[idx(x, h, z)], rootV, 1.f - alpha);
-            }
-        }
-    }
 }
 
 void _cfd_lod::export_V(std::string filename)
@@ -742,57 +203,30 @@ bool _cfd_lod::import_V(std::string filename)
     return false;
 }
 
-
-
-//#pragma optimize("", off)
-void _cfd_lod::toRoot_Alpha()
+void _cfd_lod::loadNormals(std::string filename)
 {
-    return;
-    if (!root) return;
-    int3 to = offset;
-    to /= 2;
-    to -= root->offset;
-
-    uint w2 = (width >> 1) - 1;
-
-    for (uint h = 0; h < height >> 1; h++) {
-        for (uint z = 0; z <= w2; z++) {
-            for (uint x = 0; x <= w2; x++)
-            {
-                float alpha = __min(x / 10.f, z / 10.f);
-                alpha = __min(alpha, (w2 - x) / 10.f);
-                alpha = __min(alpha, (w2 - z) / 10.f);
-                alpha = __min(1.f, alpha);
-                alpha = __max(0.f, alpha);
-
-                float3 p = { x, h, z };
-                p += 0.5f;
-                float3 topV = sample(float3(x, h, z) * 2.f + 0.5f);
-                uint i = idx(int3(x, h, z) + to);
-                root->v[i] = glm::lerp(root->v[i], topV, alpha);
-            }
-        }
+    std::ifstream ifs;
+    ifs.open(filename, std::ios::binary);
+    if (ifs)
+    {
+        uint msize;
+        ifs.read((char*)&msize, sizeof(uint));
+        normals.resize(msize);
+        ifs.read((char*)normals.data(), msize * sizeof(float4));
+        ifs.close();
     }
-
-    root->incompressibilityNormal(10);
 }
 
 
-
-float3 _cfd_lod::fromRoot(float3 _r)
+void _cfd_lod::setV(uint3 _p, float3 _v)
 {
-}
-
-float3 _cfd_lod::toRoot(float3 _r)
-{
-    //_r = (_r + offset) * 0.5f - root->offset;
-   // _r = _r * 0.5f + offset * 0.5ff - root->offset;
-
+    v[idx(_p)] = _v;
+    v2[idx(_p)] = _v;
 }
 
 
-// also bottom if origin no 0
-void _cfd_lod::fromRootEdges()
+// lodding
+void _cfd_lod::fromRoot()
 {
     if (!root) return;
 
@@ -800,161 +234,120 @@ void _cfd_lod::fromRootEdges()
     to_Root *= 0.5f;
     to_Root -= root->offset;
 
-    for (int h = 0; h < height; h++)
-    {
-        for (int i = 0; i < width; i++)
-        {
-            glm::u8vec4 s = smap.getS(uint3(0, h, i) + offset);
-            v[idx(0, h, i)] = root->sample(float3(0, h, i) * 0.5f + to_Root) * ((float)s.y / 255.f);
-
-            s = smap.getS(uint3(width - 1, h, i) + offset);
-            v[idx(width - 1, h, i)] = root->sample(float3(width - 1, h, i) * 0.5f + to_Root) * ((float)s.y / 255.f);
-
-            s = smap.getS(uint3(i, h, 0) + offset);
-            v[idx(i, h, 0)] = root->sample(float3(i, h, 0) * 0.5f + to_Root) * ((float)s.y / 255.f);
-
-            s = smap.getS(uint3(i, h, width - 1) + offset);
-            v[idx(i, h, width - 1)] = root->sample(float3(i, h, width - 1) * 0.5f + to_Root) * ((float)s.y / 255.f);
-
-            if (offset.y > 0)
+    for (uint h = 0; h < height; h++) {
+        for (uint z = 0; z < width; z++) {
+            for (uint x = 0; x < width; x++)
             {
+                v[idx(x, h, z)] = root->sample(float3(x, h, z) * 0.5f + to_Root);
             }
         }
     }
 }
 
 
-//#pragma optimize("", off)
-void _cfd_lod::toRoot()
+void _cfd_lod::fromRoot_Alpha()
 {
+    if (!root) return;
+
+    to_Root = offset;
+    to_Root *= 0.5f;
+    to_Root -= root->offset;
+
+    for (uint h = 0; h < height; h++) {
+        for (uint z = 0; z < width; z++) {
+            for (uint x = 0; x < width; x++)
+            {
+                float alpha = __min(x / 8.f, z / 8.f);
+                alpha = __min(alpha, (width - x - 1) / 8.f);
+                alpha = __min(alpha, (width - z - 1) / 8.f);
+                //bottom and top
+                if (offset.y > 0) {
+                    alpha = __min(alpha, h / 8.f);
+                }
+                alpha = __min(alpha, (height - 1 - h) / 8.f);
+
+                alpha = __min(1.f, alpha);
+                alpha = __max(0.f, alpha);
+
+                float3 rootV = root->sample(float3(x, h, z) * 0.5f + to_Root);
+                v[idx(x, h, z)] = glm::lerp(v[idx(x, h, z)], rootV, 1.f - alpha);
+            }
+        }
+    }
+}
+
+void _cfd_lod::toRoot_Alpha()
+{
+/*
     if (!root) return;
     int3 to = offset;
     to /= 2;
     to -= root->offset;
 
-    for (uint h = 0; h < height >> 1; h++) {
-        for (uint z = 0; z < width >> 1; z++) {
-            for (uint x = 0; x < width >> 1; x++)
+    uint wA2 = (width >> 1) - 1;
+
+    for (uint h = 0; h < root->height - 1; h++) {
+        for (uint z = 0; z <= wA2; z++) {
+            for (uint x = 0; x <= wA2; x++)
             {
-                float3 p = { x, h, z };
-                p += 0.5f;
-                root->v[idx(int3(x, h, z) + to)] = sample(float3(x, h, z) * 2.f + 0.5f);
-            }
-        }
-    }
-
-    root->incompressibilityNormal(10);
-}
-//#pragma optimize("", on)
-
-
-
-
-
-// simulate
-void _cfd_lod::incompressibility(uint _num)
-{
-    glm::u8vec4 smin, smax;
-    float3 v0, v1;
-    uint3 i0, i1;
-
-    for (uint n = 0; n < _num; n++)
-    {
-        for (uint h = 0; h < height - 1; h++) {
-            for (uint z = 0; z < width - 1; z++) {
-                for (uint x = 0; x < width - 1; x++) {
-                    smin = smap.getS(uint3(x, h, z) + offset);
-                    smax.x = smap.getS(uint3(x + 1, h, z) + offset).x;
-                    smax.y = smap.getS(uint3(x, h + 1, z) + offset).y;
-                    smax.z = smap.getS(uint3(x, h, z + 1) + offset).z;
-                    uint sum = smin.x + smin.y + smin.z + smax.x + smax.y + smax.z;
-
-
-                    if (width == 256)
-                    {
-                        bool cm = true;
-                    }
-                    // this gets better if we split V and move to boundaries I think
-                    // really look at it
-                    if (sum > 1)
-                    {
-                        i0.x = idx(x - 0, h, z);
-                        i1.x = idx(x + 1, h, z);
-
-                        i0.y = idx(x, h - 0, z);
-                        i1.y = idx(x, h + 1, z);
-
-                        i0.z = idx(x, h, z - 0);
-                        i1.z = idx(x, h, z + 1);
-
-                        v0.x = v[i0.x].x;
-                        v1.x = v[i1.x].x;
-
-                        v0.y = v[i0.y].y;
-                        v1.y = v[i1.y].y;
-
-                        v0.z = v[i0.z].z;
-                        v1.z = v[i1.z].z;
-
-                        float3 div = v0 - v1;
-
-                        float P = (div.x + div.y + div.z) / sum * 1.9f;    // overrelaxed ??? 2
-
-                        // gauss seidel verwag oorskryf van waardes maat ons propagate in een rigting
-                        // black red
-                        v[i0.x].x -= smin.x * P;
-                        v[i1.x].x += smax.x * P;
-
-                        //Play here with resitance to heigth chnage
-                        // mgh vs 0.5 mv^2
-                        v[i0.y].y -= smin.y * P;
-                        v[i1.y].y += smax.y * P;
-
-                        v[i0.z].z -= smin.z * P;
-                        v[i1.z].z += smax.z * P;
-                    }
+                float alpha = __min(x / 8.f, z / 8.f);
+                alpha = __min(alpha, (wA2 - x - 1) / 8.f);
+                alpha = __min(alpha, (wA2 - z - 1) / 8.f);
+                //bottom and top
+                if (offset.y > 0) {
+                    alpha = __min(alpha, h / 8.f);
                 }
+                alpha = __min(alpha, (root->height - 1 - h) / 8.f);
+
+                alpha = __min(1.f, alpha);
+                alpha = __max(0.f, alpha);
+
+                float3 p = { x, h, z };
+                //p += 0.5f;
+                float3 topV = sample(float3(x, h, z) * 2.f + 0.5f);
+                uint i = root->idx(int3(x, h, z) + to);
+                root->v[i] = glm::lerp(root->v[i], topV, alpha);
             }
         }
     }
-};
+    */
+}
 
-#pragma optimize("", off)
+
+/*  D only 8 pixels around the actual height - this is really fast, pretty much 2D
+*/
 void _cfd_lod::Normal()
 {
-
     for (uint z = 0; z < width - 1; z++) {
         for (uint x = 0; x < width - 1; x++)
         {
             uint nIndex = (z + offset.z) * smap.width + (x + offset.x);
 
             float3 N = normals[nIndex].xyz;
-            float Hcell = 0.5f  - normals[nIndex].w;
+            float Hcell = 0.5f - normals[nIndex].w - offset.y;
+            int h0 = (int)(normals[nIndex].w - 4.f - offset.y);
+            h0 = __min(height - 10, __max(0, h0));   // far enoufgh down that even fraction wont break it, we have
+            Hcell += h0;
 
-            for (uint h = 0; h < height - 1; h++)
+            for (uint h = h0; h < h0 + 8; h++)
             {
-                float scale = 1.f - __min(1.f, abs(Hcell) / 2.f);
-                
-                if (scale > 0)
-                {
-                    uint i = idx(x, h, z);
-                    float3 normWind = N * glm::dot(v[i], N);
-                    v[i] -= normWind * scale;
-                }
-                //if (Hcell < 0) v[idx(x, h, z)] *= 0.f;
+                float scale = __max(0, 1.f - __min(1.f, abs(Hcell) / 2.f));
+                uint i = idx(x, h, z);
+                float3 normWind = N * glm::dot(v[i], N);
+                v[i] -= normWind * scale;
+
+                v[i] *= 1.f - scale * 0.0001f;
+                if (Hcell < -1) v[i] *= 0;
                 Hcell += 1.f;
             }
         }
     }
 }
-#pragma optimize("", on)
 
-// Stepping heigthlast will simplify normal chacking, almos means packing height last will simplify memory
+
+// Stepping heigth last will simplify normal checking, also means packing height last will simplify memory
 void _cfd_lod::incompressibilityNormal(uint _num)
 {
-    float3 v0, v1;
-    uint3 i0, i1;
-
     for (uint n = 0; n < _num; n++)
     {
         Normal();
@@ -964,32 +357,23 @@ void _cfd_lod::incompressibilityNormal(uint _num)
                 for (uint x = 0; x < width - 1; x++)
                 {
                     uint i = idx(x, h, z);
-                    uint iX = idx(x + 1, h, z);
-                    uint iY = idx(x, h + 1, z);
-                    uint iZ = idx(x, h, z + 1);
+                    float P = (v[i].x + v[i].y + v[i].z - v[i + 1].x - v[i + w2].y - v[i + width].z) * 0.316;
 
-                    v0 = v[i];
-                    v1.x = v[iX].x;
-                    v1.y = v[iY].y;
-                    v1.z = v[iZ].z;
-
-                    float3 div = v0 - v1;
-                    float P = (div.x + div.y + div.z) * 1.9f * 0.1666666667;    // overrelaxed ???
-
-                    // doen black red ...   gauss seidel verwag oorskryf van waardes maat ons propagate in een rigting
+                    // doen black red ...   gauss seidel verwag oorskryf van waardes maar ons propagate in een rigting
                     v[i] -= P;
-                    v[iX].x += P;
-                    v[iY].y += P;
-                    v[iZ].z += P;
+                    v[i + 1].x += P;
+                    v[i + w2].y += P;
+                    v[i + width].z += P;
                 }
             }
         }
     }
 };
 
-void _cfd_lod::edges()
+
+void _cfd_lod::edges()      //?? 1 deep
 {
-    return;
+    
     for (int h = 0; h < height; h++)
     {
         for (int i = 0; i < width; i++)
@@ -1005,15 +389,23 @@ void _cfd_lod::edges()
             v[idx(i, h, 0)] = v[idx(i, h, 2)]; // zmin
             v[idx(i, h, 1)] = v[idx(i, h, 2)];
 
-            v[idx(i, h, width - 1)] = v[idx(i, h, width - 3)];  // zmax
+            v[idx(i, h, width - 1)] = v[idx(i, h, width - 2)];  // zmax
             v[idx(i, h, width - 2)] = v[idx(i, h, width - 3)];
+        }
+    }
 
-            /*
-            v[idx(0, h, i)] = v[idx(1, h, i)]; // left
-            v[idx(width - 1, h, i)] = v[idx(width - 2, h, i)];  // rigth
-            v[idx(i, h, 0)] = v[idx(1, h, i)]; // zmin
-            v[idx(i, h, width - 1)] = v[idx(width - 2, h, i)];  // zmax
-            */
+    for (int j = 0; j < width; j++)
+    {
+        for (int i = 0; i < width; i++)
+        {
+            if (offset.y > 0) {  // bottom
+                v[idx(i, 0, j)] = v[idx(i, 2, j)]; // left
+                v[idx(i, 1, j)] = v[idx(i, 2, j)];
+            }
+
+            v[idx(i, height - 1, j)] = v[idx(i, height - 3, j)]; // left
+            v[idx(i, height - 2, j)] = v[idx(i, height - 3, j)];
+
         }
     }
 };
@@ -1033,20 +425,8 @@ void _cfd_lod::advect(float _dt)
             for (uint x = 2; x < width - 2; x++)
             {
                 uint i = idx(x, h, z);
-                P = float3(x, h, z);
-                /*
-                float3 vX = { sample_x(P + ox), sample_y(P + ox), sample_z(P + ox) };
-                float3 vY = { sample_x(P + oy), sample_y(P + oy), sample_z(P + oy) };
-                float3 vZ = { sample_x(P + oz), sample_y(P + oz), sample_z(P + oz) };
-
-                v2[i].x = sample_x(P + ox - (vX * scale));
-                v2[i].y = sample_y(P + oy - (vY * scale));
-                v2[i].z = sample_z(P + oz - (vZ * scale));
-                */
-
-                glm::u8vec4 smin = smap.getS(uint3(x, h, z) + offset);
-                float3 V = v[idx(x, h, z)];
-                v2[i] = sample(P - V * scale) * (smin.y / 255.f);
+                P = float3(x, h, z) - (v[idx(x, h, z)] * scale);
+                v2[i] = sample(P);
             }
         }
     }
@@ -1089,7 +469,7 @@ void _cfd_lod::vorticty_confine(float _dt)
 
                 float3 f = glm::cross(vorticity[i], curl[i]) * oneOverSize;
                 glm::u8vec4 smin = smap.getS(uint3(x, h, z) + offset);
-                v[i] -= 1.f * f * _dt;// *(smin.y / 255.f);
+                v[i] -= 10.f * f * _dt;// *(smin.y / 255.f);
             }
         }
     }
@@ -1143,119 +523,31 @@ void _cfd_lod::clamp(float3& _p)
     _p.z = glm::clamp(_p.z, 0.f, (float)(width - 2));
 }
 
-float _cfd_lod::sample_x(float3 _p)
-{
-    clamp(_p);
-    int3 i = _p;
-    float3 f1 = _p - (float3)i;
-    float3 f0 = float3(1, 1, 1) - f1;
-
-    float Vx = 0;
-    Vx += (f0.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y, i.z)].x;
-    Vx += (f0.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z)].x;
-    Vx += (f0.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z + 1)].x;
-    Vx += (f0.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y, i.z + 1)].x;
-
-    Vx += (f1.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z)].x;
-    Vx += (f1.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z)].x;
-    Vx += (f1.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z + 1)].x;
-    Vx += (f1.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z + 1)].x;
-
-    return Vx;
-}
-
-float _cfd_lod::sample_y(float3 _p)
-{
-    clamp(_p);
-    int3 i = _p;
-    float3 f1 = _p - (float3)i;
-    float3 f0 = float3(1, 1, 1) - f1;
-
-    float Vy = 0;
-    Vy += (f0.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y, i.z)].y;
-    Vy += (f0.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z)].y;
-    Vy += (f0.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z + 1)].y;
-    Vy += (f0.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y, i.z + 1)].y;
-
-    Vy += (f1.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z)].y;
-    Vy += (f1.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z)].y;
-    Vy += (f1.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z + 1)].y;
-    Vy += (f1.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z + 1)].y;
-
-    return Vy;
-}
-
-float _cfd_lod::sample_z(float3 _p)
-{
-    clamp(_p);
-    int3 i = _p;
-    float3 f1 = _p - (float3)i;
-    float3 f0 = float3(1, 1, 1) - f1;
-
-    float Vz = 0;
-    Vz += (f0.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y, i.z)].z;
-    Vz += (f0.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z)].z;
-    Vz += (f0.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z + 1)].z;
-    Vz += (f0.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y, i.z + 1)].z;
-
-    Vz += (f1.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z)].z;
-    Vz += (f1.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z)].z;
-    Vz += (f1.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z + 1)].z;
-    Vz += (f1.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z + 1)].z;
-
-    return Vz;
-}
-
-float3 _cfd_lod::sample_xyz(float3 _p)
-{
-    float3 ox = { 0, 0.5f, 0.5f };
-    float3 oy = { 0.5f, 0, 0.5f };
-    float3 oz = { 0.5f, 0.5f, 0 };
-
-    float3 v = { sample_x(_p + ox), sample_y(_p + oy), sample_z(_p + oz) };
-
-    return v;
-}
-
-
 
 void _cfd_lod::simulate(float _dt)
 {
+    auto a = high_resolution_clock::now();
     vorticty_confine(_dt);
-    incompressibilityNormal(10); // Mathias uses 100, excessive for this slow air, as LOW as possible, look at feedback
+
+    auto b = high_resolution_clock::now();
+    incompressibilityNormal(5); // Mathias uses 100, excessive for this slow air, as LOW as possible, look at feedback
+
+    auto c = high_resolution_clock::now();
     edges();
+
+    auto d = high_resolution_clock::now();
     advect(_dt);        // just do smkoe temperature etc as well
+
+    auto e = high_resolution_clock::now();
     tickCount++;
     frameTime += _dt;
+
+    simTimeLod_vorticity_ms = (double)duration_cast<microseconds>(b - a).count() / 1000.;
+    simTimeLod_incompress_ms = (double)duration_cast<microseconds>(c - b).count() / 1000.;
+    simTimeLod_edges_ms = (double)duration_cast<microseconds>(d - c).count() / 1000.;
+    simTimeLod_advect_ms = (double)duration_cast<microseconds>(e - d).count() / 1000.;
+
 };
-
-
-void _cfd_lod::streamlines(float3 _p, float4* _data)
-{
-    float rootAltitude = 350.f;   // in voxel space
-    float3 origin = float3(-20000, rootAltitude, -20000);
-
-    for (int h = 0; h < 10; h++)
-    {
-        for (int y = 0; y < 20; y++)
-        {
-            float3 P = (_p - origin) * oneOverSize;
-            P.y += h * 1;
-            P.z += y * 2;
-
-            for (int j = 0; j < 100; j++)
-            {
-                float3 V = sample(P);
-
-                _data->xyz = P * cellSize + origin;
-                _data->w = glm::length(V);
-                P += V * 0.4f;// *300.f * oneOverSize;
-                _data++;
-            }
-        }
-    }
-}
-
 
 
 
@@ -1271,19 +563,21 @@ void _cfdClipmap::build(std::string _path)
     lods[0].smap.load(_path + "/S_128.bin");
 
     lods[1].init(128, 64, 40000);  // already clipped
-    lods[1].offset = { 80, 0, 128 };
+    lods[1].offset = { 70, 0, 115 };
     lods[1].root = &lods[0];
     lods[1].smap.init(256);
     lods[1].smap.load(_path + "/S_256.bin");
 
     lods[2].init(128, 128, 40000);
-    lods[2].offset = { 160 + 40, 0, 256 + 80 };
+    lods[2].offset = lods[1].offset + uint3(32, 0, 50);
+    lods[2].offset *= 2;
     lods[2].root = &lods[1];
     lods[2].smap.init(512);
     lods[2].smap.load(_path + "/S_512.bin");
 
     lods[3].init(128, 128, 40000);
-    lods[3].offset = { (160 + 64) * 2 + 32, 0, (256 + 80) * 2 + 90 };
+    lods[3].offset = lods[2].offset + uint3(42, 0, 50);
+    lods[3].offset *= 2;
     lods[3].root = &lods[2];
     lods[3].smap.init(1024);
     lods[3].smap.load(_path + "/S_1024.bin");
@@ -1334,18 +628,17 @@ void _cfdClipmap::simulate_start(float _dt)
     {
         lods[0].simulate(_dt);
     }
-    //lods[0].incompressibilityNormal(10);
 
-    for (int lod = 0; lod < 6; lod++)
+    for (int lod = 1; lod < 6; lod++)
     {
+        float time = _dt / pow(2, lod);
         lods[lod].fromRoot();
-        lods[lod].incompressibilityNormal(20);
-        //lods[lod].edges();
-        //for (int k = 0; k < 10; k++)         lods[lod].simulate(_dt / 2.f);
-        //lods[lod].fromRootEdges();
-        //lods[lod].toRoot();
+        lods[lod].incompressibilityNormal(10);
+        for (int k = 0; k < 10; k++)       lods[lod].simulate(time);
     }
 }
+
+
 
 
 void _cfdClipmap::simulate(float _dt)
@@ -1357,13 +650,21 @@ void _cfdClipmap::simulate(float _dt)
         uint test = (counter - start) % step;
         if (test == 0)
         {
+            auto start = high_resolution_clock::now();
+
             uint lod = 6 - l;
             float time = _dt / pow(2, lod);
-            //lods[lod].fromRootEdges();
+
             lods[lod].fromRoot_Alpha();
             lods[lod].simulate(time);
-            //lods[lod].toRoot();
             lods[lod].toRoot_Alpha();
+
+            auto stop = high_resolution_clock::now();
+
+            if (lod == 5)
+            {
+                simTimeLod_ms = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
+            }
         }
     }
 
@@ -1376,13 +677,19 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
     float rootAltitude = 350.f;   // in voxel space
     float3 origin = float3(-20000, rootAltitude, -20000);
 
+    std::mt19937 generator(2);
+    std::uniform_real_distribution<> distribution(0, 1.f);
+
+
     for (int h = 0; h < 10; h++)
     {
         for (int y = 0; y < 20; y++)
         {
             float3 P = (_p - origin) * lods[0].oneOverSize;
-            P.y += h * 0.4;
-            P.z += y * 0.5f;
+            P.y += h * 0.15f;
+            P.z += y * 0.2f;
+
+            P += float3(distribution(generator), distribution(generator) * 0.3f, distribution(generator) * 0.4f);
 
             for (int j = 0; j < 100; j++)
             {
@@ -1405,14 +712,14 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
 
                 float3 p5 = P * 32.f;
                 p5 -= lods[5].offset;
-
+                /**/
                 if ((p5.x > 2 && p5.y > 0 && p5.z > 2) &&
                     (p5.x < 125 && p5.y < 125 && p5.z < 125))
                 {
                     pLOD = &lods[5];
                     Psample = p5;
-                    L = 3;
-                    scale = 0.4f;
+                    L = 0;
+                    scale = 0.3f;
                 }
 
                 else if ((p4.x > 2 && p4.y > 0 && p4.z > 2) &&
@@ -1420,25 +727,25 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
                 {
                     pLOD = &lods[4];
                     Psample = p4;
-                    L = 0;
-                    scale = 0.5f;
+                    L = 3;
+                    scale = 0.3f;
                 }
 
-                else if ((p3.x > 2 && p3.y > 0 && p3.z > 2) &&
+                else  if ((p3.x > 2 && p3.y > 0 && p3.z > 2) &&
                     (p3.x < 125 && p3.y < 125 && p3.z < 125))
                 {
                     pLOD = &lods[3];
                     Psample = p3;
-                    L = 5;
-                    scale = 0.6f;
+                    L = 0;
+                    scale = 0.5f;
                 }
 
                 else if ((p2.x > 2 && p2.y > 0 && p2.z > 2) &&
-                    (p2.x < 125 && p2.y < 125 && 125))
+                    (p2.x < 125 && p2.y < 125 && p2.z < 125))
                 {
                     pLOD = &lods[2];
                     Psample = p2;
-                    L = 0;
+                    L = 5;
                     scale = 0.7f;
                 }
                 else if ((p1.x > 2 && p1.y > 0 && p1.z > 2) && (p1.x < 125 && p1.y < 61 && p1.z < 125))
@@ -1461,12 +768,15 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
                 _data->xyz = P * lods[0].cellSize + origin;
                 _data->w = glm::length(V);
                 float lv = glm::length(V);
-                //V = glm::normalize(V) * 3.f;
-                //if (lv < 0.01f) V = { 0, 0, 0 };
-                P += V * 0.3f * scale;// *300.f * oneOverSize;
+                V = glm::normalize(V);
+                if (lv < 0.01f) V = { 0, 0, 0 };
+                //if (P.z < pLOD->width && P.x < pLOD->width)
+                {
+                    P += V * 0.1f;// *scale;// *300.f * oneOverSize;
+                }
 
                 float3 c = pLOD->sampleCurl(Psample);
-                //_data->w = glm::length(c);
+                //_data->w = L;// glm::length(c);
 
                 _data++;
             }
@@ -1566,7 +876,7 @@ void _cfdClipmap::heightToSmap(std::string filename)
             uint bottom = (uint)(fBottom);
             uint size = 1 + (top - bottom);
 
-            
+
             float3 vA = { 1 , d - b, 1 };
             float3 vB = { -1 , e - c, 1 };
             smap.normals[z * 4096 + x].xyz = glm::normalize(glm::cross(vB, vA));
@@ -1656,91 +966,6 @@ void _cfdClipmap::heightToSmap(std::string filename)
 
     // do so me test images
     std::ofstream ofs;
-    ofs.open(filename + "4096_Cut.raw", std::ios::binary);
-    if (ofs)
-    {
-        for (int y = 212; y >= 0; y--)
-        {
-            for (int x = 0; x < 4096; x++)
-            {
-                glm::u8vec4 s = smap.getS(uint3(x, y, 109 * 32));
-                ofs.write((char*)&s.z, 1);
-            }
-        }
-        ofs.close();
-    }
-
-    ofs.open(filename + "2048_Cut.raw", std::ios::binary);
-    if (ofs)
-    {
-        for (int y = 106; y >= 0; y--)
-        {
-            for (int x = 0; x < 2048; x++)
-            {
-                glm::u8vec4 s = smap_2048.getS(uint3(x, y, 109 * 16));
-                ofs.write((char*)&s.z, 1);
-            }
-        }
-        ofs.close();
-    }
-
-    ofs.open(filename + "1024_Cut.raw", std::ios::binary);
-    if (ofs)
-    {
-        for (int y = 127; y >= 0; y--)
-        {
-            for (int x = 0; x < 1024; x++)
-            {
-                glm::u8vec4 s = smap_1024.getS(uint3(x, y, 109 * 8));
-                ofs.write((char*)&s.z, 1);
-            }
-        }
-        ofs.close();
-    }
-
-
-    ofs.open(filename + "512_Cut.raw", std::ios::binary);
-    if (ofs)
-    {
-        for (int y = 63; y >= 0; y--)
-        {
-            for (int x = 0; x < 512; x++)
-            {
-                glm::u8vec4 s = smap_512.getS(uint3(x, y, 109 * 4));
-                ofs.write((char*)&s.z, 1);
-            }
-        }
-        ofs.close();
-    }
-
-    ofs.open(filename + "256_Cut.raw", std::ios::binary);
-    if (ofs)
-    {
-        for (int y = 31; y >= 0; y--)
-        {
-            for (int x = 0; x < 256; x++)
-            {
-                glm::u8vec4 s = smap_256.getS(uint3(x, y, 109 * 2));
-                ofs.write((char*)&s.z, 1);
-            }
-        }
-        ofs.close();
-    }
-
-    ofs.open(filename + "128_Cut.raw", std::ios::binary);
-    if (ofs)
-    {
-        for (int y = 15; y >= 0; y--)
-        {
-            for (int x = 0; x < 128; x++)
-            {
-                glm::u8vec4 s = smap_128.getS(uint3(x, y, 109));
-                ofs.write((char*)&s.z, 1);
-            }
-        }
-        ofs.close();
-    }
-
     ofs.open(filename + "256_Normals.raw", std::ios::binary);
     if (ofs)
     {
@@ -1759,3 +984,133 @@ void _cfdClipmap::heightToSmap(std::string filename)
         ofs.close();
     }
 }
+
+
+
+
+
+
+
+
+/// DEPRECATED
+
+void _cfd_lod::incompressibility_SMAP(uint _num)
+{
+    glm::u8vec4 smin, smax;
+    float3 v0, v1;
+    uint3 i0, i1;
+
+    for (uint n = 0; n < _num; n++)
+    {
+        for (uint h = 0; h < height - 1; h++) {
+            for (uint z = 0; z < width - 1; z++) {
+                for (uint x = 0; x < width - 1; x++)
+                {
+                    smin = smap.getS(uint3(x, h, z) + offset);
+                    smax.x = smap.getS(uint3(x + 1, h, z) + offset).x;
+                    smax.y = smap.getS(uint3(x, h + 1, z) + offset).y;
+                    smax.z = smap.getS(uint3(x, h, z + 1) + offset).z;
+                    uint sum = smin.x + smin.y + smin.z + smax.x + smax.y + smax.z;
+
+
+                    // this gets better if we split V and move to boundaries I think
+                    // really look at it
+                    if (sum > 1)
+                    {
+
+                        uint i = idx(x, h, z);
+                        float P = ((v[i].x * smin.x - v[i + 1].x * smax.x) +
+                            (v[i].y * smin.y - v[i + w2].y * smax.y) +
+                            (v[i].z * smin.z - v[i + width].z * smax.z)) / (float)sum * 1.9f / 255.f;
+
+                        // doen black red ...   gauss seidel verwag oorskryf van waardes maar ons propagate in een rigting
+                        v[i].x -= P * smin.x;
+                        v[i].y -= P * smin.y;
+                        v[i].z -= P * smin.z;
+                        v[i + 1].x += P * smax.x;
+                        v[i + w2].y += P * smax.y;
+                        v[i + width].z += P * smax.z;
+
+                        if (smax.y == 0) v[i] *= 0.f;
+                    }
+                }
+            }
+        }
+    }
+};
+
+/*
+float _cfd_lod::sample_x(float3 _p)
+{
+    clamp(_p);
+    int3 i = _p;
+    float3 f1 = _p - (float3)i;
+    float3 f0 = float3(1, 1, 1) - f1;
+
+    float Vx = 0;
+    Vx += (f0.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y, i.z)].x;
+    Vx += (f0.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z)].x;
+    Vx += (f0.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z + 1)].x;
+    Vx += (f0.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y, i.z + 1)].x;
+
+    Vx += (f1.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z)].x;
+    Vx += (f1.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z)].x;
+    Vx += (f1.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z + 1)].x;
+    Vx += (f1.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z + 1)].x;
+
+    return Vx;
+}
+
+float _cfd_lod::sample_y(float3 _p)
+{
+    clamp(_p);
+    int3 i = _p;
+    float3 f1 = _p - (float3)i;
+    float3 f0 = float3(1, 1, 1) - f1;
+
+    float Vy = 0;
+    Vy += (f0.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y, i.z)].y;
+    Vy += (f0.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z)].y;
+    Vy += (f0.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z + 1)].y;
+    Vy += (f0.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y, i.z + 1)].y;
+
+    Vy += (f1.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z)].y;
+    Vy += (f1.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z)].y;
+    Vy += (f1.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z + 1)].y;
+    Vy += (f1.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z + 1)].y;
+
+    return Vy;
+}
+
+float _cfd_lod::sample_z(float3 _p)
+{
+    clamp(_p);
+    int3 i = _p;
+    float3 f1 = _p - (float3)i;
+    float3 f0 = float3(1, 1, 1) - f1;
+
+    float Vz = 0;
+    Vz += (f0.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y, i.z)].z;
+    Vz += (f0.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z)].z;
+    Vz += (f0.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y, i.z + 1)].z;
+    Vz += (f0.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y, i.z + 1)].z;
+
+    Vz += (f1.y) * (f0.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z)].z;
+    Vz += (f1.y) * (f0.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z)].z;
+    Vz += (f1.y) * (f1.z) * (f1.x) * v[idx(i.x + 1, i.y + 1, i.z + 1)].z;
+    Vz += (f1.y) * (f1.z) * (f0.x) * v[idx(i.x, i.y + 1, i.z + 1)].z;
+
+    return Vz;
+}
+
+float3 _cfd_lod::sample_xyz(float3 _p)
+{
+    float3 ox = { 0, 0.5f, 0.5f };
+    float3 oy = { 0.5f, 0, 0.5f };
+    float3 oz = { 0.5f, 0.5f, 0 };
+
+    float3 v = { sample_x(_p + ox), sample_y(_p + oy), sample_z(_p + oz) };
+
+    return v;
+}
+*/

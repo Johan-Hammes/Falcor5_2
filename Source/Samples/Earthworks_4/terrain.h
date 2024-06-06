@@ -1159,7 +1159,7 @@ private:
 
     pixelShader thermalsShader;
     Buffer::SharedPtr       thermalsData;
-    uint numThermals;
+    uint numThermals = 200;
 
     public:
     pixelShader         rappersvilleShader;
@@ -1404,9 +1404,31 @@ private:
     _gliderBuilder paraBuilder;
     _gliderRuntime paraRuntime;
     _airSim AirSim;
-    _cfd CFD;
-    _cfdClipmap cfdClip;
+    //_cfd CFD;
+    //_cfdClipmap cfdClip;
     public:
-    bool recordingCFD = false;
-    int cfd_play_k = 0;
+    
+
+    void cfdStart();
+    void cfdThread();
+
+    struct
+    {
+        _cfdClipmap clipmap;
+        bool recordingCFD = false;
+        int cfd_play_k = 0;
+
+        // instead fo mutex, I am going to do oneay coms for now
+        // input
+        float stepTime;
+        bool realTime = true;   // if false we run as fast as posible to solve as much time
+        uint exportFrameStep = 0;   // 0 does not export, typical is repeating frame 2^lod - 1 every time we have sync
+        
+
+        // output
+        bool newFlowLines = false;
+        uint numLines = 0;
+        std::vector<float4> flowlines;
+
+    } cfd;      // guess this needs to become its own class or move into _cfdClipmap
 };
