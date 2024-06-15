@@ -87,25 +87,43 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
 
 void Earthworks_4::onGuiRender(Gui* _gui)
 {
-    static bool init = true;
-    if (init)
+    static bool first = true;
+    if (first)
     {
+        _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 13);
+        _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
         guiStyle();
-        init = false;
+        first = false;
     }
+    
 
-    ImGui::PushFont(_gui->getFont("roboto_20"));
+    if (showEditGui)
     {
+        ImGui::PushFont(_gui->getFont("roboto_20"));
+        {
 
-        onGuiMenubar(_gui);
-        terrain.onGuiRender(_gui);
+            onGuiMenubar(_gui);
+            terrain.onGuiRender(_gui);
 
-        if (aboutTex && showAbout) {
-            Gui::Window a(_gui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
-            a.image("#about", aboutTex, float2(aboutTex->getWidth(), aboutTex->getHeight()));
+            if (aboutTex && showAbout) {
+                Gui::Window a(_gui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
+                a.image("#about", aboutTex, float2(aboutTex->getWidth(), aboutTex->getHeight()));
+            }
         }
+        ImGui::PopFont();
     }
-    ImGui::PopFont();
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
+        Gui::Window all(_gui, "##fullscreen", { 200, 200 }, { screenSize.x, screenSize.y }, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
+        {
+            all.windowSize((int)screenSize.x, (int)screenSize.y);
+            terrain.onGuiRenderParaglider(_gui, screenSize);
+        }
+        all.release();
+        ImGui::PopStyleColor();
+        
+    }
 }
 
 
@@ -140,6 +158,9 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     float bottom = 1218000;
     */
 
+    fprintf(logFile, "Earthworks_4::onLoad()\n");
+    fflush(logFile);
+
     graphicsState = GraphicsState::create();
 
     BlendState::Desc bsDesc;
@@ -163,7 +184,12 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     camera->setPosition(float3(0, 900, 0));
     camera->setTarget(float3(0, 900, 100));
 
+    
+
     terrain.onLoad(_renderContext, logFile);
+
+    fprintf(logFile, "atmosphere.onLoad()\n");
+    fflush(logFile);
     atmosphere.onLoad(_renderContext, logFile);
     terrain.terrainShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
@@ -183,12 +209,19 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
 
+    fprintf(logFile, "terrain.cfdStart()\n");
+    fflush(logFile);
+
     terrain.cfdStart();
     std::thread thread_obj_cfd(&terrainManager::cfdThread, &terrain);
     thread_obj_cfd.detach();
 
-    std::thread thread_obj_paraglider(&terrainManager::paragliderThread, &terrain);
+
+
+    std::thread thread_obj_paraglider(&terrainManager::paragliderThread, &terrain, std::ref(glider_barrier));
     thread_obj_paraglider.detach();
+    std::thread thread_obj_paraglider_B(&terrainManager::paragliderThread_B, &terrain, std::ref(glider_barrier));
+    thread_obj_paraglider_B.detach();
 
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustInscatter", compressed_Albedo_Array);
     //terrain.terrainShader.Vars()->setTexture("gSmokeAndDustOutscatter", compressed_Albedo_Array);
@@ -251,15 +284,20 @@ void Earthworks_4::loadColorCube(std::string name)
 void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 {
     //global_sun_direction = glm::normalize(float3(1, -0.544f, -0.72));
-    global_sun_direction = glm::normalize(float3(1, -0.244f, 0));
+    //global_sun_direction = glm::normalize(float3(1, -0.144f, 0));
 
     static bool first = true;
     if (first)
     {
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
+        terrain.shadowEdges.sunAngle = 0.15f;
+        terrain.shadowEdges.dAngle = 0.0001f;
 
         terrain.terrainShadowTexture = Texture::create2D(4096, 4096, Falcor::ResourceFormat::RG32Float, 1, 1, terrain.shadowEdges.shadowH, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
+
+        std::thread thread_shadows(&_shadowEdges::solveThread, &terrain.shadowEdges);
+        thread_shadows.detach();
 
         terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.rappersvilleShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
@@ -267,6 +305,19 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
+    }
+
+    {
+        static int cnt = 0;
+        if (cnt == 0 && terrain.shadowEdges.shadowReady)
+        {
+            FALCOR_PROFILE("shadow update");
+            _renderContext->updateTextureData(terrain.terrainShadowTexture.get(), terrain.shadowEdges.shadowH);
+            global_sun_direction = terrain.shadowEdges.sunAng;
+            //terrain.shadowEdges.shadowReady = false;
+            cnt++;
+        }
+        
     }
 
     FALCOR_PROFILE("onFrameUpdate");
@@ -311,6 +362,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
 void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
+    gpDevice->toggleVSync(true);
     onFrameUpdate(_renderContext);
 
     // clear
@@ -354,7 +406,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     }
 
 
-    Sleep(2);
+    //Sleep(2);
 }
 
 
@@ -411,6 +463,10 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
             terrain.cfd.recordingCFD = true;
             terrain.cfd.cfd_play_k = 0;
         }
+        if (_keyEvent.key == Input::Key::D)
+        {
+            showEditGui = !showEditGui;
+        }
     }
 
     return false;
@@ -451,6 +507,9 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
     hdrFbo = Fbo::create2D(_width, _height, desc);
 
     hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 7, nullptr, Falcor::Resource::BindFlags::AllColorViews);
+
+    fprintf(logFile, "Earthworks_4::onResizeSwapChain()  %d, %d\n", _width, _height);
+    fflush(logFile);
 }
 
 
@@ -485,9 +544,14 @@ void Earthworks_4::guiStyle()
 
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.f, 0.f, 0.f, 0.8f);
 
-    style.FrameRounding = 4.0f;
+    style.FrameRounding = 0.f;
+    style.FramePadding = ImVec2(0, 0);
 
-    style.ScrollbarSize = 10;
+    style.ScrollbarSize = 20;
+
+    style.WindowPadding = ImVec2(0, 0);              // Padding within a window.
+    style.WindowRounding = 0.f;             // Radius of window corners rounding. Set to 0.0f to have rectangular windows.
+    style.WindowBorderSize = 0.f;
 
 }
 
@@ -496,6 +560,7 @@ void Earthworks_4::guiStyle()
 int main(int argc, char** argv)
 {
     bool allScreens = false;
+    
     for (int i = 0; i < argc; i++)
     {
         if (std::string(argv[i]).find("-allscreens") != std::string::npos) allScreens = true;
@@ -512,9 +577,15 @@ int main(int argc, char** argv)
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
-    config.windowDesc.monitor = 0;
+    config.windowDesc.monitor = 1;
+
+    // HDR
+    // config.windowDesc.monitor = 1;
+    //config.deviceDesc.colorFormat = ResourceFormat::RGB10A2Unorm;
 
     logFile = fopen("log.txt", "w");
+    fprintf(logFile, "main()\n");
+    fflush(logFile);
 
     Sample::run(config, pRenderer);
     

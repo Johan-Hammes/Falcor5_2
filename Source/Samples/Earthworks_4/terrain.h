@@ -31,6 +31,7 @@
 #include "pixelShader.h"
 
 #include <thread>
+#include "Barrier.hpp"
 
 #include"terrafector.h"
 #include "roadNetwork.h"
@@ -106,6 +107,13 @@ struct _shadowEdges
     float2 shadowH[4096][4096];
 
     void load(std::string filename, float _angle);
+    void solve(float _angle, bool dx);
+
+    float sunAngle = 0.2f;  // just afetr sunruise
+    float dAngle = 0.01f;
+    float3 sunAng;
+    bool shadowReady = false;
+    void solveThread();
 };
 
 
@@ -1052,6 +1060,9 @@ public:
     void onLoad(RenderContext* _renderContext, FILE* _logfile);
     void onShutdown();
     void onGuiRender(Gui* pGui);
+    void onGuiRenderParaglider(Gui* pGui, float2 _screen);
+    bool renderGui_Menu = true;
+    bool renderGui_Hud = true;
     void onGuiMenubar(Gui* pGui);
     void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy);
     bool onKeyEvent(const KeyboardEvent& keyEvent);
@@ -1141,6 +1152,7 @@ private:
     Texture::SharedPtr	  spriteNormalsTexture = nullptr;
 
     pixelShader ribbonShader;
+    uint numLoadedRibbons;
     pixelShader ribbonShader_Bake;
     Buffer::SharedPtr       ribbonData[2];
     uint bufferidx = 0;
@@ -1168,6 +1180,7 @@ private:
     int numrapperstri;
 
     pixelShader         gliderwingShader;
+    uint    wingloadedCnt;
     Buffer::SharedPtr   gliderwingData[2];
     RasterizerState::SharedPtr      rasterstateGliderWing;
 
@@ -1411,7 +1424,11 @@ private:
 
     void cfdStart();
     void cfdThread();
-    void paragliderThread();
+    void paragliderThread(BarrierThrd& bar);
+    void paragliderThread_B(BarrierThrd& bar);
+    bool requestParaPack = false;
+    float3 paraCamPos;
+    float3 paraEyeLocal;
 
     struct
     {
@@ -1442,6 +1459,12 @@ private:
     struct
     {
         bool loaded = false;
-        double frameTime;
+        float frameTime;
+        float packTime;
+
+        float cellsTime[2];
+        float preTime[2];
+        float wingTime[2];
+        float postTime[2];
     } glider;
 };

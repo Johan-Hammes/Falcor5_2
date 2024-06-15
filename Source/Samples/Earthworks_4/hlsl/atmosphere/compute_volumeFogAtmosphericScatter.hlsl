@@ -93,7 +93,8 @@ float shadow(float3 pos, float step)
         float step = depth * sliceStep;
         float3 pos = eye_position + direction * (depth + (step / 2));
         float S = shadow(pos, sliceStep);
-		calculateStep(direction, phaseRayleigh, phaseUV, IBL, S, depth, newIn, newOut, R);
+        if (SLICE == 0) S = 0;  // No sun light in first slice ever
+        calculateStep(direction, phaseRayleigh, phaseUV, IBL, S, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);
 		coord.z = SLICE++;
 

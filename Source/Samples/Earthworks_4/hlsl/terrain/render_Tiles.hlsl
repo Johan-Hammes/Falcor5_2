@@ -108,6 +108,25 @@ terrainVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 		output.worldPos = position.xyz;
 		output.eye = position.xyz - eye;
 		output.pos =  mul( position, viewproj);
+        /// FISHEY
+        //if (output.pos.w > 0)
+        /*
+        {
+        
+            float2 XY = output.pos.xy / output.pos.w;
+            float2 N = normalize(XY);
+            float Dist = length(XY) * 0.5;
+            float scale = 1;
+            if (Dist < 1.9)
+            {
+            
+
+                scale = Dist * 2  - pow(Dist, 1.8);
+                output.pos.xy = N * scale * output.pos.w / 0.5;
+            }
+        }
+        */
+        //output.pos.x += 1000.4;// = sign(output.pos.x) * pow(output.pos.x, 2.0);
 		output.texCoords = float3( x / tile_numPixels, y / tile_numPixels, tileIDX);
 	}
 	else
@@ -275,7 +294,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	diffuse *= (1 - mat.fresnel);
 	specular *= mat.fresnel;
 
-    diffuse += float3(0.01, 0.02, 0.04) * 0.62 * mat.diff.rgb;
+    diffuse += float3(0.01, 0.02, 0.04) * 0.82 * mat.diff.rgb;
 	float3 colour = diffuse + specular * 0.1;
 	
 	

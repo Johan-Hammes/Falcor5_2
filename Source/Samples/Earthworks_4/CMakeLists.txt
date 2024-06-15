@@ -16,6 +16,7 @@ target_sources(Earthworks_4 PRIVATE
 	pixelShader.cpp
     pixelShader.h
     volumeFogPhaseFunctions.cpp
+    Barrier.hpp
 
     ecotope.h
     ecotope.cpp

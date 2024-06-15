@@ -72,10 +72,12 @@ private:
     Camera::SharedPtr	        camera;
     pixelShader		            tonemapper;
     terrainManager              terrain;
+    BarrierThrd glider_barrier; // create barrier for threads
     atmosphereAndFog            atmosphere; // make directly available in terrain include there
     bool showAbout = false;
     Texture::SharedPtr aboutTex;
     int slowTimer = 0;      // this is used to alow donw framerate
+    bool showEditGui = false;
         
 
     struct {

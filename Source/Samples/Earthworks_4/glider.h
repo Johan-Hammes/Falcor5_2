@@ -139,8 +139,8 @@ struct _cell
     float3 up;
     float3 v;
     float rho;
-    float windspeed;
-    float3 rel_wind;
+    //float windspeed;
+    float3 flow_direction;
     float cellVelocity;
 };
 
@@ -308,18 +308,18 @@ private:
 
 struct _constraintSetup
 {
-    float3 chord = float3(1.f, 0.f, 0.2f);              // pull, push, pressure
-    float3 chord_verticals = float3(1.f, 0.f, 0.f);     // pull, push, pressure
+    float3 chord = float3(1.f, 0.f, 0.0f);              // pull, push, pressure
+    float3 chord_verticals = float3(1.f, 0.f, 0.0f);     // pull, push, pressure
     float3 chord_diagonals = float3(0.7f, 0.f, 0.0f);    // pull, push, pressure
     // ??? nose stiffner
-    float3 leadingEdge = float3(0.f, 0.6f, 0.4f);    // pull, push, pressure
-    float3 trailingEdge = float3(0.f, 0.0f, 0.2f);    // pull, push, pressure
+    float3 leadingEdge = float3(0.f, 0.6f, 0.3f);    // pull, push, pressure
+    float3 trailingEdge = float3(0.f, 0.0f, 0.3f);    // pull, push, pressure
 
-    float3 span = float3(0.7f, 0.1f, 0.9f);
-    float3 surface = float3(.5f, 0.f, 0.1f);
+    float3 span = float3(0.7f, 0.1f, 0.2f);
+    float3 surface = float3(.5f, 0.f, 0.01f);
     // ??? trailing edge span stiffner
 
-    float3 pressure_volume = float3(0.f, 0.f, 0.4f);
+    float3 pressure_volume = float3(0.f, 0.f, 0.2f);
 
     float3 line_bracing = float3(1.f, 0.f, 0.f);
 };
@@ -603,9 +603,31 @@ class _gliderRuntime
 {
 public:
     void renderGui(Gui* mpGui);
+    void renderHUD(Gui* mpGui, float2 _screen);
     void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
+    bool requestRestart = false;
     void setupLines();
+    void solve_air(float _dT, bool _left);
+    void solve_aoa(float _dT, bool _left);
+    void solve_pressure(float _dT, bool _left);
+    void solve_surface(float _dT, bool _left);
+
+    void solve_PRE(float _dT);
+    void solve_linesTensions(float _dT);
+    void solve_triangle(float _dT);
+
+    void solve_wing(float _dT, bool _left);
+
+    void solve_POST(float _dT);
+    void movingROOT();
+    void eye_andCamera();
+
     void solve(float _dT);
+
+    void constraintThread_a();
+    void constraintThread_b();
+    void lineThread_left();
+    void lineThread_right();
     void packWing(float3 pos, float3 norm, float3 uv);
     void pack_canopy();
     void pack_lines();
@@ -635,6 +657,12 @@ public:
     std::string xfoilDir;
     std::string wingName = "naca4415";
     _cp Pressure;
+
+
+    std::array<float, 10000> sound_500Hz;  // 20 seconds * 500Hz
+    //std::array<float, 100000> sound_5kHz;  // 20 seconds * 500Hz
+    uint soundPtr = 0;
+    std::vector<float> soundLowPass;
 
     // build
     rvB_Glider ribbon[1024 * 1024];
@@ -734,15 +762,19 @@ public:
         singlestep = !singlestep;
     }
 
+    float CPU_usage = 0;
+
     float pilotYaw = 0.f;
     float cameraYaw = 0.f;
     float cameraPitch = 0.f;
     float cameraDistance = 0.f;
     float3 cameraUp = float3(0, 1, 0);
+    uint cameraType = 0;
 
     float rumbleLeft = 0.f;
     float rumbleLeftAVS = 0.f;
     float rumbleRight = 0.f;
+    float rumbleRightAVS = 0.f;
 
     float3 camUp;
     float3 camRight;
@@ -752,6 +784,11 @@ public:
     BYTE leftTrigger;
     BYTE rightTrigger;
 
+
+    float time_ms_Aero;
+    float time_ms_Pre;
+    float time_ms_Wing;
+    float time_ms_Post;
 
     _windTerrain windTerrain;
          

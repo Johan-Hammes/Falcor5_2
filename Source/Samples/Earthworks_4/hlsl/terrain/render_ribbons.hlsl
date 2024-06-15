@@ -451,7 +451,7 @@ PSIn lerpVert(const PSIn L[2], float x)
 [maxvertexcount(6)]
 void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 {
-    
+    float lineScale = 1.f;
     PSIn v;
     
     if ((L[1].flags.y == 1) && (L[0].flags.w > 1))
@@ -460,12 +460,13 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
         v.uv.x = 0; // temp for paraglider
-        v.pos = mul(L[0].pos - float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
+        float lineScale = pow(v.flags.z / 255.f, 2) * radiusScale + 0.0;
+        v.pos = mul(L[0].pos - float4(v.tangent * lineScale, 0), viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[0].uv.x;
         v.uv.x = 1; // temp for paraglider
-        v.pos = mul(L[0].pos + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
+        v.pos = mul(L[0].pos + float4(v.tangent * lineScale, 0), viewproj);
         OutputStream.Append(v);
 
         /*
@@ -488,12 +489,13 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
         v.uv.x = 0; // temp for paraglider
-        v.pos = mul(L[1].pos - float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
+        lineScale = pow(v.flags.z / 255.f, 2) * radiusScale + 0.0;
+        v.pos = mul(L[1].pos - float4(v.tangent * lineScale, 0), viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[1].uv.x;
         v.uv.x = 1; // temp for paraglider
-        v.pos = mul(L[1].pos + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
+        v.pos = mul(L[1].pos + float4(v.tangent * lineScale, 0), viewproj);
         OutputStream.Append(v);
     }
 }
@@ -593,7 +595,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             return float4(vOut.diffuseLight, 1);
         }
 */
-
+    
     float3 cSolid = float3(1, 1 ,1) * 0.3;
     if (vOut.flags.x == 1)
         cSolid = float3(0.8f, 0.01f, 0.01f) * 0.2;
@@ -612,7 +614,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     cSolid *= 0.5;
 
-    float alphaC = min(saturate(vOut.uv.x * 0.9), saturate((1 - vOut.uv.x) * 0.9));
+    float alphaC =     min(saturate(vOut.uv.x), saturate((1 - vOut.uv.x)));
+    alphaC =    saturate(alphaC * 3);
     
     //alphaC = min(alphaC, pow(saturate(vOut.flags.w * 0.000901), 0.91));
     if (alphaC < 0.99)

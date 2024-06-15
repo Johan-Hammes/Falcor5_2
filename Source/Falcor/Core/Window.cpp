@@ -426,6 +426,11 @@ namespace Falcor
             auto mod = glfwGetVideoMode(monitor);
             w = mod->width;
             h = mod->height;
+            glfwWindowHint(GLFW_RED_BITS, 10);
+            glfwWindowHint(GLFW_GREEN_BITS, 10);
+            glfwWindowHint(GLFW_BLUE_BITS, 10);
+            glfwWindowHint(GLFW_ALPHA_BITS, 2);
+            
         }
         else if  (desc.mode == WindowMode::AllScreens)
         {
@@ -452,8 +457,8 @@ namespace Falcor
             glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
         }
 
-        //GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), monitor, nullptr);
-        GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), nullptr, nullptr);
+        GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), monitor, nullptr);
+        //GLFWwindow* pGLFWWindow = glfwCreateWindow(w, h, desc.title.c_str(), nullptr, nullptr);
         if (!pGLFWWindow)
         {
             throw RuntimeError("Failed to create GLFW window.");

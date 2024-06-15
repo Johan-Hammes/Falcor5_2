@@ -46,7 +46,7 @@ struct   fogAtmosphericParams {
     // Block for the new atmosphere
     // ############################################################################################################################
     float3 sunColourBeforeOzone{ 1.0f, 1.0f, 1.0f };
-    float haze_Turbidity = 1.5f;
+    float haze_Turbidity = 2.5f;
 
     float3 haze_Colour{ 0.95, 0.95, 0.95 };
     float haze_AltitudeKm = 1.2f;
@@ -54,9 +54,9 @@ struct   fogAtmosphericParams {
     float3 fog_Colour{ 0.95, 0.95, 0.95 };
     float haze_BaseAltitudeKm = 0;
 
-    float fog_AltitudeKm = 0.49f;
-    float fog_BaseAltitudeKm = 0.65f;
-    float fog_Turbidity = 8.5f;
+    float fog_AltitudeKm = 0.19f;
+    float fog_BaseAltitudeKm = 0.85f;
+    float fog_Turbidity = 18.5f;
     float globalExposure = 1.0f / 20000.0f;
 
     float3 rain_Colour{ 0.1, 0.1, 0.1 };

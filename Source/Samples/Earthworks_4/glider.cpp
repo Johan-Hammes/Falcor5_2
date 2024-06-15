@@ -734,7 +734,7 @@ void _lineBuilder::windAndTension(std::vector<float3>& _x, std::vector<float>& _
     LINEn = glm::normalize(LINEn);
     LINEn.y = 0;
     float gravityScale = 0;// glm::length(LINEn);
-    maxTencileForce = maxT(stretchRatio, rho_Line * v * v * 4.f);
+    maxTencileForce = maxT(stretchRatio, rho_Line * v * v * 1.f);
     float3 fWind = -glm::normalize(V) * rho;
     _x[end_Idx] += (fWind / m_End + float3(0, -9.8f * gravityScale, 0)) * _dtSquare;
     AllSummedLinedrag += fWind;
@@ -1169,7 +1169,8 @@ void _gliderBuilder::builWingConstraints()
         uint cell = s;
         if (s < spanSize / 2) cell += 1;    // use the inside cell
 
-        for (int c = 1; c < chordSize / 2 - 1; c++)
+        //for (int c = 1; c < chordSize / 2 - 1; c++)
+        for (int c = 12; c < chordSize - 4; c++)
         {
             idx = quadIdx(s, c);
             uint4 idxTop = quadIdx(s, chordSize - 2 - c);

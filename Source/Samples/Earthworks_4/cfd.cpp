@@ -357,13 +357,13 @@ void _cfd_lod::Normal()
 
             for (uint h = h0; h < h0 + 8; h++)
             {
-                float scale = __max(0, 1.f - __min(1.f, abs(Hcell) / 2.f));
+                float scale = __max(0, 1.f - __min(1.f, abs(Hcell) / 3.f));
                 uint i = idx(x, h, z);
                 float3 normWind = N * glm::dot(v[i], N);
                 v[i] -= normWind * scale;
 
-                v[i] *= 1.f - scale * 0.0001f;
-                if (Hcell < -1) v[i] *= 0;
+                //v[i] *= 1.f - scale * 0.0001f;
+                if (Hcell < -2) v[i] *= 0;
                 Hcell += 1.f;
             }
         }
@@ -725,8 +725,8 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
         for (int y = -10; y < 10; y++)
         {
             float3 P = (_p - origin) * lods[0].oneOverSize;
-            P.y += h * 0.015f;
-            P.z += y * 0.02f;
+            P.y += h * 0.05f;
+            P.z += y * 0.05f;
 
             P += float3(distribution(generator), distribution(generator) * 0.3f, distribution(generator) * 0.4f);
 
@@ -811,7 +811,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
                 if (lv < 0.01f) V = { 0, 0, 0 };
                 //if (P.z < pLOD->width && P.x < pLOD->width)
                 {
-                    P += V * 0.02f;// *scale;// *300.f * oneOverSize;
+                    P += V * 0.06f;// *scale;// *300.f * oneOverSize;
                 }
 
                 float3 c = pLOD->sampleCurl(Psample);
