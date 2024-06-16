@@ -289,7 +289,7 @@ void ProcessDots( int _camera, int frameNumber )
 
             for (int i = 0; i < okDOTS; i++)
             {
-                PointGrey_Camera::GetSingleton()->dotQueue.push(v_dots[i]);
+                PointGrey_Camera::GetSingleton()->dotQueue[_camera].push(v_dots[i]);
             }
 
             /*
@@ -498,13 +498,14 @@ PointGrey_Camera::PointGrey_Camera()
         
 		debug_SkippedFrames = 0;
 
-        CameraInfo pCameraInfo;
-        FlyCapture2::Error E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
+        
+        //FlyCapture2::Error E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
 
-        FlyCapture2::Error E2 = m_VideoCamera[i].Connect();
+        FlyCapture2::Error E2 = m_VideoCamera[i].Connect(&m_Guid[i]);
         m_bConnected[i] = (E2.GetType() == PGRERROR_OK);
 
-        E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
+        CameraInfo pCameraInfo;
+        FlyCapture2::Error E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
 
         serial[i] = pCameraInfo.serialNumber;
 /*
@@ -535,9 +536,16 @@ PointGrey_Camera::PointGrey_Camera()
             m_VideoCamera[i].SetFormat7Configuration(&F7, (unsigned int)3008);
         }
         */
-		if (i==0) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &A );
-		if (i==1) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &B );
+		//if (i==0) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &A );
+		//if (i==1) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &B );
 	}
+
+    for (int i = 0; i < m_NumCameras; i++)
+    {
+        if (i == 0) m_CamError = m_VideoCamera[i].StartCapture(OnImageGrabbed, &A);
+        if (i == 1) m_CamError = m_VideoCamera[i].StartCapture(OnImageGrabbed, &B);
+    }
+
 	 m_bInit = true;
 
 
@@ -796,12 +804,14 @@ void PointGrey_Camera::setThreshold( int T )
 
 unsigned int PointGrey_Camera::getSerialNumber(int cam)
 {
-    return serial[cam];
+    if(b_SwapCamera) return serial[(cam + 1) % m_NumCameras];
+    else return serial[cam];
 }
 
 unsigned int PointGrey_Camera::getFrameCount(int cam)
 {
-    return frameCNT[cam];
+    if (b_SwapCamera) return frameCNT[(cam + 1) % m_NumCameras];
+    else return frameCNT[cam];
 }
 
 

@@ -86,7 +86,7 @@ public:
 	unsigned int	B;
 	bool			m_bSwapCameras;
 
-    std::queue<glm::vec4> dotQueue;
+    std::queue<glm::vec4> dotQueue[2];
     glm::vec2 bufferSize;
     unsigned char* bufferData[2];
     unsigned char* bufferReference[2];
