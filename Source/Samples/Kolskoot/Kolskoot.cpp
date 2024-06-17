@@ -2216,6 +2216,7 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
             if (ImGui::Button("Test")) {
                 modeCalibrate = 3;
                 //guiMode = gui_menu;
+                cameraToCalibratate = _screen;
             }
 
             ImGui::SameLine(0, 50);
