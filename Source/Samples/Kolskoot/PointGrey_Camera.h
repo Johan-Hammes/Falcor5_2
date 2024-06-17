@@ -67,16 +67,21 @@ public :
 	unsigned int getSerialNumber( int cam = 0 );
     unsigned int getFrameCount(int cam);
 
+    void SetCalibrateMode(bool _b) { clearmode = _b; }
 
 	
 private :
 	static bool			m_bInit;
+    
 
 private :
 	PointGrey_Camera();
 	virtual ~PointGrey_Camera();
 	static PointGrey_Camera *s_instance;
     bool		m_bConnected[2] = { false, false };
+
+public:
+    static bool         clearmode;         // This code will celar shots every new frame - for calibrations only
 
 public:
 	unsigned int	m_NumCameras;
@@ -88,6 +93,8 @@ public:
 	bool			m_bSwapCameras;
 
     std::queue<glm::vec4> dotQueue[2];
+    std::array<glm::vec4, 500> dotArray[2];
+    int numDots[2];
     glm::vec2 bufferSize;
     unsigned char* bufferData[2];
     unsigned char* bufferReference[2];

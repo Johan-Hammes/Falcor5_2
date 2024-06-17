@@ -2202,8 +2202,7 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
             }
 
             ImGui::SameLine(0, 50);
-            ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->dotQueue[_screen].size());
-            pointGreyCamera->dotQueue[_screen] = {};
+            ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->numDots[_screen]);
 
             
             if (pointGreyCamera->m_bSwapCameras) {
@@ -2234,18 +2233,6 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
             {
                 pointGreyDiffBuffer[_screen] = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1, pointGreyCamera->bufferData[_screen]);
             }
-
-            /*
-            uint ndots = pointGreyCamera->dotQueue.size();
-            ImGui::Text("dots  %d", ndots);
-            for (uint i = 0; i < ndots; i++)
-            {
-                glm::vec4 dot = pointGreyCamera->dotQueue.front();
-                pointGreyCamera->dotQueue.pop();
-                ImGui::SetCursorPos(ImVec2(C.x + dot.x, C.y + dot.y));
-                ImGui::Text("x");
-            }
-            */
         }
     }
     ImGui::PopFont();
@@ -2311,8 +2298,8 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 }
 
 
-                ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->dotQueue[_screen].size());
-                pointGreyCamera->dotQueue[_screen] = {};
+                ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->numDots[_screen]);
+
 
                 style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
                 /*
@@ -2355,7 +2342,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                         ImGui::Text("adjust the light untill all 45 dots are found");
                         ImGui::SetCursorPos(ImVec2(x0 / 2 - 150, screenSize.y / 2 - 160));
                         ImGui::Text("hide cursor by dragging it to the bottom of the screen");
-                        uint ndots = pointGreyCamera->dotQueue[_screen].size();
+                        uint ndots = pointGreyCamera->numDots[_screen];
 
                         ImGui::SetCursorPos(ImVec2(x0 / 2 - 150, screenSize.y / 2 - 120));
                         ImGui::Text("also log dot count here  %d / 45", ndots);
@@ -2364,15 +2351,11 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                             ImGui::SetCursorPos(ImVec2(x0 / 2 - 150, screenSize.y / 2 - 60));
                             ImGui::Text("all dots picked up, press space to save");
                             for (int j = 0; j < 45; j++) {
-                                calibrationDots[j] = pointGreyCamera->dotQueue[_screen].front();
-                                pointGreyCamera->dotQueue[_screen].pop();
+                                calibrationDots[j] = pointGreyCamera->dotArray[_screen][j];
                             }
                         }
                     }
 
-                    while (pointGreyCamera->dotQueue[_screen].size()) {
-                        pointGreyCamera->dotQueue[_screen].pop();
-                    }
 
                     style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
 
@@ -2409,10 +2392,9 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                     zigbeeRounds(i, 100);
                 }
 
-                while (pointGreyCamera->dotQueue[_screen].size()) {
-                    glm::vec3 screen = screenMap[cameraToCalibratate].toScreen(pointGreyCamera->dotQueue[_screen].front());
+                for (int j = 0; j < pointGreyCamera->numDots[_screen]; j++) {
+                    glm::vec3 screen = screenMap[cameraToCalibratate].toScreen(pointGreyCamera->dotArray[_screen][j]);
                     draw_list->AddCircle(ImVec2(screen.x, screen.y), 18, col32, 30, 6);
-                    pointGreyCamera->dotQueue[_screen].pop();
                 }
 
             }
@@ -2693,239 +2675,6 @@ void Kolskoot::onGuiRender(Gui* _gui)
 
 
 
-
-
-        /*
-        if (guiMode == gui_camera)
-        {
-            Gui::Window pointgreyPanel(_gui, "PointGrey", { 900, 900 }, { 100, 100 }, Falcor::Gui::WindowFlags::NoResize);
-            pointgreyPanel.windowSize((int)screenSize.x, (int)screenSize.y - menuHeight);
-            pointgreyPanel.windowPos(0, menuHeight);
-            {
-                ImGui::PushFont(_gui->getFont("roboto_32"));
-                {
-                    if (!pointGreyCamera->isConnected())
-                    {
-                        ImGui::Text("Camera not connected");
-                    }
-                    else
-                    {
-                        ImGui::Text("serial  %d", pointGreyCamera->getSerialNumber());
-                        ImGui::Text("%d x %d", (int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y);
-
-                        ImGui::NewLine();
-
-                        if (ImGui::SliderFloat("Gain", &pgGain, 0, 12)) {
-                            pointGreyCamera->setGain(pgGain);
-                        }
-                        if (ImGui::SliderFloat("Gamma", &pgGamma, 0, 1)) {
-                            pointGreyCamera->setGamma(pgGamma);
-                        }
-
-                        ImGui::DragInt("dot min", &dot_min, 1, 1, 200);
-                        ImGui::DragInt("dot max", &dot_max, 1, 1, 200);
-                        ImGui::DragInt("threshold", &threshold, 1, 1, 100);
-                        ImGui::DragInt("m_PG_dot_position", &m_PG_dot_position, 1, 0, 2);
-                        pointGreyCamera->setDots(dot_min, dot_max, threshold, m_PG_dot_position);
-
-                        if (ImGui::Button("Take Reference Image")) {
-                            pointGreyCamera->setReferenceFrame(true, 5);
-                        }
-
-                        if (ImGui::Button("Calibrate")) {
-                            modeCalibrate = 1;
-                            guiMode = gui_menu;
-                        }
-
-                        ImGui::SameLine();
-                        if (ImGui::Button("Test")) {
-                            modeCalibrate = 3;
-                            guiMode = gui_menu;
-                        }
-
-
-
-                        ImVec2 C = ImGui::GetCursorPos();
-                        if (pointGreyCamera[_screen])
-                        {
-                            if (pointgreyPanel.imageButton("testImage", pointGreyCamera[_screen], pointGreyCamera[_screen]->bufferSize))
-                            {
-
-                            }
-                        }
-                        else
-                        {
-                            pointGreyBuffer = Texture::create2D((int)pointGreyCamera[_screen]->bufferSize.x, (int)pointGreyCamera[_screen]->bufferSize.y, ResourceFormat::R8Unorm, 1, 1, pointGreyCamera->bufferData);
-                        }
-
-                        C.x += (int)pointGreyCamera[_screen]->bufferSize.x + 50;
-                        ImGui::SetCursorPos(C);
-                        if (pointGreyDiffBuffer)
-                        {
-                            pointgreyPanel.imageButton("testImage", pointGreyDiffBuffer, pointGreyCamera[_screen]->bufferSize);
-                        }
-                        else
-                        {
-                            pointGreyDiffBuffer = Texture::create2D((int)pointGreyCamera[_screen]->bufferSize.x, (int)pointGreyCamera[_screen]->bufferSize.y, ResourceFormat::R8Unorm, 1, 1, pointGreyCamera->bufferData);
-                        }
-
-
-                        uint ndots = pointGreyCamera->dotQueue.size();
-                        ImGui::Text("dots  %d", ndots);
-                        for (uint i = 0; i < ndots; i++)
-                        {
-                            glm::vec4 dot = pointGreyCamera->dotQueue.front();
-                            pointGreyCamera->dotQueue.pop();
-                            ImGui::SetCursorPos(ImVec2(C.x + dot.x, C.y + dot.y));
-                            ImGui::Text("x");
-                        }
-
-                    }
-                }
-                ImGui::PopFont();
-
-            }
-            pointgreyPanel.release();
-        }
-
-
-        if (modeCalibrate > 0)
-        {
-
-            auto& style = ImGui::GetStyle();
-            style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
-            style.Colors[ImGuiCol_WindowBg] = ImVec4(0.0f, 0.0f, 0.0f, 1.f);
-            style.Colors[ImGuiCol_Border] = ImVec4(0.0f, 0.0f, 0.0f, 1.f);
-
-            Gui::Window calibrationPanel(_gui, "##Calibrate", { screenSize.x, screenSize.y }, { 0, 0 }, Gui::WindowFlags::NoResize);
-            {
-                ImGui::SetWindowPos(ImVec2(0, 0), 0);
-                ImGui::SetWindowSize(ImVec2(screenSize.x, screenSize.y), 0);
-                //ImGui::BringWindowToDisplayFront(calibrationPanel);
-
-
-
-                ImGui::PushFont(_gui->getFont("roboto_32"));
-                {
-
-
-                    if (modeCalibrate == 1) {
-
-                        ImGui::SetCursorPos(ImVec2(100, 100));
-                        if (pointGreyBuffer)
-                        {
-                            calibrationPanel.imageButton("testImage", pointGreyBuffer, float2(screenSize.x - 200, screenSize.y - 200), false);
-                        }
-                        ImGui::Text("cnt %d", pointGreyCamera->getFrameCount(0));
-
-                        style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
-                        ImGui::SetCursorPos(ImVec2(50, 50));
-                        ImGui::Text("Top left");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x - 200, 50));
-                        ImGui::Text("Top right");
-                        ImGui::SetCursorPos(ImVec2(50, screenSize.y - 50));
-                        ImGui::Text("Bottom left");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x - 200, screenSize.y - 50));
-                        ImGui::Text("Bottom right");
-
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 60));
-                        ImGui::Text("remove the filter");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 30));
-                        ImGui::Text("zoom and focus the camera");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 - 0));
-                        ImGui::Text("set the brightness");
-                        ImGui::SetCursorPos(ImVec2(screenSize.x / 2 + 150, screenSize.y / 2 + 30));
-                        ImGui::Text("press 'space' when done");
-                        //pointGreyCamera->setReferenceFrame(true, 1);
-
-                    }
-
-                    if (modeCalibrate == 2) {
-                        if (calibrationCounter > 0) {
-                            if (calibrationCounter == 100) {
-                                pointGreyCamera->setReferenceFrame(true, 5);
-                            }
-                            calibrationCounter--;
-                        }
-                        else
-                        {
-                            style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 0.0f, 0.1f, 1.f);
-
-
-                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 200));
-                            ImGui::Text("adjust the light untill all 45 dots are found");
-                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 160));
-                            ImGui::Text("hide cursor by dragging it to the bottom of the screen");
-                            uint ndots = pointGreyCamera->dotQueue.size();
-
-                            ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 120));
-                            ImGui::Text("also log dot count here  %d / 45", ndots);
-
-                            if (ndots == 45) {
-                                ImGui::SetCursorPos(ImVec2(screenSize.x / 2 - 150, screenSize.y / 2 - 60));
-                                ImGui::Text("all dots picked up, press space to save");
-                                for (int j = 0; j < 45; j++) {
-                                    calibrationDots[j] = pointGreyCamera->dotQueue.front();
-                                    pointGreyCamera->dotQueue.pop();
-                                }
-                            }
-
-                            while (pointGreyCamera->dotQueue.size()) {
-                                pointGreyCamera->dotQueue.pop();
-                            }
-
-                            style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
-
-                            float dY = (screenSize.y - 40) / 4;
-                            float dX = (screenSize.x - 40) / 8;
-
-
-                            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-                            static ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                            const ImU32 col32 = ImColor(col);
-
-                            for (int y = 0; y < 5; y++)
-                            {
-                                for (int x = 0; x < 9; x++)
-                                {
-                                    //ImGui::SetCursorPos(ImVec2(10 + x * dX, 10 + y * dY));
-                                    //ImGui::Text("o");
-                                    draw_list->AddCircle(ImVec2(20 + (x * dX), 20 + (y * dY)), 4, col32, 20, 6);
-                                }
-                            }
-                        }
-                    }
-
-                    if (modeCalibrate == 3)
-                    {
-                        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-                        static ImVec4 col = ImVec4(1.0f, 0.0f, 0.0f, 0.3f);
-                        const ImU32 col32 = ImColor(col);
-
-
-                        for (int i = 0; i < setup.numLanes; i++)
-                        {
-                            zigbeeRounds(i, 100);
-                        }
-
-                        while (pointGreyCamera->dotQueue.size()) {
-                            glm::vec3 screen = screenMap.toScreen(pointGreyCamera->dotQueue.front());
-                            draw_list->AddCircle(ImVec2(screen.x, screen.y), 18, col32, 30, 6);
-                            pointGreyCamera->dotQueue.pop();
-                        }
-
-                    }
-                }
-                ImGui::PopFont();
-            }
-            calibrationPanel.release();
-
-
-            if (modeCalibrate == 4) {
-                modeCalibrate = 0;
-            }
-        }
-        */
 
     }
     ImGui::PopFont();

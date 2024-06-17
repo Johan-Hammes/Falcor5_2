@@ -16,6 +16,7 @@ bool			bthreadRunning;
 PointGrey_Camera *PointGrey_Camera::s_instance = NULL;
 
 bool			PointGrey_Camera::m_bInit = false;
+bool PointGrey_Camera::clearmode = true;
 
 
 
@@ -280,43 +281,35 @@ void ProcessDots( int _camera, int frameNumber )
 			DOTS[d].y = 0;
 		}
 
-		//timerBlur.begin();
-			threshold();
-		//tT = timerBlur.end();
+		threshold();
 
-		//timerBlur.begin();
-			dots(_camera);
-		//tD = timerBlur.end();
+        dots(_camera);
 
 
-            //PointGrey_Camera::GetSingleton()->dotQueue.empty();
+        if (okDOTS > 0)
+        {
+            
 
-            for (int i = 0; i < okDOTS; i++)
+            if (PointGrey_Camera::clearmode)
             {
-                PointGrey_Camera::GetSingleton()->dotQueue[_camera].push(v_dots[i]);
-            }
+                std::queue<glm::vec4> newDots = {};
+                for (int i = 0; i < okDOTS; i++)
+                {
+                    PointGrey_Camera::GetSingleton()->dotArray[_camera][i] = v_dots[i];
+                }
+                PointGrey_Camera::GetSingleton()->numDots[_camera] = okDOTS;
 
-            /*
-		// Pust the data to scene
-		if( !pScene->bAccumulateDots )	pScene->numDots[m_CurrentCamera] = 0;	// we are in clear mode
-	
-		for (int i=0; i<okDOTS; i++ )
-		{
-			if ( pScene->numDots[m_CurrentCamera] > 90 )	pScene->numDots[m_CurrentCamera] = 0;		// if it gts too big, just clear
-			pScene->dots[m_CurrentCamera][ pScene->numDots[m_CurrentCamera] ] = v_dots[i];
-			pScene->numDots[m_CurrentCamera] ++;
-		}
-	
-		pScene->timeDots = tT + tD;
-		pScene->m_pvidFrame[m_CurrentCamera] = vidFrame[m_CurrentCamera];
-		pScene->m_pvidThresh[m_CurrentCamera] = vidThresh;
-		pScene->m_pvidRef[m_CurrentCamera] = vidReference[m_CurrentCamera];
-		pScene->m_PG_width = m_width;
-		pScene->m_PG_height = m_height;
-		pScene->m_PG_frameCNT[m_CurrentCamera]  = frameNumber;
-		pScene->m_PG_debug_PixelsProcessed = debug_PixelsProcessed;
-		pScene->m_PG_debug_SkippedFrames = debug_SkippedFrames;
-        */
+            }
+            else
+            {
+                for (int i = 0; i < okDOTS; i++)
+                {
+                    PointGrey_Camera::GetSingleton()->dotQueue[_camera].push(v_dots[i]);
+                }
+            }
+        }
+        
+            
 		lastProcessedFrame = frameNumber;
 
 		if (okDOTS > 0)
@@ -417,8 +410,6 @@ void OnImageGrabbed(Image* pImage, const void* pCallbackData)
 // sover ek kan sien is alles wat hier binne gebeur in 'n apparte thread omdat dit van 'n ander thread af regoep word
 void OnImageGrabbed_B(Image* pImage, const void* pCallbackData)
 {
-	
-
 	int timeMS = 0;
 	while ( m_bBusyProcessing )
 	{
