@@ -560,7 +560,7 @@ class videoToScreen
 {
 public:
     glm::vec3 toScreen(glm::vec3 dot);
-    void build(std::array<glm::vec4, 45>  dots, float2 screenSize);
+    void build(std::array<glm::vec4, 45>  dots, float2 screenSize, float offsetX);
 
 
 

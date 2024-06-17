@@ -1803,7 +1803,7 @@ bool sort_y(glm::vec4& a, glm::vec4& b) {
     return (a.y < b.y);
 }
 
-void videoToScreen::build(std::array<glm::vec4, 45>  dots, float2 screenSize)
+void videoToScreen::build(std::array<glm::vec4, 45>  dots, float2 screenSize, float offsetX)
 {
     std::sort(dots.begin(), dots.end(), sort_y);
 
@@ -1813,6 +1813,23 @@ void videoToScreen::build(std::array<glm::vec4, 45>  dots, float2 screenSize)
     std::sort(dots.begin() + 27, dots.begin() + 36, sort_x);
     std::sort(dots.begin() + 36, dots.begin() + 45, sort_x);
 
+    /*
+    * float x0 = setup.screen_pixelsX / setup.num3DScreens;
+        ImGui::SetWindowPos(ImVec2(x0 * _screen + setup.XOffset3D, 0), 0);
+        ImGui::SetWindowSize(ImVec2(x0, screenSize.y), 0);
+
+        ImGui::PushFont(_gui->getFont("roboto_32"));
+        {
+            if (modeCalibrate == 1) {
+
+                ImDrawList* draw_list = ImGui::GetWindowDrawList();
+                static ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                const ImU32 col32 = ImColor(col);
+
+                float dY = (screenSize.y - 40) / 4;
+                float dX = (x0 - 40) / 8;
+                float left = x0 * _screen + setup.XOffset3D;
+    */
     float dY = (screenSize.y - 40) / 4;
     float dX = (screenSize.x - 40) / 8;
 
@@ -1836,10 +1853,10 @@ void videoToScreen::build(std::array<glm::vec4, 45>  dots, float2 screenSize)
             grid[y][x].videoEdge[2] = glm::normalize(grid[y][x].videoPos[3] - grid[y][x].videoPos[2]);
             grid[y][x].videoEdge[3] = glm::normalize(grid[y][x].videoPos[0] - grid[y][x].videoPos[3]);
 
-            grid[y][x].screenPos[0] = glm::vec3(20 + x * dX, 20 + y * dY, 0);
-            grid[y][x].screenPos[1] = glm::vec3(20 + (x + 1) * dX, 20 + y * dY, 0);
-            grid[y][x].screenPos[2] = glm::vec3(20 + (x + 1) * dX, 20 + (y + 1) * dY, 0);
-            grid[y][x].screenPos[3] = glm::vec3(20 + x * dX, 20 + (y + 1) * dY, 0);
+            grid[y][x].screenPos[0] = glm::vec3(offsetX + 20 + x * dX, 20 + y * dY, 0);
+            grid[y][x].screenPos[1] = glm::vec3(offsetX + 20 + (x + 1) * dX, 20 + y * dY, 0);
+            grid[y][x].screenPos[2] = glm::vec3(offsetX + 20 + (x + 1) * dX, 20 + (y + 1) * dY, 0);
+            grid[y][x].screenPos[3] = glm::vec3(offsetX + 20 + x * dX, 20 + (y + 1) * dY, 0);
         }
     }
 }
@@ -2951,8 +2968,10 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
             if (modeCalibrate == 2) {
                 calibrationCounter = 120;
             }
-            else if (modeCalibrate == 3) {
-                screenMap[cameraToCalibratate].build(calibrationDots, screenSize);
+            else if (modeCalibrate == 3)
+            {
+                float x0 = setup.screen_pixelsX / setup.num3DScreens;
+                screenMap[cameraToCalibratate].build(calibrationDots, float2(x0, screenSize.y), setup.XOffset3D + (x0 * cameraToCalibratate));
                 char name[256];
                 sprintf(name, "kolskootCamera_%d.xml", cameraToCalibratate);
                 std::ofstream os(name);
