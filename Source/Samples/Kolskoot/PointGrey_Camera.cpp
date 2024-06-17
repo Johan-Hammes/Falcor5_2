@@ -15,6 +15,7 @@ bool			bthreadRunning;
 
 PointGrey_Camera *PointGrey_Camera::s_instance = NULL;
 
+bool			PointGrey_Camera::m_bInit = false;
 
 
 
@@ -103,6 +104,9 @@ void allocateBuffers(int w, int h)
 
 	//memset( vidMASK, 1, m_width*m_height );
 
+    while (!PointGrey_Camera::IsInitialized())
+    {
+    }
     PointGrey_Camera::GetSingleton()->bufferSize = glm::vec2(m_width, m_height);
     PointGrey_Camera::GetSingleton()->bufferData[0] = BUFFER[0][0].data;
     PointGrey_Camera::GetSingleton()->bufferData[1] = BUFFER[1][0].data;
@@ -431,7 +435,7 @@ void OnImageGrabbed_B(Image* pImage, const void* pCallbackData)
 	{
 		if( (m_width==0) &&  ((pImage->GetCols() != m_width)  || 	(pImage->GetRows() != m_height)))
 		{
-			allocateBuffers(pImage->GetCols(), pImage->GetRows());		
+			//allocateBuffers(pImage->GetCols(), pImage->GetRows());		
 		}
 
 		unsigned int Camera =  *(unsigned int*)pCallbackData;
@@ -461,6 +465,7 @@ void OnImageGrabbed_B(Image* pImage, const void* pCallbackData)
 }
 
 
+
 PointGrey_Camera *PointGrey_Camera::GetSingleton()
 {
 	if (!s_instance)
@@ -478,6 +483,7 @@ void PointGrey_Camera::FreeSingleton()
 
 PointGrey_Camera::PointGrey_Camera()
 {
+    PointGrey_Camera::m_bInit = true;
 	for (int i=0; i<BUFFER_SIZE; i++)	BUFFER[0][i].data = NULL;
 	for (int i=0; i<BUFFER_SIZE; i++)	BUFFER[1][i].data = NULL;
 	bufferPos[0] = 0;
@@ -546,7 +552,7 @@ PointGrey_Camera::PointGrey_Camera()
         if (i == 1) m_CamError = m_VideoCamera[i].StartCapture(OnImageGrabbed, &B);
     }
 
-	 m_bInit = true;
+    PointGrey_Camera::m_bInit = true;
 
 
 

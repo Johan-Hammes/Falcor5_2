@@ -40,6 +40,7 @@ class PointGrey_Camera
 {
 public :
 
+    static bool IsInitialized() { return m_bInit; }
 	static PointGrey_Camera *GetSingleton();
 	static void FreeSingleton();
 
@@ -68,8 +69,8 @@ public :
 
 
 	
-protected :
-	bool			m_bInit;
+private :
+	static bool			m_bInit;
 
 private :
 	PointGrey_Camera();

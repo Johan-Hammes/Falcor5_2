@@ -2958,7 +2958,7 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     mpLinearSampler = Sampler::create(samplerDesc);
 
     pointGreyCamera = PointGrey_Camera::GetSingleton();
-    pointGreyCamera->setFirstCamera(setup.cameraSerial[0]);
+    
     gpDevice->toggleVSync(true);
 
 
@@ -2970,6 +2970,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     camera->setTarget(float3(0, 900, 100));
 
     setup.load();
+    pointGreyCamera->setFirstCamera(setup.cameraSerial[0]);
+
     ballistics.load();
     airToggle.load();
     bulletHole = Texture::createFromFile(setup.dataFolder + "/targets/bullet.dds", true, true);
