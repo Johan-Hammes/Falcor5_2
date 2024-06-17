@@ -2202,10 +2202,14 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
             }
 
             ImGui::SameLine(0, 50);
-            uint CAM = _screen;
-            if (pointGreyCamera->m_bSwapCameras) CAM = (_screen + 1) % pointGreyCamera->m_NumCameras;
-            ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->dotQueue[CAM].size());
-            pointGreyCamera->dotQueue[CAM] = {};
+            ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->dotQueue[_screen].size());
+            pointGreyCamera->dotQueue[_screen] = {};
+
+            
+            if (pointGreyCamera->m_bSwapCameras) {
+                ImGui::SameLine(0, 50);
+                ImGui::Text("SWAPPED");
+            }
 
 
             ImVec2 C = ImGui::GetCursorPos();
@@ -2278,7 +2282,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 {
                     for (int x = 0; x < 9; x++)
                     {
-                        draw_list->AddCircle(ImVec2(left + 20 + (x * dX), 20 + (y * dY)), 4, col32, 20, 7);
+                        draw_list->AddCircle(ImVec2(left + 20 + (x * dX), 20 + (y * dY)), 3, col32, 20, 6);
                     }
                 }
 
@@ -2306,10 +2310,9 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                     
                 }
 
-                uint CAM = _screen;
-                if (pointGreyCamera->m_bSwapCameras) CAM = (_screen + 1) % pointGreyCamera->m_NumCameras;
-                ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->dotQueue[CAM].size());
-                pointGreyCamera->dotQueue[CAM] = {};
+
+                ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->dotQueue[_screen].size());
+                pointGreyCamera->dotQueue[_screen] = {};
 
                 style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
                 /*
@@ -2334,8 +2337,6 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
 
             }
 
-            uint CAM = _screen;
-            if (pointGreyCamera->m_bSwapCameras) CAM = (_screen + 1) % pointGreyCamera->m_NumCameras;
 
             if (modeCalibrate == 2) {
                 if (calibrationCounter > 0) {
@@ -2354,7 +2355,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                         ImGui::Text("adjust the light untill all 45 dots are found");
                         ImGui::SetCursorPos(ImVec2(x0 / 2 - 150, screenSize.y / 2 - 160));
                         ImGui::Text("hide cursor by dragging it to the bottom of the screen");
-                        uint ndots = pointGreyCamera->dotQueue[CAM].size();
+                        uint ndots = pointGreyCamera->dotQueue[_screen].size();
 
                         ImGui::SetCursorPos(ImVec2(x0 / 2 - 150, screenSize.y / 2 - 120));
                         ImGui::Text("also log dot count here  %d / 45", ndots);
@@ -2363,14 +2364,14 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                             ImGui::SetCursorPos(ImVec2(x0 / 2 - 150, screenSize.y / 2 - 60));
                             ImGui::Text("all dots picked up, press space to save");
                             for (int j = 0; j < 45; j++) {
-                                calibrationDots[j] = pointGreyCamera->dotQueue[CAM].front();
-                                pointGreyCamera->dotQueue[CAM].pop();
+                                calibrationDots[j] = pointGreyCamera->dotQueue[_screen].front();
+                                pointGreyCamera->dotQueue[_screen].pop();
                             }
                         }
                     }
 
-                    while (pointGreyCamera->dotQueue[CAM].size()) {
-                        pointGreyCamera->dotQueue[CAM].pop();
+                    while (pointGreyCamera->dotQueue[_screen].size()) {
+                        pointGreyCamera->dotQueue[_screen].pop();
                     }
 
                     style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
@@ -2390,7 +2391,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                         {
                             //ImGui::SetCursorPos(ImVec2(10 + x * dX, 10 + y * dY));
                             //ImGui::Text("o");
-                            draw_list->AddCircle(ImVec2(left + 20 + (x * dX), 20 + (y * dY)), 4, col32, 20, 7);
+                            draw_list->AddCircle(ImVec2(left + 20 + (x * dX), 20 + (y * dY)), 3, col32, 20, 6);
                         }
                     }
                 }
@@ -2408,10 +2409,10 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                     zigbeeRounds(i, 100);
                 }
 
-                while (pointGreyCamera->dotQueue[CAM].size()) {
-                    glm::vec3 screen = screenMap[cameraToCalibratate].toScreen(pointGreyCamera->dotQueue[CAM].front());
+                while (pointGreyCamera->dotQueue[_screen].size()) {
+                    glm::vec3 screen = screenMap[cameraToCalibratate].toScreen(pointGreyCamera->dotQueue[_screen].front());
                     draw_list->AddCircle(ImVec2(screen.x, screen.y), 18, col32, 30, 6);
-                    pointGreyCamera->dotQueue[CAM].pop();
+                    pointGreyCamera->dotQueue[_screen].pop();
                 }
 
             }
@@ -3073,10 +3074,9 @@ void Kolskoot::pointGreyShot()
 {
     for (uint i = 0; i < setup.num3DScreens; i++)
     {
-        uint CAM = i;
-        if (pointGreyCamera->m_bSwapCameras) CAM = (i + 1) % pointGreyCamera->m_NumCameras;
-        while (pointGreyCamera->dotQueue[CAM].size()) {
-            glm::vec3 screen = screenMap[i].toScreen(pointGreyCamera->dotQueue[CAM].front());
+       
+        while (pointGreyCamera->dotQueue[i].size()) {
+            glm::vec3 screen = screenMap[i].toScreen(pointGreyCamera->dotQueue[i].front());
 
             if (!(screen.x == 0 && screen.y == 0))
             {
@@ -3088,7 +3088,7 @@ void Kolskoot::pointGreyShot()
                     PlaySoundA((LPCSTR)(setup.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
                 }
             }
-            pointGreyCamera->dotQueue[CAM].pop();
+            pointGreyCamera->dotQueue[i].pop();
         }
     }
 }
