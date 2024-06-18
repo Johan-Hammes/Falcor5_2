@@ -2849,12 +2849,16 @@ void Kolskoot::pointGreyShot()
 
             if (!(screen.x == 0 && screen.y == 0))
             {
-                int lane = (int)floor(screen.x / (screenSize.x / setup.numLanes));
-                if (QR.getRoundsLeft(lane) > 0)
+                float offsetX = screen.x - setup.XOffset3D;
+                int lane = (int)floor(offsetX / (screenSize.x / setup.numLanes));
+                if ((lane >= 0) && (lane < setup.numLanes))
                 {
-                    QR.mouseShot(screen.x, screen.y, setup);
-                    zigbeeFire(lane);                   // R4 / AK
-                    PlaySoundA((LPCSTR)(setup.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+                    if (QR.getRoundsLeft(lane) > 0)
+                    {
+                        QR.mouseShot(screen.x, screen.y, setup);
+                        zigbeeFire(lane);                   // R4 / AK
+                        PlaySoundA((LPCSTR)(setup.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
+                    }
                 }
             }
             pointGreyCamera->dotQueue[i].pop();
@@ -3016,12 +3020,12 @@ bool Kolskoot::onMouseEvent(const MouseEvent& mouseEvent)
             setup.eyeHeights[0] = mouseEvent.pos.y * screenSize.y;
         }
     }
-
+    /*
     if ((guiMode == gui_live) && (mouseEvent.type == MouseEvent::Type::ButtonDown))                         // insert a mouse shot
     {
         QR.mouseShot((mouseEvent.pos.x * screenSize.y), (mouseEvent.pos.y * screenSize.y), setup);
     }
-
+    */
     return false;
 }
 
