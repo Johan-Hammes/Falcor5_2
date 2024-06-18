@@ -2855,7 +2855,7 @@ void Kolskoot::pointGreyShot()
                 {
                     if (QR.getRoundsLeft(lane) > 0)
                     {
-                        QR.mouseShot(screen.x, screen.y, setup);
+                        QR.mouseShot(offsetX, screen.y, setup);
                         zigbeeFire(lane);                   // R4 / AK
                         PlaySoundA((LPCSTR)(setup.dataFolder + "/sounds/Beretta_shot.wav").c_str(), NULL, SND_FILENAME | SND_ASYNC);// - the correct code
                     }

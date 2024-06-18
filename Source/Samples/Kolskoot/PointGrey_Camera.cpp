@@ -459,8 +459,11 @@ void OnImageGrabbed_B(Image* pImage, const void* pCallbackData)
 
 PointGrey_Camera *PointGrey_Camera::GetSingleton()
 {
-	if (!s_instance)
-		s_instance = new PointGrey_Camera;
+    if (!s_instance)
+    {
+        s_instance = new PointGrey_Camera;
+        PointGrey_Camera::m_bInit = true;
+    }
 
 	return s_instance;
 }
@@ -505,7 +508,7 @@ PointGrey_Camera::PointGrey_Camera()
         FlyCapture2::Error E3 = m_VideoCamera[i].GetCameraInfo(&pCameraInfo);
 
         serial[i] = pCameraInfo.serialNumber;
-/*
+
         FlyCapture2::VideoMode pVideoMode;
         FlyCapture2::FrameRate pFrameRate;
         Error E = m_VideoCamera[i].GetVideoModeAndFrameRate(&pVideoMode, &pFrameRate);
@@ -532,7 +535,7 @@ PointGrey_Camera::PointGrey_Camera()
             F7.width = 752;
             m_VideoCamera[i].SetFormat7Configuration(&F7, (unsigned int)3008);
         }
-        */
+        
 		//if (i==0) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &A );
 		//if (i==1) m_CamError = m_VideoCamera[i].StartCapture( OnImageGrabbed, &B );
 	}
@@ -543,7 +546,7 @@ PointGrey_Camera::PointGrey_Camera()
         if (i == 1) m_CamError = m_VideoCamera[i].StartCapture(OnImageGrabbed, &B);
     }
 
-    PointGrey_Camera::m_bInit = true;
+    
 
 
 
