@@ -109,6 +109,14 @@ public:
     int zigbeePacketVersion = 1;	// new type packets
     int zigbeeCOM = 0;
 
+
+    float pgGain = 0;
+    float pgGamma = 0;
+    int dot_min = 5;
+    int dot_max = 200;
+    int threshold = 20;
+    int m_PG_dot_position = 1;
+
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
     {
@@ -137,6 +145,13 @@ public:
             _archive(CEREAL_NVP(instructorSize.x));
             _archive(CEREAL_NVP(instructorSize.y));
 
+            _archive(CEREAL_NVP(pgGain));
+            _archive(CEREAL_NVP(pgGamma));
+            _archive(CEREAL_NVP(dot_min));
+            _archive(CEREAL_NVP(dot_max));
+            _archive(CEREAL_NVP(threshold));
+            _archive(CEREAL_NVP(m_PG_dot_position));
+            
         }
 
     }
@@ -633,14 +648,15 @@ private:
     videoToScreen   screenMap[2];          // MULTIPEL for 10 lane
 
     int calibrationCounter;
-    float pgGain = 0;
-    float pgGamma = 0;
+    
     Texture::SharedPtr	        pointGreyBuffer[2] = { nullptr, nullptr };
     Texture::SharedPtr	        pointGreyDiffBuffer[2] = { nullptr, nullptr };
+    /*float pgGain = 0;
+    float pgGamma = 0;
     int dot_min = 5;
     int dot_max = 40;
     int threshold = 20;
-    int m_PG_dot_position = 1;
+    int m_PG_dot_position = 1; */
     std::array<glm::vec4, 45> calibrationDots;
 
     GraphicsState::Viewport     viewport3d;

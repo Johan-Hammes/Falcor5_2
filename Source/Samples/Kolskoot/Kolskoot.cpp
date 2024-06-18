@@ -2181,18 +2181,18 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
             
             ImGui::NewLine();
 
-            if (ImGui::SliderFloat("Gain", &pgGain, 0, 12)) {
-                pointGreyCamera->setGain(pgGain);
+            if (ImGui::SliderFloat("Gain", &setup.pgGain, 0, 12)) {
+                pointGreyCamera->setGain(setup.pgGain);
             }
-            if (ImGui::SliderFloat("Gamma", &pgGamma, 0, 1)) {
-                pointGreyCamera->setGamma(pgGamma);
+            if (ImGui::SliderFloat("Gamma", &setup.pgGamma, 0, 1)) {
+                pointGreyCamera->setGamma(setup.pgGamma);
             }
             
-            ImGui::DragInt("dot min", &dot_min, 1, 1, 200);
-            ImGui::DragInt("dot max", &dot_max, 1, 1, 200);
-            ImGui::DragInt("threshold", &threshold, 1, 1, 100);
-            ImGui::DragInt("m_PG_dot_position", &m_PG_dot_position, 1, 0, 2);
-            pointGreyCamera->setDots(dot_min, dot_max, threshold, m_PG_dot_position);
+            ImGui::DragInt("dot min", &setup.dot_min, 1, 1, 200);
+            ImGui::DragInt("dot max", &setup.dot_max, 1, 1, 300);
+            ImGui::DragInt("threshold", &setup.threshold, 1, 1, 100);
+            ImGui::DragInt("m_PG_dot_position", &setup.m_PG_dot_position, 1, 0, 2);
+            pointGreyCamera->setDots(setup.dot_min, setup.dot_max, setup.threshold, setup.m_PG_dot_position);
             
             if (ImGui::Button("Take Reference Image")) {
                 pointGreyCamera->setReferenceFrame(true, 5);
@@ -2897,6 +2897,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         FALCOR_PROFILE("pointGreyBuffer");
         if (guiMode == gui_camera || guiMode == gui_menu)
         {
+            pointGreyCamera->SetCalibrateMode(true);
             for (int i = 0; i < setup.num3DScreens; i++)
             {
                 if (pointGreyBuffer[i])
@@ -2908,6 +2909,10 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
                     pRenderContext->updateTextureData(pointGreyDiffBuffer[i].get(), pointGreyCamera->bufferThreshold[i]);
                 }
             }
+        }
+        else
+        {
+            pointGreyCamera->SetCalibrateMode(false);       // queue mode for fireing
         }
     }
 
