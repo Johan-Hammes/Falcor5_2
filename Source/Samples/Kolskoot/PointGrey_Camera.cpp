@@ -477,7 +477,6 @@ void PointGrey_Camera::FreeSingleton()
 
 PointGrey_Camera::PointGrey_Camera()
 {
-    PointGrey_Camera::m_bInit = true;
 	for (int i=0; i<BUFFER_SIZE; i++)	BUFFER[0][i].data = NULL;
 	for (int i=0; i<BUFFER_SIZE; i++)	BUFFER[1][i].data = NULL;
 	bufferPos[0] = 0;
