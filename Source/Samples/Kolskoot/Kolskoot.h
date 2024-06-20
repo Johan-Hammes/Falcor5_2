@@ -370,7 +370,7 @@ class exercise
 public:
     void renderGui(Gui* _gui, Gui::Window& _window);
     void renderIntroGui(Gui* _gui, Gui::Window& _window, ImVec2 _offset, ImVec2 _size);
-    bool renderTargetPopup(Gui* _gui);
+    bool renderTargetPopup(Gui* _gui, Gui::Window& _window);
 
     std::string title;
     std::string description;
@@ -496,11 +496,14 @@ public:
 
     void clear() {
         exercises.clear();
-        exercises.resize(1);
+        
         description.clear();
         title.clear();
         maxScore = 0;
         currentExercise = 0;
+
+        //exercises.resize(1);
+        //exercises[0].target = Kolskoot::targetList.front();
     }
 
     std::string title = "please rename";        // DO NOT EDIT from filename

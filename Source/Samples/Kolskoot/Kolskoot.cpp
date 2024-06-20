@@ -766,16 +766,30 @@ void _targetList::save(char* filename)
 
 
 
-bool exercise::renderTargetPopup(Gui* _gui)
+bool exercise::renderTargetPopup(Gui* _gui, Gui::Window& _window)
 {
-    
+    int cnt = 0;
+    float line = 0;
     for (auto& T : Kolskoot::targetList)
     {
-        if (ImGui::Button(T.title.c_str(), ImVec2(200, 0)))     // Just width acurate and large heigth t
+        int x = cnt * 200;
+
+        ImGui::SetCursorPos(ImVec2((float)x, line * 280));
+        ImGui::Text(T.title.c_str());
+        ImGui::SetCursorPos(ImVec2((float)x, line * 280 + 20));
+        if(_window.imageButton(T.title.c_str(), T.image, float2(150, 100)))
+        //if (ImGui::Button(T.title.c_str(), ImVec2(200, 0)))     // Just width acurate and large heigth t
         {
             target = T;
             targetPopupOpen = false;
             return true;
+        }
+
+        cnt++;
+        cnt = cnt % 4;
+        if (cnt == 0)
+        {
+            line++;
         }
     }
 
@@ -832,14 +846,15 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 
     if (ImGui::BeginPopup("Targets")) {
         // Draw popup contents.
-
-        if (renderTargetPopup(_gui))
+        ImGui::PushFont(_gui->getFont("roboto_20"));
         {
-            ImGui::CloseCurrentPopup();
+            if (renderTargetPopup(_gui, _window))
+            {
+                ImGui::CloseCurrentPopup();
+            }
         }
-        /*if (ImGui::Button("close")) {
-            ImGui::CloseCurrentPopup();
-        }*/
+        ImGui::PopFont();
+        
         ImGui::EndPopup();
     }
 
@@ -1035,9 +1050,16 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 ImGui::SameLine(0, 100);
                 ImGui::SetNextItemWidth(100);
                 int numX = exercises.size();
+                int numCurrent = numX;
                 if (ImGui::DragInt("# exercises", &numX, 0.04f, 0, 10))
                 {
                     exercises.resize(numX);
+
+                    for (int n = numCurrent; n < numX; n++)
+                    {
+                        exercises[n].target = Kolskoot::targetList.front();
+                    }
+                    
                     /*for (auto& E : exercises)
                     {
                         if (E.target.maxScore == 0)
@@ -1980,6 +2002,8 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 guiMode = gui_exercises;
                 selected = false;
                 QR.clear();
+                QR.exercises.resize(1);
+                QR.exercises[0].target = Kolskoot::targetList.front();
             }
 
 
