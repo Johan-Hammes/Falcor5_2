@@ -34,7 +34,7 @@
 #include <windows.h>
 #include <mmsystem.h>
 
-
+Texture::SharedPtr	        backdrop;
 
 #pragma optimize("", off)
 
@@ -1134,22 +1134,27 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     auto& Ex = exercises[currentExercise];
     auto& target = Ex.target;
 
-    static float hscale = 0.02f;
+    static float hscale[15] = { 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f };
     if (actionPhase == 0)
     {
-        hscale += 0.02f;
-        hscale = __min(1, hscale);
+        hscale[_lane] += 0.05f;
+        hscale[_lane] = __min(1, hscale[_lane]);
     }
     else
     {
-        hscale -= 0.02f;
-        hscale = __max(0.02f, hscale);
+        hscale[_lane] -= 0.05f;
+        hscale[_lane] = __max(0.02f, hscale[_lane]);
     }
 
     // drop when hit
     if (target.dropWhenHit && score.lane_exercise.at(_lane).at(currentExercise).score > 0)
     {
-        hscale = 0.02f;
+        hscale[_lane] = 0.02f;
+    }
+
+    if (Ex.action.dropWhenHit && score.lane_exercise.at(_lane).at(currentExercise).score > 0)
+    {
+        hscale[_lane] = 0.02f;
     }
 
     // drop when shots done
@@ -1157,12 +1162,15 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     {
         // FIXEM can do with a delay and animation
         // OK this does not work because we multiply out rounds
-        hscale = 0.02f;
+        //hscale[_lane] = 0.02f;
     }
 
     float2 pixSize = target.size * Kolskoot::setup.meterToPixels(Ex.targetDistance);
-    pixSize.y *= hscale;
+    
     float2 topleft = Kolskoot::setup.laneCenter(_lane, Ex.pose) - (pixSize * 0.5f);
+    topleft.y += (1.f - hscale[_lane]) * pixSize.y;
+    pixSize.y *= hscale[_lane];
+
     ImGui::SetCursorPos(ImVec2(topleft.x, topleft.y));
     _window.image("testImage", target.image, pixSize, false);
 
@@ -1174,7 +1182,7 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
         bulletSize = __max(bulletSize, 15);
 
         ImGui::SetCursorPos(ImVec2(screenPos.x - (bulletSize / 2), screenPos.y - (bulletSize / 2)));
-        _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize * hscale), false);
+        _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize * hscale[_lane]), false);
     }
 
 }
@@ -1358,6 +1366,18 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
         case live_live:
         {
+
+            float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+            ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
+            _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
+
+            if (Kolskoot::setup.num3DScreens > 1)
+            {
+                ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
+            }
+
+
             ImGui::BeginColumns("lanes", Kolskoot::setup.numLanes);
             for (int lane = 0; lane < Kolskoot::setup.numLanes; lane++)
             {
@@ -2180,24 +2200,38 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
             
             ImGui::NewLine();
 
+            ImGui::SetNextItemWidth(400);
             if (ImGui::SliderFloat("Gain", &setup.pgGain, 0, 12)) {
                 pointGreyCamera->setGain(setup.pgGain);
             }
+            ImGui::SetNextItemWidth(400);
             if (ImGui::SliderFloat("Gamma", &setup.pgGamma, 0, 1)) {
                 pointGreyCamera->setGamma(setup.pgGamma);
             }
-            
+
+            ImGui::SetNextItemWidth(400);
             ImGui::DragInt("dot min", &setup.dot_min, 1, 1, 200);
+            ImGui::SetNextItemWidth(400);
             ImGui::DragInt("dot max", &setup.dot_max, 1, 1, 300);
+            ImGui::SetNextItemWidth(400);
             ImGui::DragInt("threshold", &setup.threshold, 1, 1, 100);
+            ImGui::SetNextItemWidth(400);
             ImGui::DragInt("m_PG_dot_position", &setup.m_PG_dot_position, 1, 0, 2);
             pointGreyCamera->setDots(setup.dot_min, setup.dot_max, setup.threshold, setup.m_PG_dot_position);
+
+            ImGui::NewLine();
+            ImGui::SameLine(350, 0);
+            if (ImGui::Button("SAVE")) {
+                setup.save();
+            }
+
+            ImGui::NewLine();
             
             if (ImGui::Button("Take Reference Image")) {
                 pointGreyCamera->setReferenceFrame(true, 5);
             }
 
-            ImGui::SameLine();
+            ImGui::SameLine(400, 0);
             if (ImGui::Button("Swap")) {
                 uint tmp = setup.cameraSerial[0];
                 setup.cameraSerial[0] = setup.cameraSerial[1];
@@ -2211,22 +2245,13 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
                 cameraToCalibratate = _screen;
             }
 
-            ImGui::SameLine(0, 50);
+            ImGui::SameLine(400, 0);
             if (ImGui::Button("Test")) {
                 modeCalibrate = 3;
                 //guiMode = gui_menu;
                 cameraToCalibratate = _screen;
             }
 
-            ImGui::SameLine(0, 50);
-            if (ImGui::Button("SAVE")) {
-                setup.save();
-            }
-
-            ImGui::SameLine(0, 50);
-            ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->numDots[_screen]);
-
-            
             if (pointGreyCamera->m_bSwapCameras) {
                 ImGui::SameLine(0, 50);
                 ImGui::Text("SWAPPED");
@@ -2299,9 +2324,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 ImGui::SetCursorPos(ImVec2(100, 70));
                 ImGui::Checkbox("show diff", &Diff);
                 ImGui::SameLine(0, 50);
-                if (ImGui::Button("take reference")) {
-                    pointGreyCamera->setReferenceFrame(true, 1);
-                }
+                
 
                 ImGui::SetCursorPos(ImVec2(100, 100));
                 if (pointGreyBuffer[_screen])
@@ -2320,9 +2343,6 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 }
 
 
-                ImGui::Text("cnt %d  [%d]", pointGreyCamera->getFrameCount(_screen), pointGreyCamera->numDots[_screen]);
-
-
                 style.Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.8f, 0.8f, 1.f);
                 /*
                 ImGui::SetCursorPos(ImVec2(50, 50));
@@ -2333,7 +2353,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 ImGui::Text("Bottom left");
                 ImGui::SetCursorPos(ImVec2(x0 - 200, screenSize.y - 50));
                 ImGui::Text("Bottom right");
-                */
+                
                 ImGui::SetCursorPos(ImVec2(x0 / 2 + 150, screenSize.y / 2 - 60));
                 ImGui::Text("remove the filter");
                 ImGui::SetCursorPos(ImVec2(x0 / 2 + 150, screenSize.y / 2 - 30));
@@ -2342,6 +2362,7 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 ImGui::Text("set the brightness");
                 ImGui::SetCursorPos(ImVec2(x0 / 2 + 150, screenSize.y / 2 + 30));
                 ImGui::Text("press 'space' when done");
+                */
                 //pointGreyCamera->setReferenceFrame(true, 1);
 
             }
@@ -2752,6 +2773,8 @@ void Kolskoot::onLoad(RenderContext* pRenderContext)
     ammoType[2] = Texture::createFromFile(setup.dataFolder + "/762.dds", true, true);
 
     kolskootLogo = Texture::createFromFile(setup.dataFolder + "/icons/kolskootLogo.png", true, true);
+
+    backdrop = Texture::createFromFile(setup.dataFolder + "/icons/range_outdoor.png", true, true);
 
     if (std::filesystem::exists("kolskootCamera_0.xml"))
     {

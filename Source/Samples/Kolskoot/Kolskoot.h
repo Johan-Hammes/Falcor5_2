@@ -376,9 +376,9 @@ public:
     std::string description;
     int maxScore;
     bool isScoring = true;
-    float targetDistance = 10.f;
+    float targetDistance = 5.f;
 
-    int numRounds = 2;
+    int numRounds = 3;
     _pose           pose;
     _target          target;     // hy lyk gelukkig hiermaa, selfde naam, ek is nie 100% seker nie
     targetAction    action;
@@ -674,6 +674,8 @@ private:
 
 
     Texture::SharedPtr	        kolskootLogo;
+
+//    Texture::SharedPtr	        backdrop;
 
 
     menu        guiMenu;
