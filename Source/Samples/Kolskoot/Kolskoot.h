@@ -695,6 +695,7 @@ private:
     void  zigbeePaperMove();
     void  zigbeePaperStop();
     void  zigbeeRounds(unsigned int lane, int R, bool bStop = false);
+    void  zigbeeRoundsCombined(unsigned char channels);
     void  zigbeeFire(unsigned int lane);
     void  zigbeeClear();
 

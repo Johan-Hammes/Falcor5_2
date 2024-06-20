@@ -2036,32 +2036,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
     ImGui::PopStyleVar();
 }
 
-/*
-void Kolskoot::nextButton()
-{
-    ImGui::SetCursorPos(ImVec2(screenSize.x - 250, screenSize.y - 120));
-    if (ImGui::Button("Next"))
-    {
-        if (QR.liveNext())
-        {
-            guiMode = gui_menu;
-            zigbeeRounds(0, 0, true);		// turn all air off
-        }
-    }
-    TOOLTIP("space");
-}
 
-void Kolskoot::menuButton()
-{
-    ImGui::SetCursorPos(ImVec2(screenSize.x - 150, screenSize.y - 120));
-    if (ImGui::Button("Menu"))
-    {
-        guiMode = gui_menu;
-        zigbeeRounds(0, 0, true);		// turn all air off
-    }
-    TOOLTIP("esc");
-}
-*/
 
 void Kolskoot::renderBranding(Gui* _gui, Gui::Window& _window, uint2 _size)
 {
@@ -2433,11 +2408,11 @@ void Kolskoot::renderCamera_calibrate(Gui* _gui, uint2 _size, uint _screen)
                 static ImVec4 col = ImVec4(1.0f, 0.0f, 0.0f, 0.3f);
                 const ImU32 col32 = ImColor(col);
 
-
+                /*
                 for (int i = 0; i < setup.numLanes; i++)
                 {
                     zigbeeRounds(i, 100);
-                }
+                } */   // only in s apecila test setup for both cameras
 
                 for (int j = 0; j < pointGreyCamera->numDots[_screen]; j++) {
                     glm::vec3 screen = screenMap[cameraToCalibratate].toScreen(pointGreyCamera->dotArray[_screen][j]);
@@ -2905,17 +2880,20 @@ void Kolskoot::updateLive()
     mouseShot();
     pointGreyShot();
 
+    unsigned char channels = 0;
     for (int i = 0; i < setup.numLanes; i++)                        // turn air on for pistols if there are rounds left
     {
         if (airToggle.inUse(ballistics.currentAmmo, i))
         {
-            zigbeeRounds(i, QR.getRoundsLeft(i));
+            //zigbeeRounds(i, QR.getRoundsLeft(i));
+            channels |= 1 << i;
         }
         else
         {
-            zigbeeRounds(i, 0);
+            //zigbeeRounds(i, 0);
         }
     }
+    zigbeeRoundsCombined(channels);
 }
 
 
@@ -3269,6 +3247,57 @@ void   Kolskoot::zigbeePaperStop()
 }
 
 
+void  Kolskoot::zigbeeRoundsCombined(unsigned char channels)
+{
+    if (!ZIGBEE.IsOpen()) return;
+    if (Kolskoot::ballistics.currentAmmo != ammo_9mm) return;
+
+    unsigned char ANS[13];
+
+    switch (setup.zigbeePacketVersion)
+    {
+    case 0:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x00;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = 0x00;	//own id
+        ANS[5] = 0x01;
+        ANS[6] = 0x0d;	//lenght - all bytes
+        ANS[7] = 0x16;	//command
+        ANS[8] = 0x00;	// body
+        ANS[9] = 0x00;
+        ANS[10] = channels;
+        ANS[11] = 0x00; // status
+        ANS[12] = 0xDE - channels;
+
+        ZIGBEE.Write(ANS, 13);
+        break;
+
+    case 1:
+        ANS[0] = 0xff;
+        ANS[1] = 0xff;
+        ANS[2] = 0x0b;	// device ID
+        ANS[3] = 0x00;
+        ANS[4] = zigbeeID_h;	//own id
+        ANS[5] = zigbeeID_l;
+        ANS[6] = 0x16;	//lenght - all bytes
+        ANS[7] = 0x00;	//command
+        ANS[8] = channels;
+        ANS[9] = 0x00; // status
+
+        int checksum = 0x100;
+        for (int i = 0; i < 10; i++)  checksum -= ANS[i];
+
+        ANS[10] = checksum & 0xff;  //0xB6 - (1 << lane);
+        ZIGBEE.Write(ANS, 11);
+
+        //ANS[10] = 0xE3 - channels;
+
+        ZIGBEE.Write(ANS, 11);
+        break;
+    }
+}
 
 void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
 {
@@ -3288,11 +3317,11 @@ void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
     if (bStop || (channels != newchannels))
     {
         channels = newchannels;
-
+        /*
         unsigned char STR[13];			// veelvoude van 10
         unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME
         Sleep(30);      // FIXME kan ons hierdie baie kleiner kry? 10ms dalk
-
+        */
         unsigned char ANS[13];
 
         switch (setup.zigbeePacketVersion)
@@ -3350,10 +3379,11 @@ void  Kolskoot::zigbeeFire(unsigned int lane)       //R4 and AK
 
 
     // test R for change and return - write to zigbee
-
+    /*
     unsigned char STR[50];			            // veelvoude van 10
     memset(STR, 0, 50);			                // clear
     unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet ons buffer skoonmaak?
+    */
 
     unsigned char ANS[13];
 
