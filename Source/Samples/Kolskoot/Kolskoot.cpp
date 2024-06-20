@@ -2845,9 +2845,10 @@ void Kolskoot::mouseShot()
 
 void Kolskoot::pointGreyShot()
 {
+    static int pistolLaneDelay[20];
+
     for (uint i = 0; i < setup.num3DScreens; i++)
     {
-       
         while (pointGreyCamera->dotQueue[i].size()) {
             glm::vec3 screen = screenMap[i].toScreen(pointGreyCamera->dotQueue[i].front());
 
@@ -2857,7 +2858,20 @@ void Kolskoot::pointGreyShot()
                 int lane = (int)floor(offsetX / (screenSize.x / setup.numLanes));
                 if ((lane >= 0) && (lane < setup.numLanes))
                 {
-                    if (QR.getRoundsLeft(lane) > 0)
+                    bool pistolDelay = true;
+                    if (Kolskoot::ballistics.currentAmmo == ammo_9mm) {
+                        if (pistolLaneDelay[lane] < 2)
+                        {
+                            pistolDelay = false;    // dont shoot 
+                        }
+                        else
+                        {
+                            pistolDelay = true;
+                            pistolLaneDelay[lane] = 0;
+                        }
+                    }
+
+                    if (pistolDelay && QR.getRoundsLeft(lane) > 0)
                     {
                         QR.mouseShot(offsetX, screen.y, setup);
                         zigbeeFire(lane);                   // R4 / AK
@@ -2867,6 +2881,11 @@ void Kolskoot::pointGreyShot()
             }
             pointGreyCamera->dotQueue[i].pop();
         }
+    }
+
+    for (int i = 0; i < 20; i++)
+    {
+        pistolLaneDelay[i] ++;
     }
 }
 
