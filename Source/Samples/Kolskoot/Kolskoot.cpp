@@ -2905,7 +2905,11 @@ void Kolskoot::updateLive()
         if (airToggle.inUse(ballistics.currentAmmo, i))
         {
             //zigbeeRounds(i, QR.getRoundsLeft(i));
-            channels |= 1 << i;
+            int R = QR.getRoundsLeft(i);
+            if (R > 0)
+            {
+                channels |= 1 << i;
+            }
         }
         else
         {
