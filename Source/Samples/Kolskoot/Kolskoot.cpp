@@ -768,7 +768,7 @@ void _targetList::save(char* filename)
 
 bool exercise::renderTargetPopup(Gui* _gui)
 {
-    /*
+    
     for (auto& T : Kolskoot::targetList)
     {
         if (ImGui::Button(T.title.c_str(), ImVec2(200, 0)))     // Just width acurate and large heigth t
@@ -779,7 +779,7 @@ bool exercise::renderTargetPopup(Gui* _gui)
         }
     }
 
-    */
+    
 
     return false;
 }
@@ -813,9 +813,11 @@ void exercise::renderGui(Gui* _gui, Gui::Window& _window)
 
     ImGui::NewLine();
     ImGui::SameLine(20);
-    if (targets.targets.size() > 0 && targets.targets[0].t.image)
+    //if (targets.targets.size() > 0 && targets.targets[0].t.image)
+    if (target.image)
     {
-        if (_window.imageButton("scoreImage", targets.targets[0].t.image, float2(150, 100)))     // Just width acurate and large heigth t
+        if (_window.imageButton("scoreImage", target.image, float2(150, 100)))
+        //if (_window.imageButton("scoreImage", targets.targets[0].t.image, float2(150, 100)))     // Just width acurate and large heigth t
         {
             ImGui::OpenPopup("Targets");
         }
