@@ -294,7 +294,7 @@ public:
 
     _action     action;
     bool        dropWhenHit = false;
-    float       startTime = 5.f;
+    float       startTime = 3.f;
     float       upTime = 5.f;
     float       downTime = 2.f;
     int         repeats = 1;
@@ -496,6 +496,7 @@ public:
 
     void clear() {
         exercises.clear();
+        exercises.resize(1);
         description.clear();
         title.clear();
         maxScore = 0;

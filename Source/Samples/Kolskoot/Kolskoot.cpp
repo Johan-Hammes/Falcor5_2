@@ -202,9 +202,7 @@ void _setup::renderGui(Gui* _gui, float _screenX, bool _intructor)
         ImGui::SetNextItemWidth(200);
         if (ImGui::Selectable("save & close")) { save(); requestClose = true; }
 
-        ImGui::SetCursorPosX(screen_pixelsX - 200);
-        ImGui::SetNextItemWidth(200);
-        if (ImGui::Selectable("menu")) { requestClose = true; }
+        
 
 
 
@@ -718,7 +716,7 @@ void targetAction::renderGui(Gui* _gui)
     ImGui::NewLine();
     ImGui::SetNextItemWidth(110);
     ImGui::DragInt("repeats", &repeats, 1, 1, 15);
-    if (repeats > 1)
+    //if (repeats > 1)
     {
         ImGui::SetNextItemWidth(110);
         ImGui::DragFloat("start", &startTime, 0.1f, 0, 60, "%3.1f s");
@@ -1049,7 +1047,7 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
 
                 if (exercises.size() > 0)
                 {
-                    ImGui::SameLine(_screenSize.x - 150, 0);
+                    ImGui::SameLine(0, 200);
                     if (ImGui::Button("Test")) {
                         play();
                     }
@@ -2212,11 +2210,16 @@ void Kolskoot::renderCamera_main(Gui* _gui, Gui::Window& _window, uint2 _size, u
                 cameraToCalibratate = _screen;
             }
 
-            ImGui::SameLine();
+            ImGui::SameLine(0, 50);
             if (ImGui::Button("Test")) {
                 modeCalibrate = 3;
                 //guiMode = gui_menu;
                 cameraToCalibratate = _screen;
+            }
+
+            ImGui::SameLine(0, 50);
+            if (ImGui::Button("SAVE")) {
+                setup.save();
             }
 
             ImGui::SameLine(0, 50);
