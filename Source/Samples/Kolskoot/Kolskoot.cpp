@@ -3297,6 +3297,9 @@ void  Kolskoot::zigbeeRoundsCombined(unsigned char channels)
 {
     if (!ZIGBEE.IsOpen()) return;
     if (Kolskoot::ballistics.currentAmmo != ammo_9mm) return;
+    if (channels == zigbeeChannels)  return;
+
+    zigbeeChannels = channels;
 
     unsigned char ANS[13];
 
