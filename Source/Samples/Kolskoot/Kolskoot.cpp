@@ -1960,6 +1960,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
             if (ImGui::Button("Menu", ImVec2(100, 0)))
             {
                 guiMode = gui_menu;
+                if (launchedFromBuilder) guiMode = gui_exercises;
                 zigbeeRounds(0, 0, true);		// turn all air off
             }
             TOOLTIP("'esc'");
@@ -1975,6 +1976,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
                 if (QR.liveNext())
                 {
                     guiMode = gui_menu;
+                    if (launchedFromBuilder) guiMode = gui_exercises;
                     zigbeeRounds(0, 0, true);		// turn all air off
                 }
             }
