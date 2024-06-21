@@ -3022,9 +3022,19 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 {
     {
         FALCOR_PROFILE("pointGreyBuffer");
-        if (guiMode == gui_camera || guiMode == gui_menu || (backdropType == 2 && guiMode == gui_live) || (backdropType == 3 && guiMode == gui_live))
+        if (guiMode == gui_camera || guiMode == gui_menu)
         {
             pointGreyCamera->SetCalibrateMode(true);
+        }
+        else
+        {
+            pointGreyCamera->SetCalibrateMode(false);
+        }
+
+
+        if (guiMode == gui_camera || guiMode == gui_menu || (backdropType == 2 && guiMode == gui_live) || (backdropType == 3 && guiMode == gui_live))
+        {
+            
             for (int i = 0; i < setup.num3DScreens; i++)
             {
                 if (pointGreyBuffer[i])
@@ -3044,16 +3054,6 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
                     pointGreyDiffBuffer[i] = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1);
                 }
             }
-        }
-        else
-        {
-            pointGreyCamera->SetCalibrateMode(false);       // queue mode for fireing
-        }
-
-        // force for new live camera view
-        if (guiMode == gui_live)
-        {
-            pointGreyCamera->SetCalibrateMode(false);       // queue mode for fireing
         }
     }
 
