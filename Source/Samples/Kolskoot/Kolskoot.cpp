@@ -56,6 +56,7 @@ bool requestLive = false;
 Texture::SharedPtr	        Kolskoot::bulletHole = nullptr;
 Texture::SharedPtr	        Kolskoot::ammoType[3] = { nullptr, nullptr, nullptr };
 
+PointGrey_Camera* Kolskoot::pointGreyCamera;
 Texture::SharedPtr	        Kolskoot::pointGreyBuffer[2] = { nullptr, nullptr };
 Texture::SharedPtr	        Kolskoot::pointGreyDiffBuffer[2] = { nullptr, nullptr };
 
@@ -1090,6 +1091,7 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                     {
                         launchedFromBuilder = true;
                         play();
+                        Kolskoot::pointGreyCamera->setReferenceFrame(true, 5);
                     }
                 }
             }
@@ -1875,6 +1877,7 @@ void menu::renderGui(Gui* _gui, Gui::Window& _window)
                     Kolskoot::QR.loadPath(I.fullPath);
                     launchedFromBuilder = false;
                     Kolskoot::QR.play();
+                    Kolskoot::pointGreyCamera->setReferenceFrame(true, 5);
                 }
 
                 if (ImGui::GetCursorPosY() > Kolskoot::setup.screen_pixelsY - 80)

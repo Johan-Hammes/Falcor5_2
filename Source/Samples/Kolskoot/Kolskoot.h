@@ -648,7 +648,7 @@ private:
     //std::string mModelString;
 
     //PointGrey
-    PointGrey_Camera* pointGreyCamera;
+    
     videoToScreen   screenMap[2];          // MULTIPEL for 10 lane
 
     int calibrationCounter;
@@ -720,6 +720,7 @@ public:
     static Texture::SharedPtr	        bulletHole;
     static Texture::SharedPtr	        ammoType[3];
 
+    static PointGrey_Camera* pointGreyCamera;
     static Texture::SharedPtr	        pointGreyBuffer[2];
     static Texture::SharedPtr	        pointGreyDiffBuffer[2];
 
