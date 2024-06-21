@@ -35,8 +35,9 @@
 #include <mmsystem.h>
 
 Texture::SharedPtr	        backdrop;
+bool launchedFromBuilder = false;
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 uint menuHeight = 64;
 Kolskoot::UniquePtr pKolskoot;
@@ -190,7 +191,7 @@ void _setup::renderGui(Gui* _gui, float _screenX, bool _intructor)
 
         ImGui::SameLine(0, 10);
 
-        ImGui::SetNextItemWidth(500);
+        ImGui::SetNextItemWidth(300);
         char T[256];
         sprintf(T, "%s", dataFolder.c_str());
         if (ImGui::InputText("root folder", T, 256)) {
@@ -1072,7 +1073,9 @@ void quickRange::renderGui(Gui* _gui, float2 _screenSize, Gui::Window& _window)
                 if (exercises.size() > 0)
                 {
                     ImGui::SameLine(0, 200);
-                    if (ImGui::Button("Test")) {
+                    if (ImGui::Button("Test"))
+                    {
+                        launchedFromBuilder = true;
                         play();
                     }
                 }
@@ -1815,6 +1818,7 @@ void menu::renderGui(Gui* _gui, Gui::Window& _window)
                 if (ImGui::Selectable(I.name.c_str()))
                 {
                     Kolskoot::QR.loadPath(I.fullPath);
+                    launchedFromBuilder = false;
                     Kolskoot::QR.play();
                 }
 
@@ -3019,6 +3023,7 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
             else
             {
                 guiMode = gui_menu;
+                if (launchedFromBuilder) guiMode = gui_exercises;
                 zigbeeRounds(0, 0, true);		// turn all air off
             }
             return true;
@@ -3052,12 +3057,14 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
                 if (QR.liveNext())
                 {
                     guiMode = gui_menu;
+                    if (launchedFromBuilder) guiMode = gui_exercises;
                     zigbeeRounds(0, 0, true);		// turn all air off
                 }
             }
             if (keyEvent.key == Input::Key::Escape)
             {
                 guiMode = gui_menu; // FIME maybe know if it awas a test run and retirn to exercise builder instead
+                if (launchedFromBuilder) guiMode = gui_exercises;
                 zigbeeRounds(0, 0, true);		// turn all air off
             }
         }
@@ -3366,6 +3373,7 @@ void  Kolskoot::zigbeeRounds(unsigned int lane, int R, bool bStop)
     if (bStop || (channels != newchannels))
     {
         channels = newchannels;
+        zigbeeChannels = channels;
         /*
         unsigned char STR[13];			// veelvoude van 10
         unsigned long bytes = ZIGBEE.Read(STR, 13);	// read   ??? Hoekom moet on sbuffer skoonmaak  FIXME

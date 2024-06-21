@@ -681,6 +681,7 @@ private:
     menu        guiMenu;
 
     _guimode guiMode = gui_menu;
+    _guimode guiLaunchMode = gui_menu;  // what mode when we started the exercsie, so we can go back to builder
     int modeCalibrate = 0;
     int cameraToCalibratate = 0;
 

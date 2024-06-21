@@ -7,6 +7,7 @@
 
 
 
+// FIXME, this is bad, without this line the camera code crashes. Means I leave somethign uninitialized
 #pragma optimize( "", off )
 
 
