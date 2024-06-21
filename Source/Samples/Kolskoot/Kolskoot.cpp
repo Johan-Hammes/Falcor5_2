@@ -2010,6 +2010,10 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
     {
         ImGui::PushStyleColor(ImGuiCol_MenuBarBg, IM_COL32(155, 0, 0, 255));
     }
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_MenuBarBg, IM_COL32(10, 10, 10, 255));
+    }
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 16));
     if (ImGui::BeginMainMenuBar())
@@ -2123,10 +2127,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
     ImGui::EndMainMenuBar();
     ImGui::PopStyleVar();
 
-    if ((guiMode == gui_live) && (QR.exercises[QR.currentExercise].action.action == action_adjust))
-    {
-        ImGui::PopStyleColor();
-    }
+    ImGui::PopStyleColor();
 }
 
 
