@@ -653,8 +653,7 @@ private:
 
     int calibrationCounter;
     
-    Texture::SharedPtr	        pointGreyBuffer[2] = { nullptr, nullptr };
-    Texture::SharedPtr	        pointGreyDiffBuffer[2] = { nullptr, nullptr };
+    
     /*float pgGain = 0;
     float pgGamma = 0;
     int dot_min = 5;
@@ -675,8 +674,8 @@ private:
 
     Texture::SharedPtr	        kolskootLogo;
 
-//    Texture::SharedPtr	        backdrop;
 
+    bool showSettingsMenu = false;
 
     menu        guiMenu;
 
@@ -720,6 +719,9 @@ public:
 
     static Texture::SharedPtr	        bulletHole;
     static Texture::SharedPtr	        ammoType[3];
+
+    static Texture::SharedPtr	        pointGreyBuffer[2];
+    static Texture::SharedPtr	        pointGreyDiffBuffer[2];
 
     // should maybe reqwrite as singleton class
 };

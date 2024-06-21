@@ -36,6 +36,7 @@
 
 Texture::SharedPtr	        backdrop;
 bool launchedFromBuilder = false;
+int backdropType = 0;
 
 //#pragma optimize("", off)
 
@@ -54,6 +55,9 @@ bool requestLive = false;
 
 Texture::SharedPtr	        Kolskoot::bulletHole = nullptr;
 Texture::SharedPtr	        Kolskoot::ammoType[3] = { nullptr, nullptr, nullptr };
+
+Texture::SharedPtr	        Kolskoot::pointGreyBuffer[2] = { nullptr, nullptr };
+Texture::SharedPtr	        Kolskoot::pointGreyDiffBuffer[2] = { nullptr, nullptr };
 
 
 
@@ -705,8 +709,17 @@ void targetAction::renderIntroGui(Gui* _gui, int rounds)
 
 void targetAction::renderGui(Gui* _gui)
 {
+    
+    if (action == 3)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+    }
     ImGui::SetNextItemWidth(390);
-    ImGui::Combo("###actionSelector", (int*)&action, "static\0popup\0move\0sight");
+    ImGui::Combo("###actionSelector", (int*)&action, "static\0popup\0move\0boresight");
+    if (action == 3)
+    {
+        ImGui::PopStyleColor();
+    }
 
     ImGui::Checkbox("drop", &dropWhenHit);
     TOOLTIP("Does the target drop down when hit");
@@ -1115,6 +1128,11 @@ void quickRange::renderLiveMenubar(Gui* _gui)
 {
     if (currentExercise >= exercises.size())  return;
 
+    if (exercises[currentExercise].action.action == action_adjust)
+    {
+//        ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+    }
+
     ImGui::SameLine(Kolskoot::setup.screen_pixelsX * 0.25, 0);
     ImGui::Text("%s", title.c_str());
 
@@ -1128,6 +1146,11 @@ void quickRange::renderLiveMenubar(Gui* _gui)
 
     ImGui::SameLine(0, 100);
     ImGui::Text("%s", exercises[currentExercise].title.c_str());
+
+    if (exercises[currentExercise].action.action == action_adjust)
+    {
+  //      ImGui::PopStyleColor();
+    }
 }
 
 
@@ -1369,17 +1392,45 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
         case live_live:
         {
-
-            float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
-            ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
-            _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
-
-            if (Kolskoot::setup.num3DScreens > 1)
+            if (backdropType == 1)
             {
-                ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+                ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
                 _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
+
+                if (Kolskoot::setup.num3DScreens > 1)
+                {
+                    ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                    _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
+                }
+            }
+            else if (backdropType == 2)
+            {
+                float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+                ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
+                _window.image("logo", Kolskoot::pointGreyDiffBuffer[0], float2(screenWidth, screenWidth), false);
+
+                if (Kolskoot::setup.num3DScreens > 1)
+                {
+                    ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                    _window.image("logo", Kolskoot::pointGreyDiffBuffer[1], float2(screenWidth, screenWidth), false);
+                }
             }
 
+            else if (backdropType == 3)
+            {
+                float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+                ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
+                _window.image("logo", Kolskoot::pointGreyBuffer[0], float2(screenWidth, screenWidth), false);
+
+                if (Kolskoot::setup.num3DScreens > 1)
+                {
+                    ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                    _window.image("logo", Kolskoot::pointGreyBuffer[1], float2(screenWidth, screenWidth), false);
+                }
+            }
+
+            ImGui::SetCursorPos(ImVec2(0, 0));
 
             ImGui::BeginColumns("lanes", Kolskoot::setup.numLanes);
             for (int lane = 0; lane < Kolskoot::setup.numLanes; lane++)
@@ -1388,9 +1439,13 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                 float laneLeft = laneWidth * lane;
                 float laneRight = laneLeft + laneWidth;
 
-                char AirName[256];
-                sprintf(AirName, "##air_%d", lane);
-                ImGui::Checkbox(AirName, &Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane]);
+                
+                if (!Kolskoot::setup.hasInstructorScreen)
+                {
+                    char AirName[256];
+                    sprintf(AirName, "##air_%d", lane);
+                    ImGui::Checkbox(AirName, &Kolskoot::airToggle.air[Kolskoot::ballistics.currentAmmo][lane]);
+                }
 
 
                 ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(200, 200, 0, 255));
@@ -1951,6 +2006,11 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
 {
     FALCOR_PROFILE("onGuiMenubar");
 
+    if ((guiMode == gui_live) && (QR.exercises[QR.currentExercise].action.action == action_adjust))
+    {
+        ImGui::PushStyleColor(ImGuiCol_MenuBarBg, IM_COL32(155, 0, 0, 255));
+    }
+
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 16));
     if (ImGui::BeginMainMenuBar())
     {
@@ -1992,7 +2052,7 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
             //ImGui::Text("Kolskoot");
 
             {
-                ImGui::SameLine(0, 50);
+                ImGui::SameLine(0, 250);
                 ImGui::SetNextItemWidth(250);
                 ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
                 ballistics.renderGuiAmmo(_gui);
@@ -2002,23 +2062,26 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
             ImGui::SameLine(0, 200);
             ImGui::SetNextItemWidth(150);
 
-            ImGui::SetNextItemWidth(150);
-            if (ImGui::BeginMenu("Settings"))
+            if (showSettingsMenu)
             {
-                if (ImGui::MenuItem("Camera"))
+                ImGui::SetNextItemWidth(150);
+                if (ImGui::BeginMenu("Settings"))
                 {
-                    guiMode = gui_camera;
-                    modeCalibrate = 0;
+                    if (ImGui::MenuItem("Camera"))
+                    {
+                        guiMode = gui_camera;
+                        modeCalibrate = 0;
+                    }
+                    if (ImGui::MenuItem("Screen"))
+                    {
+                        guiMode = gui_screen;
+                    }
+                    if (ImGui::MenuItem("Targets"))
+                    {
+                        guiMode = gui_targets;
+                    }
+                    ImGui::EndMenu();
                 }
-                if (ImGui::MenuItem("Screen"))
-                {
-                    guiMode = gui_screen;
-                }
-                if (ImGui::MenuItem("Targets"))
-                {
-                    guiMode = gui_targets;
-                }
-                ImGui::EndMenu();
             }
 
             ImGui::SameLine(0, 80);
@@ -2059,6 +2122,11 @@ void Kolskoot::onGuiMenubar(Gui* _gui)
     }
     ImGui::EndMainMenuBar();
     ImGui::PopStyleVar();
+
+    if ((guiMode == gui_live) && (QR.exercises[QR.currentExercise].action.action == action_adjust))
+    {
+        ImGui::PopStyleColor();
+    }
 }
 
 
@@ -2953,7 +3021,7 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
 {
     {
         FALCOR_PROFILE("pointGreyBuffer");
-        if (guiMode == gui_camera || guiMode == gui_menu)
+        if (guiMode == gui_camera || guiMode == gui_menu || (backdropType == 2 && guiMode == gui_live) || (backdropType == 3 && guiMode == gui_live))
         {
             pointGreyCamera->SetCalibrateMode(true);
             for (int i = 0; i < setup.num3DScreens; i++)
@@ -2962,9 +3030,17 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
                 {
                     pRenderContext->updateTextureData(pointGreyBuffer[i].get(), pointGreyCamera->bufferReference[i]);
                 }
+                else
+                {
+                    pointGreyBuffer[i] = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1);
+                }
                 if (pointGreyDiffBuffer[i])
                 {
                     pRenderContext->updateTextureData(pointGreyDiffBuffer[i].get(), pointGreyCamera->bufferThreshold[i]);
+                }
+                else
+                {
+                    pointGreyDiffBuffer[i] = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1);
                 }
             }
         }
@@ -3016,6 +3092,18 @@ bool Kolskoot::onKeyEvent(const KeyboardEvent& keyEvent)
 
     if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
     {
+        if ((keyEvent.key == Input::Key::S) && (keyEvent.mods == Input::ModifierFlags::Ctrl))
+        {
+            showSettingsMenu = !showSettingsMenu;
+        }
+
+        if ((keyEvent.key == Input::Key::B) && (keyEvent.mods == Input::ModifierFlags::Ctrl))
+        {
+            backdropType++;
+            backdropType %= 4;
+        }
+
+
         if (keyEvent.key == Input::Key::Escape)
         {
             if (targetPopupOpen) {
