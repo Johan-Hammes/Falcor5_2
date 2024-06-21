@@ -4378,7 +4378,7 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.22f, 0.21f, 0.2f, 1.f));
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         {
-            ImGui::PushFont(pGui->getFont("H1"));
+            ImGui::PushFont(pGui->getFont("roboto_48"));
             {
                 ImGui::BeginChildFrame(12734, ImVec2(400, _screen.y));
                 {

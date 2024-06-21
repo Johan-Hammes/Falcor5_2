@@ -90,6 +90,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
     static bool first = true;
     if (first)
     {
+        addDataDirectory("Data");
         _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 13);
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
         guiStyle();
@@ -115,8 +116,9 @@ void Earthworks_4::onGuiRender(Gui* _gui)
     else
     {
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
-        Gui::Window all(_gui, "##fullscreen", { 200, 200 }, { screenSize.x, screenSize.y }, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
+        Gui::Window all(_gui, "##fullscreen", { screenSize.x, screenSize.y }, {0, 0}, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
         {
+            all.windowPos(0, 0);
             all.windowSize((int)screenSize.x, (int)screenSize.y);
             terrain.onGuiRenderParaglider(_gui, screenSize);
         }
@@ -506,7 +508,7 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
     desc.setColorTarget(0u, ResourceFormat::R11G11B10Float);        // add , true if we want to write to it UAV
     hdrFbo = Fbo::create2D(_width, _height, desc);
 
-    hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 7, nullptr, Falcor::Resource::BindFlags::AllColorViews);
+    hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 1, nullptr, Falcor::Resource::BindFlags::AllColorViews);
 
     fprintf(logFile, "Earthworks_4::onResizeSwapChain()  %d, %d\n", _width, _height);
     fflush(logFile);

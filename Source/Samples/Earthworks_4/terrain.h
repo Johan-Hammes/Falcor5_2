@@ -1061,7 +1061,7 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiRenderParaglider(Gui* pGui, float2 _screen);
-    bool renderGui_Menu = true;
+    bool renderGui_Menu = false;
     bool renderGui_Hud = true;
     void onGuiMenubar(Gui* pGui);
     void onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr& _fbo, Camera::SharedPtr _camera, GraphicsState::SharedPtr _graphicsState, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy);

@@ -55,7 +55,7 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.4f));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
-    ImGui::PushFont(pGui->getFont("H1"));
+    ImGui::PushFont(pGui->getFont("roboto_48"));
     {
         // variometer
 
@@ -1379,6 +1379,8 @@ void _gliderRuntime::setJoystick()
                 rumbleRight = __min(1, rumbleRight);
 
                 XINPUT_VIBRATION vib;
+                rumbleLeft = 0;
+                rumbleRight = 0;
                 vib.wLeftMotorSpeed = (WORD)(rumbleLeft * 65535);
                 vib.wRightMotorSpeed = (WORD)(rumbleRight * 65535);
                 XInputSetState(controllerId, &vib);
