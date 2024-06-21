@@ -3048,6 +3048,12 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
         {
             pointGreyCamera->SetCalibrateMode(false);       // queue mode for fireing
         }
+
+        // force for new live camera view
+        if (guiMode == gui_live)
+        {
+            pointGreyCamera->SetCalibrateMode(false);       // queue mode for fireing
+        }
     }
 
     {
