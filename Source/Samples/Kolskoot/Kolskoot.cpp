@@ -1405,7 +1405,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
                     if (Kolskoot::setup.num3DScreens > 1)
                     {
-                        ImGui::SetCursorPos(ImVec2(screenWidth, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                        ImGui::SetCursorPos(ImVec2(screenWidth, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
                         _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
                     }
                 }
@@ -3294,7 +3294,7 @@ void Kolskoot::guiStyle()
 
     style.FrameRounding = 0.0f;
 
-    style.ScrollbarSize = 20;
+    style.ScrollbarSize = 2;
     style.FrameBorderSize = 0;
     style.FramePadding = ImVec2(0, 0);
 
