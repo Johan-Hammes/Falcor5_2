@@ -1394,45 +1394,50 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
 
         case live_live:
         {
-            if (backdropType == 1)
             {
-                float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
-                ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
-                _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
+                ImVec2 currentCursor = ImGui::GetCursorPos();
 
-                if (Kolskoot::setup.num3DScreens > 1)
+                if (backdropType == 1)
                 {
-                    ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                    float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+                    ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
                     _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
-                }
-            }
-            else if (backdropType == 2)
-            {
-                float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
-                ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
-                _window.image("logo", Kolskoot::pointGreyDiffBuffer[0], float2(screenWidth, screenWidth), false);
 
-                if (Kolskoot::setup.num3DScreens > 1)
+                    if (Kolskoot::setup.num3DScreens > 1)
+                    {
+                        ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                        _window.image("logo", backdrop, float2(screenWidth, screenWidth), false);
+                    }
+                }
+                else if (backdropType == 2)
                 {
-                    ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
-                    _window.image("logo", Kolskoot::pointGreyDiffBuffer[1], float2(screenWidth, screenWidth), false);
+                    float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+                    ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
+                    _window.image("logo", Kolskoot::pointGreyDiffBuffer[0], float2(screenWidth, screenWidth), false);
+
+                    if (Kolskoot::setup.num3DScreens > 1)
+                    {
+                        ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                        _window.image("logo", Kolskoot::pointGreyDiffBuffer[1], float2(screenWidth, screenWidth), false);
+                    }
                 }
-            }
 
-            else if (backdropType == 3)
-            {
-                float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
-                ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
-                _window.image("logo", Kolskoot::pointGreyBuffer[0], float2(screenWidth, screenWidth), false);
-
-                if (Kolskoot::setup.num3DScreens > 1)
+                else if (backdropType == 3)
                 {
-                    ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
-                    _window.image("logo", Kolskoot::pointGreyBuffer[1], float2(screenWidth, screenWidth), false);
+                    float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
+                    ImGui::SetCursorPos(ImVec2(0, Kolskoot::setup.eyeHeights[Ex.pose] - (screenWidth / 2)));
+                    _window.image("logo", Kolskoot::pointGreyBuffer[0], float2(screenWidth, screenWidth), false);
+
+                    if (Kolskoot::setup.num3DScreens > 1)
+                    {
+                        ImGui::SetCursorPos(ImVec2(2560, Kolskoot::setup.eyeHeights[Ex.pose] - 1280));
+                        _window.image("logo", Kolskoot::pointGreyBuffer[1], float2(screenWidth, screenWidth), false);
+                    }
                 }
+
+                ImGui::SetCursorPos(currentCursor);
             }
 
-            ImGui::SetCursorPos(ImVec2(0, 0));
 
             ImGui::BeginColumns("lanes", Kolskoot::setup.numLanes);
             for (int lane = 0; lane < Kolskoot::setup.numLanes; lane++)
