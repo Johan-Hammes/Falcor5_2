@@ -51,43 +51,45 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
 {
     uint triangle = chordSize * spanSize;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 0.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.4f));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
-    ImGui::PushFont(pGui->getFont("roboto_48"));
+    ImGui::PushFont(pGui->getFont("H1"));
     {
         // variometer
+        float dLine = 100.f / 1440.f * _screen.y;
 
         ImGui::SetCursorPos(ImVec2(_screen.x - 300, _screen.y / 2));
         ImGui::Text("%2.1f", v[triangle].y);
         ImGui::SetCursorPos(ImVec2(_screen.x - 150, _screen.y / 2));
         ImGui::Text("m/s");
 
-        ImGui::SetCursorPos(ImVec2(_screen.x - 320, _screen.y / 2 + 100));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 320, _screen.y / 2 + dLine));
         ImGui::Text("%d", (int)(x[triangle].y + ROOT.y));
-        ImGui::SetCursorPos(ImVec2(_screen.x - 150, _screen.y / 2 + 100));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 150, _screen.y / 2 + dLine));
         ImGui::Text("m");
 
         float3 vel = v[triangle];
+        vel.y = 0;
         float Vgrnd = glm::length(vel) * 3.6f;
         float Vair = glm::length(vel - pilotWind) * 3.6f;
 
-        ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 200));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 2* dLine));
         ImGui::Text("ground %d", (int)Vgrnd);
-        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 200));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 2* dLine));
         ImGui::Text("km/h");
 
-        ImGui::SetCursorPos(ImVec2(_screen.x - 400, _screen.y / 2 + 300));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 400, _screen.y / 2 + 3* dLine));
         ImGui::Text("air %d", (int)Vair);
-        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 300));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 3* dLine));
         ImGui::Text("km/h");
 
-        ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 400));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 4* dLine));
         ImGui::Text("glide ratio  1 : %d", (int)fabs(glideRatio));
 
         float gs = glm::length(a_root - float3(0, 9.8f, 0)) / 9.8f;
-        ImGui::SetCursorPos(ImVec2(_screen.x - 300, _screen.y / 2 + 500));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 300, _screen.y / 2 + 5* dLine));
         ImGui::Text("%1.1f g", gs);
 
     }
@@ -517,7 +519,8 @@ void _gliderRuntime::solve_surface(float _dT, bool _left)
         n[i] = n[i] * (-cp) * cells[span].rho * 0.6f;
         sumFwing += n[i];
 
-        float dragIncrease = pow(2.f - cells[span].pressure, 5.f);
+        float dragIncrease = pow(2.f - cells[span].pressure, 2.f);
+        //dragIncrease = glm::lerp(dragIncrease, dragIncrease * 2, 1 - cells[span].ragdoll);
         float drag = 0.0039 * cells[span].rho * 1.0f * dragIncrease;    // double it for rib turbulece
         t[i] *= drag;
         sumDragWing += t[i];
@@ -691,6 +694,7 @@ void _gliderRuntime::movingROOT()
 void _gliderRuntime::eye_andCamera()
 {
     uint start = chordSize * spanSize;
+    uint midWing = chordSize * spanSize / 2 + 12;
     // NOW reset all x to keep human at 0
     float3 pilotRight = glm::normalize(x[start + 1] - x[start + 2]);
     float3 pilotback = glm::cross(x[start + 1] - x[start], x[start + 2] - x[start]);
@@ -765,6 +769,25 @@ void _gliderRuntime::eye_andCamera()
 
         break;
     case 2:
+        pilotRight = glm::lerp(pilotRight, glm::cross(float3(0, 1, 0), dragShuteBack), 0.5f);
+        smoothUp = float3(0, 1, 0);// glm::normalize(glm::cross(dragShuteBack, pilotRight));
+        EyeLocal = glm::lerp(x[start], x[midWing], 0.7f);
+        
+        dragShuteBack = glm::lerp(dragShuteBack, smoothBack, 0.05f);
+        // now add rotations
+    // yaw
+        camDir = smoothBack;// pilotback;// glm::normalize(smoothCamDir* cos(cameraYaw) + smoothCamRight * sin(cameraYaw));
+        camUp = smoothUp;// pilotUp;
+        camRight = glm::cross(camUp, camDir);
+        camDir = glm::normalize(camDir * cos(cameraYaw) + camRight * sin(cameraYaw));
+        camRight = glm::cross(camUp, camDir);
+
+        // pitch
+        camDir = glm::normalize(camDir * cos(cameraPitch) + camUp * sin(cameraPitch));
+        camUp = glm::normalize(glm::cross(camDir, camRight));
+        camRight = glm::cross(camUp, camDir);
+
+        EyeLocal -= camDir * cameraDistance * 20.f;
         break;
     }
 
@@ -779,8 +802,8 @@ void _gliderRuntime::solve(float _dT)
 {
     setJoystick();
 
-    if (runcount == 0)       return; // convenient breakpoint
-    runcount--;
+    //if (runcount == 0)       return; // convenient breakpoint
+    //runcount--;
     frameCnt++;
 
     sumFwing = float3(0, 0, 0);
@@ -1261,6 +1284,8 @@ void _gliderRuntime::exportGliderShape()
 void _gliderRuntime::setJoystick()
 {
 
+    static bool gamePadLeft;
+
     static int controllerId = -1;
     if (controllerId == -1)
     {
@@ -1279,12 +1304,14 @@ void _gliderRuntime::setJoystick()
         XINPUT_STATE state;
         if (XInputGetState(controllerId, &state) == ERROR_SUCCESS)
         {
-            if ((state.Gamepad.wButtons & XINPUT_GAMEPAD_X) != 0)
+            if ((!gamePadLeft && state.Gamepad.wButtons & XINPUT_GAMEPAD_X) != 0)
             {
                 //exportGliderShape();
-                cameraType = (cameraType + 1) % 2;
+                cameraType = (cameraType + 1) % 3;
             }
+            gamePadLeft = state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
 
+            
 
             static SHORT normXZero = 0;
             static SHORT normYZero = 0;
@@ -1312,7 +1339,7 @@ void _gliderRuntime::setJoystick()
             cameraPitch -= normLY * 0.0015f;
             cameraPitch = glm::clamp(cameraPitch, -1.3f, 1.3f);
 
-            if (runcount == 0)  return;
+            //if (runcount == 0)  return;
 
 
             float normRX = fmaxf(-1, (float)state.Gamepad.sThumbLX / 32767);

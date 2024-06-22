@@ -87,7 +87,7 @@ void _shadowEdges::solveThread()
 {
     while (1)
     {
-        if (!shadowReady)
+        if (requestNewShadow)
         {
             sunAngle += dAngle;
             sunAng.x = -cos(sunAngle);
@@ -95,6 +95,7 @@ void _shadowEdges::solveThread()
             sunAng.z = 0;
             solve(-sunAng.y, sunAng.x > 0);
             shadowReady = true;
+            requestNewShadow = false;
         }
         else
         {
@@ -4378,7 +4379,7 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.22f, 0.21f, 0.2f, 1.f));
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         {
-            ImGui::PushFont(pGui->getFont("roboto_48"));
+            ImGui::PushFont(pGui->getFont("H1"));
             {
                 ImGui::BeginChildFrame(12734, ImVec2(400, _screen.y));
                 {
@@ -4386,8 +4387,10 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
                     if (ImGui::Button("Glider", ImVec2(400, 0))) {
                     }
                     if (ImGui::Button("Wind", ImVec2(400, 0))) {
+                        ImGui::OpenPopup("WindPopup");
                     }
                     if (ImGui::Button("Time", ImVec2(400, 0))) {
+                        ImGui::OpenPopup("TodPopup");
                     }
                     if (ImGui::Button("Launch", ImVec2(400, 0))) {
                     }
@@ -4408,6 +4411,51 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
                     }
                     ImGui::PopFont();
                     ImGui::PopStyleColor();
+
+
+                    if (ImGui::BeginPopup("WindPopup")) {
+                        // Draw popup contents.
+                        ImGui::PushFont(pGui->getFont("roboto_48"));
+                        {
+                            ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
+                            ImGui::SetNextItemWidth(300);
+                            if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
+                            {
+                                cfd.clipmap.newWind.y = 0;
+                            }
+                            ImGui::NewLine();
+                            if (ImGui::Button("change"))
+                            {
+                                cfd.clipmap.windrequest = true;
+                            }
+
+                            ImGui::NewLine();
+                            ImGui::Checkbox("show streamlines", &cfd.clipmap.showStreamlines);
+
+
+                        }
+                        ImGui::PopFont();
+
+                        ImGui::EndPopup();
+                    }
+
+                    if (ImGui::BeginPopup("TodPopup")) {
+                        // Draw popup contents.
+                        ImGui::PushFont(pGui->getFont("roboto_48"));
+                        {
+                            ImGui::Text("Time of day");
+                            ImGui::SetNextItemWidth(300);
+                            ImGui::DragFloat("angle", &shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
+                            ImGui::NewLine();
+                            if (ImGui::Button("change"))
+                            {
+                                shadowEdges.requestNewShadow = true;
+                            }
+                        }
+                        ImGui::PopFont();
+
+                        ImGui::EndPopup();
+                    }
                 }
                 ImGui::EndChildFrame();
             }
@@ -7514,26 +7562,29 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
         paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
 
+        if (!useFreeCamWhileGliding)
+        {
+            _camera->setFarPlane(40000);
+            _camera->setUpVector(paraRuntime.camUp);
+            _camera->setTarget(paraEyeLocal + paraRuntime.camDir * 100.f);
+            _camera->setPosition(paraEyeLocal);
 
-        _camera->setFarPlane(40000);
-        _camera->setUpVector(paraRuntime.camUp);
-        _camera->setTarget(paraEyeLocal + paraRuntime.camDir * 100.f);
-        _camera->setPosition(paraEyeLocal);
-
-        glm::mat4 V = toGLM(_camera->getViewMatrix());
-        glm::mat4 P = toGLM(_camera->getProjMatrix());
-        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                view_ribbon[j][i] = V[j][i];
-                proj_ribbon[j][i] = P[j][i];
-                viewproj_ribbon[j][i] = VP[j][i];
+            glm::mat4 V = toGLM(_camera->getViewMatrix());
+            glm::mat4 P = toGLM(_camera->getProjMatrix());
+            glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+            for (int i = 0; i < 4; i++) {
+                for (int j = 0; j < 4; j++) {
+                    view_ribbon[j][i] = V[j][i];
+                    proj_ribbon[j][i] = P[j][i];
+                    viewproj_ribbon[j][i] = VP[j][i];
+                }
             }
+
+
+            _camera->setTarget(paraCamPos + paraRuntime.camDir * 100.f);
+            _camera->setPosition(paraCamPos);
         }
-
-        _camera->setTarget(paraCamPos + paraRuntime.camDir * 100.f);
-        _camera->setPosition(paraCamPos);
-
+        /*
         V = toGLM(_camera->getViewMatrix());
         P = toGLM(_camera->getProjMatrix());
         VP = toGLM(_camera->getViewProjMatrix());
@@ -7545,6 +7596,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
                 viewproj[j][i] = VP[j][i];
             }
         }
+        */
 
 
         //paraRuntime.pack_canopy();
@@ -7582,6 +7634,19 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
 
+    {
+        glm::mat4 V = toGLM(_camera->getViewMatrix());
+        glm::mat4 P = toGLM(_camera->getProjMatrix());
+        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                view[j][i] = V[j][i];
+                proj[j][i] = P[j][i];
+                viewproj[j][i] = VP[j][i];
+            }
+        }
+    }
 
 
     {
@@ -7701,8 +7766,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
 
-
-        if ((terrainMode == 4) && numLoadedRibbons > 1)
+        if (!useFreeCamWhileGliding && (terrainMode == 4) && numLoadedRibbons > 1)
             //if ((terrainMode == 4) && AirSim.ribbonCount > 1)
         {
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj_ribbon;
@@ -7793,30 +7857,34 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
 
-    if (cfd.newFlowLines)
-    {
-        FALCOR_PROFILE("CFD update");
-        thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
-        cfd.newFlowLines = false;
-    }
+
 
     if (cfd.recordingCFD)
     {
         cfd.recordingCFD = cfd.clipmap.import_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(cfd.cfd_play_k) + "sec");
-        cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data());
+        cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data(), float3(1, 0, 0));
         thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
         cfd.cfd_play_k++;
     }
 
+    if (cfd.clipmap.showStreamlines)
     {
         FALCOR_PROFILE("CFD");
+
+        if (cfd.newFlowLines)
+        {
+            FALCOR_PROFILE("CFD update");
+            thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
+            cfd.newFlowLines = false;
+        }
+
 
         thermalsShader.State()->setFbo(_fbo);
         thermalsShader.State()->setViewport(0, _viewport, true);
         thermalsShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         thermalsShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
         thermalsShader.State()->setRasterizerState(rasterstateGliderWing);
-        //thermalsShader.drawInstanced(_renderContext, 100, numThermals);
+        thermalsShader.drawInstanced(_renderContext, 100, numThermals);
     }
 
 
@@ -8868,7 +8936,12 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
         if (keyPressed && keyEvent.key == Input::Key::H) {
             renderGui_Hud = !renderGui_Hud;
         }
+        if (keyPressed && keyEvent.key == Input::Key::J) {
+            useFreeCamWhileGliding = !useFreeCamWhileGliding;
+        }
     }
+
+
 
 
     if (keyEvent.type == KeyboardEvent::Type::KeyPressed)
@@ -9134,7 +9207,8 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
 bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera)
 {
-    if ((terrainMode == 0) || (terrainMode == 4))
+    
+    if ((terrainMode == 0) || (terrainMode == 4 && !useFreeCamWhileGliding) )
     {
         glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
         glm::vec2 diff;
@@ -9794,7 +9868,14 @@ void terrainManager::cfdThread()
     static uint k = 0;
     while (1)
     {
-        Sleep(100);
+        if (cfd.clipmap.windrequest)
+        {
+            cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind * 1.5f);
+            cfd.clipmap.simulate_start(20.0f);
+            cfd.clipmap.windrequest = false;
+        }
+
+        //Sleep(100);
         cfd.clipmap.shiftOrigin(cfd.originRequest);
 
         cfd.clipmap.simulate(20.0f);
@@ -9804,7 +9885,8 @@ void terrainManager::cfdThread()
             //cfd.clipmap.streamlines(float3(-20000, 450, -20000), cfd.flowlines.data());
 
             //cfd.clipmap.streamlines(cfd.originRequest + float3(-1500, -200, -600), cfd.flowlines.data());
-            cfd.clipmap.streamlines(cfd.originRequest - 100.f * cfd.velocityAnswers[0], cfd.flowlines.data());
+            float3 R = glm::normalize(glm::cross(float3(0, 1, 0), cfd.velocityAnswers[0]));
+            cfd.clipmap.streamlines(cfd.originRequest, cfd.flowlines.data(), R);
 
 
             cfd.newFlowLines = true;
@@ -9836,6 +9918,8 @@ void terrainManager::paragliderThread(BarrierThrd& bar)
         {
             auto a = high_resolution_clock::now();
 
+            if (paraRuntime.runcount == 0) _dT = 0.0002f;
+            else _dT = 0.002f;
 
             if (paraRuntime.requestRestart)
             {
@@ -9847,12 +9931,13 @@ void terrainManager::paragliderThread(BarrierThrd& bar)
 
             paraRuntime.solve(_dT);
 
-            while (paraRuntime.runcount == 0)
-            {
-                Sleep(1);
-            }
+            //while (paraRuntime.runcount == 0)
+            //{
+                //Sleep(1);
+              //  auto xb = high_resolution_clock::now();
+            //}
             bar.wait();
-            
+
 
             paraRuntime.solve_air(_dT, true);
             bar.wait();
@@ -9894,8 +9979,11 @@ void terrainManager::paragliderThread(BarrierThrd& bar)
 
             bar.wait();
 
-            paraRuntime.solve_POST(_dT);
-            paraRuntime.movingROOT();
+            //if ((paraRuntime.runcount > 0))
+            {
+                paraRuntime.solve_POST(_dT);
+                paraRuntime.movingROOT();
+            }
             auto post = high_resolution_clock::now();
             glider.postTime[0] = (float)duration_cast<microseconds>(post - wing).count() / 1000.;
 
@@ -9949,14 +10037,16 @@ void terrainManager::paragliderThread_B(BarrierThrd& bar)
         if (glider.loaded)
         {
             auto a = high_resolution_clock::now();
+
+
+            if (paraRuntime.runcount == 0) _dT = 0.0002f;
+            else _dT = 0.002f;
+
             //paraRuntime.solve(_dT);
-            while (paraRuntime.runcount == 0)
-            {
-                Sleep(1);
-            }
+
             bar.wait();
 
-            
+
 
             paraRuntime.solve_air(_dT, false);
             bar.wait();

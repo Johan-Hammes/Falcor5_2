@@ -126,7 +126,9 @@ struct _cfd_lod
 
 struct _cfdClipmap
 {
-    
+    void requestNewWind(float3 wind) { windrequest = true; newWind = wind; }
+    bool windrequest = false;
+    float3 newWind;
 
     void heightToSmap(std::string filename);
     void build(std::string _path);
@@ -135,13 +137,16 @@ struct _cfdClipmap
     void simulate_start(float _dt);
     void simulate(float _dt);
     uint counter = 0;
-    void streamlines(float3 _p, float4* _data);
+    void streamlines(float3 _p, float4* _data, float3 right);
 
     void export_V(std::string _name);
     bool import_V(std::string _name);
 
     void shiftOrigin(float3 _origin);
 
+    bool showStreamlines = false;
+    float streamLinesSize = 100;
+    float streamLinesOffset = 1000;
 
     std::array<_cfd_lod, 6>    lods;
 

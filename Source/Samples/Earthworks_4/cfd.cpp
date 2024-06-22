@@ -711,7 +711,7 @@ void _cfdClipmap::simulate(float _dt)
 }
 
 //#pragma optimize("", off)
-void _cfdClipmap::streamlines(float3 _p, float4* _data)
+void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
 {
     float rootAltitude = 350.f;   // in voxel space
     float3 origin = float3(-20000, rootAltitude, -20000);
@@ -725,12 +725,14 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
         for (int y = -10; y < 10; y++)
         {
             float3 P = (_p - origin) * lods[0].oneOverSize;
-            P.y += h * 0.05f;
-            P.z += y * 0.05f;
+            P.y += h * 0.85f;
+            P.z += y * 1.85f * right.z;
+            P.x += y * 1.85f * right.x;
 
             P += float3(distribution(generator), distribution(generator) * 0.3f, distribution(generator) * 0.4f);
+            float3 Pstart = P;
 
-            for (int j = 0; j < 100; j++)
+            for (int j = 50; j < 100; j++)
             {
                 float3 Psample = P;
                 float L = 0;
@@ -804,21 +806,115 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data)
                 pLOD->clamp(Psample);
                 float3 V = pLOD->sample(Psample);
 
-                _data->xyz = P * lods[0].cellSize + origin;
-                _data->w = glm::length(V);
+                (_data + j)->xyz = P * lods[0].cellSize + origin;
+                (_data + j)->w = glm::length(V);
                 float lv = glm::length(V);
                 V = glm::normalize(V);
                 if (lv < 0.01f) V = { 0, 0, 0 };
                 //if (P.z < pLOD->width && P.x < pLOD->width)
                 {
-                    P += V * 0.06f;// *scale;// *300.f * oneOverSize;
+                    P += V * 0.86f *scale;// *300.f * oneOverSize;
                 }
 
                 float3 c = pLOD->sampleCurl(Psample);
                 //_data->w = L;// glm::length(c);
 
-                _data++;
+                //_data++;
             }
+
+
+            P = Pstart;
+
+            for (int j = 49; j >= 0; j--)
+            {
+                float3 Psample = P;
+                float L = 0;
+                float scale = 1;
+                _cfd_lod* pLOD = &lods[0];
+
+                float3 p1 = P * 2.f;
+                p1 -= lods[1].offset;
+
+                float3 p2 = P * 4.f;
+                p2 -= lods[2].offset;
+
+                float3 p3 = P * 8.f;
+                p3 -= lods[3].offset;
+
+                float3 p4 = P * 16.f;
+                p4 -= lods[4].offset;
+
+                float3 p5 = P * 32.f;
+                p5 -= lods[5].offset;
+                /**/
+                if ((p5.x > 2 && p5.y > 0 && p5.z > 2) &&
+                    (p5.x < 125 && p5.y < 125 && p5.z < 125))
+                {
+                    pLOD = &lods[5];
+                    Psample = p5;
+                    L = 0;
+                    scale = 0.3f;
+                }
+
+                else if ((p4.x > 2 && p4.y > 0 && p4.z > 2) &&
+                    (p4.x < 125 && p4.y < 125 && p4.z < 125))
+                {
+                    pLOD = &lods[4];
+                    Psample = p4;
+                    L = 3;
+                    scale = 0.3f;
+                }
+
+                else  if ((p3.x > 2 && p3.y > 0 && p3.z > 2) &&
+                    (p3.x < 125 && p3.y < 125 && p3.z < 125))
+                {
+                    pLOD = &lods[3];
+                    Psample = p3;
+                    L = 0;
+                    scale = 0.5f;
+                }
+
+                else if ((p2.x > 2 && p2.y > 0 && p2.z > 2) &&
+                    (p2.x < 125 && p2.y < 125 && p2.z < 125))
+                {
+                    pLOD = &lods[2];
+                    Psample = p2;
+                    L = 5;
+                    scale = 0.7f;
+                }
+                else if ((p1.x > 2 && p1.y > 0 && p1.z > 2) && (p1.x < 125 && p1.y < 61 && p1.z < 125))
+                {
+                    pLOD = &lods[1];
+                    Psample = p1;
+                    L = 2;
+                    scale = 0.8f;
+                }
+
+
+                //Psample = P;
+                //scale = 1;
+                //pLOD = &lods[0];
+
+
+                pLOD->clamp(Psample);
+                float3 V = pLOD->sample(Psample);
+
+                (_data + j)->xyz = P * lods[0].cellSize + origin;
+                (_data + j)->w = glm::length(V);
+                float lv = glm::length(V);
+                V = glm::normalize(V);
+                if (lv < 0.01f) V = { 0, 0, 0 };
+                //if (P.z < pLOD->width && P.x < pLOD->width)
+                {
+                    P -= V * 0.86f *scale;// *300.f * oneOverSize;
+                }
+
+                float3 c = pLOD->sampleCurl(Psample);
+                //_data->w = L;// glm::length(c);
+
+                //_data++;
+            }
+            _data += 100;
         }
     }
 }

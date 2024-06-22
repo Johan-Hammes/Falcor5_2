@@ -618,12 +618,12 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     alphaC =    saturate(alphaC * 3);
     
     //alphaC = min(alphaC, pow(saturate(vOut.flags.w * 0.000901), 0.91));
-    if (alphaC < 0.99)
+    if (alphaC < 0.9)
     {
         float2 buffSize;
         gHalfBuffer.GetDimensions(buffSize.x, buffSize.y);
         float2 uv = vOut.pos.xy / (buffSize * 2.f);
-        float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
+        float3 prev = saturate(gHalfBuffer.Sample(gSamplerClamp, uv).rgb);
         cSolid = lerp(prev, cSolid, alphaC);
     }
     return float4(cSolid, 1);

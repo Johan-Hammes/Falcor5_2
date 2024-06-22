@@ -113,6 +113,7 @@ struct _shadowEdges
     float dAngle = 0.01f;
     float3 sunAng;
     bool shadowReady = false;
+    bool requestNewShadow = false;
     void solveThread();
 };
 
@@ -1184,9 +1185,12 @@ private:
     Buffer::SharedPtr   gliderwingData[2];
     RasterizerState::SharedPtr      rasterstateGliderWing;
 
+    bool useFreeCamWhileGliding = false;
+
     private:
     
     int terrainMode = 4;
+    
     bool hasChanged = false;
 
     bool requestPopupSettings = false;

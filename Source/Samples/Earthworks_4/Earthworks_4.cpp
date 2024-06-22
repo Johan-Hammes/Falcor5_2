@@ -90,8 +90,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
     static bool first = true;
     if (first)
     {
-        addDataDirectory("Data");
-        _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 13);
+        _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 14);
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
         guiStyle();
         first = false;
@@ -113,11 +112,12 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         }
         ImGui::PopFont();
     }
-    else
+    else if (!terrain.useFreeCamWhileGliding)
     {
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
         Gui::Window all(_gui, "##fullscreen", { screenSize.x, screenSize.y }, {0, 0}, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
         {
+            //all.graph()
             all.windowPos(0, 0);
             all.windowSize((int)screenSize.x, (int)screenSize.y);
             terrain.onGuiRenderParaglider(_gui, screenSize);
@@ -311,12 +311,12 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
     {
         static int cnt = 0;
-        if (cnt == 0 && terrain.shadowEdges.shadowReady)
+        if (terrain.shadowEdges.shadowReady)
         {
             FALCOR_PROFILE("shadow update");
             _renderContext->updateTextureData(terrain.terrainShadowTexture.get(), terrain.shadowEdges.shadowH);
             global_sun_direction = terrain.shadowEdges.sunAng;
-            //terrain.shadowEdges.shadowReady = false;
+            terrain.shadowEdges.shadowReady = false;
             cnt++;
         }
         
@@ -367,6 +367,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     gpDevice->toggleVSync(true);
     onFrameUpdate(_renderContext);
 
+    
     // clear
     graphicsState->setFbo(pTargetFbo);
     const float4 clearColor(0.0f, 0.f, 0.f, 1);
@@ -509,6 +510,7 @@ void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
     hdrFbo = Fbo::create2D(_width, _height, desc);
 
     hdrHalfCopy = Texture::create2D(_width / 2, _height / 2, ResourceFormat::R11G11B10Float, 1, 1, nullptr, Falcor::Resource::BindFlags::AllColorViews);
+    //clearTexture
 
     fprintf(logFile, "Earthworks_4::onResizeSwapChain()  %d, %d\n", _width, _height);
     fflush(logFile);
