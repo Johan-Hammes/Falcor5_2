@@ -66,6 +66,9 @@ Texture::SharedPtr	        Kolskoot::pointGreyDiffBuffer[2] = { nullptr, nullptr
 
 
 
+float targte_move[15] = { 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f };
+float movePixelSpeedPerSecond = 0;
+
 
 
 
@@ -407,6 +410,27 @@ float ballisticsSetup::bulletDrop(float distance)
         return bulletDrop(distance, 78.0f, 0.00508f, 0.076f);   // breek effe na 200m
         break;
     }
+    return 0;
+}
+
+float ballisticsSetup::bulletTime(float distance)
+{
+    float yards = (1.09361 * distance) / 100;
+    float time556 = (0.11f * yards) + (0.01f * yards * yards);
+
+    switch (currentAmmo)
+    {
+    case ammo_9mm:
+        return time556 * 2800.f / 1800.f;       // account for slower velocity
+        break;
+    case ammo_556:
+        return time556;   // breek effe na 200m
+        break;
+    case ammo_762:
+        return time556;   // breek effe na 200m
+        break;
+    }
+
     return 0;
 }
 
@@ -1162,11 +1186,30 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     auto& Ex = exercises[currentExercise];
     auto& target = Ex.target;
 
+    float mtp = Kolskoot::setup.meterToPixels(Ex.targetDistance);
+    float laneSpeedPixels = mtp * Ex.action.speed / 60;  // 3m/s 10km/h
+    movePixelSpeedPerSecond = mtp * Ex.action.speed;
+    float laneWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.numLanes;
+    float leftEdge = (laneWidth) / 2 - 50;
+    float maxLeftEdge = movePixelSpeedPerSecond * Ex.action.upTime / 2.f;
+    leftEdge = __min(leftEdge, maxLeftEdge);
+    if (Ex.action.speed > 0) leftEdge *= -1; // rename start edge
+    // FIXME this needs time in but asume 60fps quicl;y
+    //static float move;
+    
+
+    
+
     static float hscale[15] = { 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f, 0.02f };
     if (actionPhase == 0)
     {
         hscale[_lane] += 0.05f;
         hscale[_lane] = __min(1, hscale[_lane]);
+
+        if (hscale[_lane] < 1) {
+            targte_move[_lane] = leftEdge;
+        }
+        
     }
     else
     {
@@ -1193,11 +1236,25 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
         //hscale[_lane] = 0.02f;
     }
 
+    if (Ex.action.action == action_move)
+    {
+        targte_move[_lane] += laneSpeedPixels;
+    }
+    else
+    {
+        targte_move[_lane] = 0;
+        movePixelSpeedPerSecond = 0;
+        laneSpeedPixels = 0;
+    }
+
     float2 pixSize = target.size * Kolskoot::setup.meterToPixels(Ex.targetDistance);
+
+    
     
     float2 topleft = Kolskoot::setup.laneCenter(_lane, Ex.pose) - (pixSize * 0.5f);
     topleft.y += (1.f - hscale[_lane]) * pixSize.y;
     pixSize.y *= hscale[_lane];
+    topleft.x += targte_move[_lane];
 
     ImGui::SetCursorPos(ImVec2(topleft.x, topleft.y));
     _window.image("testImage", target.image, pixSize, false);
@@ -1209,7 +1266,7 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
         float bulletSize = Kolskoot::setup.meterToPixels(Ex.targetDistance) * 0.03f;  // exagerated 3cm but that makes teh hole about 1cm
         bulletSize = __max(bulletSize, 15);
 
-        ImGui::SetCursorPos(ImVec2(screenPos.x - (bulletSize / 2), screenPos.y - (bulletSize / 2)));
+        ImGui::SetCursorPos(ImVec2(screenPos.x - (bulletSize / 2) + targte_move[_lane], screenPos.y - (bulletSize / 2)));
         _window.image("Shot", _bulletHole, float2(bulletSize, bulletSize * hscale[_lane]), false);
     }
 
@@ -1386,6 +1443,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
                 ImGui::BeginChildFrame(123 + i, ImVec2(x0, Kolskoot::setup.screen_pixelsY));
                 {
                     Ex.renderIntroGui(_gui, _window, ImVec2((float)Kolskoot::setup.XOffset3D + i * x0, 0), ImVec2(x0, (float)Kolskoot::setup.screen_pixelsY));
+                    ImGui::Text("flight time %2.3f s", bulletDelaySeconds);
                 }
                 ImGui::EndChildFrame();
             }
@@ -1396,7 +1454,7 @@ void quickRange::renderLive(Gui* _gui, Gui::Window& _window, Texture::SharedPtr 
         {
             {
                 ImVec2 currentCursor = ImGui::GetCursorPos();
-
+                //window->DrawList->PushClipRect(display_rect.Min, display_rect.Max);
                 if (backdropType == 1)
                 {
                     float screenWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.num3DScreens;
@@ -1634,11 +1692,15 @@ void quickRange::mouseShot(float x, float y, _setup setup)
 
     x -= Kolskoot::ballistics.offset(lane).x;
     y -= Kolskoot::ballistics.offset(lane).y;
+    
+    // FIXME add offsets here for moving targets
+    // calculate the ampunt of extra movement durint bullet travel
+    float bulletDelayPixels = movePixelSpeedPerSecond * bulletDelaySeconds;
 
     // move all of this to target
     float tw = 0.001f * target.size_mm.x / setup.screenWidth * setup.screen_pixelsX * setup.shootingDistance / Ex.targetDistance;
     float th = tw * target.size_mm.y / target.size_mm.x;
-    float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / setup.numLanes * lane);
+    float px = (setup.screen_pixelsX / setup.numLanes / 2) - (tw / 2) + (setup.screen_pixelsX / setup.numLanes * lane) + targte_move[lane] + bulletDelayPixels;
     float py = (setup.eyeHeights[Ex.pose]) - (th * 0.5f);
 
     float shotX = (x - px) / tw;    // 0-1 texture space
@@ -1678,6 +1740,7 @@ bool quickRange::liveNext()
     case live_intro:
         currentStage = live_live;
         bulletDrop = Kolskoot::ballistics.bulletDrop(Ex.targetDistance);
+        bulletDelaySeconds = Kolskoot::ballistics.bulletTime(Ex.targetDistance);
         actionRepeats = -1;
         actionCounter = Ex.action.startTime;
         actionPhase = 1;
@@ -1686,6 +1749,7 @@ bool quickRange::liveNext()
     case live_live:
         currentStage = live_scores;
         bulletDrop = Kolskoot::ballistics.bulletDrop(Ex.targetDistance);    // just incase first one misses
+        bulletDelaySeconds = Kolskoot::ballistics.bulletTime(Ex.targetDistance);
         break;
 
     case live_scores:
@@ -3048,15 +3112,16 @@ void Kolskoot::onFrameRender(RenderContext* pRenderContext, const Fbo::SharedPtr
                 {
                     pRenderContext->updateTextureData(pointGreyBuffer[i].get(), pointGreyCamera->bufferReference[i]);
                 }
-                else
+                else if (pointGreyCamera->isConnected(0))
                 {
                     pointGreyBuffer[i] = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1);
                 }
+
                 if (pointGreyDiffBuffer[i])
                 {
                     pRenderContext->updateTextureData(pointGreyDiffBuffer[i].get(), pointGreyCamera->bufferThreshold[i]);
                 }
-                else
+                else if (pointGreyCamera->isConnected(1))
                 {
                     pointGreyDiffBuffer[i] = Texture::create2D((int)pointGreyCamera->bufferSize.x, (int)pointGreyCamera->bufferSize.y, ResourceFormat::R8Unorm, 1, 1);
                 }
@@ -3606,7 +3671,7 @@ int main(int argc, char** argv)
     }
 
     // TEMP
-    allScreens = true;
+    allScreens = false;
 
     pKolskoot = std::make_unique<Kolskoot>();
 

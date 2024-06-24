@@ -167,6 +167,7 @@ public:
     void save();
     float bulletDrop(float distance, float apex, float apexHeight, float drop);
     float bulletDrop(float distance);        // just call once at start of exercise and apply consistent, dont simulate
+    float bulletTime(float distance);
 
     float2 offset(int _lane);
     float2 adjustOffset(int _lane, float2 error);
@@ -517,6 +518,7 @@ public:
 
     _scoring score;
     float bulletDrop = 0;
+    float bulletDelaySeconds = 0;
 
     float       actionCounter = 0.f;
     int         actionRepeats = 0;
