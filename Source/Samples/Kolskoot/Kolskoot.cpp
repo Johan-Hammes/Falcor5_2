@@ -3671,7 +3671,7 @@ int main(int argc, char** argv)
     }
 
     // TEMP
-    allScreens = false;
+    //allScreens = false;
 
     pKolskoot = std::make_unique<Kolskoot>();
 
