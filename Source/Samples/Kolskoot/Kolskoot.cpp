@@ -1191,7 +1191,7 @@ void quickRange::renderTarget(Gui* _gui, Gui::Window& _window, Texture::SharedPt
     movePixelSpeedPerSecond = mtp * Ex.action.speed;
     float laneWidth = Kolskoot::setup.screen_pixelsX / Kolskoot::setup.numLanes;
     float leftEdge = (laneWidth) / 2 - 50;
-    float maxLeftEdge = movePixelSpeedPerSecond * Ex.action.upTime / 2.f;
+    float maxLeftEdge = abs(movePixelSpeedPerSecond * Ex.action.upTime / 2.f);
     leftEdge = __min(leftEdge, maxLeftEdge);
     if (Ex.action.speed > 0) leftEdge *= -1; // rename start edge
     // FIXME this needs time in but asume 60fps quicl;y
