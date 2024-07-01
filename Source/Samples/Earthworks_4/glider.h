@@ -615,6 +615,7 @@ public:
     void solve_PRE(float _dT);
     void solve_linesTensions(float _dT);
     void solve_triangle(float _dT);
+    void solve_rectanglePilot(float _dT);
 
     void solve_wing(float _dT, bool _left);
 
@@ -624,10 +625,10 @@ public:
 
     void solve(float _dT);
 
-    void constraintThread_a();
-    void constraintThread_b();
-    void lineThread_left();
-    void lineThread_right();
+//    void constraintThread_a();
+//    void constraintThread_b();
+//    void lineThread_left();
+//    void lineThread_right();
     void packWing(float3 pos, float3 norm, float3 uv);
     void pack_canopy();
     void pack_lines();

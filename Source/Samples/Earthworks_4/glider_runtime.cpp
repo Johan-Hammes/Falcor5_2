@@ -309,6 +309,8 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     //ROOT = float3(15500, 1300, 14400);// windy south
     //ROOT = float3(-500, 500, 15400);// windy south landings
 
+    ROOT = float3(-1425, 700, 14500);// turb test
+
     for (int i = 0; i < spanSize; i++)
     {
         cells[i].v = float3(0, -1.5, -7);
@@ -541,14 +543,14 @@ void _gliderRuntime::solve_PRE(float _dT)
             a += w[i] * t[i];
             weightWing += 1.f / w[i];
         }
-        else if (i < spanSize * chordSize + 3)
+        else if (i < spanSize * chordSize + 6)
         {
             weightPilot += 1.f / w[i];
         }
-        else if (w[i] > 0)
-        {
-            weightLines += 1.f / w[i];
-        }
+  //      else if (w[i] > 0)
+   //     {
+    //        weightLines += 1.f / w[i];
+     //   }
 
         x[i] += (_dT * v[i]) + (a * _dT * _dT);     // 0.06ms
     }
@@ -565,6 +567,8 @@ void _gliderRuntime::solve_linesTensions(float _dT)
 
 void _gliderRuntime::solve_triangle(float _dT)
 {
+    solve_rectanglePilot(_dT);
+    /*
     uint start = chordSize * spanSize;
     float airDensity = 1.11225f;    // Fixme form CFD later
 
@@ -586,6 +590,44 @@ void _gliderRuntime::solve_triangle(float _dT)
             solveConstraint(i, 0.5f);
         }
     }
+    */
+}
+
+
+void _gliderRuntime::solve_rectanglePilot(float _dT)
+{
+    uint start = chordSize * spanSize;
+    float airDensity = 1.11225f;    // Fixme form CFD later
+
+    // weiwgth shift
+    float mleft = (1.f - weightShift) * 90.f / 2.f;
+    float mright = (weightShift) * 90.f / 2.f;
+    w[start + 0] = 1.f / mleft;
+    w[start + 1] = 1.f / mright;
+    w[start + 2] = 1.f / mright;
+    w[start + 3] = 1.f / mleft;
+
+    // Solve the body and carabiners
+    x[start + 4] += w[start + 4] * tensionCarabinerLeft * _dT * _dT;
+    x[start + 5] += w[start + 5] * tensionCarabinerRight * _dT * _dT;
+    // drag on the body
+    vBody = glm::length(v[start] - pilotWind);
+    float rho = 0.5 * airDensity * vBody * vBody;
+    if (vBody > 1) {
+        pilotDrag = -glm::normalize(v[start] - pilotWind) * rho * 0.6f * 0.9f;
+        x[start + 0] += _dT * w[start + 0] * pilotDrag * _dT * 0.35f;
+        x[start + 1] += _dT * w[start + 1] * pilotDrag * _dT * 0.35f;       // more drag at the back due to body
+        x[start + 2] += _dT * w[start + 2] * pilotDrag * _dT * 0.15f;
+        x[start + 3] += _dT * w[start + 3] * pilotDrag * _dT * 0.15f;
+    }
+
+    for (int k = 0; k < 20; k++)            // Now solve the first 3 constraints multiple times for weight shift and pilot gravity
+    {
+        for (int i = 0; i < 15; i++)
+        {
+            solveConstraint(i, 0.5f);
+        }
+    }
 }
 
 
@@ -593,7 +635,7 @@ void _gliderRuntime::solve_wing(float _dT, bool _left)
 {
     // solve
     float dS = 0.7f;    // also pass in
-    uint numS = (constraints.size() - 3) / 2;
+    uint numS = (constraints.size() - 15) / 2;
 
     if (_left)
     {
@@ -606,7 +648,7 @@ void _gliderRuntime::solve_wing(float _dT, bool _left)
             //linesRight.solveUp(x, last);
         }
         */
-        for (int i = 3; i < numS + 3; i++)
+        for (int i = 15; i < numS + 15; i++)
         {
             solveConstraint(i, dS);
         }
@@ -622,7 +664,7 @@ void _gliderRuntime::solve_wing(float _dT, bool _left)
             linesRight.solveUp(x, last);
         }
         */
-        for (int i = numS + 3; i < constraints.size(); i++)
+        for (int i = numS + 15; i < constraints.size(); i++)
         {
             solveConstraint(i, dS);
         }
@@ -696,10 +738,14 @@ void _gliderRuntime::eye_andCamera()
     uint start = chordSize * spanSize;
     uint midWing = chordSize * spanSize / 2 + 12;
     // NOW reset all x to keep human at 0
-    float3 pilotRight = glm::normalize(x[start + 1] - x[start + 2]);
-    float3 pilotback = glm::cross(x[start + 1] - x[start], x[start + 2] - x[start]);
-    float3 pilotUp = glm::normalize(glm::cross(pilotback, pilotRight));
-    pilotUp = glm::lerp(pilotUp, float3(0, 1, 0), 0.1f);
+    float3 pilotRight = glm::normalize(x[start + 0] - x[start + 1]);
+    //float3 pilotback = glm::cross(x[start + 1] - x[start], x[start + 2] - x[start]);
+    //float3 pilotUp = glm::normalize(glm::cross(pilotback, pilotRight));
+    
+    //pilotUp = glm::lerp(pilotUp, float3(0, 1, 0), 0.1f);
+    //float3 pilotUp = glm::normalize(glm::cross(x[start + 2] - x[start], x[start + 3] - x[start + 1]));
+    float3 pilotUp = glm::normalize(x[midWing] - glm::lerp(x[start + 0], x[start + 1], 0.5f));
+    float3 pilotback = glm::normalize(glm::cross(pilotRight, pilotUp));
     pilotback = glm::normalize(pilotback);
 
 
@@ -714,9 +760,10 @@ void _gliderRuntime::eye_andCamera()
     switch (cameraType)
     {
     case 0:
-        smoothUp = glm::lerp(smoothUp, pilotUp, 0.3f);
-        smoothBack = glm::lerp(smoothBack, pilotback, 0.3f);
-        EyeLocal = x[start] - smoothBack * 0.3f + smoothUp * 0.4f;
+        smoothUp = glm::lerp(smoothUp, pilotUp, 0.2f);
+        smoothBack = glm::lerp(smoothBack, pilotback, 0.04f);
+        //EyeLocal = x[start] - smoothBack * 0.3f + smoothUp * 0.4f;
+        EyeLocal = glm::lerp(x[start+0], x[start+1], 0.5f) - smoothBack * 0.3f + smoothUp * 0.7f;
 
         // now add rotations
     // yaw
@@ -737,8 +784,7 @@ void _gliderRuntime::eye_andCamera()
 
 
     case 1:
-        pilotRight = glm::lerp(pilotRight, glm::cross(float3(0, 1, 0), dragShuteBack), 0.5f);
-        smoothUp = glm::normalize(glm::cross(dragShuteBack, pilotRight));
+        
         // // rotate up
 
         //smoothUp = glm::lerp(smoothUp, pilotUp, 0.95f);
@@ -747,11 +793,12 @@ void _gliderRuntime::eye_andCamera()
         smoothBack = glm::lerp(smoothBack, pilotback, 0.05f);
 
         //dragShute = glm::lerp(dragShute, x[start] + ROOT - glm::normalize(v[start]) * (5.f + 2.f * cameraDistance), 0.04f);
-        dragShute = glm::lerp(dragShute, x[start] + ROOT - smoothBack * (5.f + 2.f * cameraDistance), 0.18f);
+        dragShute = glm::lerp(dragShute, x[start] + ROOT - smoothBack * (5.f + 2.f * cameraDistance), 0.10f);
         EyeLocal = dragShute - ROOT;
 
-        dragShuteBack = glm::lerp(dragShuteBack, smoothBack, 0.05f);
-
+        dragShuteBack = glm::lerp(dragShuteBack, smoothBack, 0.15f);
+        pilotRight = glm::lerp(pilotRight, glm::cross(float3(0, 1, 0), dragShuteBack), 0.99f);
+        smoothUp = glm::normalize(glm::cross(dragShuteBack, pilotRight));
         // now add rotations
 
     // yaw
@@ -925,49 +972,6 @@ void _gliderRuntime::solveConstraint(uint _i, float _step)
 }
 
 
-void _gliderRuntime::constraintThread_a()
-{
-    float dS = 0.7f;
-    uint num = (constraints.size() - 3) / 2;
-    for (int i = 3; i < 3 + num; i++)
-    {
-        solveConstraint(i, dS);
-    }
-}
-
-void _gliderRuntime::constraintThread_b()
-{
-    float dS = 0.7f;
-    uint num = (constraints.size() - 3) / 2;
-    for (int i = 3 + num; i < constraints.size(); i++)
-    {
-        solveConstraint(i, dS);
-    }
-}
-
-void _gliderRuntime::lineThread_left()
-{
-    for (int l = 0; l < 10; l++)
-    {
-        bool last = false;
-        if (l == 9) last = true;
-        linesLeft.solveUp(x, last);
-        //linesRight.solveUp(x, last);
-    }
-}
-
-void _gliderRuntime::lineThread_right()
-{
-    for (int l = 0; l < 10; l++)
-    {
-        bool last = false;
-        if (l == 9) last = true;
-        //linesLeft.solveUp(x, last);
-        linesRight.solveUp(x, last);
-    }
-
-}
-
 
 
 void _gliderRuntime::packWing(float3 pos, float3 norm, float3 uv)
@@ -1099,6 +1103,8 @@ void _gliderRuntime::pack_feedback()
     //setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.001f, 1);     ribbonCount++;
     //setupVert(&ribbon[ribbonCount], 1, x[triangle] + pilotDrag * 0.05f, 0.1f, 1);     ribbonCount++;
 
+    // For 3 lines
+    /*
     setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, 7);     ribbonCount++;
     setupVert(&ribbon[ribbonCount], 1, x[triangle + 1], 0.01f, 7);     ribbonCount++;
 
@@ -1107,6 +1113,38 @@ void _gliderRuntime::pack_feedback()
 
     setupVert(&ribbon[ribbonCount], 0, x[triangle + 1], 0.01f, 7);     ribbonCount++;
     setupVert(&ribbon[ribbonCount], 1, x[triangle + 2], 0.01f, 7);     ribbonCount++;
+    */
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle], 0.01f, 6);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 1], 0.01f, 6);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 1], 0.01f, 6);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 2], 0.01f, 6);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 2], 0.01f, 6);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 3], 0.01f, 6);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 3], 0.01f, 6);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 0], 0.01f, 6);     ribbonCount++;
+
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 0], 0.01f, 5);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 4], 0.01f, 5);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 1], 0.01f, 5);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 5], 0.01f, 5);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 2], 0.01f, 5);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 5], 0.01f, 5);     ribbonCount++;
+
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 3], 0.01f, 5);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 4], 0.01f, 5);     ribbonCount++;
+
+    // chest strap
+    setupVert(&ribbon[ribbonCount], 0, x[triangle + 4], 0.01f, 7);     ribbonCount++;
+    setupVert(&ribbon[ribbonCount], 1, x[triangle + 5], 0.01f, 7);     ribbonCount++;
+
+
 
     // normals and tangetns
     int ribcount = 0;
@@ -1343,9 +1381,16 @@ void _gliderRuntime::setJoystick()
 
 
             float normRX = fmaxf(-1, (float)state.Gamepad.sThumbLX / 32767);
-            weightShift = glm::lerp(weightShift, normRX * 0.2f + 0.5f, 0.01f);
+            weightShift = glm::lerp(weightShift, normRX * 0.4f + 0.5f, 0.01f);
+            /*
+            * // triangle version
             constraints[1].l = weightShift * weightLength;
             constraints[2].l = (1.0f - weightShift) * weightLength;
+            */
+            // rectangle version
+            //uint start = chordSize * spanSize;
+            
+
 
             if (pBrakeLeft)
             {

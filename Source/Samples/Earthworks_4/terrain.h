@@ -1062,6 +1062,7 @@ public:
     void onShutdown();
     void onGuiRender(Gui* pGui);
     void onGuiRenderParaglider(Gui* pGui, float2 _screen);
+    void onGuiRendercfd(Gui* pGui, float2 _screen);
     bool renderGui_Menu = false;
     bool renderGui_Hud = true;
     void onGuiMenubar(Gui* pGui);
@@ -1447,7 +1448,8 @@ private:
         uint exportFrameStep = 0;   // 0 does not export, typical is repeating frame 2^lod - 1 every time we have sync
 
         std::array<float3, 10> velocityRequets;
-        float3 originRequest;
+        float3 originRequest = float3(-1425 - 0, 425 + 140, 14533 - 2000);
+        bool pause = false;
 
 
         // output
@@ -1456,6 +1458,7 @@ private:
         std::vector<float4> flowlines;
 
         std::array<float3, 10> velocityAnswers;
+
 
     } cfd;      // guess this needs to become its own class or move into _cfdClipmap
 

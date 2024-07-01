@@ -112,8 +112,14 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         }
         ImGui::PopFont();
     }
-    else if (!terrain.useFreeCamWhileGliding)
+    //else if (!terrain.useFreeCamWhileGliding)
+    else
     {
+        ImGuiIO& io = ImGui::GetIO();
+        io.WantCaptureMouse = true;
+        if (terrain.useFreeCamWhileGliding) {
+            io.WantCaptureMouse = false;
+        }
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
         Gui::Window all(_gui, "##fullscreen", { screenSize.x, screenSize.y }, {0, 0}, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
         {

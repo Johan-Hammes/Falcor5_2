@@ -454,8 +454,8 @@ void _lineBuilder::addVerts(std::vector<float3>& _x, std::vector<float>& _w, uin
     for (int i = 0; i < numSegments; i++)
     {
         float t = (float)(i + 1) / (float)numSegments;
-        _x[start_Idx + i] = glm::lerp(_x[parent_Idx], endPos, t);
-        _w[start_Idx + i] = 1.f / (_spacing * 1000.f * diameter * diameter);            // EDELRID SPEC
+ //       _x[start_Idx + i] = glm::lerp(_x[parent_Idx], endPos, t);
+ //       _w[start_Idx + i] = 1.f / (_spacing * 1000.f * diameter * diameter);            // EDELRID SPEC
         //_cd[start_Idx + i] = 1.f;
     }
 
@@ -1213,7 +1213,7 @@ void _gliderBuilder::builWingConstraints()
     std::random_device rd;
     std::mt19937 g(rd());
 
-    std::shuffle(constraints.begin()+3, constraints.end(), g);
+    std::shuffle(constraints.begin()+11, constraints.end(), g);
 }
 
 
@@ -1369,7 +1369,7 @@ void _gliderBuilder::generateLines()
 
     // calc numVerts;
     uint startVert = x.size();
-    uint numVerts = 3;   //The two caribiners
+    uint numVerts = 15;   //The two caribiners
     numVerts += linesLeft.calcVerts(spacing) * 2;
 
     uint totalVerts = startVert + numVerts;
@@ -1378,6 +1378,7 @@ void _gliderBuilder::generateLines()
     //cdA.resize(totalVerts);
 
     // two caribiners
+    /*
     // FIXME in future start from CG
     x[startVert + 0] = float3(0.0f, -0.2f, 0);
     w[startVert + 0] = 1.f / 90.f;
@@ -1393,10 +1394,58 @@ void _gliderBuilder::generateLines()
     constraints.push_back(_constraint(startVert + 1, startVert + 2, 0, glm::length(x[startVert + 1] - x[startVert + 2]), 1.f, 1.f, 0.f));
     constraints.push_back(_constraint(startVert + 0, startVert + 1, 0, glm::length(x[startVert + 1] - x[startVert]), 1.f, 1.f, 0.f));
     constraints.push_back(_constraint(startVert + 0, startVert + 2, 0, glm::length(x[startVert + 2] - x[startVert]), 1.f, 1.f, 0.f));
+    */
 
-    uint idx = startVert + 3;
-    linesLeft.addVerts(x, w, idx, startVert + 1, spacing);
-    linesRight.addVerts(x, w, idx, startVert + 2, spacing);
+    // now for intermediate 4 weight view of world
+    float pilotW = 1.f / (90.f / 4.f);    // 90 kg
+    x[startVert + 0] = float3(-0.15f, -0.3f, 0.15); // bacl left 
+    w[startVert + 0] = pilotW;
+
+    x[startVert + 1] = float3(0.15f, -0.3f, 0.15);  // back right
+    w[startVert + 1] = pilotW;
+
+    x[startVert + 2] = float3(0.20f, -0.3f, -0.15);  // front right
+    w[startVert + 2] = pilotW;
+
+    x[startVert + 3] = float3(-0.20f, -0.3f, -0.15); // front left
+    w[startVert + 3] = pilotW;
+
+
+    x[startVert + 4] = float3(-0.29f, 0, 0);    // 50 cm pacing on carabiners
+    w[startVert + 4] = 1.f / 3.f;
+
+    x[startVert + 5] = float3(0.29f, 0, 0);
+    w[startVert + 5] = 1.f / 3.f;
+
+    // 6 bottom contraints
+    constraints.push_back(_constraint(startVert + 0, startVert + 1, 0, glm::length(x[startVert + 0] - x[startVert + 1]), 1.f, 1.f, 0.f));
+    constraints.push_back(_constraint(startVert + 1, startVert + 2, 0, glm::length(x[startVert + 1] - x[startVert + 2]), 1.f, 1.f, 0.f));
+    constraints.push_back(_constraint(startVert + 2, startVert + 3, 0, glm::length(x[startVert + 2] - x[startVert + 3]), 1.f, 1.f, 0.f));
+    constraints.push_back(_constraint(startVert + 3, startVert + 0, 0, glm::length(x[startVert + 3] - x[startVert + 0]), 1.f, 1.f, 0.f));
+
+    constraints.push_back(_constraint(startVert + 0, startVert + 2, 0, glm::length(x[startVert + 0] - x[startVert + 2]), 1.f, 1.f, 0.f));   // diagonales
+    constraints.push_back(_constraint(startVert + 1, startVert + 3, 0, glm::length(x[startVert + 1] - x[startVert + 3]), 1.f, 1.f, 0.f));
+
+    // 4 verticals bottom contraints
+    constraints.push_back(_constraint(startVert + 0, startVert + 4, 0, glm::length(x[startVert + 0] - x[startVert + 4]), 1.f, 1.f, 0.f));
+    constraints.push_back(_constraint(startVert + 1, startVert + 5, 0, glm::length(x[startVert + 1] - x[startVert + 5]), 1.f, 1.f, 0.f));
+    constraints.push_back(_constraint(startVert + 2, startVert + 5, 0, glm::length(x[startVert + 2] - x[startVert + 5]), 1.f, 1.f, 0.f));
+    constraints.push_back(_constraint(startVert + 3, startVert + 4, 0, glm::length(x[startVert + 3] - x[startVert + 4]), 1.f, 1.f, 0.f));
+
+
+    // 1 chest
+    constraints.push_back(_constraint(startVert + 4, startVert + 5, 0, glm::length(x[startVert + 4] - x[startVert + 5]), 1.f, 0.01f, 0.f));
+
+    // 4 cross braces
+    constraints.push_back(_constraint(startVert + 0, startVert + 5, 0, glm::length(x[startVert + 0] - x[startVert + 5]), 0.001f, 0.001f, 0.f));
+    constraints.push_back(_constraint(startVert + 1, startVert + 4, 0, glm::length(x[startVert + 1] - x[startVert + 4]), 0.001f, 0.001f, 0.f));
+    constraints.push_back(_constraint(startVert + 2, startVert + 4, 0, glm::length(x[startVert + 2] - x[startVert + 4]), 0.001f, 0.001f, 0.f));
+    constraints.push_back(_constraint(startVert + 3, startVert + 5, 0, glm::length(x[startVert + 3] - x[startVert + 5]), 0.001f, 0.001f, 0.f));
+
+
+    uint idx = startVert + 15;
+    linesLeft.addVerts(x, w, idx, startVert + 4, spacing);
+    linesRight.addVerts(x, w, idx, startVert + 5, spacing);
 }
 
 

@@ -4370,6 +4370,94 @@ void replaceAllterrain(std::string& str, const std::string& from, const std::str
 }
 
 
+void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
+{
+    cfd.clipmap.slicelod = __max(0, cfd.clipmap.slicelod);
+    cfd.clipmap.slicelod = __min(5, cfd.clipmap.slicelod);
+    auto& lod = cfd.clipmap.lods[cfd.clipmap.slicelod];
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+
+    ImGui::Text("(%d, %d, %d) abs", lod.offset.x, lod.offset.y, lod.offset.z );
+    ImGui::Text("(%d, %d, %d) rel", lod.offset.x % lod.width, lod.offset.y % lod.height, lod.offset.z % lod.width);
+    ImGui::Text("%d ms - solved", (int)lod.solveTime_ms);
+    ImGui::Text("vort %d ms", (int)lod.simTimeLod_vorticity_ms);
+    ImGui::Text("icmp %d ms", (int)lod.simTimeLod_incompress_ms);
+    ImGui::Text("edge %d ms", (int)lod.simTimeLod_edges_ms);
+    ImGui::Text("advt %d ms", (int)lod.simTimeLod_advect_ms);
+
+
+    for (int y = 0; y < lod.height; y++)
+    {
+        for (int x = 0; x < lod.width; x++)
+        {
+            uint idx = (y * 128 + x);
+
+            if ((cfd.clipmap.arrayVisualize[idx] >> 24) > 10)
+            {
+                ImVec2 bl = { x * 8.f + 400 ,  _screen.y - 50 - y * 8.f };
+                ImVec2 tr = bl;
+                tr.x += 8;
+                tr.y += 8;
+
+                draw_list->AddRectFilled(bl, tr, cfd.clipmap.arrayVisualize[idx]);
+            }
+        }
+    }
+
+    
+    for (int y = 0; y < lod.height; y++)
+    {
+        for (int x = 0; x < lod.width; x++)
+        {
+
+            uint index = lod.idx(x, y, cfd.clipmap.sliceIndex);
+            float3 V = lod.v[index] * lod.oneOverSize * 8.f;
+
+            float boyancy = lod.v[index].w;
+
+            if (boyancy > 0.05f)
+            {
+                static ImVec4 col = ImVec4(0.0f, 0.0f, 1.0f, 1.0f);
+                const ImU32 col32 = ImColor(col);
+
+                ImVec2 mid = { x * 8.f + 100 + 4 ,  _screen.y - 50 - y * 8.f - 4 };
+                ImVec2 end = mid;
+                end.x += V.x;
+                end.y -= V.y;
+
+                //draw_list->AddLine(mid, end, col32);
+            }
+        }
+    }
+    
+
+    {
+        ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+        const ImU32 col32 = ImColor(col);
+
+        draw_list->AddLine(ImVec2(400, _screen.y - 50), ImVec2(400 + 1024, _screen.y - 50), col32);
+
+        uint nIndex = (cfd.clipmap.sliceIndex + lod.offset.z) * lod.smap.width + (0 + lod.offset.x);
+        float4 N = lod.normals[nIndex];
+        float Hcell = N.w - lod.offset.y;
+        float Hcell_old = Hcell;
+
+        for (int x = 1; x < lod.width; x++)
+        {
+            nIndex = (cfd.clipmap.sliceIndex + lod.offset.z) * lod.smap.width + (x + lod.offset.x);
+            N = lod.normals[nIndex];
+            Hcell = N.w - lod.offset.y;
+
+            draw_list->AddLine(ImVec2(400 + (x - 1) * 8.f, _screen.y - 50 - Hcell_old * 8), ImVec2(400 + x * 8.f, _screen.y - 50 - Hcell * 8), col32, 1);
+
+            Hcell_old = Hcell;
+
+        }
+    }
+}
+
 // The game GUI
 void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
 {
@@ -4467,7 +4555,88 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
 
     else if (renderGui_Hud)
     {
-        paraRuntime.renderHUD(pGui, _screen);
+        if (useFreeCamWhileGliding)
+        {
+            // cfd
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.4f));
+            ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
+
+            ImGui::PushFont(pGui->getFont("H2"));
+            {
+
+                
+            }
+            ImGui::PopFont();
+
+
+
+            ImGui::PushFont(pGui->getFont("roboto_32"));
+            {
+                ImGui::SetCursorPos(ImVec2(0, 100));
+                for (int i = 0; i <= 5; i++)
+                {
+                    ImGui::Text("%d - %2.1f, %d s, %2.1fm/s, %2.1f, {%2.2f}", i, cfd.clipmap.lods[i].cellSize, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, cfd.clipmap.lods[i].maxP);
+                }
+
+                ImGui::NewLine();
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragInt("num Inc", &cfd.clipmap.numInc, 1, 1, 100);
+
+                ImGui::NewLine();
+                ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
+                ImGui::SetNextItemWidth(300);
+                if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
+                {
+                    cfd.clipmap.newWind.y = 0;
+                }
+                
+                if (ImGui::Button("change"))
+                {
+                    cfd.clipmap.windrequest = true;
+                }
+
+                ImGui::NewLine();
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 1.f, -20000.f, 20000.f);
+                ImGui::SetNextItemWidth(300);
+                ImGui::Checkbox("PAUSE cfd", &cfd.pause);
+                
+
+                ImGui::NewLine();
+                ImGui::Checkbox("show streamlines", &cfd.clipmap.showStreamlines);
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("scale", &cfd.clipmap.stremlineScale, 0.001f, 0.0001f, 1);
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("area", &cfd.clipmap.streamlineAreaScale, 0.01f, 0.01f, 10);
+
+                ImGui::NewLine();
+                ImGui::Checkbox("show viz", &cfd.clipmap.showSlice);
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragInt("lod", &cfd.clipmap.slicelod, 1, 0, 5);
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragInt("slice", &cfd.clipmap.sliceIndex, 1, 0, 127);
+
+                ImGui::NewLine();
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("vorticity", &cfd.clipmap.vort, 0.001f, 0.0f, 1);
+
+                if (cfd.clipmap.showSlice)
+                {
+                    onGuiRendercfd(pGui, _screen);
+                }
+            }
+            ImGui::PopFont();
+
+
+            ImGui::PopStyleColor();
+            ImGui::PopStyleColor();
+            ImGui::PopStyleColor();
+        }
+        else
+        {
+            paraRuntime.renderHUD(pGui, _screen);
+        }
     }
 }
 
@@ -7553,7 +7722,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         FALCOR_PROFILE("setBlob");
 
 
-        cfd.originRequest = paraRuntime.pilotPos();
+        //cfd.originRequest = paraRuntime.pilotPos();
+        //cfd.originRequest = float3(-1425 - 0, 425 + 140, 14533 - 2000);
+        //cfd.originRequest = float3(1852, 1500, 10910);
+
         cfd.velocityRequets[0] = paraRuntime.pilotPos();
         cfd.velocityRequets[1] = paraRuntime.wingPos(0);
         cfd.velocityRequets[2] = paraRuntime.wingPos(25);
@@ -9842,7 +10014,7 @@ void terrainManager::cfdThread()
     //cfd.clipmap.import_V(settings.dirRoot + "/cfd/east3ms__" + std::to_string(seconds) + "sec");
 
     cfd.clipmap.setWind(float3(5, 0, 0), float3(8, 0, 0));
-    cfd.clipmap.setWind(float3(0, 0, 0), float3(0, 0, 0));
+    cfd.clipmap.setWind(float3(6.01, 0, 0), float3(8.01, 0, 0));
     cfd.clipmap.simulate_start(20.0f);
 
     //cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data());
@@ -9865,43 +10037,53 @@ void terrainManager::cfdThread()
     } /**/
 
     // infinite loop
-    static uint k = 0;
+    static int k = 0;
     while (1)
     {
-        if (cfd.clipmap.windrequest)
+        /*
+        if (cfd.pause)
         {
-            cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind * 1.5f);
-            cfd.clipmap.simulate_start(20.0f);
-            cfd.clipmap.windrequest = false;
+            Sleep(100);
         }
-
-        //Sleep(100);
-        cfd.clipmap.shiftOrigin(cfd.originRequest);
-
-        cfd.clipmap.simulate(20.0f);
-        if (k % 2 == 0)
+        else
+        */
         {
-            //cfd.clipmap.streamlines(float3(650, 1450,11400), cfd.flowlines.data());
-            //cfd.clipmap.streamlines(float3(-20000, 450, -20000), cfd.flowlines.data());
 
-            //cfd.clipmap.streamlines(cfd.originRequest + float3(-1500, -200, -600), cfd.flowlines.data());
-            float3 R = glm::normalize(glm::cross(float3(0, 1, 0), cfd.velocityAnswers[0]));
-            cfd.clipmap.streamlines(cfd.originRequest, cfd.flowlines.data(), R);
+            if (cfd.clipmap.windrequest)
+            {
+                cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind * 1.5f);
+                cfd.clipmap.simulate_start(20.0f);
+                cfd.clipmap.windrequest = false;
+            }
+
+            //Sleep(100);
+            cfd.clipmap.shiftOrigin(cfd.originRequest);
+
+            cfd.clipmap.simulate(32.0f);
+
+            if (k % 2 == 0)
+            {
+                //cfd.clipmap.streamlines(float3(650, 1450,11400), cfd.flowlines.data());
+                //cfd.clipmap.streamlines(float3(-20000, 450, -20000), cfd.flowlines.data());
+
+                //cfd.clipmap.streamlines(cfd.originRequest + float3(-1500, -200, -600), cfd.flowlines.data());
+                float3 R = glm::normalize(glm::cross(float3(0, 1, 0), cfd.velocityAnswers[0]));
+                cfd.clipmap.streamlines(cfd.originRequest, cfd.flowlines.data(), R);
 
 
-            cfd.newFlowLines = true;
+                cfd.newFlowLines = true;
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                float rootAltitude = 350.f;   // in voxel space
+                float3 origin = float3(-20000, rootAltitude, -20000);
+                float3 P = (cfd.velocityRequets[i] - origin) * cfd.clipmap.lods[0].oneOverSize;
+                float3 p5 = P * 32.f;
+                p5 -= cfd.clipmap.lods[5].offset;
+                cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(p5);
+            }
         }
-
-        for (int i = 0; i < 4; i++)
-        {
-            float rootAltitude = 350.f;   // in voxel space
-            float3 origin = float3(-20000, rootAltitude, -20000);
-            float3 P = (cfd.velocityRequets[i] - origin) * cfd.clipmap.lods[0].oneOverSize;
-            float3 p5 = P * 32.f;
-            p5 -= cfd.clipmap.lods[5].offset;
-            cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(p5);
-        }
-
         k++;
     }
 }
@@ -10021,7 +10203,6 @@ void terrainManager::paragliderThread(BarrierThrd& bar)
                 auto pack_b = high_resolution_clock::now();
                 glider.packTime = (float)duration_cast<microseconds>(pack_b - pack_a).count() / 1000.;
             }
-
         }
     }
 }

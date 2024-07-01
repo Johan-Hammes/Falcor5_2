@@ -53,15 +53,16 @@ struct _cfd_Smap
 
 struct _cfd_lod
 {
-    void init(uint _w, uint _h, float _worldSize);
+    void init(uint _w, uint _h, float _worldSize, float scale);
     //inline uint idx(uint3 _p) { return _p.y * w2 + _p.z * width + _p.x;  }  // do a safe version
     //inline uint idx(uint x, uint y, uint z) { return y * w2 + z * width + x; }  // do a safe version
 
     //inline uint idx(uint3 _p) { return ((_p.y + offset.y) % height) * w2 + ((_p.z + offset.z) % width) * width + ((_p.x + offset.x) % width); }  // do a safe version
-    inline uint idx(uint x, uint y, uint z) { return ((y + offset.y) % height) * w2 + ((z + offset.z) % width) * width + ((x + offset.x) % width);
-    }  // do a safe version
+    inline uint idx(uint x, uint y, uint z) { return ((y + offset.y) % height) * w2 + ((z + offset.z) % width) * width + ((x + offset.x) % width); }  // do a safe version
+    inline uint h_idx(uint y) { return ((y + offset.y) % height) * w2; }
+    inline uint z_idx(uint z) { return ((z + offset.z) % width) * width; }
 
-    float3& getV(uint3 _p) { return v[idx(_p.x, _p.y, _p.z)]; }
+    //float4& getV(uint3 _p) { return v[idx(_p.x, _p.y, _p.z)]; }
     void setV(uint3 _p, float3 _v);
 
     void loadNormals(std::string filename);
@@ -88,15 +89,25 @@ struct _cfd_lod
     void incompressibilityNormal(uint _num);
     void edges();
     void advect(float _dt);
-    void vorticty_confine(float _dt);
-    float3 sample(float3 _p);
+    void vorticty_confine(float _dt, float _scale);
+    void bouyancy(float _dt);
+    //float3 sample(float3 _p, float3* _other);
+    float4 sample(float3 _p);
+    float4 sampleBack(float3 _p);
+    float4 sampleBFECC(float3 _p);
     float3 sampleCurl(float3 _p);
     void clamp(float3 &_p);
     //float sample_x(float3 _p);
     //float sample_y(float3 _p);
     //float sample_z(float3 _p);
     //float3 sample_xyz(float3 _p);
-    void simulate(float _dt);
+    void simulate(float _dt, float _vort, int _numInc);
+
+    float timer = 0.f;
+    float maxSpeed;
+    float maxStep;
+    float solveTime_ms;
+    float maxP;
 
     int3 offset = {0, 0, 0};
     _cfd_lod* root = nullptr;
@@ -110,12 +121,14 @@ struct _cfd_lod
 
     _cfd_Smap smap;
 
-    std::vector<float3> v;
-    std::vector<float3> v2;
+    std::vector<float4> v;
+    //std::vector<float4> v2;
 
-    std::vector<float3> curl;
+    std::vector<float3> curl;   // moce to paretn class 
     std::vector<float> mag;
     std::vector<float3> vorticity;
+    //std::vector<float3> other;      //(dencity, y, z)
+    //std::vector<float3> other_2;      //(dencity, y, z)
 
     double simTimeLod_advect_ms;
     double simTimeLod_incompress_ms;
@@ -144,14 +157,29 @@ struct _cfdClipmap
 
     void shiftOrigin(float3 _origin);
 
-    bool showStreamlines = false;
+    bool showStreamlines = true;
+    float stremlineScale = 0.05f;
+    float streamlineAreaScale = 1.f;
     float streamLinesSize = 100;
     float streamLinesOffset = 1000;
+
+    // sliceViz
+    bool showSlice = true;
+    int slicelod = 5;
+    int sliceIndex = 64;
+    std::array<uint, 128 * 128> arrayVisualize;
+
+    float vort = 0.1f;
+    int numInc = 9;
+
 
     std::array<_cfd_lod, 6>    lods;
 
     double simTimeLod_ms;
-    
+
+
+    static std::vector<float4> v_back;      // my scratch buffers
+    static std::vector<float4> v_bfecc;
     /*
     uint inline idx(int x, int y, int z);
     uint inline idx(uint3 p);
