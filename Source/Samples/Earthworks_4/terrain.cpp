@@ -4399,7 +4399,7 @@ void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
                 ImVec2 bl = { x * 8.f + 400 ,  _screen.y - 50 - y * 8.f };
                 ImVec2 tr = bl;
                 tr.x += 8;
-                tr.y += 8;
+                tr.y -= 8;
 
                 draw_list->AddRectFilled(bl, tr, cfd.clipmap.arrayVisualize[idx]);
             }
@@ -4576,7 +4576,7 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
                 ImGui::SetCursorPos(ImVec2(0, 100));
                 for (int i = 0; i <= 5; i++)
                 {
-                    ImGui::Text("%d - %2.1f, %d s, %2.1fm/s, %2.1f, {%2.2f}", i, cfd.clipmap.lods[i].cellSize, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, cfd.clipmap.lods[i].maxP);
+                    ImGui::Text("%d - %2.1f, %d s, %2.1fm/s, %2.1f, {%2.4f}", i, cfd.clipmap.lods[i].cellSize, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, cfd.clipmap.lods[i].maxP);
                 }
 
                 ImGui::NewLine();
@@ -4598,7 +4598,7 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
 
                 ImGui::NewLine();
                 ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 1.f, -20000.f, 20000.f);
+                ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
                 ImGui::SetNextItemWidth(300);
                 ImGui::Checkbox("PAUSE cfd", &cfd.pause);
                 
@@ -4619,7 +4619,10 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
 
                 ImGui::NewLine();
                 ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("vorticity", &cfd.clipmap.vort, 0.001f, 0.0f, 1);
+                ImGui::DragFloat("vorticity", &cfd.clipmap.vort, 0.01f, 0.0f, 1);
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("relax", &cfd.clipmap.incompressabilityRelax, 0.01f, 1.0f, 2.0f);
+                
 
                 if (cfd.clipmap.showSlice)
                 {
@@ -10040,18 +10043,17 @@ void terrainManager::cfdThread()
     static int k = 0;
     while (1)
     {
-        /*
+        
         if (cfd.pause)
         {
-            Sleep(100);
+            Sleep(10);
         }
         else
-        */
         {
 
             if (cfd.clipmap.windrequest)
             {
-                cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind * 1.5f);
+                cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind);
                 cfd.clipmap.simulate_start(20.0f);
                 cfd.clipmap.windrequest = false;
             }

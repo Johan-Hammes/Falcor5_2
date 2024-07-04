@@ -84,7 +84,8 @@ struct _cfd_lod
     bool import_V(std::string filename);
 
     // simulate
-    void incompressibility_SMAP(uint _num);
+    void incompressibility_SMAP(uint _num, float _relax);
+    void incompressibility_SMAP_redblack(uint _num, float _relax);
     void Normal();
     void incompressibilityNormal(uint _num);
     void edges();
@@ -101,7 +102,7 @@ struct _cfd_lod
     //float sample_y(float3 _p);
     //float sample_z(float3 _p);
     //float3 sample_xyz(float3 _p);
-    void simulate(float _dt, float _vort, int _numInc);
+    void simulate(float _dt, float _vort, int _numInc, float _relax);
 
     float timer = 0.f;
     float maxSpeed;
@@ -141,7 +142,7 @@ struct _cfdClipmap
 {
     void requestNewWind(float3 wind) { windrequest = true; newWind = wind; }
     bool windrequest = false;
-    float3 newWind;
+    float3 newWind = {5.f, 0, 0};
 
     void heightToSmap(std::string filename);
     void build(std::string _path);
@@ -165,12 +166,13 @@ struct _cfdClipmap
 
     // sliceViz
     bool showSlice = true;
-    int slicelod = 5;
+    int slicelod = 0;
     int sliceIndex = 64;
     std::array<uint, 128 * 128> arrayVisualize;
 
-    float vort = 0.1f;
-    int numInc = 9;
+    float vort = 0.f;
+    float incompressabilityRelax = 1.6f;
+    int numInc = 5;
 
 
     std::array<_cfd_lod, 6>    lods;

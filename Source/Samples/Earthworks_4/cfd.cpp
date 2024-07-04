@@ -250,7 +250,18 @@ void _cfd_lod::shiftOrigin(int3 _shift)
         for (uint z = 0; z < width; z++) {
             for (uint x = 0; x < width; x++)
             {
-                if ((x < -_shift.x) || (x >= width - _shift.x) || (h < -_shift.y) || (h >= height - _shift.y) || (z < -_shift.z) || (z >= width - _shift.z))
+                bool shift = false;
+
+                if ((_shift.x < 0) && (x < -_shift.x))  shift = true;
+                if ((_shift.y < 0) && (h < -_shift.y))  shift = true;
+                if ((_shift.z < 0) && (z < -_shift.z))  shift = true;
+
+                if ((_shift.x > 0) && (x >= width - _shift.x))  shift = true;
+                if ((_shift.y > 0) && (h >= height - _shift.y))  shift = true;
+                if ((_shift.z > 0) && (z >= width - _shift.z))  shift = true;
+
+                //if ((x < -_shift.x) || (x >= width - _shift.x) || (h < -_shift.y) || (h >= height - _shift.y) || (z < -_shift.z) || (z >= width - _shift.z))
+                if (shift)
                 {
                     v[idx(x, h, z)] = root->sample(float3(x, h, z) * 0.5f + to_Root);
                 }
@@ -315,10 +326,10 @@ void _cfd_lod::fromRoot_Alpha()
 
 void _cfd_lod::toRoot_Alpha()
 {
-/*
+
     if (!root) return;
     int3 to = offset;
-    to /= 2;
+    to *= 0.5f;
     to -= root->offset;
 
     uint wA2 = (width >> 1) - 1;
@@ -341,13 +352,13 @@ void _cfd_lod::toRoot_Alpha()
 
                 float3 p = { x, h, z };
                 //p += 0.5f;
-                float3 topV = sample(float3(x, h, z) * 2.f + 0.5f);
-                uint i = root->idx(int3(x, h, z) + to);
+                float4 topV = sample(float3(x, h, z) * 2.f + 0.5f);
+                uint i = root->idx(x + to.x, h + to.y, z + to.z);
                 root->v[i] = glm::lerp(root->v[i], topV, alpha);
             }
         }
     }
-    */
+    
 }
 
 
@@ -362,26 +373,31 @@ void _cfd_lod::Normal()
 
             float3 N = normals[nIndex].xyz;
             float Hcell = 0.5f - normals[nIndex].w - offset.y;
-            int h0 = (int)(normals[nIndex].w - 4.f - offset.y);
+            int h0 = (int)(normals[nIndex].w - 0.f - offset.y);
             h0 = __min(height - 10, __max(0, h0));   // far enoufgh down that even fraction wont break it, we have
             Hcell += h0;
             
-            for (int h = 0; h < h0 - 1; h++)
+            for (int h = 0; h < h0; h++)
             {
+                float scale = __max(0, 1.f - __min(1.f, abs(Hcell) / 2.f));
                 uint i = idx(x, h, z);
                 v[i] *= 0.f;
+                //v[i] = float4(0, 0, 0, 0);
             }
             
 
             for (uint h = h0; h < h0 + 8; h++)
             {
-                float scale = __max(0, 1.f - __min(1.f, abs(Hcell) / 3.f));
+                float scale = __max(0, 1.f - __min(1.f, abs(Hcell) / 2.f));
                 uint i = idx(x, h, z);
                 float3 normWind = N * glm::dot(float3(v[i].xyz), N);
                 v[i].xyz -= normWind * scale;
 
+                //v[i] = float4(255, 0, 0, 0);
+
+
                 //v[i] *= 1.f - scale * 0.0001f;
-                //if (Hcell < -1) v[i] *= 0;
+                //if (Hcell < 0.f) v[i] *= 0.f;
                 Hcell += 1.f;
             }
         }
@@ -397,19 +413,24 @@ void _cfd_lod::incompressibilityNormal(uint _num)
     for (uint n = 0; n < _num; n++)
     {
         Normal();
+
         mP = 0;
-        for (uint h = 0; h < height - 1; h++) {
-            for (uint z = 0; z < width - 1; z++) {
-                for (uint x = 0; x < width - 1; x++)
+        for (uint h = 0; h < height - 1; h++)
+        {
+            int dX = (n + (h % 2)) % 2;
+            int dY = ((n >> 1) + (h % 2)) % 2;
+
+            for (uint z = 0; z < width - 2; z+=2) {
+                for (uint x = 0; x < width - 2; x+=2)
                 {
                     uint nIndex = (z + offset.z) * smap.width + (x + offset.x);
 
                     float h_rel = h + 0.5 - normals[nIndex].w;
 
-                    uint i = idx(x, h, z);
-                    uint ix = idx(x + 1, h, z);
-                    uint iy = idx(x, h + 1, z);
-                    uint iz = idx(x, h, z + 1);
+                    uint i = idx(x + dX, h, z + dY);
+                    uint ix = idx(x + dX + 1, h, z + dY);
+                    uint iy = idx(x + dX, h + 1, z + dY);
+                    uint iz = idx(x + dX, h, z + dY + 1);
                     float P = (v[i].x + v[i].y + v[i].z - v[ix].x - v[iy].y - v[iz].z) * 0.16666666;
                     mP = __max(mP, abs(P));
                     P *= 1.9f;
@@ -432,6 +453,8 @@ void _cfd_lod::incompressibilityNormal(uint _num)
 
 void _cfd_lod::edges()      //?? 1 deep
 {
+    if (root == nullptr) return;
+
     for (int h = 0; h < height; h++)
     {
         for (int i = 0; i < width; i++)
@@ -478,8 +501,11 @@ void _cfd_lod::advect(float _dt)
     float scale = oneOverSize * _dt;
     float speed = 0;
 
+    // vkach needs edges set
+    memcpy(_cfdClipmap::v_back.data(), v.data(), width * width * height * sizeof(float4));
+
     // back
-    for (uint h = 0; h < height - 1; h++) {
+    for (uint h = 0; h < height - 2; h++) {
         for (uint z = 2; z < width - 2; z++) {
             for (uint x = 2; x < width - 2; x++)
             {
@@ -509,9 +535,9 @@ void _cfd_lod::advect(float _dt)
     */
     
     //bfecc
-    for (uint h = 0; h < height - 1; h++) {
-        for (uint z = 2; z < width - 2; z++) {
-            for (uint x = 2; x < width - 2; x++)
+    for (uint h = 0; h < height; h++) {
+        for (uint z = 0; z < width; z++) {
+            for (uint x = 0; x < width; x++)
             {
                 uint i = idx(x, h, z);
                 P = float3(x, h, z) + (float3(v[idx(x, h, z)].xyz) * scale);      // + for forward
@@ -524,7 +550,7 @@ void _cfd_lod::advect(float _dt)
     }
 
     // last step
-    for (uint h = 0; h < height - 1; h++) {
+    for (uint h = 0; h < height - 2; h++) {
         for (uint z = 2; z < width - 2; z++) {
             for (uint x = 2; x < width - 2; x++)
             {
@@ -704,24 +730,25 @@ void _cfd_lod::clamp(float3& _p)
 }
 
 
-void _cfd_lod::simulate(float _dt, float _vort, int _numInc)
+void _cfd_lod::simulate(float _dt, float _vort, int _numInc, float _relax)
 {
 
     timer += _dt;
-    bouyancy(_dt);
+    //bouyancy(_dt);
 
     auto a = high_resolution_clock::now();
-    vorticty_confine(_dt, _vort);
+    //vorticty_confine(_dt, _vort);
 
     auto b = high_resolution_clock::now();
     //incompressibilityNormal(_numInc); // Mathias uses 100, excessive for this slow air, as LOW as possible, look at feedback
-    incompressibility_SMAP(_numInc);
+    //incompressibility_SMAP(_numInc, _relax);
+    incompressibility_SMAP_redblack(_numInc, _relax);
 
     auto c = high_resolution_clock::now();
     edges();
 
     auto d = high_resolution_clock::now();
-    advect(_dt);        // just do smkoe temperature etc as well
+    advect(_dt);        // just do smoke temperature etc as well
 
     auto e = high_resolution_clock::now();
     tickCount++;
@@ -816,7 +843,7 @@ void _cfdClipmap::simulate_start(float _dt)
 {
     for (int k = 0; k < 20; k++)
     {
-        lods[0].simulate(_dt, vort, numInc);
+        lods[0].simulate(_dt, vort, numInc, incompressabilityRelax);
         lods[0].timer = 0;
     }
 
@@ -825,7 +852,7 @@ void _cfdClipmap::simulate_start(float _dt)
         float time = _dt / pow(2, lod);
         lods[lod].fromRoot();
         //lods[lod].incompressibilityNormal(10);
-        for (int k = 0; k < 3; k++)       lods[lod].simulate(time, vort, numInc);
+        for (int k = 0; k < 2; k++)       lods[lod].simulate(time, vort, numInc, incompressabilityRelax);
         lods[lod].timer = 0;
     }
 }
@@ -841,7 +868,7 @@ void _cfdClipmap::simulate(float _dt)
         uint step = start * 2;
         uint test = (counter - start) % step;
 
-        //l = 1;
+        //l = 5;
         //test = 0;
         if (test == 0)
         {
@@ -850,9 +877,12 @@ void _cfdClipmap::simulate(float _dt)
             uint lod = 6 - l;
             float time = _dt / pow(2, lod);
 
-            lods[lod].fromRoot_Alpha();
-            lods[lod].simulate(time, vort, numInc);
-            lods[lod].toRoot_Alpha();
+            if (lod > 0)
+            {
+                lods[lod].fromRoot_Alpha();
+                lods[lod].simulate(time, vort, numInc, incompressabilityRelax);
+                lods[lod].toRoot_Alpha();
+            }
 
             auto stop = high_resolution_clock::now();
 
@@ -864,14 +894,14 @@ void _cfdClipmap::simulate(float _dt)
             // now copy the visualization data
             if (showSlice && lod == slicelod)
             {
-                for (int y = 0; y < 128; y++)
+                for (int y = 0; y < lods[lod].height; y++)
                 {
                     for (int x = 0; x < 128; x++)
                     {
                         uint index = lods[lod].idx(x, y, sliceIndex);
                         //float3 other = lod.other[index] * 5.f;
                         float3 curl = lods[lod].curl[index] * 3.f;
-                        float3 V = (float3(lods[lod].v[index].xyz) / 20.f + float3(0.5, 0.5, 0.5));
+                        
                         float boyancy = lods[lod].v[index].w;
 
                         unsigned int r, g, b, a;
@@ -880,6 +910,25 @@ void _cfdClipmap::simulate(float _dt)
                         g = (int)(pow(__min(1, boyancy), 0.5) * 255.f);
                         a = (int)(pow(__min(1, boyancy), 0.1) * 255.f);
 
+                        float3 V = float3(lods[lod].v[index].xyz);
+                        float speed = glm::length(V);
+                        //V.x -= 10.f;
+                        r = 0;
+                        b = 0;
+                        //b = __min(255, (int)(V.y * 20));
+                        if (V.x > 0)    r = __min(255, (int)(V.x * 20.f));
+                        else            b = __min(255, (int)(-V.x * 20.f));
+                        //r = (int)(speed * 50);
+                        a = 250;
+
+                        /*
+                        g = (int)(V.y * 255.f);
+                        b = (int)(V.z * 255.f);
+                        a = 255;// (int)(__min(1.f, __max(0, speed - 14.f)) * 255.f);
+                        r = (int)V.x;
+                        g = 0;
+                        b = 0;
+                        */
                         uint idx = (y * 128 + x);
                         arrayVisualize[idx] = (a << 24) + (b << 16) + (g << 8) + r;
                     }
@@ -1345,15 +1394,109 @@ void _cfdClipmap::heightToSmap(std::string filename)
 
 
 /// DEPRECATED
+/*
+*   https://github.com/kalexmills/jos-stam-vort-confine/blob/master/code/solver.c
+    float a=dt*diff*N*N;
+	lin_solve ( N, b, x, x0, a, 1+4*a );
+    x[IX(i,j)] = (x0[IX(i,j)] + a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))/c;
 
-void _cfd_lod::incompressibility_SMAP(uint _num)
+    this on in 3d, same idea
+    https://github.com/BlainMaguire/3dfluid/blob/master/solver3d.c#L91          
+    int max = MAX(MAX(M, N), MAX(N, O));
+    float a=dt*diff*max*max*max;
+    lin_solve ( M, N, O, b, x, x0, a, 1+6*a );
+
+    this one calculates the pressure field, more important for wing later
+    https://people.computing.clemson.edu/~jtessen/cpsc8190/html/lectures/velocity_fields/incompressibility_slides.pdf
+
+    file:///C:/Users/hamme/Downloads/CAM_CDO.pdf
+
+    https://www.cs.ubc.ca/~rbridson/fluidsimulation/fluids_notes.pdf        // Mathias
+
+    https://www.cs.unc.edu/xcms/wpfiles/dissertations/harris.pdf            // HArris 2003
+
+    https://www.ljll.fr/~frey/papers/levelsets/Selle%20A.,%20An%20unconditionally%20stable%20MacCormack%20method.pdf
+*/
+
+void _cfd_lod::incompressibility_SMAP_redblack(uint _num, float _relax)
 {
     glm::u8vec4 smin, smax;
     float3 v0, v1;
     uint3 i0, i1;
 
+
+    float mP = 0;
+
+    for (uint n = 0; n < _num * 4; n++)
+    {
+        if (n %4 == 0) mP = 0;
+
+        for (uint h = 0; h < height - 1; h++)
+        {
+            int dX = (n + (h % 2)) % 2;
+            int dY = ((n >> 1) + (h % 2)) % 2;
+            for (uint z = 0; z < width - 2; z+=2) {
+                for (uint x = 0; x < width - 2; x+=2)
+                {
+                    smin = smap.getS(int3(x + dX, h, z + dY) + offset);
+                    smax.x = smap.getS(int3(x + dX + 1, h, z + dY) + offset).x;
+                    smax.y = smap.getS(int3(x + dX, h + 1, z + dY) + offset).y;
+                    smax.z = smap.getS(int3(x + dX, h, z + dY + 1) + offset).z;
+                    uint sum = smin.x + smin.y + smin.z + smax.x + smax.y + smax.z;
+
+
+
+                    // this gets better if we split V and move to boundaries I think
+                    // really look at it
+                    if (sum > 1)
+                    {
+
+                        uint i = idx(x + dX, h, z + dY);
+                        uint ix = idx(x + dX + 1, h, z + dY);
+                        uint iy = idx(x + dX, h + 1, z + dY);
+                        uint iz = idx(x + dX, h, z + dY + 1);
+
+                        float P = ((v[i].x * smin.x - v[ix].x * smax.x) +
+                            (v[i].y * smin.y - v[iy].y * smax.y) +
+                            (v[i].z * smin.z - v[iz].z * smax.z)) / (float)sum * _relax / 255.f;
+
+                        mP = __max(mP, abs(P / _relax));
+
+                        // doen black red ...   gauss seidel verwag oorskryf van waardes maar ons propagate in een rigting
+                        v[i].x -= P * smin.x;
+                        v[i].y -= P * smin.y;
+                        v[i].z -= P * smin.z;
+                        v[ix].x += P * smax.x;
+                        v[iy].y += P * smax.y;
+                        v[iz].z += P * smax.z;
+
+                        if (smax.y == 0) v[i] *= 0.f;
+                    }
+                    else
+                    {
+                        uint i = idx(x + dX, h, z + dY);
+                        v[i] *= 0.f;
+                    }
+                }
+            }
+        }
+    }
+    maxP = mP;
+};
+
+
+void _cfd_lod::incompressibility_SMAP(uint _num, float _relax)
+{
+    glm::u8vec4 smin, smax;
+    float3 v0, v1;
+    uint3 i0, i1;
+
+
+    float mP = 0;
+
     for (uint n = 0; n < _num; n++)
     {
+        mP = 0;
         for (uint h = 0; h < height - 1; h++) {
             for (uint z = 0; z < width - 1; z++) {
                 for (uint x = 0; x < width - 1; x++)
@@ -1378,7 +1521,9 @@ void _cfd_lod::incompressibility_SMAP(uint _num)
 
                         float P = ((v[i].x * smin.x - v[ix].x * smax.x) +
                             (v[i].y * smin.y - v[iy].y * smax.y) +
-                            (v[i].z * smin.z - v[iz].z * smax.z)) / (float)sum * 1.9f / 255.f;
+                            (v[i].z * smin.z - v[iz].z * smax.z)) / (float)sum * _relax / 255.f;
+
+                        mP = __max(mP, abs(P));
 
                         // doen black red ...   gauss seidel verwag oorskryf van waardes maar ons propagate in een rigting
                         v[i].x -= P * smin.x;
@@ -1390,10 +1535,16 @@ void _cfd_lod::incompressibility_SMAP(uint _num)
 
                         if (smax.y == 0) v[i] *= 0.f;
                     }
+                    else
+                    {
+                        uint i = idx(x, h, z);
+                        v[i] *= 0.f;
+                    }
                 }
             }
         }
     }
+    maxP = mP;
 };
 
 /*
