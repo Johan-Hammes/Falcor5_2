@@ -263,7 +263,7 @@ void _cfd_lod::shiftOrigin(int3 _shift)
                 //if ((x < -_shift.x) || (x >= width - _shift.x) || (h < -_shift.y) || (h >= height - _shift.y) || (z < -_shift.z) || (z >= width - _shift.z))
                 if (shift)
                 {
-                    v[idx(x, h, z)] = root->sample(float3(x, h, z) * 0.5f + to_Root);
+                    v[idx(x, h, z)] = root->sampleNew(root->v, float3(x, h, z) * 0.5f + to_Root);
                 }
             }
         }
@@ -286,7 +286,7 @@ void _cfd_lod::fromRoot()
         for (uint z = 0; z < width; z++) {
             for (uint x = 0; x < width; x++)
             {
-                v[idx(x, h, z)] = root->sample(float3(x, h, z) * 0.5f + to_Root);
+                v[idx(x, h, z)] = root->sampleNew(root->v, float3(x, h, z) * 0.5f + to_Root);
             }
         }
     }
@@ -317,7 +317,7 @@ void _cfd_lod::fromRoot_Alpha()
                 alpha = __min(1.f, alpha);
                 alpha = __max(0.f, alpha);
 
-                float4 rootV = root->sample(float3(x, h, z) * 0.5f + to_Root);
+                float4 rootV = root->sampleNew(root->v, float3(x, h, z) * 0.5f + to_Root);
                 v[idx(x, h, z)] = glm::lerp(v[idx(x, h, z)], rootV, 1.f - alpha);
             }
         }
@@ -326,7 +326,7 @@ void _cfd_lod::fromRoot_Alpha()
 
 void _cfd_lod::toRoot_Alpha()
 {
-
+    return;
     if (!root) return;
     int3 to = offset;
     to *= 0.5f;
@@ -352,7 +352,7 @@ void _cfd_lod::toRoot_Alpha()
 
                 float3 p = { x, h, z };
                 //p += 0.5f;
-                float4 topV = sample(float3(x, h, z) * 2.f + 0.5f);
+                float4 topV = sampleNew(v, float3(x, h, z) * 2.f + 0.5f);
                 uint i = root->idx(x + to.x, h + to.y, z + to.z);
                 root->v[i] = glm::lerp(root->v[i], topV, alpha);
             }
@@ -513,7 +513,9 @@ void _cfd_lod::advect(float _dt)
                 speed = __max(speed, glm::length(float3(v[idx(x, h, z)].xyz)));
 
                 P = float3(x, h, z) - (float3(v[idx(x, h, z)].xyz) * scale);
-                _cfdClipmap::v_back[i] = sample(P);
+                //_cfdClipmap::v_back[i] = sample(P);
+                _cfdClipmap::v_back[i] = sampleNew(v, P);
+                
             }
         }
     }
@@ -541,7 +543,9 @@ void _cfd_lod::advect(float _dt)
             {
                 uint i = idx(x, h, z);
                 P = float3(x, h, z) + (float3(v[idx(x, h, z)].xyz) * scale);      // + for forward
-                _cfdClipmap::v_bfecc[i] = v[idx(x, h, z)] + 0.5f * (v[idx(x, h, z)] - sampleBack(P));
+                //_cfdClipmap::v_bfecc[i] = v[idx(x, h, z)] + 0.5f * (v[idx(x, h, z)] - sampleBack(P));
+                _cfdClipmap::v_bfecc[i] = v[idx(x, h, z)] + 0.5f * (v[idx(x, h, z)] - sampleNew(_cfdClipmap::v_back, P));
+                
 
                 // start of a limiter cant really stay since negative is allowed, do black and red in incomoperssibility first
                 _cfdClipmap::v_bfecc[i].w = __max(0, _cfdClipmap::v_bfecc[i].w);
@@ -556,7 +560,8 @@ void _cfd_lod::advect(float _dt)
             {
                 uint i = idx(x, h, z);
                 P = float3(x, h, z) - (float3(v[idx(x, h, z)].xyz) * scale);
-                v[i] = sampleBFECC(P);
+                //v[i] = sampleBFECC(P);
+                v[i] = sampleNew(_cfdClipmap::v_bfecc, P);
             }
         }
     }
@@ -639,6 +644,24 @@ void _cfd_lod::vorticty_confine(float _dt, float _scale)
 
 
 
+template <typename T> T _cfd_lod::sampleNew(std::vector<T>& data, float3 _p)
+{
+    clamp(_p);
+    int3 i = _p;
+    float3 f1 = _p - (float3)i;
+    float3 f0 = float3(1, 1, 1) - f1;
+
+    T a = glm::lerp(data[idx(i.x, i.y, i.z)], data[idx(i.x + 1, i.y, i.z)], f1.x);
+    T b = glm::lerp(data[idx(i.x, i.y, i.z + 1)], data[idx(i.x + 1, i.y, i.z + 1)], f1.x);
+    T bottom = glm::lerp(a, b, f1.z);
+
+    a = glm::lerp(data[idx(i.x, i.y + 1, i.z)], data[idx(i.x + 1, i.y + 1, i.z)], f1.x);
+    b = glm::lerp(data[idx(i.x, i.y + 1, i.z + 1)], data[idx(i.x + 1, i.y + 1, i.z + 1)], f1.x);
+    T top = glm::lerp(a, b, f1.z);
+
+    return glm::lerp(bottom, top, f1.y);
+}
+/*
 float4 _cfd_lod::sample(float3 _p)
 {
     clamp(_p);
@@ -657,7 +680,8 @@ float4 _cfd_lod::sample(float3 _p)
 
     return glm::lerp(bottom, top, f1.y);
 };
-
+*/
+/*
 float4 _cfd_lod::sampleBack(float3 _p)
 {
     clamp(_p);
@@ -719,7 +743,7 @@ float3 _cfd_lod::sampleCurl(float3 _p)
 
     return glm::lerp(bottom, top, f1.y);
 };
-
+*/
 
 // split to faces
 void _cfd_lod::clamp(float3& _p)
@@ -852,7 +876,7 @@ void _cfdClipmap::simulate_start(float _dt)
         float time = _dt / pow(2, lod);
         lods[lod].fromRoot();
         //lods[lod].incompressibilityNormal(10);
-        for (int k = 0; k < 2; k++)       lods[lod].simulate(time, vort, numInc, incompressabilityRelax);
+        for (int k = 0; k < 20; k++)       lods[lod].simulate(time, vort, numInc, incompressabilityRelax);
         lods[lod].timer = 0;
     }
 }
@@ -1039,7 +1063,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
 
                 pLOD->clamp(Psample);
 
-                float3 V = pLOD->sample(Psample);
+                float3 V = pLOD->sampleNew(pLOD->v, Psample);
 
                 (_data + j)->xyz = P * lods[0].cellSize + origin;
                 (_data + j)->w = glm::length(V);
@@ -1051,7 +1075,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
                     P += V * 0.86f *scale;// *300.f * oneOverSize;
                 }
 
-                float3 c = pLOD->sampleCurl(Psample);
+                float3 c = pLOD->sampleNew(pLOD->curl, Psample);
                 //_data->w = L;// glm::length(c);
                 //(_data + j)->w = other.x * 10;
 
@@ -1133,7 +1157,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
                 scale = stremlineScale;
 
                 pLOD->clamp(Psample);
-                float3 V = pLOD->sample(Psample);
+                float3 V = pLOD->sampleNew(pLOD->v, Psample);
 
                 (_data + j)->xyz = P * lods[0].cellSize + origin;
                 (_data + j)->w = glm::length(V);
@@ -1145,7 +1169,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
                     P -= V * 0.86f *scale;// *300.f * oneOverSize;
                 }
 
-                float3 c = pLOD->sampleCurl(Psample);
+                float3 c = pLOD->sampleNew(pLOD->curl, Psample);
                 //(_data + j)->w = other.x * 10;
                 //_data->w = L;// glm::length(c);
 

@@ -10083,7 +10083,7 @@ void terrainManager::cfdThread()
                 float3 P = (cfd.velocityRequets[i] - origin) * cfd.clipmap.lods[0].oneOverSize;
                 float3 p5 = P * 32.f;
                 p5 -= cfd.clipmap.lods[5].offset;
-                cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(p5);
+                cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sampleNew(cfd.clipmap.lods[5].v, p5);
             }
         }
         k++;

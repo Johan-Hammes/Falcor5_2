@@ -93,11 +93,13 @@ struct _cfd_lod
     void vorticty_confine(float _dt, float _scale);
     void bouyancy(float _dt);
     //float3 sample(float3 _p, float3* _other);
-    float4 sample(float3 _p);
-    float4 sampleBack(float3 _p);
-    float4 sampleBFECC(float3 _p);
-    float3 sampleCurl(float3 _p);
+    //float4 sample(float3 _p);
+    //float4 sampleBack(float3 _p);
+    //float4 sampleBFECC(float3 _p);
+    //float3 sampleCurl(float3 _p);
     void clamp(float3 &_p);
+
+    template <typename T> T sampleNew(std::vector<T>& data, float3 _p);
     //float sample_x(float3 _p);
     //float sample_y(float3 _p);
     //float sample_z(float3 _p);
