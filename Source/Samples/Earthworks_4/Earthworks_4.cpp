@@ -138,6 +138,8 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
 void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
+
+    
     /*
     float2 A = float2(-20906.8073893663f, 21854.7731031066f);
     float2 B = float2(-21739.4126790621f, -18140.4947773098f);
@@ -587,7 +589,7 @@ int main(int argc, char** argv)
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
-    config.windowDesc.monitor = 1;
+    config.windowDesc.monitor = 0;
 
     // HDR
     // config.windowDesc.monitor = 1;

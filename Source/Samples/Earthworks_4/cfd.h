@@ -22,9 +22,81 @@
 using namespace Falcor;
 
 
-using cfd_V_type = float4;
-using cfd_data_type = glm::i16vec3;     //temperature, humidity, waterdroplets, I think
-#define cfd_VelocityScale 1.f;
+// so for some odd reason float3 seems fastest, lets stick to it then, almost twice as fast as glm::i16vec3
+using cfd_V_type = float3;// float3;        
+using cfd_P_type = float;// float if V is lfoat;
+using cfd_data_type = float3;     //temperature, humidity, waterdroplets, I think
+
+
+inline float to_K(float c) { return c + 273.15f; }
+inline float to_C(float k) { return k - 273.15f; }
+
+// in Celcius
+inline float dew_Y(float RH32)
+{
+    //return log(RH32) + 17.625 * (32.f) / (243.04 + 32.f);
+    return log(RH32) + 2.1942110177f;
+}
+
+inline float dew_Temp_C(float RH32)
+{
+    float y = dew_Y(RH32);
+    return (243.04f * y) / (17.625f - y);
+}
+
+
+#define cfd_g  9.8076f
+#define Hv 2501000.f
+#define Rsd 287.f
+#define Rsw 461.5f
+#define Eps 0.622f
+#define Cpd 1003.5f
+
+///https://www.engineeringtoolbox.com/air-altitude-pressure-d_462.html
+inline float pascals_air(float h)
+{
+    return 101325 * pow(1.f - (0.0000225577f * h), 5.25588);
+}
+
+///https://en.wikipedia.org/wiki/Vapour_pressure_of_water
+inline float mmHg_Antoine(float T_c)
+{
+    return pow(10, 8.07131f - (1730.63 / (233.426 + T_c)));
+}
+
+inline float pascals_Antoine(float T_c)
+{
+    return 133.322f * mmHg_Antoine(T_c);
+}
+
+///https://en.wikipedia.org/wiki/Lapse_rate
+inline float moistLapse(float T, float alt)
+{
+    float e = pascals_Antoine(to_C(T));
+    float r = (Eps * e) / (pascals_air(alt) - e);
+    return cfd_g * (1.f + (Hv * r) / (Rsd * T)) / (Cpd + (Hv * Hv * r) / (Rsw * T * T));
+}
+
+
+
+// https://www.engineeringtoolbox.com/air-altitude-pressure-d_462.html
+// or    https://en.wikipedia.org/wiki/Atmospheric_pressure
+inline float pressure_Pa(float _alt)
+{
+    //p = 101325 (1 - 2.25577 10-5 h)5.25588
+    //return 101325.f * pow(1.f - 0.000025577f * _alt, 5.25588);
+
+    //return 101325 * exp( -9.80665f * _alt * 0.02896968f / (288.16f * 8.314462618f));
+    return 101325 * exp(-9.80665f * _alt * 0.02896968f / (303.16f * 8.314462618f));
+}
+
+//https://en.wikipedia.org/wiki/Density_of_air
+inline float density(float _alt, float _T_K)
+{
+    return 0.00348371281f * pressure_Pa(_alt) / _T_K;
+    //return (pressure_Pa(_alt) * 0.0289652f) / (8.31446261815324f * _T_k);
+}
+
 
 struct _cfd_map
 {
@@ -65,8 +137,9 @@ struct _cfd_lod
     inline uint h_idx(uint y) { return ((y + offset.y) % height) * w2; }
     inline uint z_idx(uint z) { return ((z + offset.z) % width) * width; }
 
-    void setV(uint3 _p, float3 _v);
+    void setV(uint3 _p, cfd_V_type _v, cfd_data_type _data);
     void shiftOrigin(int3 _shift);
+    float3 getV(uint _idx) { return  v[_idx];}
 
     // lodding
     void fromRoot();
@@ -75,10 +148,12 @@ struct _cfd_lod
 
     // simulate
     void clamp(float3& _p);
-    template <typename T> T sampleNew(std::vector<T>& data, float3 _p);
+    template <typename T> T sample(std::vector<T>& data, float3 _p);
+    void addTemperature();
     void bouyancy(float _dt);
     void incompressibility_SMAP();
     void advect(float _dt);
+    void diffuse(float _dt);
     void edges();
     void simulate(float _dt);
     
@@ -96,6 +171,9 @@ struct _cfd_lod
 
     _cfd_Smap smap;
     std::vector<cfd_V_type> v;
+    std::vector<cfd_data_type> data;
+
+    static std::vector<cfd_V_type> root_v;
 
 
 
@@ -117,8 +195,8 @@ struct _cfd_lod
     //    std::vector<float3> curl;   // moce to paretn class 
     //    std::vector<float> mag;
     //    std::vector<float3> vorticity;
-    //void loadNormals(std::string filename);
-    //std::vector<float4> normals;
+    void loadNormals(std::string filename);
+    std::vector<float4> normals;
 };
 
 

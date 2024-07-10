@@ -2540,7 +2540,7 @@ float _windTerrain::H(float3 _pos)
 {
     float scale = 4096.f / 40000.f; // for half pixel
     float2 uv = float2(_pos.x + 20000, _pos.z + 20000) * scale - 0.5f;
-    int2 idx = uv;
+    int2 idx = glm::clamp(uv, 0.f, 4095.f);
     float2 d1 = glm::fract(uv);
     float2 d0 = 1.f - d1;
 

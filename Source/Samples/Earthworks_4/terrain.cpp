@@ -4392,47 +4392,31 @@ void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
     {
         for (int x = 0; x < lod.width; x++)
         {
+            uint nIndex = (cfd.clipmap.sliceIndex + lod.offset.z) * lod.smap.width + (x + lod.offset.x);
+            float4 N = lod.normals[nIndex];
+            float Hcell = N.w - lod.offset.y;
+
             uint idx = (y * 128 + x);
 
-            if ((cfd.clipmap.arrayVisualize[idx] >> 24) > 10)
+            if (y > Hcell - 1)
             {
-                ImVec2 bl = { x * 8.f + 400 ,  _screen.y - 50 - y * 8.f };
-                ImVec2 tr = bl;
-                tr.x += 8;
-                tr.y -= 8;
+                if ((cfd.clipmap.arrayVisualize[idx] >> 24) > 10)
+                {
+                    ImVec2 bl = { x * 8.f + 400 ,  _screen.y - 50 - y * 8.f };
+                    ImVec2 tr = bl;
+                    tr.x += 8;
+                    tr.y -= 8;
 
-                draw_list->AddRectFilled(bl, tr, cfd.clipmap.arrayVisualize[idx]);
+                    draw_list->AddRectFilled(bl, tr, cfd.clipmap.arrayVisualize[idx]);
+                }
             }
         }
     }
 
     
-    for (int y = 0; y < lod.height; y++)
-    {
-        for (int x = 0; x < lod.width; x++)
-        {
-
-            uint index = lod.idx(x, y, cfd.clipmap.sliceIndex);
-            float3 V = lod.v[index] * lod.oneOverSize * 8.f;
-
-            float boyancy = lod.v[index].w;
-
-            if (boyancy > 0.05f)
-            {
-                static ImVec4 col = ImVec4(0.0f, 0.0f, 1.0f, 1.0f);
-                const ImU32 col32 = ImColor(col);
-
-                ImVec2 mid = { x * 8.f + 100 + 4 ,  _screen.y - 50 - y * 8.f - 4 };
-                ImVec2 end = mid;
-                end.x += V.x;
-                end.y -= V.y;
-
-                //draw_list->AddLine(mid, end, col32);
-            }
-        }
-    }
     
-    /*
+    
+    
     {
         ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
         const ImU32 col32 = ImColor(col);
@@ -4450,12 +4434,12 @@ void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
             N = lod.normals[nIndex];
             Hcell = N.w - lod.offset.y;
 
-            draw_list->AddLine(ImVec2(400 + (x - 1) * 8.f, _screen.y - 50 - Hcell_old * 8), ImVec2(400 + x * 8.f, _screen.y - 50 - Hcell * 8), col32, 1);
+            draw_list->AddLine(ImVec2(404 + (x - 1) * 8.f, _screen.y - 50 - Hcell_old * 8), ImVec2(404 + x * 8.f, _screen.y - 50 - Hcell * 8), col32, 1);
 
             Hcell_old = Hcell;
 
         }
-    }*/
+    }
 }
 
 // The game GUI
@@ -4596,6 +4580,8 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
                     cfd.clipmap.windrequest = true;
                 }
 
+                
+
                 ImGui::NewLine();
                 ImGui::SetNextItemWidth(300);
                 ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
@@ -4613,9 +4599,9 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
                 ImGui::NewLine();
                 ImGui::Checkbox("show viz", &cfd.clipmap.showSlice);
                 ImGui::SetNextItemWidth(300);
-                ImGui::DragInt("lod", &cfd.clipmap.slicelod, 1, 0, 5);
+                ImGui::DragInt("lod", &cfd.clipmap.slicelod, 0.1f, 0, 5);
                 ImGui::SetNextItemWidth(300);
-                ImGui::DragInt("slice", &cfd.clipmap.sliceIndex, 1, 0, 127);
+                ImGui::DragInt("slice", &cfd.clipmap.sliceIndex, 0.1f, 0, 127);
 
                 ImGui::NewLine();
                 ImGui::SetNextItemWidth(300);
@@ -10070,7 +10056,7 @@ void terrainManager::cfdThread()
                 float3 P = (cfd.velocityRequets[i] - origin) * cfd.clipmap.lods[0].oneOverSize;
                 float3 p5 = P * 32.f;
                 p5 -= cfd.clipmap.lods[5].offset;
-                cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sampleNew(cfd.clipmap.lods[5].v, p5);
+                cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(cfd.clipmap.lods[5].v, p5);
             }
         }
         k++;
