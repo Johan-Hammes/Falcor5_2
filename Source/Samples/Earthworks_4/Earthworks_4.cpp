@@ -126,7 +126,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
             //all.graph()
             all.windowPos(0, 0);
             all.windowSize((int)screenSize.x, (int)screenSize.y);
-            terrain.onGuiRenderParaglider(_gui, screenSize);
+            terrain.onGuiRenderParaglider(all, _gui, screenSize);
         }
         all.release();
         ImGui::PopStyleColor();

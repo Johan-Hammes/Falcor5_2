@@ -3837,6 +3837,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         }
 
 
+        cfd.sliceVTexture = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+        cfd.sliceDataTexture = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+
 
         vegetation.skyTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_bc.dds", false, true);
         vegetation.envTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_IR_bc.dds", false, true);
@@ -4370,7 +4374,7 @@ void replaceAllterrain(std::string& str, const std::string& from, const std::str
 }
 
 
-void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
+void terrainManager::onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _screen)
 {
     cfd.clipmap.slicelod = __max(0, cfd.clipmap.slicelod);
     cfd.clipmap.slicelod = __min(5, cfd.clipmap.slicelod);
@@ -4379,13 +4383,8 @@ void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
 
-    ImGui::Text("(%d, %d, %d) abs", lod.offset.x, lod.offset.y, lod.offset.z );
-    ImGui::Text("(%d, %d, %d) rel", lod.offset.x % lod.width, lod.offset.y % lod.height, lod.offset.z % lod.width);
-    ImGui::Text("%d ms - total", (int)lod.solveTime_ms);
-    ImGui::Text("boya %d ms", (int)lod.simTimeLod_boyancy_ms);
-    ImGui::Text("icmp %d ms", (int)lod.simTimeLod_incompress_ms);
-    ImGui::Text("edge %d ms", (int)lod.simTimeLod_edges_ms);
-    ImGui::Text("advt %d ms", (int)lod.simTimeLod_advect_ms);
+    
+    //_renderContext->updateTextureData(cfd.sliceVTexture.get(), cfd.clipmap.sliceV);
 
 
     for (int y = 0; y < lod.height; y++)
@@ -4442,8 +4441,90 @@ void terrainManager::onGuiRendercfd(Gui* pGui, float2 _screen)
     }
 }
 
+void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen)
+{
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.75f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
+    ImGui::BeginChildFrame(98765, ImVec2(300, _screen.y));
+    ImGui::PushFont(pGui->getFont("roboto_26"));
+    {
+        //ImGui::SetCursorPos(ImVec2(0, 100));
+        ImGui::Text("    time  maxV  step  maxP");
+        for (int i = 0; i <= 5; i++)
+        {
+            ImGui::Text("%d - %d s, %2.1f m/s, %2.1f, %3d", i, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, (int)(cfd.clipmap.lods[i].maxP * 1000.f));
+        }
+
+        
+
+        ImGui::NewLine();
+        ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
+        if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
+        {
+            cfd.clipmap.newWind.y = 0;
+        }
+
+        if (ImGui::Button("change"))
+        {
+            cfd.clipmap.windrequest = true;
+        }
+
+
+
+        ImGui::NewLine();
+        ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
+        ImGui::Checkbox("PAUSE cfd", &cfd.pause);
+
+
+        ImGui::NewLine();
+        ImGui::Checkbox("show streamlines", &cfd.clipmap.showStreamlines);
+        ImGui::DragFloat("scale", &cfd.clipmap.stremlineScale, 0.001f, 0.0001f, 1);
+        ImGui::DragFloat("area", &cfd.clipmap.streamlineAreaScale, 0.01f, 0.01f, 10);
+
+        ImGui::NewLine();
+        ImGui::Checkbox("show viz", &cfd.clipmap.showSlice);
+        ImGui::DragInt("lod", &cfd.clipmap.slicelod, 0.1f, 0, 5);
+        ImGui::DragInt("slice", &cfd.clipmap.sliceIndex, 0.1f, 0, 127);
+
+        ImGui::NewLine();
+        ImGui::DragFloat("relax", &cfd.clipmap.incompres_relax, 0.01f, 1.0f, 2.0f);
+
+        ImGui::NewLine();
+        ImGui::DragInt("num Inc", &cfd.clipmap.incompres_loop, 1, 1, 100);
+
+
+        if (cfd.clipmap.showSlice)
+        {
+            cfd.clipmap.slicelod = __max(0, cfd.clipmap.slicelod);
+            cfd.clipmap.slicelod = __min(5, cfd.clipmap.slicelod);
+            auto& lod = cfd.clipmap.lods[cfd.clipmap.slicelod];
+
+            ImGui::Text("(%d, %d, %d) abs", lod.offset.x, lod.offset.y, lod.offset.z);
+            ImGui::Text("(%d, %d, %d) rel", lod.offset.x % lod.width, lod.offset.y % lod.height, lod.offset.z % lod.width);
+            ImGui::Text("%d ms - total", (int)lod.solveTime_ms);
+            ImGui::Text("boyancy %d ms", (int)lod.simTimeLod_boyancy_ms);
+            ImGui::Text("icmpres %d ms", (int)lod.simTimeLod_incompress_ms);
+            ImGui::Text("advect  %d ms", (int)lod.simTimeLod_advect_ms);
+            ImGui::Text("diffuse %d ms", (int)lod.simTimeLod_edges_ms);
+            
+        }
+    }
+    
+    ImGui::EndChildFrame();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+
+    if (cfd.clipmap.showSlice)
+    {
+        ImGui::SetCursorPos(ImVec2(400, 200));
+        _window.image("testImage", cfd.sliceDataTexture, float2(1024, 1024));
+        //onGuiRendercfd(_window, pGui, _screen);
+    }
+    ImGui::PopFont();
+}
+
 // The game GUI
-void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
+void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, float2 _screen)
 {
     if (renderGui_Menu)
     {
@@ -4555,65 +4636,8 @@ void terrainManager::onGuiRenderParaglider(Gui* pGui, float2 _screen)
 
 
 
-            ImGui::PushFont(pGui->getFont("roboto_32"));
-            {
-                ImGui::SetCursorPos(ImVec2(0, 100));
-                for (int i = 0; i <= 5; i++)
-                {
-                    ImGui::Text("%d - %2.1f, %d s, %2.1fm/s, %2.1f, {%2.4f}", i, cfd.clipmap.lods[i].cellSize, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, cfd.clipmap.lods[i].maxP);
-                }
-
-                ImGui::NewLine();
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragInt("num Inc", &cfd.clipmap.incompres_loop, 1, 1, 100);
-
-                ImGui::NewLine();
-                ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
-                ImGui::SetNextItemWidth(300);
-                if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
-                {
-                    cfd.clipmap.newWind.y = 0;
-                }
-                
-                if (ImGui::Button("change"))
-                {
-                    cfd.clipmap.windrequest = true;
-                }
-
-                
-
-                ImGui::NewLine();
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
-                ImGui::SetNextItemWidth(300);
-                ImGui::Checkbox("PAUSE cfd", &cfd.pause);
-                
-
-                ImGui::NewLine();
-                ImGui::Checkbox("show streamlines", &cfd.clipmap.showStreamlines);
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("scale", &cfd.clipmap.stremlineScale, 0.001f, 0.0001f, 1);
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("area", &cfd.clipmap.streamlineAreaScale, 0.01f, 0.01f, 10);
-
-                ImGui::NewLine();
-                ImGui::Checkbox("show viz", &cfd.clipmap.showSlice);
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragInt("lod", &cfd.clipmap.slicelod, 0.1f, 0, 5);
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragInt("slice", &cfd.clipmap.sliceIndex, 0.1f, 0, 127);
-
-                ImGui::NewLine();
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("relax", &cfd.clipmap.incompres_relax, 0.01f, 1.0f, 2.0f);
-                
-
-                if (cfd.clipmap.showSlice)
-                {
-                    onGuiRendercfd(pGui, _screen);
-                }
-            }
-            ImGui::PopFont();
+            onGuiRendercfd_params(_window, pGui, _screen);
+            
 
 
             ImGui::PopStyleColor();
@@ -7708,6 +7732,14 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     {
         FALCOR_PROFILE("setBlob");
 
+
+        if (cfd.clipmap.sliceNew)
+        {
+            FALCOR_PROFILE("cfd slice update");
+            _renderContext->updateTextureData(cfd.sliceVTexture.get(), cfd.clipmap.sliceV.data());
+            _renderContext->updateTextureData(cfd.sliceDataTexture.get(), cfd.clipmap.sliceData.data());
+            cfd.clipmap.sliceNew = false;
+        }
 
         //cfd.originRequest = paraRuntime.pilotPos();
         //cfd.originRequest = float3(-1425 - 0, 425 + 140, 14533 - 2000);

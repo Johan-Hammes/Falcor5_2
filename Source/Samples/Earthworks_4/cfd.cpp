@@ -923,20 +923,22 @@ void _cfd_lod::simulate(float _dt)
     addTemperature();
     bouyancy(_dt);
 
-    incompressibility_SMAP();                       //??? I think this should be last, leave the saves state as good as possible
+    
 
     auto b = high_resolution_clock::now();
-    //incompressibility_SMAP();                       //??? I think this should be last, leave the saves state as good as possible
-    advect(_dt);        // just do smoke temperature etc as well
+    incompressibility_SMAP();                       //??? I think this should be last, leave the saves state as good as possible
+
+    
 
     auto c = high_resolution_clock::now();
-    //edges();
-    diffuse(_dt);
+    advect(_dt);        // just do smoke temperature etc as well
+    
 
     // Plus MAyeb add vortocoty confine back in, I can see teh sue xacswe for it even with BFECC
 
     auto d = high_resolution_clock::now();
-    
+    //edges();
+    diffuse(_dt);
 
     auto e = high_resolution_clock::now();
     tickCount++;
@@ -944,8 +946,8 @@ void _cfd_lod::simulate(float _dt)
 
     simTimeLod_boyancy_ms = (double)duration_cast<microseconds>(b - a).count() / 1000.;
     simTimeLod_incompress_ms = (double)duration_cast<microseconds>(c - b).count() / 1000.;
-    simTimeLod_edges_ms = (double)duration_cast<microseconds>(d - c).count() / 1000.;
-    simTimeLod_advect_ms = (double)duration_cast<microseconds>(e - d).count() / 1000.;
+    simTimeLod_advect_ms = (double)duration_cast<microseconds>(d - c).count() / 1000.;
+    simTimeLod_edges_ms = (double)duration_cast<microseconds>(e - d).count() / 1000.;
 
     solveTime_ms = (float)duration_cast<microseconds>(e - a).count() / 1000.;
 
@@ -1104,6 +1106,20 @@ void _cfdClipmap::simulate(float _dt)
             if (lod == 5)
             {
                 simTimeLod_ms = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
+            }
+
+            if (showSlice && lod == slicelod)
+            {
+                for (int y = 0; y < lods[lod].height; y++)
+                {
+                    for (int x = 0; x < 128; x++)
+                    {
+                        uint index = lods[lod].idx(x, y, sliceIndex);
+                        sliceV[(lods[lod].height - 1- y) * 128 + x] = lods[lod].v[index];
+                        sliceData[(lods[lod].height - 1 - y) * 128 + x] = lods[lod].data[index];
+                        sliceNew = true;
+                    }
+                }
             }
 
             // now copy the visualization data

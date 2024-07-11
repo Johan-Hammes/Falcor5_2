@@ -231,6 +231,9 @@ struct _cfdClipmap
     int slicelod = 0;
     int sliceIndex = 64;
     std::array<uint, 128 * 128> arrayVisualize;
+    std::array<float3, 128 * 128> sliceV;
+    std::array<float3, 128 * 128> sliceData;
+    bool sliceNew = false;
 
     
     

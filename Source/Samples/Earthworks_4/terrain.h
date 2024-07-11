@@ -1061,8 +1061,9 @@ public:
     void onLoad(RenderContext* _renderContext, FILE* _logfile);
     void onShutdown();
     void onGuiRender(Gui* pGui);
-    void onGuiRenderParaglider(Gui* pGui, float2 _screen);
-    void onGuiRendercfd(Gui* pGui, float2 _screen);
+    void onGuiRenderParaglider(Gui::Window &_window, Gui* pGui, float2 _screen);
+    void onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _screen);
+    void onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen);
     bool renderGui_Menu = false;
     bool renderGui_Hud = true;
     void onGuiMenubar(Gui* pGui);
@@ -1460,6 +1461,9 @@ private:
         std::array<float3, 10> velocityAnswers;
 
 
+
+        Texture::SharedPtr	  sliceVTexture;
+        Texture::SharedPtr	  sliceDataTexture;
     } cfd;      // guess this needs to become its own class or move into _cfdClipmap
 
 
