@@ -55,6 +55,17 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.4f));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
+
+    ImGui::PushFont(pGui->getFont("roboto_20"));
+    {
+        if (ImGui::Button("restart"))
+        {
+            requestRestart = true;
+        }
+    }
+    ImGui::PopFont();
+
+
     ImGui::PushFont(pGui->getFont("H1"));
     {
         // variometer
@@ -306,7 +317,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
     ROOT = float3(9000, 2100, 8000);// middlke
     // 
-    ROOT = float3(15500, 1300, 14400);// windy south
+    //ROOT = float3(15500, 1300, 14400);// windy south
     //ROOT = float3(-500, 500, 15400);// windy south landings
 
     //ROOT = float3(-1425, 700, 14500);// turb test

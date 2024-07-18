@@ -301,8 +301,9 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     {
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
-        terrain.shadowEdges.sunAngle = 0.15f;
+        terrain.shadowEdges.sunAngle = 0.13f;
         terrain.shadowEdges.dAngle = 0.0001f;
+        terrain.shadowEdges.requestNewShadow = true;
 
         terrain.terrainShadowTexture = Texture::create2D(4096, 4096, Falcor::ResourceFormat::RG32Float, 1, 1, terrain.shadowEdges.shadowH, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
 

@@ -4699,6 +4699,16 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         }
 
 
+        ImGui::NewLine();
+        ImGui::Text("Time of day");
+        ImGui::SetNextItemWidth(300);
+        ImGui::DragFloat("angle", &shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
+        ImGui::NewLine();
+        if (ImGui::Button("change"))
+        {
+            shadowEdges.requestNewShadow = true;
+        }
+
 
         ImGui::NewLine();
         ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
@@ -7896,19 +7906,23 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             FALCOR_PROFILE("SOLVE_glider");
             //paraRuntime.solve(0.0005f);
         }
-        /*
-        cfd.originRequest = paraRuntime.pilotPos();
-        cfd.velocityRequets[0] = paraRuntime.pilotPos();
-        cfd.velocityRequets[1] = paraRuntime.wingPos(0);
-        cfd.velocityRequets[2] = paraRuntime.wingPos(25);
-        cfd.velocityRequets[3] = paraRuntime.wingPos(49);
 
-        paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
-        paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
+        if (!useFreeCamWhileGliding)
+        {
 
-        //paraRuntime.setPilotWind(float3(0, 0, 0));
-        //paraRuntime.setWingWind(float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0));
-        */
+            cfd.originRequest = paraRuntime.pilotPos();
+            cfd.velocityRequets[0] = paraRuntime.pilotPos();
+            cfd.velocityRequets[1] = paraRuntime.wingPos(0);
+            cfd.velocityRequets[2] = paraRuntime.wingPos(25);
+            cfd.velocityRequets[3] = paraRuntime.wingPos(49);
+
+            paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
+            paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
+
+            //paraRuntime.setPilotWind(float3(0, 0, 0));
+            //paraRuntime.setWingWind(float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0));
+        }
+        
 
 
 
@@ -7984,7 +7998,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         if (!useFreeCamWhileGliding)
         {
             _camera->setFarPlane(40000);
-            _camera->setUpVector(paraRuntime.camUp);
+            _camera->setUpVector(float3(0, 1, 0));
+            //_camera->setUpVector(paraRuntime.camUp);
             _camera->setTarget(paraEyeLocal + paraRuntime.camDir * 100.f);
             _camera->setPosition(paraEyeLocal);
 

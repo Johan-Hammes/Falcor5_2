@@ -109,7 +109,7 @@ struct _shadowEdges
     void load(std::string filename, float _angle);
     void solve(float _angle, bool dx);
 
-    float sunAngle = 0.2f;  // just afetr sunruise
+    float sunAngle = 0.02f;  // just afetr sunruise
     float dAngle = 0.01f;
     float3 sunAng;
     bool shadowReady = false;
