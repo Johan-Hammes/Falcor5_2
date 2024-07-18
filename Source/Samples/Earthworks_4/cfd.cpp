@@ -14,11 +14,16 @@ using namespace std::chrono;
 std::vector<cfd_V_type> _cfd_lod::root_v;
 
 float                   _cfdClipmap::incompres_relax = 1.6f;
-int                     _cfdClipmap::incompres_loop = 5;
+int                     _cfdClipmap::incompres_loop = 4;
+float                   _cfdClipmap::vort_confine = 0.f;;
 std::vector<cfd_V_type> _cfdClipmap::v_back;
 std::vector<cfd_V_type> _cfdClipmap::v_bfecc;
 std::vector<cfd_data_type> _cfdClipmap::data_back;
 std::vector<cfd_data_type> _cfdClipmap::data_bfecc;
+
+std::vector<cfd_V_type> _cfdClipmap::curl;
+std::vector<float> _cfdClipmap::mag;
+std::vector<cfd_V_type> _cfdClipmap::vorticity;
 
 
 void _cfd_Smap::init(uint _w)
@@ -180,6 +185,10 @@ void _cfd_lod::init(uint _w, uint _h, float _worldSize, float scale)
     v.resize(_h * _w * _w);
     data.resize(_h * _w * _w);
 
+    uint block_h = _h / 8;
+    uint block_w = _w / 8;
+    uint block_x = __max(1, block_w / 32);
+    blocks.resize(block_h * block_w * block_x);
 
     //v2.resize(_h * _w * _w);
     //curl.resize(_h * _w * _w);
@@ -716,9 +725,9 @@ void _cfd_lod::addTemperature()
     if (cellSize > 35) return;
 
     float rootAltitude = 350.f;   // in voxel space
-    float3 t1 = float3(-1425, 425 + 140, 14533 - 2000);
-    float s1 = 30.f + cellSize / 2;
-    float s0 = 30.f + 10.f / 2;
+    float3 t1 = float3(-1425 + 400, 425 + 50, 14533 - 2000);
+    float s1 = 20.f + cellSize / 2;
+    float s0 = 20.f + 10.f / 2;
     float volume = 4.18879020f * s1 * s1;
     float volumeZero = 4.18879020f * s0 * s0;
     float energy = volumeZero / volume * 1.5f;
@@ -742,10 +751,10 @@ void _cfd_lod::addTemperature()
                 if (l <5 * cellSize)
                 {
                     float alpha = glm::smoothstep(0.5f, 1.5f, s1 / l);
-                    data[idx(x, h, z)].z = __max(data[idx(x, h, z)].z, energy * alpha * 0.2f);
+                    data[idx(x, h, z)].z = __max(data[idx(x, h, z)].z, energy * alpha * 0.5f);
 
                     //data[idx(x, h, z)].x = __max(data[idx(x, h, z)].x, to_K(20 + energy * alpha * 15));
-                    data[idx(x, h, z)].x = __max(data[idx(x, h, z)].x, to_K(26 + alpha * 2.05));
+                    data[idx(x, h, z)].x = __max(data[idx(x, h, z)].x, to_K(26 + alpha * 4.05));
 
                     //data[idx(x, h, z)].y = 0.25 + alpha * 0.6f;// more humid
                 }
@@ -923,7 +932,7 @@ void _cfd_lod::simulate(float _dt)
     addTemperature();
     bouyancy(_dt);
 
-    
+    vorticty_confine(_dt, _cfdClipmap::vort_confine);
 
     auto b = high_resolution_clock::now();
     incompressibility_SMAP();                       //??? I think this should be last, leave the saves state as good as possible
@@ -964,6 +973,10 @@ void _cfdClipmap::build(std::string _path)
     v_bfecc.resize(128 * 128 * 128);
     data_back.resize(128 * 128 * 128);     // maximum of any below or bigger
     data_bfecc.resize(128 * 128 * 128);
+
+    curl.resize(128 * 128 * 128);
+    mag.resize(128 * 128 * 128);
+    vorticity.resize(128 * 128 * 128);
 
     // normals instead of smap
     lods[0].init(128, 32, 40000, 1);
@@ -1117,9 +1130,38 @@ void _cfdClipmap::simulate(float _dt)
                         uint index = lods[lod].idx(x, y, sliceIndex);
                         sliceV[(lods[lod].height - 1- y) * 128 + x] = lods[lod].v[index];
                         sliceData[(lods[lod].height - 1 - y) * 128 + x] = lods[lod].data[index];
-                        sliceNew = true;
+
+                        
+                        
                     }
                 }
+
+                float S = 128 * lods[lod].cellSize;
+                sliceCorners[0] = float3(lods[lod].offset + int3(0, 0, sliceIndex)) * lods[lod].cellSize + float3(-20000, 350, -20000);
+                sliceCorners[1] = sliceCorners[0];
+                sliceCorners[1].x += S;
+                sliceCorners[2] = sliceCorners[0];
+                sliceCorners[2].y += S;
+                sliceCorners[3] = sliceCorners[2];
+                sliceCorners[3].x += S;
+
+
+                float3 p0 = {64, 0, sliceIndex };
+                for (int j = 0; j < 100; j++)
+                {
+                    float3 data;
+                    data = lods[3].sample(lods[3].data, p0);
+                    skewTData[j].x = to_C(data.x);
+                    skewTData[j].y = dew_Temp_C(data.y);
+
+                    skewTV[j] = lods[3].sample(lods[3].v, p0);
+
+                    p0.y += 1.2f;                    
+                }
+
+                
+
+                sliceNew = true;
             }
 
             // now copy the visualization data
@@ -1893,7 +1935,7 @@ void _cfd_lod::incompressibility_Normal(uint _num)
     maxP = mP;
 };
 
-
+*/
 void _cfd_lod::vorticty_confine(float _dt, float _scale)
 {
     if (_scale == 0) return;
@@ -1907,9 +1949,9 @@ void _cfd_lod::vorticty_confine(float _dt, float _scale)
                 float xx_c = v[idx(x, h + 1, z)].z - v[i].z - v[idx(x, h, z + 1)].y + v[i].y;
                 float yy_c = v[idx(x, h, z + 1)].x - v[i].x - v[idx(x + 1, h, z)].z + v[i].z;
                 float zz_c = v[idx(x + 1, h, z)].y - v[i].y - v[idx(x, h + 1, z)].x + v[i].x;
-                curl[i] = { xx_c, yy_c, zz_c };
-                curl[i] *= oneOverSize;
-                mag[i] = glm::length(curl[i]);
+                _cfdClipmap::curl[i] = { xx_c, yy_c, zz_c };
+                _cfdClipmap::curl[i] *= oneOverSize;
+                _cfdClipmap::mag[i] = glm::length(_cfdClipmap::curl[i]);
             }
         }
     }
@@ -1921,13 +1963,13 @@ void _cfd_lod::vorticty_confine(float _dt, float _scale)
             for (uint x = 0; x < width - 2; x++)
             {
                 uint i = idx(x, h, z);
-                float3 gradient = { mag[idx(x + 1, h, z)] , mag[idx(x, h + 1, z)] , mag[idx(x, h, z + 1)] };  // gradient
-                gradient -= mag[i];
+                float3 gradient = { _cfdClipmap::mag[idx(x + 1, h, z)] , _cfdClipmap::mag[idx(x, h + 1, z)] , _cfdClipmap::mag[idx(x, h, z + 1)] };  // gradient
+                gradient -= _cfdClipmap::mag[i];
                 //gradient *= oneOverSize;
                 gradient += 0.000001f;
-                vorticity[i] = glm::normalize(gradient);
+                _cfdClipmap::vorticity[i] = glm::normalize(gradient);
 
-                float3 f = glm::cross(vorticity[i], curl[i]) * oneOverSize;
+                float3 f = glm::cross(_cfdClipmap::vorticity[i], _cfdClipmap::curl[i]) * oneOverSize;
 
                 v[i].xyz -= _scale * f * _dt;
             }
@@ -1935,7 +1977,7 @@ void _cfd_lod::vorticty_confine(float _dt, float _scale)
     }
 }
 
-*/
+
 void _cfd_lod::loadNormals(std::string filename)
 {
     std::ifstream ifs;

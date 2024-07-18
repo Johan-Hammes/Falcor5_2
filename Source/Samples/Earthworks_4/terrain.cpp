@@ -3837,8 +3837,20 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         }
 
 
-        cfd.sliceVTexture = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
-        cfd.sliceDataTexture = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+        {
+            cfd.sliceVTexture[0] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceDataTexture[0] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceDataTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            cfdSliceShader.load("Samples/Earthworks_4/hlsl/terrain/render_cfdSlice.hlsl", "vsMain", "psMain", Vao::Topology::TriangleStrip);
+            cfdSliceShader.Vars()->setSampler("gSampler", sampler_Trilinear);
+            cfdSliceShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);
+            cfdSliceShader.Vars()->setTexture("gV", cfd.sliceVTexture[0]);
+            cfdSliceShader.Vars()->setTexture("gData", cfd.sliceDataTexture[0]);
+            cfdSliceShader.Vars()->setTexture("gV_1", cfd.sliceVTexture[1]);
+            cfdSliceShader.Vars()->setTexture("gData_1", cfd.sliceDataTexture[1]);
+        }
 
 
 
@@ -4383,7 +4395,7 @@ void terrainManager::onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _scr
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
 
-    
+
     //_renderContext->updateTextureData(cfd.sliceVTexture.get(), cfd.clipmap.sliceV);
 
 
@@ -4412,10 +4424,10 @@ void terrainManager::onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _scr
         }
     }
 
-    
-    
-    
-    
+
+
+
+
     {
         ImVec4 col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
         const ImU32 col32 = ImColor(col);
@@ -4441,6 +4453,223 @@ void terrainManager::onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _scr
     }
 }
 
+
+
+void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float2 _screen)
+{
+    ImVec2 offset = { 400, 200 };
+    ImGui::SetCursorPos(offset);
+
+
+    const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32B = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
+    const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
+
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 1.f, 1.f, 0.75f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 0.f, 0.75f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
+    ImGui::BeginChildFrame(987651, ImVec2(1000, 1100));
+    ImGui::PushFont(pGui->getFont("roboto_20"));
+    {
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+        for (int T = -60; T <= 40; T += 10)
+        {
+            ImVec2 start = { 300.f + 20.f * T, 1000.f };
+            ImGui::SetCursorPos(start);
+            ImGui::Text("%d", T);
+
+            start.x += offset.x;
+            start.y += offset.y;
+            ImVec2 end = start;
+            end.x += 500;
+            end.y -= 1000;
+            float width = 1.f;
+            if (T == 0) width = 2.f;
+            draw_list->AddLine(start, end, col32, width);
+
+            // dry lapse
+            float Tmp = (float)T;
+            ImVec2 P = start;
+            ImVec2 P1 = P;
+            for (int alt = 0; alt < 5000; alt += 100)
+            {
+                Tmp -= 100 * 0.0098f;
+                P1 = P;
+                P.y -= 20;
+                P.x = offset.x + 300 + (alt + 100) * 0.1f + Tmp * 20.f;
+                draw_list->AddLine(P1, P, col32GR, 3);
+            }
+
+            // moist lapse
+            Tmp = (float)T;
+            P = start;
+            P1 = P;
+            for (int alt = 0; alt < 5000; alt += 100)
+            {
+                Tmp -= moistLapse(to_K(Tmp), (float)alt) * 100.f;
+                P1 = P;
+                P.y -= 20;
+                P.x = offset.x + 300 + (alt + 100) * 0.1f + Tmp * 20.f;
+                draw_list->AddLine(P1, P, col32GR, 3);
+            }
+        }
+
+        float3 data = cfd.skewT_data[0];
+        ImVec2 P = { offset.x + 300 + data.x * 20.f, offset.y + 1000 };
+
+
+        for (int j = 1; j < 100; j++)
+        {
+            data = cfd.skewT_data[j];
+            ImVec2 P1 = { offset.x + 300 + data.x * 20.f + j*5, offset.y + 1000 - j * 10 };
+            draw_list->AddLine(P, P1, col32R, 2);
+            P = P1;
+        }
+
+        data = cfd.skewT_data[0];
+        P = { offset.x + 300 + data.y * 20.f, offset.y + 1000 };
+        for (int j = 1; j < 100; j++)
+        {
+            data = cfd.skewT_data[j];
+            ImVec2 P1 = { offset.x + 300 + data.y * 20.f + j*5, offset.y + 1000 - j * 10 };
+            draw_list->AddLine(P, P1, col32B, 2);
+            P = P1;
+        }
+
+        // velocity
+        data = cfd.skewT_V[0];
+        float V = glm::length(data);
+        P = { offset.x + 10 + V * 20.f, offset.y + 1000 };
+        for (int j = 1; j < 100; j++)
+        {
+            data = cfd.skewT_V[j];
+            V = glm::length(data);
+            ImVec2 P1 = { offset.x + 10 + V * 20.f, offset.y + 1000 - j * 10 };
+            draw_list->AddLine(P, P1, col32B, 2);
+            P = P1;
+
+            if (j % 1 == 0)
+            {
+                float3 dir = glm::normalize(data);
+                draw_list->AddCircle(P, 3, col32B, 5);
+                P1.x += dir.x * 25;
+                P1.y += dir.z * 25;
+                draw_list->AddLine(P, P1, col32B, 2);
+            }
+        }
+
+
+        // Mouse overlay
+        ImVec2 mouse = ImGui::GetMousePos();
+        mouse.x += offset.x;
+        draw_list->AddLine(ImVec2(offset.x, mouse.y), ImVec2(offset.x + 1000, mouse.y), col32, 1);
+
+        int alt = (int)(5000 - 5 * (mouse.y - offset.y));
+        if (alt > 0)
+        {
+            ImGui::SetCursorPos(ImVec2(910, mouse.y - offset.y - 20));
+            ImGui::Text("%d m", alt);
+
+            ImVec2 p = ImGui::GetMousePos();
+            float dy = 1000 + offset.y - p.y;
+            uint idx = __max(0, __min(99, (int)(dy / 10)));
+
+
+            float vspeed = glm::length(cfd.skewT_V[idx]);
+            float angle = 360.f - atan2(cfd.skewT_V[idx].x, cfd.skewT_V[idx].z) * 57.2958f;
+            float C_Temp = cfd.skewT_data[idx].x;
+            float C_Dew = cfd.skewT_data[idx].y;
+            ImVec2 PVel = { 50 + vspeed * 20.f, mouse.y - offset.y };
+
+            ImVec2 PTemp = { 310 + C_Temp * 20.f + idx * 5, mouse.y - offset.y };
+            ImVec2 PDew = { 310 + C_Dew * 20.f + idx * 5, mouse.y - offset.y - 20 };
+            ImGui::SetCursorPos(PTemp);
+            ImGui::Text("%d", (int)C_Temp);
+
+            ImGui::SetCursorPos(PDew);
+            ImGui::Text("%d", (int)C_Dew);
+
+            ImGui::SetCursorPos(PVel);
+            ImGui::Text("%2.1f - %dº", vspeed, (int)angle);
+
+
+
+            // mouse click
+            if (cfd.editMode)
+            {
+                
+                
+                float T = (p.x - offset.x - 300 - (dy * 0.5f)) / 20.f;
+
+                
+
+
+                if (ImGui::IsMouseDown(0))
+                {
+                    if (ImGui::IsKeyDown((int)Input::Key::LeftControl))
+                    {
+                        cfd.skewT_data[idx].y = T;
+                    }
+                    else if (ImGui::IsKeyDown((int)Input::Key::LeftShift))
+                    {
+                        //offset.x + 10 + V * 20.f
+                        float V = (p.x - offset.x - 10) / 20.f;
+                        V = __max(0.001f, V);
+                        float3 newV = glm::normalize(cfd.skewT_V[idx]) * V;
+
+                        cfd.skewT_V[idx] = newV;
+                    }
+                    else if (ImGui::IsKeyDown((int)Input::Key::LeftAlt))
+                    {
+                        float angle = (p.x - offset.x - 10) / 50.f;
+                        float dX = sin(angle);
+                        float dY = cos(angle);
+                        float v = glm::length(cfd.skewT_V[idx]);
+                        cfd.skewT_V[idx] = v * float3(dX, 0, dY);
+                    }
+                    else
+                    {
+                        cfd.skewT_data[idx].x = T;
+                    }
+                }
+            }
+        }
+
+        if (!cfd.editMode)
+        {
+            // move to edit, copy data
+            cfd.skewT_data = cfd.clipmap.skewTData;
+            cfd.skewT_V = cfd.clipmap.skewTV;
+        }
+
+        ImGui::SetCursorPos(ImVec2(10, 1030));
+        if (ImGui::Checkbox("edit", &cfd.editMode))
+        {
+        }
+        ImGui::SameLine(0, 50);
+        if (ImGui::Button("Load")) {
+
+        }
+        ImGui::SameLine(0, 50);
+        if (ImGui::Button("Save")) {
+
+        }
+        ImGui::SameLine(0, 50);
+        if (ImGui::Button("Set atmosphere")) {
+
+        }
+
+    }
+    ImGui::PopFont();
+    ImGui::EndChildFrame();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+}
+
+
 void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen)
 {
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.75f));
@@ -4449,13 +4678,13 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
     ImGui::PushFont(pGui->getFont("roboto_26"));
     {
         //ImGui::SetCursorPos(ImVec2(0, 100));
-        ImGui::Text("    time  maxV  step  maxP");
+        ImGui::Text("      time   maxV  stp   maxP");
         for (int i = 0; i <= 5; i++)
         {
             ImGui::Text("%d - %d s, %2.1f m/s, %2.1f, %3d", i, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, (int)(cfd.clipmap.lods[i].maxP * 1000.f));
         }
 
-        
+
 
         ImGui::NewLine();
         ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
@@ -4483,14 +4712,18 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
 
         ImGui::NewLine();
         ImGui::Checkbox("show viz", &cfd.clipmap.showSlice);
-        ImGui::DragInt("lod", &cfd.clipmap.slicelod, 0.1f, 0, 5);
-        ImGui::DragInt("slice", &cfd.clipmap.sliceIndex, 0.1f, 0, 127);
+        ImGui::Checkbox("skewT", &cfd.clipmap.showskewT);       // shouldn tbe in clipmap
+        
+        ImGui::SliderInt("lod", &cfd.clipmap.slicelod, 0, 5);
+        ImGui::SliderInt("slice", &cfd.clipmap.sliceIndex, 0, 127);
 
         ImGui::NewLine();
         ImGui::DragFloat("relax", &cfd.clipmap.incompres_relax, 0.01f, 1.0f, 2.0f);
 
-        ImGui::NewLine();
+        
         ImGui::DragInt("num Inc", &cfd.clipmap.incompres_loop, 1, 1, 100);
+        ImGui::DragFloat("vort_confine", &cfd.clipmap.vort_confine, 0.01f, 0.0f, 1.0f);
+        
 
 
         if (cfd.clipmap.showSlice)
@@ -4506,19 +4739,20 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
             ImGui::Text("icmpres %d ms", (int)lod.simTimeLod_incompress_ms);
             ImGui::Text("advect  %d ms", (int)lod.simTimeLod_advect_ms);
             ImGui::Text("diffuse %d ms", (int)lod.simTimeLod_edges_ms);
-            
+
         }
     }
-    
+
     ImGui::EndChildFrame();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
 
-    if (cfd.clipmap.showSlice)
+    if (cfd.clipmap.showskewT)
     {
-        ImGui::SetCursorPos(ImVec2(400, 200));
-        _window.image("testImage", cfd.sliceDataTexture, float2(1024, 1024));
+
+        //_window.image("testImage", cfd.sliceDataTexture, float2(1024, 1024));
         //onGuiRendercfd(_window, pGui, _screen);
+        onGuiRendercfd_skewT(_window, pGui, _screen);
     }
     ImGui::PopFont();
 }
@@ -4630,14 +4864,14 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
             ImGui::PushFont(pGui->getFont("H2"));
             {
 
-                
+
             }
             ImGui::PopFont();
 
 
 
             onGuiRendercfd_params(_window, pGui, _screen);
-            
+
 
 
             ImGui::PopStyleColor();
@@ -7733,13 +7967,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         FALCOR_PROFILE("setBlob");
 
 
-        if (cfd.clipmap.sliceNew)
-        {
-            FALCOR_PROFILE("cfd slice update");
-            _renderContext->updateTextureData(cfd.sliceVTexture.get(), cfd.clipmap.sliceV.data());
-            _renderContext->updateTextureData(cfd.sliceDataTexture.get(), cfd.clipmap.sliceData.data());
-            cfd.clipmap.sliceNew = false;
-        }
+
 
         //cfd.originRequest = paraRuntime.pilotPos();
         //cfd.originRequest = float3(-1425 - 0, 425 + 140, 14533 - 2000);
@@ -8079,6 +8307,51 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
 
+    {
+        if (cfd.clipmap.sliceNew)
+        {
+            //FALCOR_PROFILE("cfd slice update");
+            uint oldSlice = cfd.sliceOrder;
+            cfd.sliceOrder = (cfd.sliceOrder + 1) % 2;
+            cfd.sliceTime = 0;
+
+            _renderContext->updateTextureData(cfd.sliceVTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceV.data());
+            _renderContext->updateTextureData(cfd.sliceDataTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceData.data());
+
+            cfdSliceShader.Vars()->setTexture("gV", cfd.sliceVTexture[oldSlice]);
+            cfdSliceShader.Vars()->setTexture("gData", cfd.sliceDataTexture[oldSlice]);
+            cfdSliceShader.Vars()->setTexture("gV_1", cfd.sliceVTexture[cfd.sliceOrder]);
+            cfdSliceShader.Vars()->setTexture("gData_1", cfd.sliceDataTexture[cfd.sliceOrder]);
+
+            cfdSliceShader.Vars()["gConstantBuffer"]["pos_0"] = cfd.clipmap.sliceCorners[0];
+            cfdSliceShader.Vars()["gConstantBuffer"]["pos_1"] = cfd.clipmap.sliceCorners[1];
+            cfdSliceShader.Vars()["gConstantBuffer"]["pos_2"] = cfd.clipmap.sliceCorners[2];
+            cfdSliceShader.Vars()["gConstantBuffer"]["pos_3"] = cfd.clipmap.sliceCorners[3];
+
+            cfd.clipmap.sliceNew = false;
+        }
+
+        static std::chrono::steady_clock::time_point prev;
+        std::chrono::steady_clock::time_point current = high_resolution_clock::now();
+        float dT = (float)duration_cast<microseconds>(current - prev).count() / 1000000.;
+        prev = current;
+
+        cfd.sliceTime += dT;
+        cfd.sliceTime = __min(cfd.sliceTime, 1.f);
+        float scale = 1.f;
+        if (cfd.clipmap.slicelod == 4) scale = 0.5f;
+        if (cfd.clipmap.slicelod == 3) scale = 0.25f;
+        if (cfd.clipmap.slicelod == 2) scale = 0.125f;
+        cfdSliceShader.Vars()["gConstantBuffer"]["dT"] = cfd.sliceTime * scale;
+
+        cfdSliceShader.State()->setFbo(_fbo);
+        cfdSliceShader.State()->setViewport(0, _viewport, true);
+        cfdSliceShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        cfdSliceShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
+        cfdSliceShader.State()->setRasterizerState(split.rasterstateSplines);
+        cfdSliceShader.State()->setBlendState(split.blendstateSplines);
+        cfdSliceShader.drawInstanced(_renderContext, 4, 1);
+    }
 
 
 
@@ -9398,8 +9671,8 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
 bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera)
 {
-    
-    if ((terrainMode == 0) || (terrainMode == 4 && !useFreeCamWhileGliding) )
+
+    if ((terrainMode == 0) || (terrainMode == 4 && !useFreeCamWhileGliding))
     {
         glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
         glm::vec2 diff;
@@ -10032,7 +10305,7 @@ void terrainManager::cfdThread()
     //uint seconds = 0;// 27040;
     //cfd.clipmap.import_V(settings.dirRoot + "/cfd/east3ms__" + std::to_string(seconds) + "sec");
 
-    cfd.clipmap.setWind(float3(5, 0, 0), float3(8, 0, 0));
+    cfd.clipmap.setWind(float3(2, 0, 0), float3(5, 0, 0));
     cfd.clipmap.simulate_start(32.0f);
 
 
@@ -10054,7 +10327,7 @@ void terrainManager::cfdThread()
     static int k = 0;
     while (1)
     {
-        
+
         if (cfd.pause)
         {
             Sleep(10);

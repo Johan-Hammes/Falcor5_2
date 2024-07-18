@@ -172,6 +172,7 @@ struct _cfd_lod
     _cfd_Smap smap;
     std::vector<cfd_V_type> v;
     std::vector<cfd_data_type> data;
+    std::vector<uint> blocks;           // uint32 bitmapped bool
 
     static std::vector<cfd_V_type> root_v;
 
@@ -191,7 +192,7 @@ struct _cfd_lod
     // deprecated
     //void Normal();
     //void incompressibility_Normal(uint _num);
-    //void vorticty_confine(float _dt, float _scale);
+    void vorticty_confine(float _dt, float _scale);
     //    std::vector<float3> curl;   // moce to paretn class 
     //    std::vector<float> mag;
     //    std::vector<float3> vorticity;
@@ -220,20 +221,24 @@ struct _cfdClipmap
 
     void shiftOrigin(float3 _origin);
 
-    bool showStreamlines = true;
+    bool showStreamlines = false;
     float stremlineScale = 0.05f;
     float streamlineAreaScale = 1.f;
     float streamLinesSize = 100;
     float streamLinesOffset = 1000;
 
     // sliceViz
-    bool showSlice = true;
+    bool showSlice = false;
+    bool showskewT = false;
     int slicelod = 0;
     int sliceIndex = 64;
     std::array<uint, 128 * 128> arrayVisualize;
     std::array<float3, 128 * 128> sliceV;
     std::array<float3, 128 * 128> sliceData;
     bool sliceNew = false;
+    float3 sliceCorners[4];
+    std::array<float3, 100> skewTData;
+    std::array<float3, 100> skewTV;
 
     
     
@@ -246,11 +251,17 @@ struct _cfdClipmap
 
     static float incompres_relax;
     static int incompres_loop;
+    static float vort_confine;
+
     static std::vector<cfd_V_type> v_back;      // my scratch buffers
     static std::vector<cfd_V_type> v_bfecc;
 
     static std::vector<cfd_data_type> data_back;      // my scratch buffers
     static std::vector<cfd_data_type> data_bfecc;
+
+    static std::vector<cfd_V_type> curl;
+    static std::vector<float> mag;
+    static std::vector<cfd_V_type> vorticity;
     
     /*
     uint inline idx(int x, int y, int z);

@@ -306,10 +306,10 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
 
     ROOT = float3(9000, 2100, 8000);// middlke
     // 
-    //ROOT = float3(15500, 1300, 14400);// windy south
+    ROOT = float3(15500, 1300, 14400);// windy south
     //ROOT = float3(-500, 500, 15400);// windy south landings
 
-    ROOT = float3(-1425, 700, 14500);// turb test
+    //ROOT = float3(-1425, 700, 14500);// turb test
 
     for (int i = 0; i < spanSize; i++)
     {

@@ -1064,6 +1064,7 @@ public:
     void onGuiRenderParaglider(Gui::Window &_window, Gui* pGui, float2 _screen);
     void onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _screen);
     void onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen);
+    void onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float2 _screen);
     bool renderGui_Menu = false;
     bool renderGui_Hud = true;
     void onGuiMenubar(Gui* pGui);
@@ -1175,6 +1176,8 @@ private:
     pixelShader thermalsShader;
     Buffer::SharedPtr       thermalsData;
     uint numThermals = 200;
+
+    pixelShader cfdSliceShader;
 
     public:
     pixelShader         rappersvilleShader;
@@ -1460,10 +1463,16 @@ private:
 
         std::array<float3, 10> velocityAnswers;
 
+        // skewT editor ---------------------------------
+        std::array<float3, 100> skewT_data;
+        std::array<float3, 100> skewT_V;
+        bool editMode = false;
 
 
-        Texture::SharedPtr	  sliceVTexture;
-        Texture::SharedPtr	  sliceDataTexture;
+        Texture::SharedPtr	  sliceVTexture[2];
+        Texture::SharedPtr	  sliceDataTexture[2];
+        uint sliceOrder = 0;
+        float sliceTime = 0;
     } cfd;      // guess this needs to become its own class or move into _cfdClipmap
 
 
