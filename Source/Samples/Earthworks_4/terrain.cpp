@@ -4673,15 +4673,15 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
 void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen)
 {
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.75f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
     ImGui::BeginChildFrame(98765, ImVec2(300, _screen.y));
-    ImGui::PushFont(pGui->getFont("roboto_26"));
+    ImGui::PushFont(pGui->getFont("roboto_20"));
     {
-        //ImGui::SetCursorPos(ImVec2(0, 100));
+        ImGui::NewLine();
         ImGui::Text("      time   maxV  stp   maxP");
         for (int i = 0; i <= 5; i++)
         {
-            ImGui::Text("%d - %d s, %2.1f m/s, %2.1f, %3d", i, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, (int)(cfd.clipmap.lods[i].maxP * 1000.f));
+            ImGui::Text("%d - %4d s, %2.1f m/s, %2.1f, %3d", i, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, (int)(cfd.clipmap.lods[i].maxP * 1000.f));
         }
 
 
@@ -4742,9 +4742,13 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
             cfd.clipmap.slicelod = __min(5, cfd.clipmap.slicelod);
             auto& lod = cfd.clipmap.lods[cfd.clipmap.slicelod];
 
+            
             ImGui::Text("(%d, %d, %d) abs", lod.offset.x, lod.offset.y, lod.offset.z);
             ImGui::Text("(%d, %d, %d) rel", lod.offset.x % lod.width, lod.offset.y % lod.height, lod.offset.z % lod.width);
+
+            ImGui::NewLine();
             ImGui::Text("%d ms - total", (int)lod.solveTime_ms);
+            ImGui::Text("blocks %d ms (%d / 4096)", (int)lod.simTimeLod_blocks_ms, lod.numBlocks);
             ImGui::Text("boyancy %d ms", (int)lod.simTimeLod_boyancy_ms);
             ImGui::Text("icmpres %d ms", (int)lod.simTimeLod_incompress_ms);
             ImGui::Text("advect  %d ms", (int)lod.simTimeLod_advect_ms);
@@ -7984,7 +7988,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
         //cfd.originRequest = paraRuntime.pilotPos();
-        //cfd.originRequest = float3(-1425 - 0, 425 + 140, 14533 - 2000);
+        //cfd.originRequest = float3(-1425 + 500, 425 + 140, 14533 - 2000);
         //cfd.originRequest = float3(1852, 1500, 10910);
 
         cfd.velocityRequets[0] = paraRuntime.pilotPos();

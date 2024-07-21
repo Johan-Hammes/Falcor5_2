@@ -155,6 +155,7 @@ struct _cfd_lod
     void advect(float _dt);
     void diffuse(float _dt);
     void edges();
+    void solveBlockRating();
     void simulate(float _dt);
     
 
@@ -172,12 +173,15 @@ struct _cfd_lod
     _cfd_Smap smap;
     std::vector<cfd_V_type> v;
     std::vector<cfd_data_type> data;
-    std::vector<uint> blocks;           // uint32 bitmapped bool
+    std::vector<unsigned char> blockRating;           // uint32 bitmapped bool
+    std::vector<uint3> blocks;
 
     static std::vector<cfd_V_type> root_v;
 
 
 
+    uint numBlocks = 0;
+    double simTimeLod_blocks_ms;
     double simTimeLod_advect_ms;
     double simTimeLod_incompress_ms;
     double simTimeLod_boyancy_ms;
@@ -192,7 +196,7 @@ struct _cfd_lod
     // deprecated
     //void Normal();
     //void incompressibility_Normal(uint _num);
-    void vorticty_confine(float _dt, float _scale);
+    //void vorticty_confine(float _dt, float _scale);
     //    std::vector<float3> curl;   // moce to paretn class 
     //    std::vector<float> mag;
     //    std::vector<float3> vorticity;
@@ -230,7 +234,7 @@ struct _cfdClipmap
     // sliceViz
     bool showSlice = false;
     bool showskewT = false;
-    int slicelod = 0;
+    int slicelod = 5;
     int sliceIndex = 64;
     std::array<uint, 128 * 128> arrayVisualize;
     std::array<float3, 128 * 128> sliceV;

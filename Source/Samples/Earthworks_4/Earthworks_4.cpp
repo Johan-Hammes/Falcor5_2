@@ -572,14 +572,23 @@ void Earthworks_4::guiStyle()
 
 int main(int argc, char** argv)
 {
+    logFile = fopen("log.txt", "w");
+    fprintf(logFile, "main()\n");
+    fflush(logFile);
+
+
     bool allScreens = false;
-    
+
     for (int i = 0; i < argc; i++)
     {
         if (std::string(argv[i]).find("-allscreens") != std::string::npos) allScreens = true;
     }
+    
 
-    Earthworks_4::UniquePtr pRenderer = std::make_unique<Earthworks_4>();
+    fprintf(logFile, "SampleConfig config;\n");
+    fflush(logFile);
+
+    
 
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
@@ -596,11 +605,12 @@ int main(int argc, char** argv)
     // config.windowDesc.monitor = 1;
     //config.deviceDesc.colorFormat = ResourceFormat::RGB10A2Unorm;
 
-    logFile = fopen("log.txt", "w");
-    fprintf(logFile, "main()\n");
+    fprintf(logFile, "Sample::run(config, pRenderer);\n");
     fflush(logFile);
 
+    Earthworks_4::UniquePtr pRenderer = std::make_unique<Earthworks_4>();
     Sample::run(config, pRenderer);
-    
+
+    fclose(logFile);
     return 0;
 }

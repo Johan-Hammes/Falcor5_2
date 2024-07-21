@@ -1398,18 +1398,17 @@ void _gliderBuilder::generateLines()
 
     // now for intermediate 4 weight view of world
     float pilotW = 1.f / (90.f / 4.f);    // 90 kg
-    x[startVert + 0] = float3(-0.15f, -0.3f, 0.15); // bacl left 
+    x[startVert + 0] = float3(-0.1f, -0.3f, 0.1); // bacl left 
     w[startVert + 0] = pilotW;
 
-    x[startVert + 1] = float3(0.15f, -0.3f, 0.15);  // back right
+    x[startVert + 1] = float3(0.1f, -0.3f, 0.1);  // back right
     w[startVert + 1] = pilotW;
 
-    x[startVert + 2] = float3(0.20f, -0.3f, -0.15);  // front right
+    x[startVert + 2] = float3(0.10f, -0.3f, -0.1);  // front right
     w[startVert + 2] = pilotW;
 
-    x[startVert + 3] = float3(-0.20f, -0.3f, -0.15); // front left
+    x[startVert + 3] = float3(-0.10f, -0.3f, -0.1); // front left
     w[startVert + 3] = pilotW;
-
 
     x[startVert + 4] = float3(-0.29f, 0, 0);    // 50 cm pacing on carabiners
     w[startVert + 4] = 1.f / 3.f;
@@ -1437,10 +1436,10 @@ void _gliderBuilder::generateLines()
     constraints.push_back(_constraint(startVert + 4, startVert + 5, 0, glm::length(x[startVert + 4] - x[startVert + 5]), 1.f, 0.01f, 0.f));
 
     // 4 cross braces
-    constraints.push_back(_constraint(startVert + 0, startVert + 5, 0, glm::length(x[startVert + 0] - x[startVert + 5]), 0.001f, 0.001f, 0.f));
-    constraints.push_back(_constraint(startVert + 1, startVert + 4, 0, glm::length(x[startVert + 1] - x[startVert + 4]), 0.001f, 0.001f, 0.f));
-    constraints.push_back(_constraint(startVert + 2, startVert + 4, 0, glm::length(x[startVert + 2] - x[startVert + 4]), 0.001f, 0.001f, 0.f));
-    constraints.push_back(_constraint(startVert + 3, startVert + 5, 0, glm::length(x[startVert + 3] - x[startVert + 5]), 0.001f, 0.001f, 0.f));
+    constraints.push_back(_constraint(startVert + 0, startVert + 5, 0, glm::length(x[startVert + 0] - x[startVert + 5]), 0.01f, 0.01f, 0.f));
+    constraints.push_back(_constraint(startVert + 1, startVert + 4, 0, glm::length(x[startVert + 1] - x[startVert + 4]), 0.01f, 0.01f, 0.f));
+    constraints.push_back(_constraint(startVert + 2, startVert + 4, 0, glm::length(x[startVert + 2] - x[startVert + 4]), 0.01f, 0.01f, 0.f));
+    constraints.push_back(_constraint(startVert + 3, startVert + 5, 0, glm::length(x[startVert + 3] - x[startVert + 5]), 0.01f, 0.01f, 0.f));
 
 
     uint idx = startVert + 15;

@@ -109,6 +109,6 @@ float4 psMain(PSIn vOut) : SV_TARGET
     float cloud = saturate((DewC - C) / 2);
     color = lerp(color, float3(0.3, 0.3, 0.3) * 0.7, cloud);
     a = max(a, cloud);
-    //a = cloud;
+    //a = 1;
     return float4(color, a);
 }

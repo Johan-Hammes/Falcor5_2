@@ -187,8 +187,7 @@ void _cfd_lod::init(uint _w, uint _h, float _worldSize, float scale)
 
     uint block_h = _h / 8;
     uint block_w = _w / 8;
-    uint block_x = __max(1, block_w / 32);
-    blocks.resize(block_h * block_w * block_x);
+    blockRating.resize(block_h * block_w * block_w);
 
     //v2.resize(_h * _w * _w);
     //curl.resize(_h * _w * _w);
@@ -831,7 +830,7 @@ void _cfd_lod::bouyancy(float _dt)
     for (uint h = 1; h < height-1; h++)
     {
         float alt = rootAltitude + cellSize * (h + offset.y);
-        float baseTemperature = rootTemperature - (alt * 8.2f / 1000.f);
+        float baseTemperature = rootTemperature - (alt * 8.2f / 1000.f);        /// AAAAAHHHHH BAD from corner sketT
 
         for (uint z = 0; z < width; z++) {
             for (uint x = 0; x < width; x++)
@@ -842,8 +841,12 @@ void _cfd_lod::bouyancy(float _dt)
 
                 float d0 = density(alt, baseTemperature);
                 float d1 = density(alt, data[i].x);
+                //data[i].z = (d0 - d1) / d0;             // save relative density in z - Not great since we can just recalculate. wastes space and advects
+                //data[i].z = 1.f - baseTemperature / data[i].x;  // SIMPLIFIED
+                
+                 
                 //float dW = (data[i].x - baseTemperature) / baseTemperature;
-                v[i].y += (d0 - d1) / d0 * _dt * 9.8f;
+                v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
 
                 //baseTemperature / data[i].x;
                 // BOUYANCY is the change om pressre w r t temperature, relatibe to the local environsment at the same height
@@ -924,15 +927,95 @@ template <typename T> T _cfd_lod::sample(std::vector<T>& _data, float3 _p)
 // split to faces
 
 
+// FIXME also add some blocks arounf teh  center for teh glidr always
+void _cfd_lod::solveBlockRating()
+{
+    blocks.clear();
+    numBlocks = 0;
+    float rootAltitude = 350.f;   // in voxel space NIE AL WEER NIE
+    float rootTemperature = to_K(30.f);
+
+    uint bH = height / 8;
+    uint bW = width / 8;
+    for (uint h = 0; h < bH; h++)    {
+        for (uint z = 0; z < bW; z++)        {
+            for (uint x = 0; x < bW; x++)
+            {
+                unsigned char R = 10; // zero is reserved for under grund
+                int sumS = 0;
+
+                for (uint dh = 0; dh < 8; dh++)
+                {
+                    float alt = rootAltitude + cellSize * (h * 8 + dh + offset.y);
+                    float baseTemperature = rootTemperature - (alt * 8.2f / 1000.f);        /// AAAAAHHHHH BAD from corner sketT
+
+                    for (uint dz = 0; dz < 8; dz++) {
+                        for (uint dx = 0; dx < 8; dx++) {
+                            uint i = idx(x * 8 + dx, h * 8 + dh, z * 8 + dz);
+                            float dBouy = 1.f - baseTemperature / data[i].x;  // SIMPLIFIED
+                            unsigned char newR = __min(255, (int)(abs(dBouy * 100 * 255)));
+                            R = __max(R, newR);
+
+                            // This works for ground but takes 5ms and can easily be switched to a blocks size map of heights
+                            glm::u8vec4 smin = smap.getS(int3(x * 8 + dx, h * 8 + dh, z * 8 + dz) + offset);
+                            sumS += smin.y;
+                            //if (smin.y < 255) R = 255;
+
+                            // and now also test for clouds, maybe alwasy run tehm harder, or do we need somethgin esle
+                            float C = to_C(data[i].x);
+                            float DewC = dew_Temp_C(data[i].y);
+                            float cloud = saturate((DewC - C) / 2);
+                            if (cloud > 0) R = 255;
+                        }
+                    }
+                }
+
+                if (sumS == 0) R = 0; //underground
+                else if (sumS == 255 * 8 * 8 * 8)
+                {
+                }
+                else
+                {
+                    R = 255;
+                }
+
+                R = 255;    // For teh moment force all of them on
+                blockRating[(h * bW * bW) + (z * bW) + x] = R;
+                if (R > 30)
+                {
+                    numBlocks++;
+                    blocks.push_back(uint3(x * 8, h * 8, z * 8));
+                }
+            }
+        }
+    }
+}
+/*
+* for (uint h = 0; h < height - 1; h++)
+        {
+            int dX = (n + (h % 2)) % 2;
+            int dY = ((n >> 1) + (h % 2)) % 2;
+            for (uint z = 0; z < width - 2; z += 2) {
+                for (uint x = 0; x < width - 2; x += 2)
+                {
+                    smin = smap.getS(int3(x + dX, h, z + dY) + offset);
+*/
+
+
 void _cfd_lod::simulate(float _dt)
 {
     timer += _dt;
 
+
+    auto aa = high_resolution_clock::now();
+    solveBlockRating();
+
     auto a = high_resolution_clock::now();
+    
     addTemperature();
     bouyancy(_dt);
 
-    vorticty_confine(_dt, _cfdClipmap::vort_confine);
+    //vorticty_confine(_dt, _cfdClipmap::vort_confine);
 
     auto b = high_resolution_clock::now();
     incompressibility_SMAP();                       //??? I think this should be last, leave the saves state as good as possible
@@ -953,6 +1036,7 @@ void _cfd_lod::simulate(float _dt)
     tickCount++;
     frameTime += _dt;
 
+    simTimeLod_blocks_ms = (double)duration_cast<microseconds>(a - aa).count() / 1000.;
     simTimeLod_boyancy_ms = (double)duration_cast<microseconds>(b - a).count() / 1000.;
     simTimeLod_incompress_ms = (double)duration_cast<microseconds>(c - b).count() / 1000.;
     simTimeLod_advect_ms = (double)duration_cast<microseconds>(d - c).count() / 1000.;
@@ -1104,11 +1188,12 @@ void _cfdClipmap::simulate(float _dt)
             uint lod = 6 - l;
             float time = _dt / pow(2, lod);
 
-            //if (lod > 0)
+            auto& L = lods[lod];
+            
             {
                 
-                lods[lod].simulate(time);
-                lods[lod].toRoot_Alpha();
+                L.simulate(time);
+                L.toRoot_Alpha();
                 if (lod < 5) {
                     lods[lod + 1].fromRoot_Alpha();
                 }
@@ -1123,21 +1208,25 @@ void _cfdClipmap::simulate(float _dt)
 
             if (showSlice && lod == slicelod)
             {
-                for (int y = 0; y < lods[lod].height; y++)
+                for (int y = 0; y < L.height; y++)
                 {
                     for (int x = 0; x < 128; x++)
                     {
-                        uint index = lods[lod].idx(x, y, sliceIndex);
-                        sliceV[(lods[lod].height - 1- y) * 128 + x] = lods[lod].v[index];
-                        sliceData[(lods[lod].height - 1 - y) * 128 + x] = lods[lod].data[index];
+                        uint index = L.idx(x, y, sliceIndex);
+                        sliceV[(L.height - 1- y) * 128 + x] = L.v[index];
+                        sliceData[(L.height - 1 - y) * 128 + x] = L.data[index];
 
-                        
-                        
+                        uint bW = L.width >> 3;
+                        uint bi = ((y >> 3) * bW * bW) + ((sliceIndex >> 3) * bW) + (x >> 3);  // do a safe version
+                        if (L.blockRating[bi] < 30)
+                        {
+                            sliceData[(L.height - 1 - y) * 128 + x].z = 0.3f;
+                        }
                     }
                 }
 
-                float S = 128 * lods[lod].cellSize;
-                sliceCorners[0] = float3(lods[lod].offset + int3(0, 0, sliceIndex)) * lods[lod].cellSize + float3(-20000, 350, -20000);
+                float S = 128 * L.cellSize;
+                sliceCorners[0] = float3(lods[lod].offset + int3(0, 0, sliceIndex)) * L.cellSize + float3(-20000, 350, -20000);
                 sliceCorners[1] = sliceCorners[0];
                 sliceCorners[1].x += S;
                 sliceCorners[2] = sliceCorners[0];
@@ -1164,207 +1253,7 @@ void _cfdClipmap::simulate(float _dt)
                 sliceNew = true;
             }
 
-            // now copy the visualization data
-            if (showSlice && lod == slicelod)
-            {
-                for (int y = 0; y < lods[lod].height; y++)
-                {
-                    for (int x = 0; x < 128; x++)
-                    {
-                        unsigned int r = 0, g = 0, b = 0, a = 255;
-
-                        uint index = lods[lod].idx(x, y, sliceIndex);
-                        uint i_t = index;
-                        uint i_b = index;
-                        if (y < lods[lod].height - 1)   i_t = lods[lod].idx(x, y + 1, sliceIndex);
-                        if (y > 0)                      i_b = lods[lod].idx(x, y - 1, sliceIndex);
-
-                        // Speed
-                        float3 V = lods[lod].getV(index);
-                        float speed = glm::length(V);
-                        if (V.x > 0)    r = __min(255, (int)(V.x * 20.f));
-                        else            b = __min(255, (int)(-V.x * 20.f));
-
-                        // temperature
-                        float3 data = lods[lod].data[index];
-                        float dewPoint_C = dew_Temp_C(data.y);
-                        float temp_C = to_C(data.x);
-                        temp_C = temp_C - dewPoint_C;
-
-                        r = (int)__max( 0, temp_C * 10.f);
-                        g = ((int)(temp_C * 10)) % 20;
-                        b = __min(255, (int)__max(0, -temp_C * 10.f));
-
-                        if (temp_C < 0)
-                        {
-                            int cloudVal = 
-                            r = 175;
-                            g = 175;
-                            b = 175;
-
-                            if (to_C(data.x) < -2)
-                            {
-                                r = 205;
-                                g = 205;
-                                b = 205;
-                            }
-                        }
-
-
-                        
-
-
-                        //Relative temeperature and bouyancy
-                        {
-                            float rootAltitude = 350.f;   // in voxel space NIE AL WEER NIE
-                            float alt = rootAltitude + lods[lod].cellSize * (y + lods[lod].offset.y);
-
-                            float dewPoint = dew_Temp_C(data.y);
-                            float dT_1Cell = -0.0098f * lods[lod].cellSize;
-                            if (dewPoint > to_C(data.x))
-                            {
-                                dT_1Cell = -1.f * moistLapse(data.x, alt) * lods[lod].cellSize;
-                            }
-                            //float deltaTemp = lods[lod].data[lods[lod].idx(x, y + 1, sliceIndex)].x - (data.x + dT_1Cell);
-                            float3 dataAbove = lods[lod].data[i_t];
-                            float3 dataBelow = lods[lod].data[i_b];
-                            float deltaTemp =  data.x + dT_1Cell - dataAbove.x;
-
-                            float K_above = dataAbove.x;
-                            float K_lapse = data.x + dT_1Cell;
-
-                            r = 0;
-                            g = 0;
-                            b = 0;
-
-                            // density
-                            float _x = lods[lod].cellSize;
-                            float pressurePa = pressure_Pa(alt);                // error dry only
-                            float p_B = pressure_Pa(alt - _x * 0.5f);
-                            float p_T = pressure_Pa(alt + _x * 0.5f);
-                            float fP = (p_B - p_T) * _x * _x;
-
-                            float mass = data.z * _x * _x * _x;
-                            float fG =  mass * 9.8;
-
-                            float fTotal = fP - fG;
-
-                            float aPres = fP / mass;
-                            float aGrav = 9.8f;
-
-                            // assume base temp is perfectly in balance
-                            float baseTemperature = to_K(30.f) - (alt * 8.2f / 1000.f);
-                            float dW = (data.x - baseTemperature) / baseTemperature;
-
-
-                            float a = dW;//aPres - aGrav;
-                            //if (a > 0)  r = (int)__max(0, a * 100 * 255) % 255;
-                            //else        b = (int)__max(0, -a * 100 * 255) % 255;
-
-                            //if (a < 10000) b = 100;
-                            //if (a > 14000) g = 100;
-
-                            float dense = data.z;// density(alt, data.x);
-
-                            //g = (int)__max(0, dense / 1.4f * 100 * 255) % 255;
-                            //if (pressurePa > 96000) r = 100;
-                            //if (alt > 457) b = 100;
-
-                            float top = (data.x + dT_1Cell) - dataAbove.x;
-                            float bottom = (data.x - dT_1Cell) - dataBelow.x;
-                             
-                            float lift = top - bottom;// +bottom;
-
-                            //if (lift > 0)    r = (int)__max(0, lift * 1 * 255) % 255;
-                            //else             b = (int)__max(0, -lift * 1 * 255) % 255;
-                            if (K_lapse > K_above)
-                            {
-                                //r = (int)__max(0, deltaTemp * 1 * 255) % 255;
-                            }
-
-                            if (dataAbove.x > data.x)
-                            {
-                                //b = (int)__max(0, -deltaTemp * 100 * 255);
-                            }
-
-                            {
-                                float temp_C = to_C(data.x);
-                                //temp_C = temp_C - dewPoint_C;
-
-                                g = (((int)(temp_C * 0.5 * 256)) % 255) / 20;
-                                //b = 100;
-                            }
-
-                            deltaTemp = -deltaTemp / data.x;
-
-                            //r = (int)__max(0, deltaTemp * 100 * 255);
-                            //g = 0;
-                            //b = (int)__max(0, -deltaTemp * 100 * 255);
-
-                            // NEW boyancy
-
-                            /*
-                                
-
-                                diff = (data[ib].x - (data[i].x - dT_1Cell)) / data[i].x;
-                                if (diff > 0)
-                                {
-                                    //v[i].y -= diff * 9.8f * _dt;
-                                }
-                            */
-                        }
-
-                        //Smoke
-                        
-                        if (data.z > 0.001f)
-                        {
-                            
-                            float alpha = 1.f - pow(data.z, 0.9);
-                            alpha = __max(alpha, 0.1);
-                            alpha = __min(alpha, 1);
-                            r = (int)(r * alpha);
-                            g = (int)(g * alpha);
-                            b = (int)(b * alpha);
-
-                            int a = (int)(60 * (1.f - alpha));
-                            r += a;
-                            g += a;
-                            b += a;
-                            
-                        }
-                        
-
-                        
-                        // clouds
-                        float temp_C2 = to_C(data.x);
-                        float dewPoint = dew_Temp_C(data.y);
-                        float diff = temp_C2 - dewPoint;
-
-                        if (dewPoint > temp_C2)
-                        {
-                            int max = 180;
-                            if (temp_C < -5) max = 220;
-                            float scale = __min(1, (dewPoint - temp_C2) / 2.f);
-                            max = (int)(max * scale);
-
-                            r = __max(r, max);
-                            g = __max(g, max);
-                            b = __max(b, max);
-                        }
-                        
-                        /*
-                        g = (int)(V.y * 255.f);
-                        b = (int)(V.z * 255.f);
-                        a = 255;// (int)(__min(1.f, __max(0, speed - 14.f)) * 255.f);
-                        r = (int)V.x;
-                        g = 0;
-                        b = 0;
-                        */
-                        uint idx = (y * 128 + x);
-                        arrayVisualize[idx] = (a << 24) + (b << 16) + (g << 8) + r;
-                    }
-                }
-            }
+            
         }
     }
 
@@ -1936,6 +1825,7 @@ void _cfd_lod::incompressibility_Normal(uint _num)
 };
 
 */
+/*
 void _cfd_lod::vorticty_confine(float _dt, float _scale)
 {
     if (_scale == 0) return;
@@ -1976,7 +1866,7 @@ void _cfd_lod::vorticty_confine(float _dt, float _scale)
         }
     }
 }
-
+*/
 
 void _cfd_lod::loadNormals(std::string filename)
 {
