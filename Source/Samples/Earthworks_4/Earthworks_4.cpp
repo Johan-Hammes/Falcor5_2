@@ -204,7 +204,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.terrainShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.terrainShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
-    
+
 
     terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.terrainSpiteShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
@@ -218,6 +218,8 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+
+    atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture[0], terrain.cfd.sliceVolumeTexture[1]);
 
     fprintf(logFile, "terrain.cfdStart()\n");
     fflush(logFile);
@@ -301,7 +303,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     {
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
-        terrain.shadowEdges.sunAngle = 0.13f;
+        terrain.shadowEdges.sunAngle = .105f;
         terrain.shadowEdges.dAngle = 0.0001f;
         terrain.shadowEdges.requestNewShadow = true;
 
@@ -316,6 +318,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
+        
     }
 
     {
@@ -332,6 +335,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     }
 
     FALCOR_PROFILE("onFrameUpdate");
+    atmosphere.setSmokeTime(terrain.cfd.lodLerp5);
     atmosphere.setSunDirection(global_sun_direction);
     atmosphere.getFar().setCamera(camera);
     atmosphere.computeSunInAtmosphere(_renderContext);
@@ -605,10 +609,14 @@ int main(int argc, char** argv)
     // config.windowDesc.monitor = 1;
     //config.deviceDesc.colorFormat = ResourceFormat::RGB10A2Unorm;
 
-    fprintf(logFile, "Sample::run(config, pRenderer);\n");
+    fprintf(logFile, "std::make_unique\n");
     fflush(logFile);
 
     Earthworks_4::UniquePtr pRenderer = std::make_unique<Earthworks_4>();
+
+    fprintf(logFile, "Sample::run(config, pRenderer);\n");
+    fflush(logFile);
+
     Sample::run(config, pRenderer);
 
     fclose(logFile);

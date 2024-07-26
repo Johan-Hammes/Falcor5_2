@@ -33,7 +33,20 @@ TextureCube envMap : register(t6);
 Texture2D SunInAtmosphere : register(t7);
 Texture2D terrainShadow : register(t8);
 
-Texture2D fogDensities[32] : register(t10);
+Texture2D fogDensities[32] : register(t32);
+
+Texture3D gLOD5Smoke : register(t9);
+Texture3D gLOD5SmokeB : register(t10);
+Texture3D gLOD4Smoke : register(t11);
+Texture3D gLOD4SmokeB : register(t12);
+Texture3D gLOD3Smoke : register(t13);
+Texture3D gLOD3SmokeB : register(t14);
+Texture3D gLOD2Smoke : register(t15);
+Texture3D gLOD2SmokeB : register(t16);
+Texture3D gLOD1Smoke : register(t17);
+Texture3D gLOD1SmokeB : register(t18);
+Texture3D gLOD0Smoke : register(t19);
+Texture3D gLOD0SmokeB : register(t20);
 
 
 
@@ -110,6 +123,20 @@ cbuffer FogAtmosphericParams : register(b1) {
 	float tmp_C;
 	float tmp_D;
 	// ############################################################################################################################
+    // Temporary block for smoke
+    float4 cfdOffset_time_0;
+    float4 cfdOffset_time_1;
+    float4 cfdOffset_time_2;
+    float4 cfdOffset_time_3;
+    float4 cfdOffset_time_4;
+    float4 cfdOffset_time_5;
+    float4 cfdScale_0;
+    float4 cfdScale_1;
+    float4 cfdScale_2;
+    float4 cfdScale_3;
+    float4 cfdScale_4;
+    float4 cfdScale_5;
+    float smk_dTime;
 };
 
 cbuffer FogLights : register(b2) {
@@ -195,7 +222,56 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
 	float4 Optical = opticalDepth(altKm);
 	float stepKm = step * 0.001;
 
-	float pRayleigh = Optical.x * stepKm;
+    // Volume clouds
+    
+    float3 smokePos = eye_position + (eye_dir * depth);
+    float SMK = 0;
+    float SMK_b = 0;
+    float3 SmokeUV;
+
+    smokePos += eye_dir * step * 0.50;  // Chck thsi is correct, the 0.4 below sugegsts that step is already half step
+    SmokeUV = (smokePos - cfdOffset_time_5.xyz) * cfdScale_5.xyz;
+    if (all(saturate(SmokeUV - 0.05) * saturate(0.95 - SmokeUV)))
+    {
+        SMK += gLOD5Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
+        SMK_b += gLOD5SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
+        
+    }
+
+    //SMK = pow(lerp(SMK, SMK_b, smk_dTime), 4.0);
+    Optical.y += 10000.1f * SMK;
+    Optical.z += 50.1f * SMK;
+    /*
+    for (int i = 0; i < 5; i++)
+    {
+        smokePos += eye_dir * step * 0.40;
+        SmokeUV = (smokePos - cfdOffset_time_5.xyz) / cfdScale_5.xyz;
+        SMK += gLOD5Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
+        SMK_b += gLOD5SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
+    }
+
+    SMK = saturate(lerp(SMK, SMK_b, smk_dTime) * 0.2);
+    
+    //float3 SmokeUV = (pos) / 1250 ;
+    
+    //Optical.z += 10 * frac(SmokeUV.x);
+
+
+    if (all(saturate(SmokeUV - 0.05) * saturate(0.95 - SmokeUV)))
+        //if (SmokeUV.y < 0.99 && SmokeUV.x > 0 && SmokeUV.x < 1 && SmokeUV.z > 0 && SmokeUV.z < 1)
+    {
+        //Optical.y += 10;
+        Optical.y += 10000.1f * pow(SMK, 3.3);
+        Optical.z += 50.1f * pow(SMK, 3.9);
+    }
+    else
+    {
+    
+        SMK = 0;
+    }
+    */
+
+    float pRayleigh = Optical.x * stepKm;
 	float pMie_haze = Optical.y * stepKm;
 	float pMie_fog = Optical.z * stepKm;
 
@@ -231,8 +307,8 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     float3 inscatterIBL =  (Haze_scattering * pMie_haze * haze_Colour) + (Fog_scattering * pMie_fog * fog_Colour) + (pMie_rain * rain_Colour);
 
 
-    newIn = inscatterRayleigh * (sunlight.rgb + IBL) + inscatterMie * sunlight.rgb + inscatterIBL * IBL;
-	newOut += (Rayleigh_extinction * pRayleigh) + (Haze_extinction * pMie_haze) + (Fog_extinction * pMie_fog) + (1 * pMie_rain);
+    newIn = inscatterRayleigh * (sunlight.rgb + IBL) + inscatterMie * sunlight.rgb + inscatterIBL * IBL + IBL * min(0.01, saturate(SMK * 3.52));
+    newOut += (Rayleigh_extinction * pRayleigh) + (Haze_extinction * pMie_haze) + (Fog_extinction * pMie_fog) + (1 * pMie_rain) + SMK * 5.72;
 
 	planetRadius = length(pos * 0.001 + float3(0, EarthR, 0));
 }

@@ -284,7 +284,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.diffuse.rg = GIS_UV;
 */
 	//lightIBL( Attr, mat, diffuse, specular );						// 	170us
-    float S = pow(shadow(vIn.worldPos, 0), 0.5);
+    float S = pow(shadow(vIn.worldPos, 0), 0.25);
     //S *= S;
     float4 sunColor = sunLight(vIn.worldPos * 0.001);
     

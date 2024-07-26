@@ -3842,6 +3842,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             cfd.sliceVTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceDataTexture[0] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceDataTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R8Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R8Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfdSliceShader.load("Samples/Earthworks_4/hlsl/terrain/render_cfdSlice.hlsl", "vsMain", "psMain", Vao::Topology::TriangleStrip);
             cfdSliceShader.Vars()->setSampler("gSampler", sampler_Trilinear);
@@ -4748,6 +4750,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
 
             ImGui::NewLine();
             ImGui::Text("%d ms - total", (int)lod.solveTime_ms);
+            ImGui::Text("fromR %d ms", (int)lod.simTimeLod_fromRoot_ms);
             ImGui::Text("blocks %d ms (%d / 4096)", (int)lod.simTimeLod_blocks_ms, lod.numBlocks);
             ImGui::Text("boyancy %d ms", (int)lod.simTimeLod_boyancy_ms);
             ImGui::Text("icmpres %d ms", (int)lod.simTimeLod_incompress_ms);
@@ -7988,7 +7991,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
         //cfd.originRequest = paraRuntime.pilotPos();
-        //cfd.originRequest = float3(-1425 + 500, 425 + 140, 14533 - 2000);
+        //cfd.originRequest = float3(-1425 + 800, 425 + 140, 12533);
+        //cfd.originRequest = float3(1184, 422 + 20, 14829);
+        cfd.originRequest = float3(9224 + 580, 1458, 4291);
+        
         //cfd.originRequest = float3(1852, 1500, 10910);
 
         cfd.velocityRequets[0] = paraRuntime.pilotPos();
@@ -8336,6 +8342,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             _renderContext->updateTextureData(cfd.sliceVTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceV.data());
             _renderContext->updateTextureData(cfd.sliceDataTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceData.data());
+            _renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.sliceOrder].get(), cfd.clipmap.volumeData);
+
+            
 
             cfdSliceShader.Vars()->setTexture("gV", cfd.sliceVTexture[oldSlice]);
             cfdSliceShader.Vars()->setTexture("gData", cfd.sliceDataTexture[oldSlice]);
@@ -8357,6 +8366,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         cfd.sliceTime += dT;
         cfd.sliceTime = __min(cfd.sliceTime, 1.f);
+        cfd.lodLerp5 = cfd.sliceTime;
+        if (cfd.sliceOrder == 0) cfd.lodLerp5 = 1.f - cfd.sliceTime;
         float scale = 1.f;
         if (cfd.clipmap.slicelod == 4) scale = 0.5f;
         if (cfd.clipmap.slicelod == 3) scale = 0.25f;

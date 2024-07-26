@@ -207,3 +207,29 @@ void atmosphereAndFog::setTerrainShadow(Texture::SharedPtr shadow)
 {
     compute_Atmosphere.Vars()->setTexture("terrainShadow", shadow);
 }
+
+void atmosphereAndFog::setSMOKE(Texture::SharedPtr s1, Texture::SharedPtr s2)
+{
+    compute_Atmosphere.Vars()->setTexture("gLOD5Smoke", s1);
+    compute_Atmosphere.Vars()->setTexture("gLOD5SmokeB", s2);
+}
+
+void atmosphereAndFog::setSmokeTime(float dT)
+{
+    //void materialCache::rebuildStructuredBuffer()  look here bfot betetr handling
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["smk_dTime"] = dT;
+
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_0"] = float4(8599, 500, 3666, dT);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_1"] = float4(8599, 500, 3666, dT);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_2"] = float4(8599, 500, 3666, dT);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_3"] = float4(8599, 500, 3666, dT);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_4"] = float4(8599, 500, 3666, dT);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_5"] = float4(8599, 500, 3666, dT);
+
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_0"] = float4(1.f / 40000.f, 1.f / 10000.f, 1.f / 40000.f, 0);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_1"] = float4(1.f / 20000.f, 1.f / 10000.f, 1.f / 20000.f, 0);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_2"] = float4(1.f / 10000.f, 1.f / 10000.f, 1.f / 10000.f, 0);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_3"] = float4(1.f / 5000.f, 1.f / 5000.f, 1.f / 5000.f, 0);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_4"] = float4(1.f / 2500.f, 1.f / 2500.f, 1.f / 2500.f, 0);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_5"] = float4(1.f / 1250.f, 1.f / 1250.f, 1.f / 1250.f, 0);
+}

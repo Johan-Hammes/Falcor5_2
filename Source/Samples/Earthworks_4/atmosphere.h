@@ -46,7 +46,7 @@ struct   fogAtmosphericParams {
     // Block for the new atmosphere
     // ############################################################################################################################
     float3 sunColourBeforeOzone{ 1.0f, 1.0f, 1.0f };
-    float haze_Turbidity = 2.5f;
+    float haze_Turbidity = 1.5f;
 
     float3 haze_Colour{ 0.95, 0.95, 0.95 };
     float haze_AltitudeKm = 1.2f;
@@ -56,7 +56,7 @@ struct   fogAtmosphericParams {
 
     float fog_AltitudeKm = 0.29f;
     float fog_BaseAltitudeKm = 0.85f;
-    float fog_Turbidity = 6.5f;
+    float fog_Turbidity = 3.5f;
     float globalExposure = 1.0f / 20000.0f;
 
     float3 rain_Colour{ 0.1, 0.1, 0.1 };
@@ -132,6 +132,8 @@ public:
     void computeVolumetric(RenderContext* _renderContext);
     void setSunDirection(float3 dir);
     void setTerrainShadow(Texture::SharedPtr shadow);
+    void setSMOKE(Texture::SharedPtr s1, Texture::SharedPtr s2);
+    void setSmokeTime(float dT);
     FogVolume& getFar() { return mainFar; }
     FogVolume& getNear() { return mainNear; }
     FogVolume& getParabolic() { return parabolicFar; }

@@ -146,14 +146,20 @@ struct _cfd_lod
     void fromRoot_Alpha();
     void toRoot_Alpha();
 
+    void fromRoot_blocks();
+    void toRoot_blocks();
+
     // simulate
     void clamp(float3& _p);
     template <typename T> T sample(std::vector<T>& data, float3 _p);
     void addTemperature();
     void bouyancy(float _dt);
     void incompressibility_SMAP();
+    void incompressibility_SMAP_blocks();
     void advect(float _dt);
+    void advect_blocks(float _dt);
     void diffuse(float _dt);
+    void diffuse_blocks(float _dt);
     void edges();
     void solveBlockRating();
     void simulate(float _dt);
@@ -181,6 +187,7 @@ struct _cfd_lod
 
 
     uint numBlocks = 0;
+    double simTimeLod_fromRoot_ms;
     double simTimeLod_blocks_ms;
     double simTimeLod_advect_ms;
     double simTimeLod_incompress_ms;
@@ -239,6 +246,7 @@ struct _cfdClipmap
     std::array<uint, 128 * 128> arrayVisualize;
     std::array<float3, 128 * 128> sliceV;
     std::array<float3, 128 * 128> sliceData;
+    unsigned char volumeData[128][128][128];
     bool sliceNew = false;
     float3 sliceCorners[4];
     std::array<float3, 100> skewTData;
@@ -266,6 +274,11 @@ struct _cfdClipmap
     static std::vector<cfd_V_type> curl;
     static std::vector<float> mag;
     static std::vector<cfd_V_type> vorticity;
+
+
+    static float3 tmp_8_1[8];
+    static float3 tmp_8_2[8][8];
+    static float3 tmp_8_3[8][8][8]; // maybe unnesesary straight to data
     
     /*
     uint inline idx(int x, int y, int z);

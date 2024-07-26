@@ -94,7 +94,7 @@ float4 psMain(PSIn vOut) : SV_TARGET
     float3 Data = lerp(Data1, Data2, dT);
     
     float a = 1;
-    a = saturate(pow(Data.b * 1.1, 0.7) + 0.015);
+    a = saturate(pow(Data.b * 1.1, 0.9));
 
     float3 color = 0;
 
@@ -102,13 +102,14 @@ float4 psMain(PSIn vOut) : SV_TARGET
     //else
     //    color.b = -V.y * 0.3;
 
-    color = lerp(color, float3(0.1, 0.1, 0.1) * 2.0, a);
+    color = lerp(color, float3(0.1, 0.1, 0.1) * 0.50, a);
 
     float C = to_C(Data.x);
     float DewC = dew_Temp_C(Data.y);
     float cloud = saturate((DewC - C) / 2);
-    color = lerp(color, float3(0.3, 0.3, 0.3) * 0.7, cloud);
+    color = lerp(color, float3(0.3, 0.3, 0.3) * 0.6, cloud);
     a = max(a, cloud);
     //a = 1;
-    return float4(color, a);
+    return 0;
+    return float4(color, pow(a, 0.3));
 }
