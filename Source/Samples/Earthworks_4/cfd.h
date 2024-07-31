@@ -183,11 +183,13 @@ struct _cfd_lod
     std::vector<uint3> blocks;
 
     static std::vector<cfd_V_type> root_v;
+    static std::vector<cfd_data_type> root_data;
 
 
 
     uint numBlocks = 0;
     double simTimeLod_fromRoot_ms;
+    double simTimeLod_toRoot_ms;
     double simTimeLod_blocks_ms;
     double simTimeLod_advect_ms;
     double simTimeLod_incompress_ms;
@@ -239,18 +241,21 @@ struct _cfdClipmap
     float streamLinesOffset = 1000;
 
     // sliceViz
-    bool showSlice = false;
+    bool showSlice = true;
     bool showskewT = false;
     int slicelod = 5;
     int sliceIndex = 64;
     std::array<uint, 128 * 128> arrayVisualize;
     std::array<float3, 128 * 128> sliceV;
     std::array<float3, 128 * 128> sliceData;
-    unsigned char volumeData[128][128][128];
+    unsigned short volumeData[128][128][128];
     bool sliceNew = false;
     float3 sliceCorners[4];
+    float4 lodOffsets[6];
+    float4 lodScales[6];
     std::array<float3, 100> skewTData;
     std::array<float3, 100> skewTV;
+    float skewTGround = 0;
 
     
     

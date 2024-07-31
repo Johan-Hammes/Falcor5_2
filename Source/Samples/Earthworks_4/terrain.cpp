@@ -3842,8 +3842,25 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             cfd.sliceVTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceDataTexture[0] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceDataTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
-            cfd.sliceVolumeTexture[0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R8Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
-            cfd.sliceVolumeTexture[1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R8Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            // FIXME kry die afmetinsg van .cfd af
+            cfd.sliceVolumeTexture[0][0] = Texture::create3D(128, 32, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[0][1] = Texture::create3D(128, 32, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            cfd.sliceVolumeTexture[1][0] = Texture::create3D(128, 64, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[1][1] = Texture::create3D(128, 64, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            cfd.sliceVolumeTexture[2][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[2][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            cfd.sliceVolumeTexture[3][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[3][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            cfd.sliceVolumeTexture[4][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[4][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+
+            cfd.sliceVolumeTexture[5][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[5][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfdSliceShader.load("Samples/Earthworks_4/hlsl/terrain/render_cfdSlice.hlsl", "vsMain", "psMain", Vao::Topology::TriangleStrip);
             cfdSliceShader.Vars()->setSampler("gSampler", sampler_Trilinear);
@@ -4055,7 +4072,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     elevationCache.resize(45);
     loadElevationHash(pRenderContext);
 
-    imageCache.resize(45);
+    imageCache.resize(35);
     loadImageHash(pRenderContext);
 
     init_TopdownRender();
@@ -4467,16 +4484,17 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
     const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
     const ImU32 col32B = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
     const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
+    const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
 
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 1.f, 1.f, 0.75f));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 0.f, 0.75f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 0.f, 1.f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
     ImGui::BeginChildFrame(987651, ImVec2(1000, 1100));
-    ImGui::PushFont(pGui->getFont("roboto_20"));
+    ImGui::PushFont(pGui->getFont("roboto_20_bold"));
     {
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
-        for (int T = -60; T <= 40; T += 10)
+        for (int T = -60; T <= 40; T += 2)
         {
             ImVec2 start = { 300.f + 20.f * T, 1000.f };
             ImGui::SetCursorPos(start);
@@ -4488,7 +4506,8 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             end.x += 500;
             end.y -= 1000;
             float width = 1.f;
-            if (T == 0) width = 2.f;
+            if (T%10 == 0) width = 2.f;
+            if (T == 0) width = 3.f;
             draw_list->AddLine(start, end, col32, width);
 
             // dry lapse
@@ -4552,14 +4571,29 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             draw_list->AddLine(P, P1, col32B, 2);
             P = P1;
 
-            if (j % 1 == 0)
+            if (j % 2 == 0)
             {
                 float3 dir = glm::normalize(data);
                 draw_list->AddCircle(P, 3, col32B, 5);
-                P1.x += dir.x * 25;
-                P1.y += dir.z * 25;
+                P1.x += dir.x * pow(V, 0.5f) * 10;
+                P1.y += dir.z * pow(V, 0.5f) * 10;
                 draw_list->AddLine(P, P1, col32B, 2);
             }
+        }
+
+        // wind direction
+        data = cfd.skewT_V[0];
+        float3 dir = glm::normalize(data);
+        int angle = (int)(360.f - atan2(dir.x, dir.z) * 57.2958f) %360;
+        P = { offset.x + 10 + angle * 2.f, offset.y + 1000 };
+        for (int j = 1; j < 100; j++)
+        {
+            data = cfd.skewT_V[j];
+            dir = glm::normalize(data);
+            angle = (int)(360.f - atan2(dir.x, dir.z) * 57.2958f) % 360;
+            ImVec2 P1 = { offset.x + 10 + angle * 2.f, offset.y + 1000 - j * 10 };
+            draw_list->AddLine(P, P1, col32YEL, 2);
+            P = P1;
         }
 
 
@@ -4571,7 +4605,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
         int alt = (int)(5000 - 5 * (mouse.y - offset.y));
         if (alt > 0)
         {
-            ImGui::SetCursorPos(ImVec2(910, mouse.y - offset.y - 20));
+            ImGui::SetCursorPos(ImVec2(950, mouse.y - offset.y));
             ImGui::Text("%d m", alt);
 
             ImVec2 p = ImGui::GetMousePos();
@@ -4580,21 +4614,25 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
 
 
             float vspeed = glm::length(cfd.skewT_V[idx]);
-            float angle = 360.f - atan2(cfd.skewT_V[idx].x, cfd.skewT_V[idx].z) * 57.2958f;
+            int angle = (int)(360.f - atan2(cfd.skewT_V[idx].x, cfd.skewT_V[idx].z) * 57.2958f) % 360;
             float C_Temp = cfd.skewT_data[idx].x;
             float C_Dew = cfd.skewT_data[idx].y;
             ImVec2 PVel = { 50 + vspeed * 20.f, mouse.y - offset.y };
 
-            ImVec2 PTemp = { 310 + C_Temp * 20.f + idx * 5, mouse.y - offset.y };
+            ImVec2 PTemp = { 310 + C_Temp * 20.f + idx * 5, mouse.y - offset.y - 20 };
             ImVec2 PDew = { 310 + C_Dew * 20.f + idx * 5, mouse.y - offset.y - 20 };
             ImGui::SetCursorPos(PTemp);
-            ImGui::Text("%d", (int)C_Temp);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
+            ImGui::Text("%dºC", (int)C_Temp);
+            ImGui::PopStyleColor();
 
             ImGui::SetCursorPos(PDew);
-            ImGui::Text("%d", (int)C_Dew);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 1.f, 1.f));
+            ImGui::Text("%dºC", (int)C_Dew);
+            ImGui::PopStyleColor();
 
             ImGui::SetCursorPos(PVel);
-            ImGui::Text("%2.1f - %dº", vspeed, (int)angle);
+            ImGui::Text("%2.1fkt %dº", vspeed * 1.94384f, (int)angle);
 
 
 
@@ -4625,9 +4663,9 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
                     }
                     else if (ImGui::IsKeyDown((int)Input::Key::LeftAlt))
                     {
-                        float angle = (p.x - offset.x - 10) / 50.f;
-                        float dX = sin(angle);
-                        float dY = cos(angle);
+                        float angle = (p.x - offset.x - 10) / 114.591f;
+                        float dX = sin(-angle);
+                        float dY = cos(-angle);
                         float v = glm::length(cfd.skewT_V[idx]);
                         cfd.skewT_V[idx] = v * float3(dX, 0, dY);
                     }
@@ -4644,6 +4682,13 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             // move to edit, copy data
             cfd.skewT_data = cfd.clipmap.skewTData;
             cfd.skewT_V = cfd.clipmap.skewTV;
+            for (int i = 0; i < 100; i++)
+            {
+                if (glm::length(cfd.skewT_V[i]) < 0.001f)
+                {
+                    cfd.skewT_V[i].x += 0.001f;
+                }
+            }
         }
 
         ImGui::SetCursorPos(ImVec2(10, 1030));
@@ -4728,6 +4773,8 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         
         ImGui::SliderInt("lod", &cfd.clipmap.slicelod, 0, 5);
         ImGui::SliderInt("slice", &cfd.clipmap.sliceIndex, 0, 127);
+        ImGui::Text("%d, %d %d", (int)cfd.clipmap.lodOffsets[5].x, (int)cfd.clipmap.lodOffsets[5].y, (int)cfd.clipmap.lodOffsets[5].z);
+        ImGui::Text("%2.3f, %2.3f %2.3f", cfd.clipmap.lodScales[5].x, cfd.clipmap.lodScales[5].y, cfd.clipmap.lodScales[5].z);
 
         ImGui::NewLine();
         ImGui::DragFloat("relax", &cfd.clipmap.incompres_relax, 0.01f, 1.0f, 2.0f);
@@ -4751,7 +4798,8 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
             ImGui::NewLine();
             ImGui::Text("%d ms - total", (int)lod.solveTime_ms);
             ImGui::Text("fromR %d ms", (int)lod.simTimeLod_fromRoot_ms);
-            ImGui::Text("blocks %d ms (%d / 4096)", (int)lod.simTimeLod_blocks_ms, lod.numBlocks);
+            ImGui::Text("to R %d ms", (int)lod.simTimeLod_toRoot_ms);
+            //ImGui::Text("blocks %d ms (%d / 4096)", (int)lod.simTimeLod_blocks_ms, lod.numBlocks);
             ImGui::Text("boyancy %d ms", (int)lod.simTimeLod_boyancy_ms);
             ImGui::Text("icmpres %d ms", (int)lod.simTimeLod_incompress_ms);
             ImGui::Text("advect  %d ms", (int)lod.simTimeLod_advect_ms);
@@ -5487,7 +5535,7 @@ void jp2Dir::load(std::string _name)
         }
     }
 
-    cache.resize(26);   // can add up if I get this wrong
+    cache.resize(40);   // can add up if I get this wrong
 }
 
 
@@ -7182,6 +7230,8 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
 */
 void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 {
+    
+
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
 
     // First load the JP2 Data, BUT 0,0,0 IS  PRELOADED, thisis n own thread so should look like no time
@@ -7193,12 +7243,17 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
     if (it != imageDirectory.tileHash.end()) {
         pTile->imageHash = hash;
     }
+    else
+    {
+        //fprintf(terrafectorSystem::_logfile, "FAILED %d %d %d   imageDirectory.tileHash.find(hash);\n", pTile->lod, pTile->y, pTile->x);
+        //fflush(terrafectorSystem::_logfile);
+    }
 
     //if (pTile->imageHash > 0)
     {
         textureCacheElement map;
 
-        if (!imageCache.get(pTile->imageHash, map))
+        if (!imageCache.get(pTile->imageHash, map))     // so we dont have teh image on GPU
         {
             if (pTile->imageHash == 0)
             {
@@ -7212,6 +7267,10 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
             ojph::mem_infile j2c_file;
             //j2c_file.open(imageTileHashmap[pTile->imageHash].filename.c_str());
             std::map<uint32_t, uint2>::iterator itH = imageDirectory.tileHash.find(pTile->imageHash);
+            if (itH == imageDirectory.tileHash.end()) {
+                fprintf(terrafectorSystem::_logfile, "FAILED tileHash.find\n");
+                fflush(terrafectorSystem::_logfile);
+            }
             jp2File& file = imageDirectory.files[itH->second.x];
             jp2Map& mapTile = imageDirectory.files[itH->second.x].tiles[itH->second.y];
 
@@ -7228,6 +7287,13 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
                 else
                 {
                     bool bCM = true;
+                    fprintf(terrafectorSystem::_logfile, "FIX imageCache.resize(55);  its still too small\n");
+                    fprintf(terrafectorSystem::_logfile, "offset %d, lod %d, %s\n", mapTile.fileOffset, mapTile.lod, file.filename.c_str());
+                    fprintf(terrafectorSystem::_logfile, "itH file %d, tile %d\n", itH->second.x, itH->second.y);
+                    fprintf(terrafectorSystem::_logfile, "Bug is liekly here at teh ned void jp2Dir::load(std::string _name). The thing that changed is that I changed FOV, so diffirent amount fo tiles vissible\n");
+                    
+                    
+                    fflush(terrafectorSystem::_logfile);
                     // should never get here but handle it somehow
                     // split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
                     // I think it was with very fast movement, not sure how that was possible
@@ -7258,58 +7324,6 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 
         split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
     }
-
-    /*
-
-
-    if (imageTileHashmap.size() == 0) return;
-    bool found = false;
-
-    uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
-    std::map<uint32_t, heightMap>::iterator it = imageTileHashmap.find(hash);
-    if (it != imageTileHashmap.end()) {
-        pTile->imageHash = hash;
-        found = true;
-    }
-
-    if (pTile->imageHash > 0)
-    //if (found)
-    {
-        textureCacheElement map;
-
-        if (!imageCache.get(pTile->imageHash, map))
-        {
-            std::array<unsigned char, 1024 * 1024 * 4> data;
-
-            ojph::codestream codestream;
-            ojph::j2c_infile j2c_file;
-            j2c_file.open(imageTileHashmap[pTile->imageHash].filename.c_str());
-            codestream.enable_resilience();
-            codestream.set_planar(false);
-            codestream.read_headers(&j2c_file);
-            codestream.create();
-            int next_comp;
-
-            for (int i = 0; i < 1024; ++i)
-            {
-                for (int j = 0; j < 3; j++)
-                {
-                    ojph::line_buf* line = codestream.pull(next_comp);
-                    int32_t* dp = line->i32;
-                    for (int j = 0; j < 1024; j++) {
-                        data[(i * 1024 * 4) + (j * 4) + next_comp] = (unsigned char)*dp++;
-                    }
-                }
-            }
-            codestream.close();
-
-            map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
-            imageCache.set(pTile->imageHash, map);
-        }
-
-        split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
-    }
-    */
 }
 
 
@@ -7991,9 +8005,11 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
         //cfd.originRequest = paraRuntime.pilotPos();
-        //cfd.originRequest = float3(-1425 + 800, 425 + 140, 12533);
+        cfd.originRequest = float3(-1425 + 2800, 425 + 140 + 800, 12533);
         //cfd.originRequest = float3(1184, 422 + 20, 14829);
-        cfd.originRequest = float3(9224 + 580, 1458, 4291);
+        cfd.originRequest = float3(9224 + 580, 1458, 4291);     // my smoke in teh mifddle
+        //cfd.originRequest = float3(11500, 1818, 11800);     // south better mounrains
+
         
         //cfd.originRequest = float3(1852, 1500, 10910);
 
@@ -8335,17 +8351,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     {
         if (cfd.clipmap.sliceNew)
         {
-            //FALCOR_PROFILE("cfd slice update");
-            uint oldSlice = cfd.sliceOrder;
-            cfd.sliceOrder = (cfd.sliceOrder + 1) % 2;
-            cfd.sliceTime = 0;
+            FALCOR_PROFILE("cfd slice update");
+            //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
+            cfd.sliceOrder[cfd.clipmap.slicelod] = (cfd.sliceOrder[cfd.clipmap.slicelod] + 1) % 2;
+            cfd.sliceTime[cfd.clipmap.slicelod] = 0;
 
-            _renderContext->updateTextureData(cfd.sliceVTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceV.data());
-            _renderContext->updateTextureData(cfd.sliceDataTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceData.data());
-            _renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.sliceOrder].get(), cfd.clipmap.volumeData);
-
-            
-
+            //_renderContext->updateTextureData(cfd.sliceVTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceV.data());
+            //_renderContext->updateTextureData(cfd.sliceDataTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceData.data());
+            _renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.clipmap.slicelod][cfd.sliceOrder[cfd.clipmap.slicelod]].get(), cfd.clipmap.volumeData);
+            //updateSubresourceData
+            /*
             cfdSliceShader.Vars()->setTexture("gV", cfd.sliceVTexture[oldSlice]);
             cfdSliceShader.Vars()->setTexture("gData", cfd.sliceDataTexture[oldSlice]);
             cfdSliceShader.Vars()->setTexture("gV_1", cfd.sliceVTexture[cfd.sliceOrder]);
@@ -8355,7 +8370,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             cfdSliceShader.Vars()["gConstantBuffer"]["pos_1"] = cfd.clipmap.sliceCorners[1];
             cfdSliceShader.Vars()["gConstantBuffer"]["pos_2"] = cfd.clipmap.sliceCorners[2];
             cfdSliceShader.Vars()["gConstantBuffer"]["pos_3"] = cfd.clipmap.sliceCorners[3];
-
+            */
             cfd.clipmap.sliceNew = false;
         }
 
@@ -8364,10 +8379,34 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         float dT = (float)duration_cast<microseconds>(current - prev).count() / 1000000.;
         prev = current;
 
-        cfd.sliceTime += dT;
-        cfd.sliceTime = __min(cfd.sliceTime, 1.f);
-        cfd.lodLerp5 = cfd.sliceTime;
-        if (cfd.sliceOrder == 0) cfd.lodLerp5 = 1.f - cfd.sliceTime;
+
+        cfd.sliceTime[0] = __min(cfd.sliceTime[0] + dT / 32, 1.f);
+        cfd.sliceTime[1] = __min(cfd.sliceTime[1] + dT / 16, 1.f);
+        cfd.sliceTime[2] = __min(cfd.sliceTime[2] + dT / 8, 1.f);
+        cfd.sliceTime[3] = __min(cfd.sliceTime[3] + dT / 4, 1.f);
+        cfd.sliceTime[4] = __min(cfd.sliceTime[4] + dT / 2, 1.f);
+        cfd.sliceTime[5] = __min(cfd.sliceTime[5] + dT, 1.f);
+
+        cfd.lodLerp[0] = cfd.sliceTime[0];
+        cfd.lodLerp[1] = cfd.sliceTime[1];
+        cfd.lodLerp[2] = cfd.sliceTime[2];
+        cfd.lodLerp[3] = cfd.sliceTime[3];
+        cfd.lodLerp[4] = cfd.sliceTime[4];
+        cfd.lodLerp[5] = cfd.sliceTime[5];
+
+        if (cfd.sliceOrder[0] == 0) cfd.lodLerp[0] = 1.f - cfd.sliceTime[0];
+        if (cfd.sliceOrder[1] == 0) cfd.lodLerp[1] = 1.f - cfd.sliceTime[1];
+        if (cfd.sliceOrder[2] == 0) cfd.lodLerp[2] = 1.f - cfd.sliceTime[2];
+        if (cfd.sliceOrder[3] == 0) cfd.lodLerp[3] = 1.f - cfd.sliceTime[3];
+        if (cfd.sliceOrder[4] == 0) cfd.lodLerp[4] = 1.f - cfd.sliceTime[4];
+        if (cfd.sliceOrder[5] == 0) cfd.lodLerp[5] = 1.f - cfd.sliceTime[5];
+        
+
+        cfd.clipmap.lodOffsets[2].w = cfd.lodLerp[2];
+        cfd.clipmap.lodOffsets[3].w = cfd.lodLerp[3];
+        cfd.clipmap.lodOffsets[4].w = cfd.lodLerp[4];
+        cfd.clipmap.lodOffsets[5].w = cfd.lodLerp[5];
+        /*
         float scale = 1.f;
         if (cfd.clipmap.slicelod == 4) scale = 0.5f;
         if (cfd.clipmap.slicelod == 3) scale = 0.25f;
@@ -8381,6 +8420,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         cfdSliceShader.State()->setRasterizerState(split.rasterstateSplines);
         cfdSliceShader.State()->setBlendState(split.blendstateSplines);
         cfdSliceShader.drawInstanced(_renderContext, 4, 1);
+        */
     }
 
 
@@ -10393,6 +10433,8 @@ void terrainManager::cfdThread()
                 p5 -= cfd.clipmap.lods[5].offset;
                 cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(cfd.clipmap.lods[5].v, p5);
             }
+
+            
         }
         k++;
     }

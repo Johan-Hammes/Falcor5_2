@@ -225,51 +225,80 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     // Volume clouds
     
     float3 smokePos = eye_position + (eye_dir * depth);
-    float SMK = 0;
-    float SMK_b = 0;
+    float4 cfd = 0;
+    float4 cfd_b = 0;
     float3 SmokeUV;
 
-    smokePos += eye_dir * step * 0.50;  // Chck thsi is correct, the 0.4 below sugegsts that step is already half step
+    smokePos += eye_dir * step * 0.5;  // Chck thsi is correct, the 0.4 below sugegsts that step is already half step
     SmokeUV = (smokePos - cfdOffset_time_5.xyz) * cfdScale_5.xyz;
-    if (all(saturate(SmokeUV - 0.05) * saturate(0.95 - SmokeUV)))
+    bool found = false;
+    if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
     {
-        SMK += gLOD5Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
-        SMK_b += gLOD5SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
-        
+        cfd += gLOD5Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+        cfd_b += gLOD5SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+        found = true;
+        cfd = lerp(cfd, cfd_b, cfdOffset_time_5.w);
     }
 
-    //SMK = pow(lerp(SMK, SMK_b, smk_dTime), 4.0);
-    Optical.y += 10000.1f * SMK;
-    Optical.z += 50.1f * SMK;
-    /*
-    for (int i = 0; i < 5; i++)
+    if (!found)
     {
-        smokePos += eye_dir * step * 0.40;
-        SmokeUV = (smokePos - cfdOffset_time_5.xyz) / cfdScale_5.xyz;
-        SMK += gLOD5Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
-        SMK_b += gLOD5SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0).r;
+        SmokeUV = (smokePos - cfdOffset_time_4.xyz) * cfdScale_4.xyz;
+        if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
+        {
+            cfd += gLOD4Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+            cfd_b += gLOD4SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+            found = true;
+            cfd = lerp(cfd, cfd_b, cfdOffset_time_4.w);
+            
+        }
     }
 
-    SMK = saturate(lerp(SMK, SMK_b, smk_dTime) * 0.2);
+    if (!found)
+    {
+        SmokeUV = (smokePos - cfdOffset_time_3.xyz) * cfdScale_3.xyz;
+        if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
+        {
+            cfd += gLOD3Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+            cfd_b += gLOD3SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+            //SMK += 0.095;
+            //SMK_b += 0.095;
+            found = true;
+            cfd = lerp(cfd, cfd_b, cfdOffset_time_3.w);
+        }
+    }
+
+    if (!found)
+    {
+        SmokeUV = (smokePos - cfdOffset_time_2.xyz) * cfdScale_2.xyz;
+        if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
+        {
+            cfd += gLOD2Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+            cfd_b += gLOD2SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
+            //SMK += 0.095;
+            //SMK_b += 0.095;
+            found = true;
+            cfd = lerp(cfd, cfd_b, cfdOffset_time_2.w);
+            
+        }
+    }
     
-    //float3 SmokeUV = (pos) / 1250 ;
-    
-    //Optical.z += 10 * frac(SmokeUV.x);
-
-
-    if (all(saturate(SmokeUV - 0.05) * saturate(0.95 - SmokeUV)))
-        //if (SmokeUV.y < 0.99 && SmokeUV.x > 0 && SmokeUV.x < 1 && SmokeUV.z > 0 && SmokeUV.z < 1)
+    float SMK = pow(cfd.x, 2.1) * 1;
+    float CLOUD = smoothstep(0.0, 1.0, cfd.z) * 0.101;
+    float UP = saturate(cfd.y - 0.5) * 1;
+    float DOWN = saturate(0.5 - cfd.y) * 1;
+    if (!found)
     {
-        //Optical.y += 10;
-        Optical.y += 10000.1f * pow(SMK, 3.3);
-        Optical.z += 50.1f * pow(SMK, 3.9);
+        DOWN = 0;
+        UP = 0;
     }
-    else
-    {
     
-        SMK = 0;
-    }
-    */
+    Optical.y += 1000.1f * SMK;
+    Optical.z += 100.1f * SMK;
+
+    Optical.y += 100.1f * CLOUD;
+    Optical.z += 8000.1f * CLOUD;
+    
+
 
     float pRayleigh = Optical.x * stepKm;
 	float pMie_haze = Optical.y * stepKm;
@@ -307,13 +336,33 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     float3 inscatterIBL =  (Haze_scattering * pMie_haze * haze_Colour) + (Fog_scattering * pMie_fog * fog_Colour) + (pMie_rain * rain_Colour);
 
 
-    newIn = inscatterRayleigh * (sunlight.rgb + IBL) + inscatterMie * sunlight.rgb + inscatterIBL * IBL + IBL * min(0.01, saturate(SMK * 3.52));
-    newOut += (Rayleigh_extinction * pRayleigh) + (Haze_extinction * pMie_haze) + (Fog_extinction * pMie_fog) + (1 * pMie_rain) + SMK * 5.72;
+    newIn = inscatterRayleigh * (sunlight.rgb + IBL) + inscatterMie * sunlight.rgb + inscatterIBL * IBL;
+    newOut += (Rayleigh_extinction * pRayleigh) + (Haze_extinction * pMie_haze) + (Fog_extinction * pMie_fog) + (1 * pMie_rain);
 
+    newIn += IBL * min(0.1, saturate(SMK * 0.52)) * step * 0.030;
+    newOut += SMK * 2.172 * step * 0.030;
+
+    newIn += IBL * min(0.2, saturate(CLOUD * 0.052)) * step * 0.030;
+    newOut += CLOUD * 0.0172 * step * 0.030;
+
+    //if (UP > 0.4)               newIn += float3(1, 0.7, 0.4) * pow(UP, 2.5) * 1.01;
+    //else if (UP > 0.3)          newIn += float3(1, 0, 0) * pow(UP, 2.5) * 1.01;
+    //else if (UP > 0.2)          newIn += float3(1, 0.3, 0) * pow(UP, 2.5) * 1.01;
+    //else if (UP > 0.0)          newIn += float3(1, 1, 0) * pow(UP, 2.5) * 1.01;
+    //UP = pow(UP, 2.5);
+    newIn += float3(1, 1, 0) * pow(UP * 5, 2.5) * 0.01 * step * 0.030;
+    newIn += float3(0, -1.8, 0) * pow(UP * 1.1, 3.5) * 0.5 * step * 0.030;
+    newOut += pow(UP, 2.5) * 0.0172 * step * 0.030;
+
+    newIn += float3(0, 0, 1) * pow(DOWN * 5, 2.5) * 0.05 * step * 0.030;
+    newOut += pow(DOWN, 2.5) * 0.172 * step * 0.030;
+    
 	planetRadius = length(pos * 0.001 + float3(0, EarthR, 0));
 }
 
 void acumulateFog(inout float3 inscatter, inout float3 outscatter, float3 new_in, float3 new_out) {
-	inscatter += outscatter * new_in;
-	outscatter = exp(-new_out);
+    float3 outB = exp(-new_out);
+    //inscatter += (outscatter * outB) * 0.5 * new_in;
+    inscatter += outscatter * new_in;
+    outscatter = outB;
 }

@@ -208,28 +208,53 @@ void atmosphereAndFog::setTerrainShadow(Texture::SharedPtr shadow)
     compute_Atmosphere.Vars()->setTexture("terrainShadow", shadow);
 }
 
-void atmosphereAndFog::setSMOKE(Texture::SharedPtr s1, Texture::SharedPtr s2)
+void atmosphereAndFog::setSMOKE(Texture::SharedPtr textures[6][2])
 {
-    compute_Atmosphere.Vars()->setTexture("gLOD5Smoke", s1);
-    compute_Atmosphere.Vars()->setTexture("gLOD5SmokeB", s2);
+    compute_Atmosphere.Vars()->setTexture("gLOD0Smoke", textures[0][0]);
+    compute_Atmosphere.Vars()->setTexture("gLOD0SmokeB", textures[0][1]);
+
+    compute_Atmosphere.Vars()->setTexture("gLOD1Smoke", textures[1][0]);
+    compute_Atmosphere.Vars()->setTexture("gLOD1SmokeB", textures[1][1]);
+
+    compute_Atmosphere.Vars()->setTexture("gLOD2Smoke", textures[2][0]);
+    compute_Atmosphere.Vars()->setTexture("gLOD2SmokeB", textures[2][1]);
+
+    compute_Atmosphere.Vars()->setTexture("gLOD3Smoke", textures[3][0]);
+    compute_Atmosphere.Vars()->setTexture("gLOD3SmokeB", textures[3][1]);
+
+    compute_Atmosphere.Vars()->setTexture("gLOD4Smoke", textures[4][0]);
+    compute_Atmosphere.Vars()->setTexture("gLOD4SmokeB", textures[4][1]);
+
+    compute_Atmosphere.Vars()->setTexture("gLOD5Smoke", textures[5][0]);
+    compute_Atmosphere.Vars()->setTexture("gLOD5SmokeB", textures[5][1]);
 }
 
-void atmosphereAndFog::setSmokeTime(float dT)
+void atmosphereAndFog::setSmokeTime(float4 lodOffsets[6],float4 lodScales[6])
 {
     //void materialCache::rebuildStructuredBuffer()  look here bfot betetr handling
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["smk_dTime"] = dT;
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["smk_dTime"] = lodOffsets[5].w;
 
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_0"] = float4(8599, 500, 3666, dT);
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_1"] = float4(8599, 500, 3666, dT);
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_2"] = float4(8599, 500, 3666, dT);
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_3"] = float4(8599, 500, 3666, dT);
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_4"] = float4(8599, 500, 3666, dT);
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_5"] = float4(8599, 500, 3666, dT);
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_0"] = lodOffsets[0];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_1"] = lodOffsets[1];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_2"] = lodOffsets[2];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_3"] = lodOffsets[3];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_4"] = lodOffsets[4];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_5"] = lodOffsets[5];
 
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_0"] = lodScales[0];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_1"] = lodScales[1];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_2"] = lodScales[2];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_3"] = lodScales[3];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_4"] = lodScales[4];
+    compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_5"] = lodScales[5];
+
+    // not sduire why the top lot is broken
+    /*
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_0"] = float4(1.f / 40000.f, 1.f / 10000.f, 1.f / 40000.f, 0);
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_1"] = float4(1.f / 20000.f, 1.f / 10000.f, 1.f / 20000.f, 0);
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_2"] = float4(1.f / 10000.f, 1.f / 10000.f, 1.f / 10000.f, 0);
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_3"] = float4(1.f / 5000.f, 1.f / 5000.f, 1.f / 5000.f, 0);
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_4"] = float4(1.f / 2500.f, 1.f / 2500.f, 1.f / 2500.f, 0);
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_5"] = float4(1.f / 1250.f, 1.f / 1250.f, 1.f / 1250.f, 0);
+    */
 }

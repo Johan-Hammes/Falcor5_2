@@ -219,7 +219,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
 
-    atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture[0], terrain.cfd.sliceVolumeTexture[1]);
+    atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
 
     fprintf(logFile, "terrain.cfdStart()\n");
     fflush(logFile);
@@ -335,7 +335,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     }
 
     FALCOR_PROFILE("onFrameUpdate");
-    atmosphere.setSmokeTime(terrain.cfd.lodLerp5);
+    atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
     atmosphere.setSunDirection(global_sun_direction);
     atmosphere.getFar().setCamera(camera);
     atmosphere.computeSunInAtmosphere(_renderContext);
