@@ -45,6 +45,8 @@ inline float dew_Temp_C(float RH32)
 }
 
 
+
+
 #define cfd_g  9.8076f
 #define Hv 2501000.f
 #define Rsd 287.f
@@ -152,7 +154,7 @@ struct _cfd_lod
     // simulate
     void clamp(float3& _p);
     template <typename T> T sample(std::vector<T>& data, float3 _p);
-    void addTemperature();
+    void addTemperature(float _dt);
     void bouyancy(float _dt);
     void incompressibility_SMAP();
     void incompressibility_SMAP_blocks();
@@ -185,6 +187,8 @@ struct _cfd_lod
     static std::vector<cfd_V_type> root_v;
     static std::vector<cfd_data_type> root_data;
 
+
+    std::chrono::steady_clock::time_point lastStart;
 
 
     uint numBlocks = 0;
@@ -222,7 +226,9 @@ struct _cfdClipmap
 
     void heightToSmap(std::string filename);
     void build(std::string _path);
+    void loadSkewT(std::string _path);
     void setWind(float3 _bottom = float3(-1, 0, 0), float3 _top = float3(-5, 0, 0));
+    void setFromSkewT(uint lod);
 
     void simulate_start(float _dt);
     void simulate(float _dt);
@@ -280,6 +286,13 @@ struct _cfdClipmap
     static std::vector<float> mag;
     static std::vector<cfd_V_type> vorticity;
 
+    static std::vector<unsigned char> heatMap_4k;
+
+    static float3 skewT_corners_Data[4][100];
+    static float3 skewT_corners_V[4][100];
+    static void sampleSkewT(float3 _pos, float3* _v, float3* _data);
+
+    static float rootAltitude;
 
     static float3 tmp_8_1[8];
     static float3 tmp_8_2[8][8];

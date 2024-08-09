@@ -4479,6 +4479,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
     ImVec2 offset = { 400, 200 };
     ImGui::SetCursorPos(offset);
 
+    static int editMode = 0;
 
     const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
     const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
@@ -4643,35 +4644,52 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
                 
                 float T = (p.x - offset.x - 300 - (dy * 0.5f)) / 20.f;
 
-                
-
 
                 if (ImGui::IsMouseDown(0))
                 {
-                    if (ImGui::IsKeyDown((int)Input::Key::LeftControl))
+                    if (ImGui::IsKeyDown((int)Input::Key::LeftControl))     // Smooth
                     {
-                        cfd.skewT_data[idx].y = T;
-                    }
-                    else if (ImGui::IsKeyDown((int)Input::Key::LeftShift))
-                    {
-                        //offset.x + 10 + V * 20.f
-                        float V = (p.x - offset.x - 10) / 20.f;
-                        V = __max(0.001f, V);
-                        float3 newV = glm::normalize(cfd.skewT_V[idx]) * V;
-
-                        cfd.skewT_V[idx] = newV;
-                    }
-                    else if (ImGui::IsKeyDown((int)Input::Key::LeftAlt))
-                    {
-                        float angle = (p.x - offset.x - 10) / 114.591f;
-                        float dX = sin(-angle);
-                        float dY = cos(-angle);
-                        float v = glm::length(cfd.skewT_V[idx]);
-                        cfd.skewT_V[idx] = v * float3(dX, 0, dY);
+                        uint idA = __max(1, idx) - 1;
+                        uint idB = __min(99, idx + 1);
+                        switch (editMode)                                   // Normal
+                        {
+                        case 0:
+                            cfd.skewT_data[idx].x = (cfd.skewT_data[idA].x + cfd.skewT_data[idx].x + cfd.skewT_data[idB].x) / 3;
+                            break;
+                        case 1:
+                            cfd.skewT_data[idx].y = (cfd.skewT_data[idA].y + cfd.skewT_data[idx].y + cfd.skewT_data[idB].y) / 3;
+                            break;
+                        case 2:
+                        case 3:
+                            cfd.skewT_V[idx] = (cfd.skewT_V[idA] + cfd.skewT_V[idx] + cfd.skewT_V[idB]) / 3.f;
+                            break;
+                        }
                     }
                     else
                     {
-                        cfd.skewT_data[idx].x = T;
+                        switch (editMode)                                   // Normal
+                        {
+                        case 0:
+                            cfd.skewT_data[idx].x = T;
+                            break;
+                        case 1:
+                            cfd.skewT_data[idx].y = T;
+                            break;
+                        case 2:
+                        {
+                            float V = __max(0.001f, (p.x - offset.x - 10) / 20.f);
+                            float3 newV = glm::normalize(cfd.skewT_V[idx]) * V;
+                            cfd.skewT_V[idx] = newV;
+                        }
+                            break;
+                        case 3:
+                        {
+                            float angle = (p.x - offset.x - 10) / 114.591f;
+                            float v = glm::length(cfd.skewT_V[idx]);
+                            cfd.skewT_V[idx] = v * float3(sin(-angle), 0, cos(-angle));
+                        }
+                            break;
+                        }
                     }
                 }
             }
@@ -4696,17 +4714,51 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
         {
         }
         ImGui::SameLine(0, 50);
-        if (ImGui::Button("Load")) {
-
+        if (ImGui::Button("Load"))
+        {
+            std::filesystem::path path;
+            FileDialogFilterVec filters = { {"skewT_5000"} };
+            if (openFileDialog(filters, path))
+            {
+                std::ifstream ifs;
+                ifs.open(path, std::ios::binary);
+                if (ifs)
+                {
+                    ifs.read((char*)&cfd.skewT_data, sizeof(float3) * 100);
+                    ifs.read((char*)&cfd.skewT_V, sizeof(float3) * 100);
+                    ifs.close();
+                }
+            }
         }
         ImGui::SameLine(0, 50);
-        if (ImGui::Button("Save")) {
-
+        if (ImGui::Button("Save"))
+        {
+            std::filesystem::path path;
+            FileDialogFilterVec filters = { {"skewT_5000"} };
+            if (saveFileDialog(filters, path))
+            {
+                std::ofstream ofs;
+                ofs.open(path, std::ios::binary);
+                if (ofs)
+                {
+                    ofs.write((char*)&cfd.skewT_data, sizeof(float3) * 100);
+                    ofs.write((char*)&cfd.skewT_V, sizeof(float3) * 100);
+                    ofs.close();
+                }
+            }
         }
         ImGui::SameLine(0, 50);
         if (ImGui::Button("Set atmosphere")) {
 
         }
+
+        ImGui::SameLine(0, 50);
+        ImGui::PushItemWidth(200);
+        if (ImGui::Combo("###modeSelector", &editMode, "Temperature\0Humidity\0Wind speed\0Wind direction\0")) { ; }
+        ImGui::PopItemWidth();
+
+
+        
 
     }
     ImGui::PopFont();
@@ -4783,6 +4835,8 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         ImGui::DragInt("num Inc", &cfd.clipmap.incompres_loop, 1, 1, 100);
         ImGui::DragFloat("vort_confine", &cfd.clipmap.vort_confine, 0.01f, 0.0f, 1.0f);
         
+
+        ImGui::Text("%d, %f", cfd.sliceOrder[3], cfd.lodLerp[3]);
 
 
         if (cfd.clipmap.showSlice)
@@ -7002,6 +7056,52 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     if (terrainMode == 4)
     {
+        {
+            if (cfd.clipmap.sliceNew)
+            {
+                FALCOR_PROFILE("cfd slice update");
+                //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
+                cfd.sliceOrder[cfd.clipmap.slicelod] = (cfd.sliceOrder[cfd.clipmap.slicelod] + 1) % 2;
+                cfd.sliceTime[cfd.clipmap.slicelod] = 0;
+
+                _renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.clipmap.slicelod][cfd.sliceOrder[cfd.clipmap.slicelod]].get(), cfd.clipmap.volumeData);
+                //updateSubresourceData
+                cfd.clipmap.sliceNew = false;
+            }
+
+            static std::chrono::steady_clock::time_point prev;
+            std::chrono::steady_clock::time_point current = high_resolution_clock::now();
+            float dT = (float)duration_cast<microseconds>(current - prev).count() / 1000000.;
+            prev = current;
+
+
+            cfd.sliceTime[0] = __min(cfd.sliceTime[0] + dT / 32, 1.f);
+            cfd.sliceTime[1] = __min(cfd.sliceTime[1] + dT / 16, 1.f);
+            cfd.sliceTime[2] = __min(cfd.sliceTime[2] + dT / 8, 1.f);
+            cfd.sliceTime[3] = __min(cfd.sliceTime[3] + dT / 4, 1.f);
+            cfd.sliceTime[4] = __min(cfd.sliceTime[4] + dT / 2, 1.f);
+            cfd.sliceTime[5] = __min(cfd.sliceTime[5] + dT, 1.f);
+
+            cfd.lodLerp[0] = cfd.sliceTime[0];
+            cfd.lodLerp[1] = cfd.sliceTime[1];
+            cfd.lodLerp[2] = cfd.sliceTime[2];
+            cfd.lodLerp[3] = cfd.sliceTime[3];
+            cfd.lodLerp[4] = cfd.sliceTime[4];
+            cfd.lodLerp[5] = cfd.sliceTime[5];
+
+            if (cfd.sliceOrder[0] == 0) cfd.lodLerp[0] = 1.f - cfd.sliceTime[0];
+            if (cfd.sliceOrder[1] == 0) cfd.lodLerp[1] = 1.f - cfd.sliceTime[1];
+            if (cfd.sliceOrder[2] == 0) cfd.lodLerp[2] = 1.f - cfd.sliceTime[2];
+            if (cfd.sliceOrder[3] == 0) cfd.lodLerp[3] = 1.f - cfd.sliceTime[3];
+            if (cfd.sliceOrder[4] == 0) cfd.lodLerp[4] = 1.f - cfd.sliceTime[4];
+            if (cfd.sliceOrder[5] == 0) cfd.lodLerp[5] = 1.f - cfd.sliceTime[5];
+
+
+            cfd.clipmap.lodOffsets[2].w = cfd.lodLerp[2];
+            cfd.clipmap.lodOffsets[3].w = cfd.lodLerp[3];
+            cfd.clipmap.lodOffsets[4].w = cfd.lodLerp[4];
+            cfd.clipmap.lodOffsets[5].w = cfd.lodLerp[5];
+        }
     }
 
 
@@ -8003,15 +8103,21 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
 
-
+        /*
         //cfd.originRequest = paraRuntime.pilotPos();
         cfd.originRequest = float3(-1425 + 2800, 425 + 140 + 800, 12533);
         //cfd.originRequest = float3(1184, 422 + 20, 14829);
         cfd.originRequest = float3(9224 + 580, 1458, 4291);     // my smoke in teh mifddle
         //cfd.originRequest = float3(11500, 1818, 11800);     // south better mounrains
 
+
+        cfd.originRequest = float3(12500, 1362 + 300, 4701);
+        cfd.originRequest = float3(8753, 1257 + 300, 6619);
+        //cfd.originRequest = float3(15033, 1498 + 300, 7446);
+
         
         //cfd.originRequest = float3(1852, 1500, 10910);
+        */
 
         cfd.velocityRequets[0] = paraRuntime.pilotPos();
         cfd.velocityRequets[1] = paraRuntime.wingPos(0);
@@ -8348,80 +8454,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
 
-    {
-        if (cfd.clipmap.sliceNew)
-        {
-            FALCOR_PROFILE("cfd slice update");
-            //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
-            cfd.sliceOrder[cfd.clipmap.slicelod] = (cfd.sliceOrder[cfd.clipmap.slicelod] + 1) % 2;
-            cfd.sliceTime[cfd.clipmap.slicelod] = 0;
-
-            //_renderContext->updateTextureData(cfd.sliceVTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceV.data());
-            //_renderContext->updateTextureData(cfd.sliceDataTexture[cfd.sliceOrder].get(), cfd.clipmap.sliceData.data());
-            _renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.clipmap.slicelod][cfd.sliceOrder[cfd.clipmap.slicelod]].get(), cfd.clipmap.volumeData);
-            //updateSubresourceData
-            /*
-            cfdSliceShader.Vars()->setTexture("gV", cfd.sliceVTexture[oldSlice]);
-            cfdSliceShader.Vars()->setTexture("gData", cfd.sliceDataTexture[oldSlice]);
-            cfdSliceShader.Vars()->setTexture("gV_1", cfd.sliceVTexture[cfd.sliceOrder]);
-            cfdSliceShader.Vars()->setTexture("gData_1", cfd.sliceDataTexture[cfd.sliceOrder]);
-
-            cfdSliceShader.Vars()["gConstantBuffer"]["pos_0"] = cfd.clipmap.sliceCorners[0];
-            cfdSliceShader.Vars()["gConstantBuffer"]["pos_1"] = cfd.clipmap.sliceCorners[1];
-            cfdSliceShader.Vars()["gConstantBuffer"]["pos_2"] = cfd.clipmap.sliceCorners[2];
-            cfdSliceShader.Vars()["gConstantBuffer"]["pos_3"] = cfd.clipmap.sliceCorners[3];
-            */
-            cfd.clipmap.sliceNew = false;
-        }
-
-        static std::chrono::steady_clock::time_point prev;
-        std::chrono::steady_clock::time_point current = high_resolution_clock::now();
-        float dT = (float)duration_cast<microseconds>(current - prev).count() / 1000000.;
-        prev = current;
-
-
-        cfd.sliceTime[0] = __min(cfd.sliceTime[0] + dT / 32, 1.f);
-        cfd.sliceTime[1] = __min(cfd.sliceTime[1] + dT / 16, 1.f);
-        cfd.sliceTime[2] = __min(cfd.sliceTime[2] + dT / 8, 1.f);
-        cfd.sliceTime[3] = __min(cfd.sliceTime[3] + dT / 4, 1.f);
-        cfd.sliceTime[4] = __min(cfd.sliceTime[4] + dT / 2, 1.f);
-        cfd.sliceTime[5] = __min(cfd.sliceTime[5] + dT, 1.f);
-
-        cfd.lodLerp[0] = cfd.sliceTime[0];
-        cfd.lodLerp[1] = cfd.sliceTime[1];
-        cfd.lodLerp[2] = cfd.sliceTime[2];
-        cfd.lodLerp[3] = cfd.sliceTime[3];
-        cfd.lodLerp[4] = cfd.sliceTime[4];
-        cfd.lodLerp[5] = cfd.sliceTime[5];
-
-        if (cfd.sliceOrder[0] == 0) cfd.lodLerp[0] = 1.f - cfd.sliceTime[0];
-        if (cfd.sliceOrder[1] == 0) cfd.lodLerp[1] = 1.f - cfd.sliceTime[1];
-        if (cfd.sliceOrder[2] == 0) cfd.lodLerp[2] = 1.f - cfd.sliceTime[2];
-        if (cfd.sliceOrder[3] == 0) cfd.lodLerp[3] = 1.f - cfd.sliceTime[3];
-        if (cfd.sliceOrder[4] == 0) cfd.lodLerp[4] = 1.f - cfd.sliceTime[4];
-        if (cfd.sliceOrder[5] == 0) cfd.lodLerp[5] = 1.f - cfd.sliceTime[5];
-        
-
-        cfd.clipmap.lodOffsets[2].w = cfd.lodLerp[2];
-        cfd.clipmap.lodOffsets[3].w = cfd.lodLerp[3];
-        cfd.clipmap.lodOffsets[4].w = cfd.lodLerp[4];
-        cfd.clipmap.lodOffsets[5].w = cfd.lodLerp[5];
-        /*
-        float scale = 1.f;
-        if (cfd.clipmap.slicelod == 4) scale = 0.5f;
-        if (cfd.clipmap.slicelod == 3) scale = 0.25f;
-        if (cfd.clipmap.slicelod == 2) scale = 0.125f;
-        cfdSliceShader.Vars()["gConstantBuffer"]["dT"] = cfd.sliceTime * scale;
-
-        cfdSliceShader.State()->setFbo(_fbo);
-        cfdSliceShader.State()->setViewport(0, _viewport, true);
-        cfdSliceShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-        cfdSliceShader.Vars()["gConstantBuffer"]["eyePos"] = _camera->getPosition();
-        cfdSliceShader.State()->setRasterizerState(split.rasterstateSplines);
-        cfdSliceShader.State()->setBlendState(split.blendstateSplines);
-        cfdSliceShader.drawInstanced(_renderContext, 4, 1);
-        */
-    }
+    
 
 
 
@@ -10379,6 +10412,11 @@ void terrainManager::cfdThread()
     cfd.clipmap.simulate_start(32.0f);
 
 
+    fprintf(terrafectorSystem::_logfile, "cfdThread()\n");
+    fprintf(terrafectorSystem::_logfile, "T %f %f %f\n", cfd.clipmap.skewT_corners_Data[0][0].x, cfd.clipmap.skewT_corners_Data[0][50].x, cfd.clipmap.skewT_corners_Data[0][99].x);
+    fprintf(terrafectorSystem::_logfile, "H %f %f %f\n", cfd.clipmap.skewT_corners_Data[0][0].y, cfd.clipmap.skewT_corners_Data[0][50].y, cfd.clipmap.skewT_corners_Data[0][99].y);
+    fprintf(terrafectorSystem::_logfile, "V %f %f %f\n", glm::length(cfd.clipmap.skewT_corners_V[0][0]), glm::length(cfd.clipmap.skewT_corners_V[0][50]), glm::length(cfd.clipmap.skewT_corners_V[0][99]));
+    fflush(terrafectorSystem::_logfile);
     /*
     uint saveidx = 0;
     for (int k = 0; k < 256 * 64 * 100; k++)   //1500 = 937 seconds in 210

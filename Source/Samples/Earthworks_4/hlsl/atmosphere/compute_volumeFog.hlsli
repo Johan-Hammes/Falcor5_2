@@ -210,6 +210,69 @@ float2 cloud_uv(float3 pos) {
 //	return (dir * distance) * 0.5 + 0.5;
 //}
 
+float4 sample_one(Texture3D A, Texture3D B, float3 smokeUV, float3 stepUV, inout bool found, float lerpVal)
+{
+    float4 smpA = 0;
+    float4 smpB = 0;
+    if (all(saturate(smokeUV - 0.02) * saturate(0.98 - smokeUV)))
+    {
+        smpA = A.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        smpB = B.SampleLevel(linearSampler, smokeUV.xzy, 0);
+
+        smokeUV += stepUV * 0.3;
+        smpA += A.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        smpB += B.SampleLevel(linearSampler, smokeUV.xzy, 0);
+
+        smokeUV += stepUV * 0.3;
+        smpA += A.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        smpB += B.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        
+        found = true;
+        return lerp(smpA, smpB, lerpVal) / 3;
+    }
+    return 0;
+}
+
+
+float4 sample_cfd(float3 smokePos, float3 eye_step)
+{
+    float4 cfd = 0;
+    float3 SmokeUV;
+
+    smokePos += eye_step * 0.5; // Check thsi is correct, the 0.4 below sugegsts that step is already half step
+    SmokeUV = (smokePos - cfdOffset_time_5.xyz) * cfdScale_5.xyz;
+    bool found = false;
+    cfd = sample_one(gLOD5Smoke, gLOD5SmokeB, SmokeUV, eye_step * cfdScale_5.xyz, found, cfdOffset_time_5.w);
+    if (!found)
+    {
+        SmokeUV = (smokePos - cfdOffset_time_4.xyz) * cfdScale_4.xyz;
+        cfd = sample_one(gLOD4Smoke, gLOD4SmokeB, SmokeUV, eye_step * cfdScale_4.xyz, found, cfdOffset_time_4.w);
+    }
+    if (!found)
+    {
+        SmokeUV = (smokePos - cfdOffset_time_3.xyz) * cfdScale_3.xyz;
+        cfd = sample_one(gLOD3Smoke, gLOD3SmokeB, SmokeUV, eye_step * cfdScale_3.xyz, found, cfdOffset_time_3.w);
+    }
+    if (!found)
+    {
+        SmokeUV = (smokePos - cfdOffset_time_2.xyz) * cfdScale_2.xyz;
+        cfd = sample_one(gLOD2Smoke, gLOD2SmokeB, SmokeUV, eye_step * cfdScale_2.xyz, found, cfdOffset_time_2.w);
+    }
+
+    float4 answer;
+    answer.x = pow(cfd.x, 2.1) * 1;
+    answer.y = smoothstep(0.0, 1.0, cfd.z) * 0.301;
+    answer.z = saturate(cfd.y - 0.5) * 1;
+    answer.w = saturate(0.5 - cfd.y) * 1;
+    if (!found)
+    {
+        answer.zw = 0;
+    }
+    
+    return answer;
+}
+
+
 void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, float shadow, inout float depth, inout float3 newIn, inout float3 newOut, out float planetRadius) {
 
 	// eye_position.xz = 0.0f;	// from camera
@@ -223,80 +286,16 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
 	float stepKm = step * 0.001;
 
     // Volume clouds
-    
-    float3 smokePos = eye_position + (eye_dir * depth);
     float4 cfd = 0;
-    float4 cfd_b = 0;
-    float3 SmokeUV;
-
-    smokePos += eye_dir * step * 0.5;  // Chck thsi is correct, the 0.4 below sugegsts that step is already half step
-    SmokeUV = (smokePos - cfdOffset_time_5.xyz) * cfdScale_5.xyz;
-    bool found = false;
-    if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
+    float3 smokePos = eye_position + (eye_dir * depth);
+    //if (smokePos.y < 2500 && smokePos.y > 2000)
     {
-        cfd += gLOD5Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-        cfd_b += gLOD5SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-        found = true;
-        cfd = lerp(cfd, cfd_b, cfdOffset_time_5.w);
+        cfd = sample_cfd(smokePos, eye_dir * step);
     }
-
-    if (!found)
-    {
-        SmokeUV = (smokePos - cfdOffset_time_4.xyz) * cfdScale_4.xyz;
-        if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
-        {
-            cfd += gLOD4Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-            cfd_b += gLOD4SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-            found = true;
-            cfd = lerp(cfd, cfd_b, cfdOffset_time_4.w);
-            
-        }
-    }
-
-    if (!found)
-    {
-        SmokeUV = (smokePos - cfdOffset_time_3.xyz) * cfdScale_3.xyz;
-        if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
-        {
-            cfd += gLOD3Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-            cfd_b += gLOD3SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-            //SMK += 0.095;
-            //SMK_b += 0.095;
-            found = true;
-            cfd = lerp(cfd, cfd_b, cfdOffset_time_3.w);
-        }
-    }
-
-    if (!found)
-    {
-        SmokeUV = (smokePos - cfdOffset_time_2.xyz) * cfdScale_2.xyz;
-        if (all(saturate(SmokeUV - 0.01) * saturate(0.99 - SmokeUV)))
-        {
-            cfd += gLOD2Smoke.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-            cfd_b += gLOD2SmokeB.SampleLevel(linearSampler, SmokeUV.xzy, 0);
-            //SMK += 0.095;
-            //SMK_b += 0.095;
-            found = true;
-            cfd = lerp(cfd, cfd_b, cfdOffset_time_2.w);
-            
-        }
-    }
-    
-    float SMK = pow(cfd.x, 2.1) * 1;
-    float CLOUD = smoothstep(0.0, 1.0, cfd.z) * 0.101;
-    float UP = saturate(cfd.y - 0.5) * 1;
-    float DOWN = saturate(0.5 - cfd.y) * 1;
-    if (!found)
-    {
-        DOWN = 0;
-        UP = 0;
-    }
-    
-    Optical.y += 1000.1f * SMK;
-    Optical.z += 100.1f * SMK;
-
-    Optical.y += 100.1f * CLOUD;
-    Optical.z += 8000.1f * CLOUD;
+    Optical.y += 100.1f * cfd.x;    // smoke
+    Optical.z += 200.1f * cfd.x;
+    Optical.y += 700.1f * cfd.y;    // cloud
+    Optical.z += 900.1f * cfd.y;
     
 
 
@@ -339,23 +338,24 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     newIn = inscatterRayleigh * (sunlight.rgb + IBL) + inscatterMie * sunlight.rgb + inscatterIBL * IBL;
     newOut += (Rayleigh_extinction * pRayleigh) + (Haze_extinction * pMie_haze) + (Fog_extinction * pMie_fog) + (1 * pMie_rain);
 
-    newIn += IBL * min(0.1, saturate(SMK * 0.52)) * step * 0.030;
-    newOut += SMK * 2.172 * step * 0.030;
+    newIn += IBL * min(0.1, saturate(cfd.x * 0.52)) * step * 0.030;
+    newOut += cfd.x * 2.172 * step * 0.030;
 
-    newIn += IBL * min(0.2, saturate(CLOUD * 0.052)) * step * 0.030;
-    newOut += CLOUD * 0.0172 * step * 0.030;
+    newIn += IBL * min(0.2, saturate(cfd.y * 0.052)) * step * 6.930;
+    newOut += cfd.y * 0.0172 * step * 2.130;
 
     //if (UP > 0.4)               newIn += float3(1, 0.7, 0.4) * pow(UP, 2.5) * 1.01;
     //else if (UP > 0.3)          newIn += float3(1, 0, 0) * pow(UP, 2.5) * 1.01;
     //else if (UP > 0.2)          newIn += float3(1, 0.3, 0) * pow(UP, 2.5) * 1.01;
     //else if (UP > 0.0)          newIn += float3(1, 1, 0) * pow(UP, 2.5) * 1.01;
     //UP = pow(UP, 2.5);
-    newIn += float3(1, 1, 0) * pow(UP * 5, 2.5) * 0.01 * step * 0.030;
-    newIn += float3(0, -1.8, 0) * pow(UP * 1.1, 3.5) * 0.5 * step * 0.030;
-    newOut += pow(UP, 2.5) * 0.0172 * step * 0.030;
+    //cfd.zw *= 0;
+    newIn += float3(1, 1, 0) * pow(cfd.z * 5, 1.5) * 0.01 * step * 0.050;
+    newIn += float3(0, -1.8, 0) * pow(cfd.z * 2.3, 6.5) * 0.5 * step * 0.015;
+    newOut += pow(cfd.z, 4.5) * 0.0172 * step * 5.130;
 
-    newIn += float3(0, 0, 1) * pow(DOWN * 5, 2.5) * 0.05 * step * 0.030;
-    newOut += pow(DOWN, 2.5) * 0.172 * step * 0.030;
+    newIn += float3(0, 0, 1) * pow(cfd.w * 5, 1.5) * 0.05 * step * 0.050;
+    newOut += pow(cfd.w, 2.5) * 0.172 * step * 0.030;
     
 	planetRadius = length(pos * 0.001 + float3(0, EarthR, 0));
 }

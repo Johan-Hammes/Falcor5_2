@@ -651,6 +651,9 @@ public:
     void setPilotWind(float3 _v) { pilotWind = _v; }
     void setWingWind(float3 _v0, float3 _v1, float3 _v2) { wingWind[0] = _v0; wingWind[1] = _v1; wingWind[2] = _v2;  }
 
+    float3 pathRecord[5 * 60 * 60 * 10];    // 5 hours at 10 per second
+    uint recordIndex = 0;
+
     void setWind(std::string file, float3 _wind) { windTerrain.load(file, _wind); }
     void loadWind() { windTerrain.loadRaw(); }
     void setxfoilDir(std::string dir) { xfoilDir = dir; }

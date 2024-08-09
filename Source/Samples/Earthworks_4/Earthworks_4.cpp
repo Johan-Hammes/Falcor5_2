@@ -139,6 +139,84 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
 
+    float a = -10;
+    float b = 0;
+    float c = 10;
+
+    for (int i = 0; i < 20; i++)
+    {
+        float d1 = b - a;
+        float dd1 = (d1 - 1.f) / 2.f;
+        a += dd1;
+        b -= dd1;
+
+        float d2 = c - b;
+        float dd2 = (d2 - 1.f) / 2.f;
+        b += dd2;
+        c -= dd2;
+
+        float avs = (a + b + c) / 3;
+
+        fprintf(logFile, "%1.15f, %1.15f, %1.15f    avs   %1.15f\n", a, b, c, avs);
+        fflush(logFile);
+    }
+
+    {
+        // wing, line body test
+        double p[5] = { 0, 2.5, 5, 7.5, 10};
+        double pCLIP[5] = { 0, 2.5, 5, 7.5, 10 };
+        double p0[5] = { 0, 2.5, 5, 7.5, 10 };
+        double m[5] = { 100, 0.1, 0.1, 0.1, 5};
+        double w[5] = { 0.01, 10, 10, 10, 0.2 };
+        double f = 1000; //Newton
+        double t = 0.00555555555555;
+        double t2 = t * t;
+        double dMin = 0.0000012;
+
+        double CoM = (p[0] * m[0] + p[1] * m[1] + p[2] * m[2] + p[3] * m[3] + p[4] * m[4]) / (p[0] + p[1] + p[2] + p[3] + p[4] );
+
+        fprintf(logFile, "\n\n");
+        fprintf(logFile, "%1.15f, (%1.15f), (%1.15f), (%1.15f), (%1.15f), %1.15f     , %1.15f\n", p[0], p[1] - p[0], p[2] - p[1], p[3] - p[2], p[4] - p[3], p[4], CoM);
+        //p[0] -= (f / m[0]) * t2;
+        //p[4] += (f / m[4]) * t2;
+        
+        CoM = (p[0] * m[0] + p[1] * m[1] + p[2] * m[2] + p[3] * m[3] + p[4] * m[4]) / (p[0] + p[1] + p[2] + p[3] + p[4]);
+        double dL;
+
+        fprintf(logFile, "%1.15f, (%1.15f), (%1.15f), (%1.15f), (%1.15f), %1.15f     , %1.15f\n", p[0], p[1] - p[0], p[2] - p[1], p[3] - p[2], p[4] - p[3], p[4], CoM);
+        fprintf(logFile, "\n\n");
+        fprintf(logFile, "%1.15f mm, %1.15f mm           , %1.15f\n", (p[0] - p0[0]) * 1000, (p[4] - p0[4]) * 1000, CoM);
+
+        for (int k = 0; k < 100; k++)
+        {
+            p[0] -= (f / m[0]) * t2;
+            p[4] += (f / m[4]) * t2;
+
+            for (int i = 0; i < 10; i++)
+            {
+                for (int c = 0; c < 4; c++)
+                {
+                    double wSum = w[c] + w[c + 1];
+                    double l = (p[c + 1] - p[c]) - 2.5;
+                    l = (double)((int)(l / dMin)) * dMin;
+                    p[c] += w[c] / wSum * l;
+                    p[c + 1] -= w[c + 1] / wSum * l;
+                }
+                p[0] = (double)((int)(p[0] / dMin)) * dMin;
+                p[1] = (double)((int)(p[1] / dMin)) * dMin;
+                p[2] = (double)((int)(p[2] / dMin)) * dMin;
+                p[3] = (double)((int)(p[3] / dMin)) * dMin;
+                p[4] = (double)((int)(p[4] / dMin)) * dMin;
+
+
+                CoM = (p[0] * m[0] + p[1] * m[1] + p[2] * m[2] + p[3] * m[3] + p[4] * m[4]) / (p[0] + p[1] + p[2] + p[3] + p[4]);
+                dL = ((p[4] - p[0]) - 10) * 1000;
+                //fprintf(logFile, "%1.15f, (%1.10f), (%1.10f), (%1.10f), (%1.10f), %1.15f\n", p[0], p[1] - p[0] - 2.5, p[2] - p[1] - 2.5, p[3] - p[2] - 2.5, p[4] - p[3] - 2.5, p[4]);
+                //fprintf(logFile, "%1.15f mm, %1.15f mm      dL %1.15f mm     , %1.15f\n", (p[0] - p0[0]) * 1000, (p[4] - p0[4]) * 1000, dL, CoM);
+            }
+            fprintf(logFile, "%1.15f mm, %1.15f mm      dL %1.15f mm     , %1.15f\n", (p[0] - p0[0]) * 1000, (p[4] - p0[4]) * 1000, dL, CoM);
+        }
+    }
     
     /*
     float2 A = float2(-20906.8073893663f, 21854.7731031066f);
@@ -303,7 +381,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     {
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
-        terrain.shadowEdges.sunAngle = .105f;
+        terrain.shadowEdges.sunAngle = 1.13605f;
         terrain.shadowEdges.dAngle = 0.0001f;
         terrain.shadowEdges.requestNewShadow = true;
 
@@ -335,7 +413,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     }
 
     FALCOR_PROFILE("onFrameUpdate");
-    atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
+    
     atmosphere.setSunDirection(global_sun_direction);
     atmosphere.getFar().setCamera(camera);
     atmosphere.computeSunInAtmosphere(_renderContext);
@@ -371,6 +449,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
     terrain.update(_renderContext);
+    atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
 }
 
 
@@ -603,7 +682,7 @@ int main(int argc, char** argv)
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
-    config.windowDesc.monitor = 0;
+    config.windowDesc.monitor = 1;
 
     // HDR
     // config.windowDesc.monitor = 1;

@@ -56,11 +56,22 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
 
-    ImGui::PushFont(pGui->getFont("roboto_20"));
+    ImGui::PushFont(pGui->getFont("roboto_14"));
     {
         if (ImGui::Button("restart"))
         {
             requestRestart = true;
+        }
+        if (ImGui::Button("save path"))
+        {
+            std::ofstream ofs;
+            ofs.open("e:/flightpath.raw", std::ios::binary);
+            if (ofs)
+            {
+                ofs.write((char*)&recordIndex, sizeof(int));
+                ofs.write((char*)&pathRecord, sizeof(float3) * recordIndex);
+                ofs.close();
+            }
         }
     }
     ImGui::PopFont();
@@ -352,7 +363,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     int startVert = spanSize * chordSize;
     weightLength = glm::length(x[startVert + 1] - x[startVert]) * 2.f;
 
-
+    recordIndex = 0;
 
 
     std::string folder = xfoilDir + "/" + wingName + "/cp.bin";
@@ -723,6 +734,9 @@ void _gliderRuntime::solve_POST(float _dT)
     del.y = 0;
     relDist += glm::length(del);
     glideRatio = relDist / relAlt;
+
+
+    
 }
 
 
@@ -740,6 +754,16 @@ void _gliderRuntime::movingROOT()
         {
             x[i] -= offset;
         }
+    }
+
+    static int saveCount = 50;
+    saveCount--;
+    if (saveCount < 0)
+    {
+        uint start = chordSize * spanSize;
+        pathRecord[recordIndex] = ROOT + x[start];    // 30 minutes at 10 per second
+        recordIndex++;
+        saveCount = 50;     // fropm 2ms, this giives every 100ms or ten per second
     }
 }
 
