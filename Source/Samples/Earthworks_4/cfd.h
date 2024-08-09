@@ -148,28 +148,24 @@ struct _cfd_lod
     void fromRoot_Alpha();
     void toRoot_Alpha();
 
-    void fromRoot_blocks();
-    void toRoot_blocks();
 
     // simulate
     void clamp(float3& _p);
     template <typename T> T sample(std::vector<T>& data, float3 _p);
     void addTemperature(float _dt);
     void bouyancy(float _dt);
+    void clearBelowGround();
     void incompressibility_SMAP();
-    void incompressibility_SMAP_blocks();
     void advect(float _dt);
-    void advect_blocks(float _dt);
     void diffuse(float _dt);
-    void diffuse_blocks(float _dt);
     void edges();
-    void solveBlockRating();
     void simulate(float _dt);
     
 
     int3 offset = {0, 0, 0};
     _cfd_lod* root = nullptr;
 
+    uint lod;   // whic lod am I
     uint width;
     uint w2;        // width ^ 2
     uint height;
@@ -194,7 +190,6 @@ struct _cfd_lod
     uint numBlocks = 0;
     double simTimeLod_fromRoot_ms;
     double simTimeLod_toRoot_ms;
-    double simTimeLod_blocks_ms;
     double simTimeLod_advect_ms;
     double simTimeLod_incompress_ms;
     double simTimeLod_boyancy_ms;
@@ -291,6 +286,12 @@ struct _cfdClipmap
     static float3 skewT_corners_Data[4][100];
     static float3 skewT_corners_V[4][100];
     static void sampleSkewT(float3 _pos, float3* _v, float3* _data);
+    // data and wind seperate
+
+    // skewT data - keep this to 10km at least, its littel data and does not matter much, but may help in future, issue is we dont know lod0 size
+    static cfd_V_type skewT_wind[6][1024];    // silly overkill but still only 70k data just keep it
+    static cfd_data_type skewT_data[6][1024];    // silly overkill but still only 70k data just keep it
+    
 
     static float rootAltitude;
 
