@@ -197,6 +197,7 @@ struct _cfd_lod
 
     float timer = 0.f;
     float maxSpeed;
+    float maxSpeed_vertical;
     float maxStep;
     float solveTime_ms;
     float maxP;
@@ -217,10 +218,13 @@ struct _cfdClipmap
 {
     void requestNewWind(float3 wind) { windrequest = true; newWind = wind; }
     bool windrequest = false;
+    bool windSeperateSkewt = false;
     float3 newWind = {5.f, 0, 0};
+    static bool profile;    // does some of teh slower profiling bits
 
     void heightToSmap(std::string filename);
     void build(std::string _path);
+    void mipskewT();
     void loadSkewT(std::string _path);
     void setWind(float3 _bottom = float3(-1, 0, 0), float3 _top = float3(-5, 0, 0));
     void setFromSkewT(uint lod);
@@ -309,7 +313,6 @@ struct _cfdClipmap
     void export_V(std::string filename);
     void import_V(std::string filename);
 
-    void setWind(float3 _windBottom = float3(-1, 0, 0), float3 _windTop = float3(-5, 0, 0));
 
     // simulate
     void gavity(float _dt);

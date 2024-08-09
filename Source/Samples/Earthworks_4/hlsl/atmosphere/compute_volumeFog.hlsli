@@ -349,7 +349,7 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     //else if (UP > 0.2)          newIn += float3(1, 0.3, 0) * pow(UP, 2.5) * 1.01;
     //else if (UP > 0.0)          newIn += float3(1, 1, 0) * pow(UP, 2.5) * 1.01;
     //UP = pow(UP, 2.5);
-    //cfd.zw *= 0;
+    cfd.zw *= 0;
     newIn += float3(1, 1, 0) * pow(cfd.z * 5, 1.5) * 0.01 * step * 0.050;
     newIn += float3(0, -1.8, 0) * pow(cfd.z * 2.3, 6.5) * 0.5 * step * 0.015;
     newOut += pow(cfd.z, 4.5) * 0.0172 * step * 5.130;

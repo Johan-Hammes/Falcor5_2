@@ -26,6 +26,8 @@ std::vector<cfd_data_type> _cfdClipmap::data_bfecc;
 
 float _cfdClipmap::rootAltitude = 350.f;
 
+bool _cfdClipmap::profile = false;    // does some of teh slower profiling bits // FIXME #define im, dit maak maar 3 ms verskil
+
 std::vector<cfd_V_type> _cfdClipmap::curl;
 std::vector<float> _cfdClipmap::mag;
 std::vector<cfd_V_type> _cfdClipmap::vorticity;
@@ -250,7 +252,7 @@ void _cfd_lod::setV(uint3 _p, cfd_V_type _v, cfd_data_type _data)
 
 
 
-    // assume request is valid
+// assume request is valid
 void _cfd_lod::shiftOrigin(int3 _shift)
 {
     if (!root) return;
@@ -339,7 +341,7 @@ void _cfd_lod::fromRoot_Alpha()
                 }
             }
         }
-        
+
     }
 
     else
@@ -382,9 +384,9 @@ void _cfd_lod::toRoot_Alpha()
     uint bottom = 0;
     if (offset.y > 0) bottom = 4;
 
-    for (uint h = bottom; h < height - 4; h+=2) {
-        for (uint z = 4; z < width - 4; z+=2) {
-            for (uint x = 4; x < width - 4; x+=2)
+    for (uint h = bottom; h < height - 4; h += 2) {
+        for (uint z = 4; z < width - 4; z += 2) {
+            for (uint x = 4; x < width - 4; x += 2)
             {
                 uint i = idx(x, h, z);
                 cfd_V_type newV = v[i] + v[i + 1] + v[i + width] + v[i + width + 1];
@@ -413,8 +415,8 @@ void _cfd_lod::toRoot_Alpha()
 // not even every time, have some sample thing
 void _cfd_lod::clearBelowGround()
 {
-    for (uint z = 0; z < width; z ++) {
-        for (uint x = 0; x < width; x ++)
+    for (uint z = 0; z < width; z++) {
+        for (uint x = 0; x < width; x++)
         {
             // smap
             // 0 .. smin - sample skewt
@@ -463,7 +465,7 @@ void _cfd_lod::incompressibility_SMAP()      // red-black
                         uint iz = idx(x + dX, h, z + dY + 1);
 
 
-                        
+
                         float P = ((v[i].x * smin.x - v[ix].x * smax.x) +
                             (v[i].y * smin.y - v[iy].y * smax.y) +
                             (v[i].z * smin.z - v[iz].z * smax.z)) / (float)sum * _cfdClipmap::incompres_relax / 255.f;
@@ -477,21 +479,21 @@ void _cfd_lod::incompressibility_SMAP()      // red-black
                         v[ix].x += (cfd_P_type)(P * smax.x);
                         v[iy].y += (cfd_P_type)(P * smax.y);
                         v[iz].z += (cfd_P_type)(P * smax.z);
-                        
+
                         //if (smax.y == 0) v[i] *= 0.f;
                     }
                     else
                     {
                         // The else accounts for 60-70ms THIS IS BAD
                         // Remove from here
-                        
+
                         uint i = idx(x + dX, h, z + dY);
                         v[i] *= 0.f;
                         data[i] = data[idx(x + dX, h + 1, z + dY)];     // copy above, seems safest
                         //data[i].x += cellSize * 0.0098; //+ dry lapse
-                         data[i].x += cellSize * 0.0082; //+ dry lapse HAS TO BE THE SKEWT LOOKUP
+                        data[i].x += cellSize * 0.0082; //+ dry lapse HAS TO BE THE SKEWT LOOKUP
                         //data[i].y += cellSize * 0.0098; // moisture
-                         data[i].y = 0.45f; // FROM SKEWT once we have it
+                        data[i].y = 0.45f; // FROM SKEWT once we have it
                         data[i].z = 0; //no smoke underground
                         //data[i].z = 0.2f;
 
@@ -591,7 +593,7 @@ void _cfd_lod::diffuse(float _dt)
                 V += v[idx(x, h, z + 1)] * 0.005f;
                 //_cfdClipmap::v_back[i] = V / 1.03f;  lest test without V, I think incompressable fixes this
 
-                
+
 
                 cfd_data_type d = data[i];
                 cfd_data_type d_sides = { 0, 0, 0 };
@@ -604,7 +606,7 @@ void _cfd_lod::diffuse(float _dt)
                 _cfdClipmap::data_back[i].x = (d.x + d_sides.x / 6 * 0.05f) / 1.05f;
                 _cfdClipmap::data_back[i].y = (d.y + d_sides.y / 6 * 0.05f) / 1.05f;
                 _cfdClipmap::data_back[i].z = (d.z + d_sides.z / 6 * 0.01f) / 1.01f;
-                
+
             }
         }
     }
@@ -622,6 +624,7 @@ void _cfd_lod::advect(float _dt)
     float3 P;
     float scale = oneOverSize * _dt;
     float speed = 0;
+    float speed_vertical = 0;
 
     // vbach needs edges set, see if its faster to do less here
     // 7ms quite a lot - We only need edges, that is not covered below, so do better
@@ -639,7 +642,11 @@ void _cfd_lod::advect(float _dt)
                 _cfdClipmap::data_back[i] = sample(data, P);
 
                 //5 ms need to remove eventually, or run sparse
-                speed = __max(speed, glm::length(getV(idx(x, h, z)))); // migth as well, doesn show on profilibg
+                if (_cfdClipmap::profile)
+                {
+                    speed = __max(speed, glm::length(getV(idx(x, h, z)))); // migth as well, doesn show on profilibg
+                    speed_vertical = __max(speed_vertical, getV(idx(x, h, z)).y);
+                }
             }
         }
     }
@@ -651,7 +658,7 @@ void _cfd_lod::advect(float _dt)
             {
                 uint i = idx(x, h, z);
                 float3 V = getV(idx(x, h, z));  //v[i]
-                P = float3(x, h, z) + ( V * scale);      // + for forward
+                P = float3(x, h, z) + (V * scale);      // + for forward
                 float3 B = sample(_cfdClipmap::v_back, P);
                 _cfdClipmap::v_bfecc[i] = V + 0.5f * (V - B);
 
@@ -693,11 +700,12 @@ void _cfd_lod::advect(float _dt)
     }
 
 
-   // memcpy(v.data(), _cfdClipmap::v_back.data(), width * width * height * sizeof(cfd_V_type));
-   // memcpy(data.data(), _cfdClipmap::data_back.data(), width * width * height * sizeof(cfd_data_type));
+    // memcpy(v.data(), _cfdClipmap::v_back.data(), width * width * height * sizeof(cfd_V_type));
+    // memcpy(data.data(), _cfdClipmap::data_back.data(), width * width * height * sizeof(cfd_data_type));
 
     maxSpeed = speed;
     maxStep = maxSpeed * scale;
+    maxSpeed_vertical = speed_vertical;
 };
 
 
@@ -707,7 +715,7 @@ void _cfd_lod::advect(float _dt)
 /*  Do this 2D with ew smap*/
 void _cfd_lod::addTemperature(float _dt)
 {
-    
+
     //if (cellSize > 35) return;
 
     // stokberg
@@ -775,7 +783,7 @@ void _cfd_lod::addTemperature(float _dt)
                 glm::u8vec4 s = smap.getS(int3(x, h, z) + offset);
                 if (s.x < 255 || s.z < 255) // Find groud level
                 {
-                    
+
                     // kk7
                     for (int i = 0; i < 24; i++)
                     {
@@ -783,12 +791,12 @@ void _cfd_lod::addTemperature(float _dt)
                         if (l < 300)
                         {
                             // temp
-                            data[idx(x, h, z)].x += 0.05f;  // * _dt but account for volume
+                            data[idx(x, h, z)].x += 0.1f;  // * _dt but account for volume
 
-                            //data[idx(x, h, z)].z += 0.01f;
+                            data[idx(x, h, z)].z += 0.01f;  // and a little bit of humidity
                         }
                     }
-                    
+
                     /*
                     int scale = 32;
                     if (cellSize < 160) scale = 16;
@@ -809,8 +817,8 @@ void _cfd_lod::addTemperature(float _dt)
                     */
                 }
 
-                
-                
+
+
                 for (int i = 0; i < 0; i++)
                 {
                     float l = glm::length(P - t1[i]);
@@ -830,7 +838,7 @@ void _cfd_lod::addTemperature(float _dt)
 /*  ??? where to fold this into, unnesesary loop*/
 void _cfd_lod::bouyancy(float _dt)
 {
-    for (uint h = 0; h < height-1; h++)
+    for (uint h = 0; h < height - 1; h++)
     {
         float baseTemperature = _cfdClipmap::skewT_data[lod][h + offset.y].x;
 
@@ -884,7 +892,7 @@ void _cfd_lod::simulate(float _dt)
     timer += _dt;
 
     auto a = high_resolution_clock::now();
-    
+
     addTemperature(_dt);
     bouyancy(_dt);
     //vorticty_confine(_dt, _cfdClipmap::vort_confine); ??? not sure
@@ -918,8 +926,43 @@ void _cfdClipmap::sampleSkewT(float3 _pos, float3* _v, float3* _data)
     uint ih = (uint)h;
     float dh = h - ih;
 
-    *_v = glm::lerp(skewT_corners_V[0][ih], skewT_corners_V[0][ih+1], dh);
+    *_v = glm::lerp(skewT_corners_V[0][ih], skewT_corners_V[0][ih + 1], dh);
     *_data = glm::lerp(skewT_corners_Data[0][ih], skewT_corners_Data[0][ih + 1], dh);
+}
+
+
+void _cfdClipmap::mipskewT()
+{
+    // sample down
+    for (int i = 0; i < 512; i++)
+    {
+        skewT_wind[4][i] = (skewT_wind[5][i * 2 + 0] + skewT_wind[5][i * 2 + 1]) * 0.5f;
+        skewT_data[4][i] = (skewT_data[5][i * 2 + 0] + skewT_data[5][i * 2 + 1]) * 0.5f;
+    }
+
+    for (int i = 0; i < 256; i++)
+    {
+        skewT_wind[3][i] = (skewT_wind[4][i * 2 + 0] + skewT_wind[4][i * 2 + 1]) * 0.5f;
+        skewT_data[3][i] = (skewT_data[4][i * 2 + 0] + skewT_data[4][i * 2 + 1]) * 0.5f;
+    }
+
+    for (int i = 0; i < 128; i++)
+    {
+        skewT_wind[2][i] = (skewT_wind[3][i * 2 + 0] + skewT_wind[3][i * 2 + 1]) * 0.5f;
+        skewT_data[2][i] = (skewT_data[3][i * 2 + 0] + skewT_data[3][i * 2 + 1]) * 0.5f;
+    }
+
+    for (int i = 0; i < 64; i++)
+    {
+        skewT_wind[1][i] = (skewT_wind[2][i * 2 + 0] + skewT_wind[2][i * 2 + 1]) * 0.5f;
+        skewT_data[1][i] = (skewT_data[2][i * 2 + 0] + skewT_data[2][i * 2 + 1]) * 0.5f;
+    }
+
+    for (int i = 0; i < 32; i++)
+    {
+        skewT_wind[0][i] = (skewT_wind[1][i * 2 + 0] + skewT_wind[1][i * 2 + 1]) * 0.5f;
+        skewT_data[0][i] = (skewT_data[1][i * 2 + 0] + skewT_data[1][i * 2 + 1]) * 0.5f;
+    }
 }
 
 
@@ -949,7 +992,7 @@ void _cfdClipmap::loadSkewT(std::string _path)
             }
         }
     }
-    
+
 
     // replicate for now
     for (int i = 1; i < 4; i++)
@@ -963,48 +1006,14 @@ void _cfdClipmap::loadSkewT(std::string _path)
 
     // Now sample my lod specific skewT - own function so we can do after wind 
     float3 v_samp, data;
-    fprintf(terrafectorSystem::_logfile, "loadSkewT(std::string _path)\n");
     for (int i = 0; i < 1024; i++)
     {
-        
+
         sampleSkewT(float3(0, rootAltitude + 5.f + (i * 10.f), 0), &v_samp, &data);
         skewT_wind[5][i] = v_samp;
         skewT_data[5][i] = data;
-        fprintf(terrafectorSystem::_logfile, "%d, %f\n", i, skewT_data[5][i].x);
     }
-    // sample down
-    for (int i = 0; i < 512; i++)
-    {
-        skewT_wind[4][i] = (skewT_wind[5][i * 2 + 0] + skewT_wind[5][i * 2 + 1]) * 0.5f;
-        skewT_data[4][i] = (skewT_data[5][i * 2 + 0] + skewT_data[5][i * 2 + 1]) * 0.5f;
-        fprintf(terrafectorSystem::_logfile, "%d, %f\n", i, skewT_data[4][i].x);
-    }
-
-    for (int i = 0; i < 256; i++)
-    {
-        skewT_wind[3][i] = (skewT_wind[4][i * 2 + 0] + skewT_wind[4][i * 2 + 1]) * 0.5f;
-        skewT_data[3][i] = (skewT_data[4][i * 2 + 0] + skewT_data[4][i * 2 + 1]) * 0.5f;
-        fprintf(terrafectorSystem::_logfile, "%d, %f\n", i, skewT_data[3][i].x);
-    }
-
-    for (int i = 0; i < 128; i++)
-    {
-        skewT_wind[2][i] = (skewT_wind[3][i * 2 + 0] + skewT_wind[3][i * 2 + 1]) * 0.5f;
-        skewT_data[2][i] = (skewT_data[3][i * 2 + 0] + skewT_data[3][i * 2 + 1]) * 0.5f;
-        fprintf(terrafectorSystem::_logfile, "%d, %f\n", i, skewT_data[2][i].x);
-    }
-
-    for (int i = 0; i < 64; i++)
-    {
-        skewT_wind[1][i] = (skewT_wind[2][i * 2 + 0] + skewT_wind[2][i * 2 + 1]) * 0.5f;
-        skewT_data[1][i] = (skewT_data[2][i * 2 + 0] + skewT_data[2][i * 2 + 1]) * 0.5f;
-    }
-
-    for (int i = 0; i < 32; i++)
-    {
-        skewT_wind[0][i] = (skewT_wind[1][i * 2 + 0] + skewT_wind[1][i * 2 + 1]) * 0.5f;
-        skewT_data[0][i] = (skewT_data[1][i * 2 + 0] + skewT_data[1][i * 2 + 1]) * 0.5f;
-    }
+    mipskewT();
 }
 
 
@@ -1012,9 +1021,9 @@ void _cfdClipmap::build(std::string _path)
 {
     //loadSkewT(_path + "/Shanis_August3_1400.skewT_5000");
     loadSkewT(_path + "/Walenstad_August5_1500.skewT_5000");
-    
+
     //loadSkewT(_path + "/Altenstadt_July18_1600.skewT_5000");
-    
+
 
     v_back.resize(128 * 128 * 128);     // maximum of any below or bigger
     v_bfecc.resize(128 * 128 * 128);
@@ -1074,7 +1083,7 @@ void _cfdClipmap::build(std::string _path)
     lods[5].smap.load(_path + "/S_4096.bin");
     lods[5].lod = 5;
 
-    
+
     lods[0].loadNormals(_path + "/S_128.normals.bin");
     lods[1].loadNormals(_path + "/S_256.normals.bin");
     lods[2].loadNormals(_path + "/S_512.normals.bin");
@@ -1091,32 +1100,24 @@ void _cfdClipmap::build(std::string _path)
         ifs.read((char*)heatMap_4k.data(), 4096 * 4096);
         ifs.close();
     }
-    
+
 }
 
 
 void _cfdClipmap::setWind(float3 _bottom, float3 _top)
 {
-    cfd_data_type DATA;
-    cfd_V_type wind;
-
-    for (uint y = 0; y < 32; y++)
+    float3 v_samp, data;
+    for (int i = 0; i < 1024; i++)
     {
-        float altitude = _cfdClipmap::rootAltitude + ((y + 0.5f) * lods[0].cellSize);
-        //float3 wind = glm::mix(_bottom, _top, (float)y / 32.f);
-        sampleSkewT(float3(0, altitude, 0), &wind, &DATA);
-
-        DATA = _cfdClipmap::skewT_data[0][y];
-
-        for (uint z = 0; z < 128; z++)
+        sampleSkewT(float3(0, rootAltitude + 5.f + (i * 10.f), 0), &v_samp, &data);
+        if (windSeperateSkewt)
         {
-            for (uint x = 0; x < 128; x++)
-            {
-                lods[0].setV(uint3(x, y, z), wind, DATA);
-            }
+            v_samp = glm::mix(_bottom, _top, (float)i / 1024.f);
         }
+        skewT_wind[5][i] = v_samp;
+        skewT_data[5][i] = data;
     }
-
+    mipskewT();
 }
 
 void _cfdClipmap::setFromSkewT(uint lod)
@@ -1125,10 +1126,11 @@ void _cfdClipmap::setFromSkewT(uint lod)
 
     for (uint y = 0; y < lods[lod].height; y++)
     {
-        float altitude = _cfdClipmap::rootAltitude + ((y + 0.5f + lods[lod].offset.y) * lods[lod].cellSize);
-        sampleSkewT(float3(0, altitude, 0), &v, &data);
+        //float altitude = _cfdClipmap::rootAltitude + ((y + 0.5f + lods[lod].offset.y) * lods[lod].cellSize);
+        //sampleSkewT(float3(0, altitude, 0), &v, &data);
 
         data = _cfdClipmap::skewT_data[lod][y + lods[lod].offset.y];
+        v = _cfdClipmap::skewT_wind[lod][y + lods[lod].offset.y];
 
         for (uint z = 0; z < lods[lod].width; z++)
         {
@@ -1158,7 +1160,7 @@ void _cfdClipmap::simulate_start(float _dt)
     // Replace with SkewT
     memcpy(_cfd_lod::root_v.data(), lods[0].v.data(), lods[0].width * lods[0].width * lods[0].height * sizeof(cfd_V_type));
     memcpy(_cfd_lod::root_data.data(), lods[0].data.data(), lods[0].width * lods[0].width * lods[0].height * sizeof(cfd_data_type));
-    
+
 
     for (int lod = 1; lod < 6; lod++)
     {
@@ -1192,9 +1194,9 @@ void _cfdClipmap::simulate(float _dt)
             uint lod = 6 - l;
             float time = _dt / pow(2, lod);
 
-            
+
             auto& L = lods[lod];
-            
+
             {
                 // WAIT HERE
                 auto starTime = high_resolution_clock::now();
@@ -1224,17 +1226,17 @@ void _cfdClipmap::simulate(float _dt)
                 }
             }
 
-            
+
             auto stop = high_resolution_clock::now();
             lods[lod].solveTime_ms = (float)duration_cast<microseconds>(stop - start).count() / 1000.;
-            
+
 
             if (lod == 5)
             {
                 simTimeLod_ms = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
             }
 
-            if (showSlice&& lod >=2)
+            if (showSlice && lod >= 2)
             {
                 slicelod = lod;
                 lodOffsets[lod] = float4(-20000, 350, -20000, 0) + L.cellSize * float4(L.offset, 0);
@@ -1245,7 +1247,7 @@ void _cfdClipmap::simulate(float _dt)
                     for (int x = 0; x < 128; x++)
                     {
                         uint index = L.idx(x, y, sliceIndex);
-                        sliceV[(L.height - 1- y) * 128 + x] = L.v[index];
+                        sliceV[(L.height - 1 - y) * 128 + x] = L.v[index];
                         sliceData[(L.height - 1 - y) * 128 + x] = L.data[index];
 
                         /*
@@ -1286,14 +1288,14 @@ void _cfdClipmap::simulate(float _dt)
                             //float d1 = density(alt, L.data[i].x);
                             float dT = (L.data[i].x - baseTemperature) * 10;    // 3 degrees spread
                             dT = __min(31, __max(-31, dT));
-                            G = (unsigned short)(dT  + 32);
+                            G = (unsigned short)(dT + 32);
                             //G = (unsigned short)(32);
-                            
+
 
                             volumeData[y][z][x] = (R << 11) + (G << 5) + B;
                         }
                     }
-                    
+
                 }
 
                 float S = 128 * L.cellSize;
@@ -1306,7 +1308,7 @@ void _cfdClipmap::simulate(float _dt)
                 sliceCorners[3].x += S;
 
 
-                float3 p0 = {64, 0, sliceIndex };
+                float3 p0 = { 64, 0, sliceIndex };
                 float altSample = 0.f;
                 for (int j = 0; j < 100; j++)
                 {
@@ -1323,12 +1325,12 @@ void _cfdClipmap::simulate(float _dt)
                 }
                 skewTGround = 0;
 
-                
+
 
                 sliceNew = true;
             }
 
-            
+
         }
     }
 
@@ -1442,7 +1444,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
                 if (lv < 0.01f) V = { 0, 0, 0 };
                 //if (P.z < pLOD->width && P.x < pLOD->width)
                 {
-                    P += V * 0.86f *scale;// *300.f * oneOverSize;
+                    P += V * 0.86f * scale;// *300.f * oneOverSize;
                 }
             }
 
@@ -1530,7 +1532,7 @@ void _cfdClipmap::streamlines(float3 _p, float4* _data, float3 right)
                 if (lv < 0.01f) V = { 0, 0, 0 };
                 //if (P.z < pLOD->width && P.x < pLOD->width)
                 {
-                    P -= V * 0.86f *scale;// *300.f * oneOverSize;
+                    P -= V * 0.86f * scale;// *300.f * oneOverSize;
                 }
 
             }
@@ -1566,7 +1568,7 @@ void _cfdClipmap::shiftOrigin(float3 _origin)
     for (int lod = 1; lod < 6; lod++)
     {
         int3 plo = P0 * (float)pow(2, lod);
-        plo -= int3(lods[lod].width / 2, lods[lod].height  * 0.75f, lods[lod].width / 2 );  // 75% height
+        plo -= int3(lods[lod].width / 2, lods[lod].height * 0.75f, lods[lod].width / 2);  // 75% height
         int maxHeight = lods[0].height * (int)pow(2, lod);
 
         // clapmp to even numbers for up down copy
@@ -1785,11 +1787,11 @@ void _cfdClipmap::heightToSmap(std::string filename)
 /*
 *   https://github.com/kalexmills/jos-stam-vort-confine/blob/master/code/solver.c
     float a=dt*diff*N*N;
-	lin_solve ( N, b, x, x0, a, 1+4*a );
+    lin_solve ( N, b, x, x0, a, 1+4*a );
     x[IX(i,j)] = (x0[IX(i,j)] + a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))/c;
 
     this on in 3d, same idea
-    https://github.com/BlainMaguire/3dfluid/blob/master/solver3d.c#L91          
+    https://github.com/BlainMaguire/3dfluid/blob/master/solver3d.c#L91
     int max = MAX(MAX(M, N), MAX(N, O));
     float a=dt*diff*max*max*max;
     lin_solve ( M, N, O, b, x, x0, a, 1+6*a );
@@ -1965,7 +1967,7 @@ void _cfd_lod::loadNormals(std::string filename)
             float3 N = normals[i].xyz;
             float V = glm::dot(N, sun);
             unsigned char val = (unsigned char)__max(0, V * 255.f);
-            ofs.write((char*) & val, 1);
+            ofs.write((char*)&val, 1);
         }
         ofs.close();
     }

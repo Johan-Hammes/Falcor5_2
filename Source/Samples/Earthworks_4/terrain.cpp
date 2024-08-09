@@ -4777,10 +4777,13 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
     ImGui::PushFont(pGui->getFont("roboto_20"));
     {
         ImGui::NewLine();
-        ImGui::Text("      time   maxV  stp   maxP");
+        ImGui::Checkbox("profile", &cfd.clipmap.profile);
+        ImGui::NewLine();
+        
+        ImGui::Text("      time   maxV  vert  stp   maxP");
         for (int i = 0; i <= 5; i++)
         {
-            ImGui::Text("%d - %4d s, %2.1f m/s, %2.1f, %3d", i, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxStep, (int)(cfd.clipmap.lods[i].maxP * 1000.f));
+            ImGui::Text("%d - %4d s, %2.1f m/s, %2.1f m/s, %2.1f, %3d", i, (int)cfd.clipmap.lods[i].timer, cfd.clipmap.lods[i].maxSpeed, cfd.clipmap.lods[i].maxSpeed_vertical, cfd.clipmap.lods[i].maxStep, (int)(cfd.clipmap.lods[i].maxP * 1000.f));
         }
 
 
@@ -4791,6 +4794,8 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         {
             cfd.clipmap.newWind.y = 0;
         }
+        ImGui::Checkbox("use this wind", &cfd.clipmap.windSeperateSkewt);
+        
 
         if (ImGui::Button("change"))
         {
