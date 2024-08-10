@@ -381,7 +381,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     {
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
-        terrain.shadowEdges.sunAngle = 1.13605f;
+        terrain.shadowEdges.sunAngle = 0.3605f;
         terrain.shadowEdges.dAngle = 0.0001f;
         terrain.shadowEdges.requestNewShadow = true;
 

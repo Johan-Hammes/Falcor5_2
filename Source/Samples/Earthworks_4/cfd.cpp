@@ -77,7 +77,8 @@ void _cfd_Smap::save(std::string filename)
         ofs.write((char*)&msize, sizeof(uint));
         ofs.write((char*)&ssize, sizeof(uint));
         ofs.write((char*)map.data(), msize * sizeof(_cfd_map));
-        ofs.write((char*)S.data(), ssize * sizeof(glm::u8vec4));
+        //ofs.write((char*)S.data(), ssize * sizeof(glm::u8vec4));
+        ofs.write((char*)S_new.data(), ssize * sizeof(_single_s));
         ofs.close();
     }
 }
@@ -93,9 +94,11 @@ void _cfd_Smap::load(std::string filename)
         ifs.read((char*)&msize, sizeof(uint));
         ifs.read((char*)&ssize, sizeof(uint));
         map.resize(msize);
-        S.resize(ssize);
+        //S.resize(ssize);
+        S_new.resize(ssize);
         ifs.read((char*)map.data(), msize * sizeof(_cfd_map));
-        ifs.read((char*)S.data(), ssize * sizeof(glm::u8vec4));
+        //ifs.read((char*)S.data(), ssize * sizeof(glm::u8vec4));
+        ifs.read((char*)S_new.data(), ssize * sizeof(_single_s));
         ifs.close();
     }
 }
@@ -104,8 +107,16 @@ glm::u8vec4 _cfd_Smap::getS(uint3 _p)
 {
     const auto& m = map[_p.z * width + _p.x];
     if (_p.y < m.bottom) return solid;                   // solid ground
-    if (_p.y >= m.bottom + m.size) return freeair;        // free air
+    if (_p.y >= m.bottom + m.size) return freeair;       // free air
     return S[m.offset + (_p.y - m.bottom)];              // somewhere between the two
+}
+
+_single_s _cfd_Smap::getS_new_for_mip(uint3 _p)
+{
+    const auto& m = map[_p.z * width + _p.x];
+    if (_p.y < m.bottom) return solid_new;                   // solid ground
+    if (_p.y >= m.bottom + m.size) return freeair_new;       // free air
+    return S_new[m.offset + (_p.y - m.bottom)];              // somewhere between the two
 }
 
 
@@ -117,6 +128,7 @@ void _cfd_Smap::mipDown(_cfd_Smap& top_map)
     uint offset = 0;
     //map.resize(width * width);
     S.resize(0);
+    S_new.resize(0);
 
     for (uint z = 0; z < SIZE; z++)
     {
@@ -143,7 +155,9 @@ void _cfd_Smap::mipDown(_cfd_Smap& top_map)
             for (int j = 0; j < map[i0].size; j++)
             {
                 uint4 sfloat = { 0, 0, 0, 0 };
+                uint4 sfloat_B = { 0, 0, 0, 0 };
                 glm::u8vec4 s[8];
+                _single_s s_new[8];
                 uint h0 = (map[i0].bottom + j) * 2;
                 uint h1 = h0 + 1;
                 uint x0 = x * 2;
@@ -160,10 +174,24 @@ void _cfd_Smap::mipDown(_cfd_Smap& top_map)
                 s[6] = top_map.getS(uint3(x1, h1, z1));
                 s[7] = top_map.getS(uint3(x0, h1, z1));
 
+                s_new[0] = top_map.getS_new_for_mip(uint3(x0, h0, z0));
+                s_new[1] = top_map.getS_new_for_mip(uint3(x1, h0, z0));
+                s_new[2] = top_map.getS_new_for_mip(uint3(x1, h0, z1));
+                s_new[3] = top_map.getS_new_for_mip(uint3(x0, h0, z1));
+
+                s_new[4] = top_map.getS_new_for_mip(uint3(x0, h1, z0));
+                s_new[5] = top_map.getS_new_for_mip(uint3(x1, h1, z0));
+                s_new[6] = top_map.getS_new_for_mip(uint3(x1, h1, z1));
+                s_new[7] = top_map.getS_new_for_mip(uint3(x0, h1, z1));
+
                 sfloat.x = s[0].x + s[3].x + s[4].x + s[7].x;
                 sfloat.y = s[0].y + s[1].y + s[2].y + s[3].y;
                 sfloat.z = s[0].z + s[1].z + s[4].z + s[5].z;
                 sfloat.w = s[0].w + s[1].w + s[2].w + s[3].w + s[4].w + s[5].w + s[6].w + s[7].w;
+
+                sfloat_B.x = s_new[1].sides[3] + s_new[2].sides[3] + s_new[5].sides[3] + s_new[6].sides[3];
+                sfloat_B.y = s_new[4].sides[4] + s_new[5].sides[4] + s_new[6].sides[4] + s_new[7].sides[4];
+                sfloat_B.z = s_new[2].sides[5] + s_new[3].sides[5] + s_new[6].sides[5] + s_new[7].sides[5];
 
                 glm::u8vec4 Sval;
                 Sval.x = sfloat.x >> 2;
@@ -171,6 +199,19 @@ void _cfd_Smap::mipDown(_cfd_Smap& top_map)
                 Sval.z = sfloat.z >> 2;
                 Sval.w = sfloat.w / 8;    // volume
                 S.push_back(Sval);
+
+
+                _single_s newS;
+                newS.sides[0] = sfloat.x >> 2;
+                newS.sides[1] = sfloat.y >> 2;
+                newS.sides[2] = sfloat.z >> 2;
+                newS.sides[3] = sfloat_B.x >> 2;
+                newS.sides[4] = sfloat_B.y >> 2;
+                newS.sides[5] = sfloat_B.z >> 2;
+                newS.sum = newS.sides[0] + newS.sides[1] + newS.sides[2] + newS.sides[3] + newS.sides[4] + newS.sides[5];
+                S_new.push_back(newS);
+
+
                 offset++;
             }
         }
@@ -428,11 +469,6 @@ void _cfd_lod::clearBelowGround()
 
 void _cfd_lod::incompressibility_SMAP()      // red-black
 {
-    glm::u8vec4 smin, smax;
-    float3 v0, v1;
-    uint3 i0, i1;
-
-
     float mP = 0;
 
     for (uint n = 0; n < _cfdClipmap::incompres_loop * 4; n++)
@@ -446,63 +482,28 @@ void _cfd_lod::incompressibility_SMAP()      // red-black
             for (uint z = 0; z < width - 2; z += 2) {
                 for (uint x = 0; x < width - 2; x += 2)
                 {
-                    smin = smap.getS(int3(x + dX, h, z + dY) + offset);
-                    smax.x = smap.getS(int3(x + dX + 1, h, z + dY) + offset).x;   // extra reads account for 30ms
-                    smax.y = smap.getS(int3(x + dX, h + 1, z + dY) + offset).y;
-                    smax.z = smap.getS(int3(x + dX, h, z + dY + 1) + offset).z;
-                    uint sum = smin.x + smin.y + smin.z + smax.x + smax.y + smax.z;
+                    _single_s s = smap.getS_new_for_mip(int3(x + dX, h, z + dY) + offset);
 
-
-                    // this gets better if we split V and move to boundaries I think
-                    // really look at it
-                    if (sum > 1)
+                    if (s.sum > 0)
                     {
-                        // Thsi block is about 50ms, and the SMAP stuff is only about 6ms so not a huge win to split out
-
                         uint i = idx(x + dX, h, z + dY);
                         uint ix = idx(x + dX + 1, h, z + dY);
                         uint iy = idx(x + dX, h + 1, z + dY);
                         uint iz = idx(x + dX, h, z + dY + 1);
 
-
-
-                        float P = ((v[i].x * smin.x - v[ix].x * smax.x) +
-                            (v[i].y * smin.y - v[iy].y * smax.y) +
-                            (v[i].z * smin.z - v[iz].z * smax.z)) / (float)sum * _cfdClipmap::incompres_relax / 255.f;
+                        float P = ((v[i].x * s.sides[0] - v[ix].x * s.sides[3]) +
+                            (v[i].y * s.sides[1] - v[iy].y * s.sides[4]) +
+                            (v[i].z * s.sides[2] - v[iz].z * s.sides[5])) / (float)s.sum * _cfdClipmap::incompres_relax / 255.f;
 
                         mP = __max(mP, abs(P / _cfdClipmap::incompres_relax));
 
-                        // doen black red ...   gauss seidel verwag oorskryf van waardes maar ons propagate in een rigting
-                        v[i].x -= (cfd_P_type)(P * smin.x);
-                        v[i].y -= (cfd_P_type)(P * smin.y);
-                        v[i].z -= (cfd_P_type)(P * smin.z);
-                        v[ix].x += (cfd_P_type)(P * smax.x);
-                        v[iy].y += (cfd_P_type)(P * smax.y);
-                        v[iz].z += (cfd_P_type)(P * smax.z);
-
-                        //if (smax.y == 0) v[i] *= 0.f;
-                    }
-                    else
-                    {
-                        // The else accounts for 60-70ms THIS IS BAD
-                        // Remove from here
-
-                        uint i = idx(x + dX, h, z + dY);
-                        v[i] *= 0.f;
-                        data[i] = data[idx(x + dX, h + 1, z + dY)];     // copy above, seems safest
-                        //data[i].x += cellSize * 0.0098; //+ dry lapse
-                        data[i].x += cellSize * 0.0082; //+ dry lapse HAS TO BE THE SKEWT LOOKUP
-                        //data[i].y += cellSize * 0.0098; // moisture
-                        data[i].y = 0.45f; // FROM SKEWT once we have it
-                        data[i].z = 0; //no smoke underground
-                        //data[i].z = 0.2f;
-
-                        float3 v, data_Smp;
-
-                        //float alt = _cfdClipmap::rootAltitude + cellSize * (h + offset.y + 0.5f);
-                        //_cfdClipmap::sampleSkewT(float3(0, alt, 0), &v, &data_Smp);
-                        //data[i] = data_Smp;
-                        data[i] = _cfdClipmap::skewT_data[lod][h + offset.y];
+                        
+                        v[i].x -= (cfd_P_type)(P * s.sides[0]);
+                        v[i].y -= (cfd_P_type)(P * s.sides[1]);
+                        v[i].z -= (cfd_P_type)(P * s.sides[2]);
+                        v[ix].x += (cfd_P_type)(P * s.sides[3]);
+                        v[iy].y += (cfd_P_type)(P * s.sides[4]);
+                        v[iz].z += (cfd_P_type)(P * s.sides[5]);
                     }
                 }
             }
@@ -512,6 +513,54 @@ void _cfd_lod::incompressibility_SMAP()      // red-black
 };
 
 
+/*
+
+void _cfd_lod::incompressibility_SMAP()      // red-black
+{
+    float mP = 0;
+
+    for (uint n = 0; n < _cfdClipmap::incompres_loop * 4; n++)
+    {
+        if (n % 4 == 0) mP = 0;
+
+        for (uint h = 0; h < height - 1; h++)
+        {
+            int dX = (n + (h % 2)) % 2;
+            int dY = ((n >> 1) + (h % 2)) % 2;
+            for (uint z = 0; z < width - 2; z += 2) {
+                for (uint x = 0; x < width - 2; x += 2)
+                {
+                    _single_s s = smap.getS_new_for_mip(int3(x + dX, h, z + dY) + offset);
+
+                    if (s.sum > 0)
+                    {
+                        uint i = idx(x + dX, h, z + dY);
+                        uint ix = idx(x + dX + 1, h, z + dY);
+                        uint iy = idx(x + dX, h + 1, z + dY);
+                        uint iz = idx(x + dX, h, z + dY + 1);
+
+                        float P = ((v[i].x * s.sides[0] - v[ix].x * s.sides[3]) +
+                            (v[i].y * s.sides[1] - v[iy].y * s.sides[4]) +
+                            (v[i].z * s.sides[2] - v[iz].z * s.sides[5])) / (float)s.sum * _cfdClipmap::incompres_relax / 255.f;
+
+                        mP = __max(mP, abs(P / _cfdClipmap::incompres_relax));
+
+                        v[i].x -= (cfd_P_type)(P * s.sides[0]);
+                        v[i].y -= (cfd_P_type)(P * s.sides[1]);
+                        v[i].z -= (cfd_P_type)(P * s.sides[2]);
+                        v[ix].x += (cfd_P_type)(P * s.sides[3]);
+                        v[iy].y += (cfd_P_type)(P * s.sides[4]);
+                        v[iz].z += (cfd_P_type)(P * s.sides[5]);
+                    }
+                }
+            }
+        }
+    }
+    maxP = mP;
+};
+
+
+*/
 
 void _cfd_lod::edges()      //?? 1 deep
 {
@@ -780,8 +829,10 @@ void _cfd_lod::addTemperature(float _dt)
                 P.y += _cfdClipmap::rootAltitude;
                 P.z -= 20000;
 
-                glm::u8vec4 s = smap.getS(int3(x, h, z) + offset);
-                if (s.x < 255 || s.z < 255) // Find groud level
+                //glm::u8vec4 s = smap.getS(int3(x, h, z) + offset);
+                //if (s.x < 255 || s.z < 255) // Find groud level
+                _single_s s = smap.getS_new_for_mip(int3(x, h, z) + offset);
+                if (s.sum > 0 && s.sum < 1530)
                 {
 
                     // kk7
@@ -836,6 +887,7 @@ void _cfd_lod::addTemperature(float _dt)
 
 
 /*  ??? where to fold this into, unnesesary loop*/
+/*
 void _cfd_lod::bouyancy(float _dt)
 {
     for (uint h = 0; h < height - 1; h++)
@@ -847,6 +899,50 @@ void _cfd_lod::bouyancy(float _dt)
             {
                 uint i = idx(x, h, z);
                 v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
+            }
+        }
+    }
+}*/
+
+
+void _cfd_lod::pre_pass(float _dt)
+{
+    int heat_lod_Scale = (int)pow(2, 5 - lod);
+
+    for (uint z = 0; z < width; z++) {
+        for (uint x = 0; x < width; x++)
+        {
+            auto& m = smap.map[(offset.z + z) * smap.width + (offset.x + x)];
+
+            uint hIndex = (z + offset.z) * heat_lod_Scale * 4096 + (x + offset.x) * heat_lod_Scale;
+            float deltaTemp = 0;
+            if (heat_lod_Scale < 32)
+            {
+                deltaTemp = ((float)_cfdClipmap::heatMap_4k[hIndex] - 128.f) / 128.f;
+                deltaTemp /= heat_lod_Scale;
+                deltaTemp *= 2.f;
+            }
+
+            for (uint y = 0; y < height; y++)
+            {
+                uint i = idx(x, y, z);
+
+                if (y + offset.y < m.bottom)    // below groud
+                {
+                    v[i] *= 0.f;
+                    data[i] = _cfdClipmap::skewT_data[lod][y + offset.y];
+                }
+                else
+                {
+                    if (y + offset.y < m.bottom + m.size)   // heat transfer
+                    {
+                        data[i].x += deltaTemp;  // * _dt but account for volume
+                    }
+
+                    // boyancy
+                    float baseTemperature = _cfdClipmap::skewT_data[lod][y + offset.y].x;
+                    v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
+                }
             }
         }
     }
@@ -893,8 +989,9 @@ void _cfd_lod::simulate(float _dt)
 
     auto a = high_resolution_clock::now();
 
-    addTemperature(_dt);
-    bouyancy(_dt);
+    //addTemperature(_dt);
+    //bouyancy(_dt);
+    pre_pass(_dt);
     //vorticty_confine(_dt, _cfdClipmap::vort_confine); ??? not sure
 
     auto b = high_resolution_clock::now();
@@ -1686,15 +1783,18 @@ void _cfdClipmap::heightToSmap(std::string filename)
             {
                 float h = (float)(bottom + j);
                 float4 sfloat = { 0, 0, 0, 0 };
+                float4 sfloat_B = { 0, 0, 0, 0 };
 
                 // just integrate it for now my maths is failing me for side area rule
 
                 for (float k = 0.05f; k < 1; k += 0.1f)
                 {
-                    float dX = glm::clamp(glm::mix(b, e, k) - h, 0.f, 1.f);
-                    sfloat.x += dX;
-                    float dZ = glm::clamp(glm::mix(b, c, k) - h, 0.f, 1.f);
-                    sfloat.z += dZ;
+                    sfloat.x += glm::clamp(glm::mix(b, e, k) - h, 0.f, 1.f);
+                    sfloat.z += glm::clamp(glm::mix(b, c, k) - h, 0.f, 1.f);
+
+                    // now other side
+                    sfloat_B.x += glm::clamp(glm::mix(c, d, k) - h, 0.f, 1.f);
+                    sfloat_B.z += glm::clamp(glm::mix(e, d, k) - h, 0.f, 1.f);
 
                     float y0 = glm::mix(b, c, k);
                     float y1 = glm::mix(e, d, k);
@@ -1705,6 +1805,10 @@ void _cfdClipmap::heightToSmap(std::string filename)
                         {
                             sfloat.y += 1;
                         }
+                        if (y > h + 1)
+                        {
+                            sfloat_B.y += 1;
+                        }
                     }
                 }
 
@@ -1714,10 +1818,22 @@ void _cfdClipmap::heightToSmap(std::string filename)
                 S.z = 255 - (uint)(sfloat.z * 25.5f);
                 // w zero for now for trees and blcokers in future ?
                 smap.S.push_back(S);
+
+                _single_s newS;
+                newS.sides[0] = 255 - (uint)(sfloat.x * 25.5f);
+                newS.sides[1] = 255 - (uint)(sfloat.y * 2.55f);  // 100 samples
+                newS.sides[2] = 255 - (uint)(sfloat.z * 25.5f);
+                newS.sides[3] = 255 - (uint)(sfloat_B.x * 25.5f);
+                newS.sides[4] = 255 - (uint)(sfloat_B.y * 2.55f);  // 100 samples
+                newS.sides[5] = 255 - (uint)(sfloat_B.z * 25.5f);
+                newS.sum = newS.sides[0] + newS.sides[1] + newS.sides[2] + newS.sides[3] + newS.sides[4] + newS.sides[5];
+                smap.S_new.push_back(newS);
+
                 offset++;
             }
         }
     }
+
 
 
     // save smap

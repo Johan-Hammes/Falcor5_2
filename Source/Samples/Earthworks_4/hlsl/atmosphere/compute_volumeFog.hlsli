@@ -252,11 +252,15 @@ float4 sample_cfd(float3 smokePos, float3 eye_step)
     {
         SmokeUV = (smokePos - cfdOffset_time_3.xyz) * cfdScale_3.xyz;
         cfd = sample_one(gLOD3Smoke, gLOD3SmokeB, SmokeUV, eye_step * cfdScale_3.xyz, found, cfdOffset_time_3.w);
+        //cfd.y = 0.5f;
     }
     if (!found)
     {
         SmokeUV = (smokePos - cfdOffset_time_2.xyz) * cfdScale_2.xyz;
         cfd = sample_one(gLOD2Smoke, gLOD2SmokeB, SmokeUV, eye_step * cfdScale_2.xyz, found, cfdOffset_time_2.w);
+        //cfd.y = 1;
+        //cfd.y = 0.5f;
+
     }
 
     float4 answer;

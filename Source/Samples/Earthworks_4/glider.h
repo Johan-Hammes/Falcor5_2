@@ -769,9 +769,9 @@ public:
     float CPU_usage = 0;
 
     float pilotYaw = 0.f;
-    float cameraYaw = 0.f;
-    float cameraPitch = 0.f;
-    float cameraDistance = 0.f;
+    float cameraYaw[3] = { 0.f, 0.f, 0.f };
+    float cameraPitch[3] = { 0.f, 0.f, 0.f };
+    float cameraDistance[3] = { 0.f, 3.f, 3.f };
     float3 cameraUp = float3(0, 1, 0);
     uint cameraType = 0;
 

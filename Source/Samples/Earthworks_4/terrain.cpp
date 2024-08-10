@@ -4881,6 +4881,22 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
     ImGui::PopFont();
 }
 
+if (ImGui::Button("restart"))
+{
+    requestRestart = true;
+}
+if (ImGui::Button("save path"))
+{
+    std::ofstream ofs;
+    ofs.open("e:/flightpath.raw", std::ios::binary);
+    if (ofs)
+    {
+        ofs.write((char*)&recordIndex, sizeof(int));
+        ofs.write((char*)&pathRecord, sizeof(float3) * recordIndex);
+        ofs.close();
+    }
+}
+
 // The game GUI
 void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, float2 _screen)
 {
@@ -10407,7 +10423,7 @@ void terrainManager::cfdThread()
     cfd.numLines = 200;
     cfd.flowlines.resize(cfd.numLines * 100);
 
-    //cfdClip.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
+    //cfd.clipmap.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
     cfd.clipmap.build(settings.dirRoot + "/cfd");
 
     //uint seconds = 0;// 27040;

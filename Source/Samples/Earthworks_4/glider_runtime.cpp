@@ -56,6 +56,7 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
     ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
 
+    /*
     ImGui::PushFont(pGui->getFont("roboto_14"));
     {
         if (ImGui::Button("restart"))
@@ -75,7 +76,7 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
         }
     }
     ImGui::PopFont();
-
+    */
 
     ImGui::PushFont(pGui->getFont("H1"));
     {
@@ -106,14 +107,14 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
         ImGui::Text("air %d", (int)Vair);
         ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 3* dLine));
         ImGui::Text("km/h");
-
+        /*
         ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 4* dLine));
         ImGui::Text("glide ratio  1 : %d", (int)fabs(glideRatio));
 
         float gs = glm::length(a_root - float3(0, 9.8f, 0)) / 9.8f;
         ImGui::SetCursorPos(ImVec2(_screen.x - 300, _screen.y / 2 + 5* dLine));
         ImGui::Text("%1.1f g", gs);
-
+        */
     }
     ImGui::PopFont();
 
@@ -123,6 +124,7 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
     ImGui::PushFont(pGui->getFont("roboto_32"));
     {
         // weight shift
+        /*
         ImGui::SetCursorPos(ImVec2(_screen.x / 2 - 150, _screen.y - 150));
         ImGui::SetNextItemWidth(300);
         if (ImGui::SliderFloat("weight shift", &weightShift, 0, 1, "%.2f"));
@@ -155,7 +157,7 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
             ImGui::EndChildFrame();
         }
         ImGui::PopStyleColor();
-
+        */
 
 
         // line lengths
@@ -171,9 +173,12 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
         // warnings
         if (CPU_usage < 0.9f)   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 0.6f, 0.1f, 1.0f));
         else if (CPU_usage < 1.0f)   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.4f, 0.1f, 1.0f));
-        else    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.1f, 0.1f, 1.0f));
-        ImGui::SetCursorPos(ImVec2(_screen.x - 200, 60));
-        ImGui::Text("CPU  %d %%", (int)(CPU_usage * 100.f));
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.1f, 0.1f, 1.0f));
+            ImGui::SetCursorPos(ImVec2(_screen.x - 120, 20));
+            ImGui::Text("CPU  %d %%", (int)(CPU_usage * 100.f));
+        }
         ImGui::PopStyleColor();
 
         //ImGui::SetCursorPos(ImVec2(_screen.x - 300, 300));
@@ -805,15 +810,15 @@ void _gliderRuntime::eye_andCamera()
         camDir = smoothBack;// pilotback;// glm::normalize(smoothCamDir* cos(cameraYaw) + smoothCamRight * sin(cameraYaw));
         camUp = smoothUp;// pilotUp;
         camRight = glm::cross(camUp, camDir);
-        camDir = glm::normalize(camDir * cos(cameraYaw) + camRight * sin(cameraYaw));
+        camDir = glm::normalize(camDir * cos(cameraYaw[cameraType]) + camRight * sin(cameraYaw[cameraType]));
         camRight = glm::cross(camUp, camDir);
 
         // pitch
-        camDir = glm::normalize(camDir * cos(cameraPitch) + camUp * sin(cameraPitch));
+        camDir = glm::normalize(camDir * cos(cameraPitch[cameraType]) + camUp * sin(cameraPitch[cameraType]));
         camUp = glm::normalize(glm::cross(camDir, camRight));
         camRight = glm::cross(camUp, camDir);
 
-        EyeLocal -= camDir * cameraDistance;
+        EyeLocal -= camDir * cameraDistance[0];
         break;
 
 
@@ -828,7 +833,7 @@ void _gliderRuntime::eye_andCamera()
         smoothBack = glm::lerp(smoothBack, pilotback, 0.05f);
 
         //dragShute = glm::lerp(dragShute, x[start] + ROOT - glm::normalize(v[start]) * (5.f + 2.f * cameraDistance), 0.04f);
-        dragShute = glm::lerp(dragShute, x[start] + ROOT - smoothBack * (5.f + 2.f * cameraDistance), 0.10f);
+        dragShute = glm::lerp(dragShute, x[start] + ROOT - smoothBack * (5.f + 2.f * cameraDistance[1]), 0.10f);
         EyeLocal = dragShute - ROOT;
 
         dragShuteBack = glm::lerp(dragShuteBack, smoothBack, 0.15f);
@@ -840,11 +845,11 @@ void _gliderRuntime::eye_andCamera()
         camDir = dragShuteBack;// pilotback;// glm::normalize(smoothCamDir* cos(cameraYaw) + smoothCamRight * sin(cameraYaw));
         camUp = smoothUp;// pilotUp;
         camRight = glm::cross(camUp, camDir);
-        camDir = glm::normalize(camDir * cos(cameraYaw) + camRight * sin(cameraYaw));
+        camDir = glm::normalize(camDir * cos(cameraYaw[cameraType]) + camRight * sin(cameraYaw[cameraType]));
         camRight = glm::cross(camUp, camDir);
 
         // pitch
-        camDir = glm::normalize(camDir * cos(cameraPitch) + camUp * sin(cameraPitch));
+        camDir = glm::normalize(camDir * cos(cameraPitch[cameraType]) + camUp * sin(cameraPitch[cameraType]));
         camUp = glm::normalize(glm::cross(camDir, camRight));
         camRight = glm::cross(camUp, camDir);
 
@@ -861,15 +866,15 @@ void _gliderRuntime::eye_andCamera()
         camDir = smoothBack;// pilotback;// glm::normalize(smoothCamDir* cos(cameraYaw) + smoothCamRight * sin(cameraYaw));
         camUp = smoothUp;// pilotUp;
         camRight = glm::cross(camUp, camDir);
-        camDir = glm::normalize(camDir * cos(cameraYaw) + camRight * sin(cameraYaw));
+        camDir = glm::normalize(camDir * cos(cameraYaw[cameraType]) + camRight * sin(cameraYaw[cameraType]));
         camRight = glm::cross(camUp, camDir);
 
         // pitch
-        camDir = glm::normalize(camDir * cos(cameraPitch) + camUp * sin(cameraPitch));
+        camDir = glm::normalize(camDir * cos(cameraPitch[cameraType]) + camUp * sin(cameraPitch[cameraType]));
         camUp = glm::normalize(glm::cross(camDir, camRight));
         camRight = glm::cross(camUp, camDir);
 
-        EyeLocal -= camDir * cameraDistance * 20.f;
+        EyeLocal -= camDir * cameraDistance[2] * 20.f;
         break;
     }
 
@@ -1404,13 +1409,13 @@ void _gliderRuntime::setJoystick()
             if (abs(normLX) < 0.05f)normLX = 0;
             if (abs(normLY) < 0.05f)normLY = 0;
 
-            if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) cameraDistance -= 0.01f;
-            if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) cameraDistance += 0.01f;
-            cameraDistance = glm::clamp(cameraDistance, 0.01f, 10.f);
+            if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) cameraDistance[cameraType] -= 0.01f;
+            if (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) cameraDistance[cameraType] += 0.01f;
+            cameraDistance[cameraType] = glm::clamp(cameraDistance[cameraType], 0.01f, 10.f);
 
-            cameraYaw -= normLX * 0.003f;
-            cameraPitch -= normLY * 0.0015f;
-            cameraPitch = glm::clamp(cameraPitch, -1.3f, 1.3f);
+            cameraYaw[cameraType] -= normLX * 0.001f;
+            cameraPitch[cameraType] -= normLY * 0.0015f;
+            cameraPitch[cameraType] = glm::clamp(cameraPitch[cameraType], -1.3f, 1.3f);
 
             //if (runcount == 0)  return;
 

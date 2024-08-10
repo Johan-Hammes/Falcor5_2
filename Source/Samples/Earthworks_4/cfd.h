@@ -100,11 +100,20 @@ inline float density(float _alt, float _T_K)
 }
 
 
+struct _single_s
+{
+    glm::u8 sides[6];
+    glm::u16 sum;
+    //??? volume or is it implied in sum
+};
+
 struct _cfd_map
 {
     uint offset;
     glm::u16 bottom;
     glm::u16 size;
+
+    //float4 normals;   ???
 };
 
 // ??? can we interpolate an Smap for higer lods
@@ -121,11 +130,17 @@ struct _cfd_Smap
     const glm::u8vec4 solid = {0, 0, 0, 0};
     const glm::u8vec4 freeair = { 255, 255, 255, 255 };
     std::vector<_cfd_map> map;
-    std::vector<glm::u8vec4> S;     //sx, sy, sz, volume
+    std::vector<glm::u8vec4> S;     //sx, sy, sz, volume        // soon deprecated
 
     glm::u8vec4 getS(uint3 _p);
 
-    std::vector<float4> normals;
+    std::vector<float4> normals;    // depracte - fold into _cfd_map is we need it
+
+    // new version
+    std::vector<_single_s> S_new;     //sx, sy, sz, volume
+    const _single_s solid_new = { 0, 0, 0, 0, 0, 0, 0 };
+    const _single_s freeair_new = { 255, 255, 255, 255, 255, 255, 1530 };
+    _single_s getS_new_for_mip(uint3 _p);
 };
 
 
@@ -153,7 +168,8 @@ struct _cfd_lod
     void clamp(float3& _p);
     template <typename T> T sample(std::vector<T>& data, float3 _p);
     void addTemperature(float _dt);
-    void bouyancy(float _dt);
+    //void bouyancy(float _dt);
+    void pre_pass(float _dt);
     void clearBelowGround();
     void incompressibility_SMAP();
     void advect(float _dt);
