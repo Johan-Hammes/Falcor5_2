@@ -176,7 +176,7 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
         else
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.1f, 0.1f, 1.0f));
-            ImGui::SetCursorPos(ImVec2(_screen.x - 120, 20));
+            ImGui::SetCursorPos(ImVec2(_screen.x - 180, 20));
             ImGui::Text("CPU  %d %%", (int)(CPU_usage * 100.f));
         }
         ImGui::PopStyleColor();
@@ -331,7 +331,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     ROOT = float3(-7500, 1300, -10400);// hulftegg
     //ROOT = float3(20000, 1000, 20000);// hulftegg
 
-    ROOT = float3(9000, 2100, 8000);// middlke
+    ROOT = float3(9000, 1800, 8000);// middlke
     // 
     //ROOT = float3(15500, 1300, 14400);// windy south
     //ROOT = float3(-500, 500, 15400);// windy south landings
@@ -833,7 +833,7 @@ void _gliderRuntime::eye_andCamera()
         smoothBack = glm::lerp(smoothBack, pilotback, 0.05f);
 
         //dragShute = glm::lerp(dragShute, x[start] + ROOT - glm::normalize(v[start]) * (5.f + 2.f * cameraDistance), 0.04f);
-        dragShute = glm::lerp(dragShute, x[start] + ROOT - smoothBack * (5.f + 2.f * cameraDistance[1]), 0.10f);
+        dragShute = glm::lerp(dragShute, glm::lerp(x[start], x[midWing], 0.6f) + ROOT - smoothBack * (5.f + 2.f * cameraDistance[1]), 0.10f);
         EyeLocal = dragShute - ROOT;
 
         dragShuteBack = glm::lerp(dragShuteBack, smoothBack, 0.15f);

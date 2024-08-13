@@ -35,18 +35,14 @@ Texture2D terrainShadow : register(t8);
 
 Texture2D fogDensities[32] : register(t32);
 
-Texture3D gLOD5Smoke : register(t9);
-Texture3D gLOD5SmokeB : register(t10);
-Texture3D gLOD4Smoke : register(t11);
-Texture3D gLOD4SmokeB : register(t12);
-Texture3D gLOD3Smoke : register(t13);
-Texture3D gLOD3SmokeB : register(t14);
-Texture3D gLOD2Smoke : register(t15);
-Texture3D gLOD2SmokeB : register(t16);
-Texture3D gLOD1Smoke : register(t17);
-Texture3D gLOD1SmokeB : register(t18);
-Texture3D gLOD0Smoke : register(t19);
-Texture3D gLOD0SmokeB : register(t20);
+
+struct cfdTextures
+{
+    Texture3D T[12];
+    float4 offset[12];
+    float4 scale[12];
+};
+ParameterBlock<cfdTextures> gCfd;
 
 
 
@@ -124,6 +120,7 @@ cbuffer FogAtmosphericParams : register(b1) {
 	float tmp_D;
 	// ############################################################################################################################
     // Temporary block for smoke
+    /*
     float4 cfdOffset_time_0;
     float4 cfdOffset_time_1;
     float4 cfdOffset_time_2;
@@ -136,7 +133,7 @@ cbuffer FogAtmosphericParams : register(b1) {
     float4 cfdScale_3;
     float4 cfdScale_4;
     float4 cfdScale_5;
-    float smk_dTime;
+    */
 };
 
 cbuffer FogLights : register(b2) {
@@ -210,24 +207,27 @@ float2 cloud_uv(float3 pos) {
 //	return (dir * distance) * 0.5 + 0.5;
 //}
 
-float4 sample_one(Texture3D A, Texture3D B, float3 smokeUV, float3 stepUV, inout bool found, float lerpVal)
+float4 sample_one(Texture3D A, Texture3D B, float3 smokeUV, float3 uvB, float3 stepUV, inout bool found, float lerpVal)
 {
     float4 smpA = 0;
     float4 smpB = 0;
-    if (all(saturate(smokeUV - 0.02) * saturate(0.98 - smokeUV)))
+    if (all(saturate(smokeUV - 0.02) * saturate(0.98 - smokeUV)) && all(saturate(uvB - 0.02) * saturate(0.98 - uvB)))
     {
         smpA = A.SampleLevel(linearSampler, smokeUV.xzy, 0);
-        smpB = B.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        smpB = B.SampleLevel(linearSampler, uvB.xzy, 0);
 
         smokeUV += stepUV * 0.3;
+        uvB += stepUV * 0.3;
         smpA += A.SampleLevel(linearSampler, smokeUV.xzy, 0);
-        smpB += B.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        smpB += B.SampleLevel(linearSampler, uvB.xzy, 0);
 
         smokeUV += stepUV * 0.3;
+        uvB += stepUV * 0.3;
         smpA += A.SampleLevel(linearSampler, smokeUV.xzy, 0);
-        smpB += B.SampleLevel(linearSampler, smokeUV.xzy, 0);
+        smpB += B.SampleLevel(linearSampler, uvB.xzy, 0);
         
         found = true;
+        //return smpA / 3;
         return lerp(smpA, smpB, lerpVal) / 3;
     }
     return 0;
@@ -237,29 +237,33 @@ float4 sample_one(Texture3D A, Texture3D B, float3 smokeUV, float3 stepUV, inout
 float4 sample_cfd(float3 smokePos, float3 eye_step)
 {
     float4 cfd = 0;
-    float3 SmokeUV;
+    float3 SmokeUV, uvB;
 
     smokePos += eye_step * 0.5; // Check thsi is correct, the 0.4 below sugegsts that step is already half step
-    SmokeUV = (smokePos - cfdOffset_time_5.xyz) * cfdScale_5.xyz;
+    SmokeUV = (smokePos - gCfd.offset[10].xyz) * gCfd.scale[10].xyz;
+    uvB = (smokePos - gCfd.offset[11].xyz) * gCfd.scale[10].xyz;
     bool found = false;
-    cfd = sample_one(gLOD5Smoke, gLOD5SmokeB, SmokeUV, eye_step * cfdScale_5.xyz, found, cfdOffset_time_5.w);
+    cfd = sample_one(gCfd.T[10], gCfd.T[11], SmokeUV, uvB, eye_step * gCfd.scale[10].xyz, found, gCfd.offset[10].w);
     if (!found)
     {
-        SmokeUV = (smokePos - cfdOffset_time_4.xyz) * cfdScale_4.xyz;
-        cfd = sample_one(gLOD4Smoke, gLOD4SmokeB, SmokeUV, eye_step * cfdScale_4.xyz, found, cfdOffset_time_4.w);
+        SmokeUV = (smokePos - gCfd.offset[8].xyz) * gCfd.scale[8].xyz;
+        uvB = (smokePos - gCfd.offset[9].xyz) * gCfd.scale[8].xyz;
+        cfd = sample_one(gCfd.T[8], gCfd.T[9], SmokeUV, uvB, eye_step * gCfd.scale[8].xyz, found, gCfd.offset[8].w);
     }
     if (!found)
     {
-        SmokeUV = (smokePos - cfdOffset_time_3.xyz) * cfdScale_3.xyz;
-        cfd = sample_one(gLOD3Smoke, gLOD3SmokeB, SmokeUV, eye_step * cfdScale_3.xyz, found, cfdOffset_time_3.w);
+        SmokeUV = (smokePos - gCfd.offset[6].xyz) * gCfd.scale[6].xyz;
+        uvB = (smokePos - gCfd.offset[7].xyz) * gCfd.scale[6].xyz;
+        cfd = sample_one(gCfd.T[6], gCfd.T[7], SmokeUV, uvB, eye_step * gCfd.scale[6].xyz, found, gCfd.offset[6].w);
         //cfd.y = 0.5f;
     }
     if (!found)
     {
-        SmokeUV = (smokePos - cfdOffset_time_2.xyz) * cfdScale_2.xyz;
-        cfd = sample_one(gLOD2Smoke, gLOD2SmokeB, SmokeUV, eye_step * cfdScale_2.xyz, found, cfdOffset_time_2.w);
+        SmokeUV = (smokePos - gCfd.offset[4].xyz) * gCfd.scale[4].xyz;
+        uvB = (smokePos - gCfd.offset[5].xyz) * gCfd.scale[4].xyz;
+        cfd = sample_one(gCfd.T[4], gCfd.T[5], SmokeUV, uvB, eye_step * gCfd.scale[4].xyz, found, gCfd.offset[4].w);
         //cfd.y = 1;
-        //cfd.y = 0.5f;
+        //cfd.y = gCfd.offset[4].w;
 
     }
 
@@ -298,8 +302,8 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     }
     Optical.y += 100.1f * cfd.x;    // smoke
     Optical.z += 200.1f * cfd.x;
-    Optical.y += 700.1f * cfd.y;    // cloud
-    Optical.z += 900.1f * cfd.y;
+    Optical.y += 70.1f * cfd.y;    // cloud
+    Optical.z += 5900.1f * cfd.y;
     
 
 
@@ -345,8 +349,8 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     newIn += IBL * min(0.1, saturate(cfd.x * 0.52)) * step * 0.030;
     newOut += cfd.x * 2.172 * step * 0.030;
 
-    newIn += IBL * min(0.2, saturate(cfd.y * 0.052)) * step * 6.930;
-    newOut += cfd.y * 0.0172 * step * 2.130;
+    newIn += IBL * min(0.2, saturate(cfd.y * 0.052)) * step * 2.3930;
+    newOut += cfd.y * 0.0172 * step * 0.5130;
 
     //if (UP > 0.4)               newIn += float3(1, 0.7, 0.4) * pow(UP, 2.5) * 1.01;
     //else if (UP > 0.3)          newIn += float3(1, 0, 0) * pow(UP, 2.5) * 1.01;

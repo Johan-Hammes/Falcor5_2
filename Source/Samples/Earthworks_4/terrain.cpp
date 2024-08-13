@@ -110,7 +110,7 @@ void _shadowEdges::solve(float _angle, bool dx)
     {
         for (int x = 0; x < 4095; x++)
         {
-            shadowH[y][x] = float2(height[y][x] - 5.f, 0.f);
+            shadowH[y][x] = float2(height[y][x] - 15.f, 0.f);
         }
     }
 
@@ -3846,21 +3846,27 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             // FIXME kry die afmetinsg van .cfd af
             cfd.sliceVolumeTexture[0][0] = Texture::create3D(128, 32, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVolumeTexture[0][1] = Texture::create3D(128, 32, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[0][2] = Texture::create3D(128, 32, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfd.sliceVolumeTexture[1][0] = Texture::create3D(128, 64, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVolumeTexture[1][1] = Texture::create3D(128, 64, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[1][2] = Texture::create3D(128, 64, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfd.sliceVolumeTexture[2][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVolumeTexture[2][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[2][2] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfd.sliceVolumeTexture[3][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVolumeTexture[3][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[3][2] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfd.sliceVolumeTexture[4][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVolumeTexture[4][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[4][2] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfd.sliceVolumeTexture[5][0] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVolumeTexture[5][1] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
+            cfd.sliceVolumeTexture[5][2] = Texture::create3D(128, 128, 128, Falcor::ResourceFormat::R5G6B5Unorm, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
 
             cfdSliceShader.load("Samples/Earthworks_4/hlsl/terrain/render_cfdSlice.hlsl", "vsMain", "psMain", Vao::Topology::TriangleStrip);
             cfdSliceShader.Vars()->setSampler("gSampler", sampler_Trilinear);
@@ -4830,7 +4836,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         
         ImGui::SliderInt("lod", &cfd.clipmap.slicelod, 0, 5);
         ImGui::SliderInt("slice", &cfd.clipmap.sliceIndex, 0, 127);
-        ImGui::Text("%d, %d %d", (int)cfd.clipmap.lodOffsets[5].x, (int)cfd.clipmap.lodOffsets[5].y, (int)cfd.clipmap.lodOffsets[5].z);
+        ImGui::Text("%d, %d %d", (int)cfd.clipmap.lodOffsets[5][0].x, (int)cfd.clipmap.lodOffsets[5][0].y, (int)cfd.clipmap.lodOffsets[5][0].z);
         ImGui::Text("%2.3f, %2.3f %2.3f", cfd.clipmap.lodScales[5].x, cfd.clipmap.lodScales[5].y, cfd.clipmap.lodScales[5].z);
 
         ImGui::NewLine();
@@ -4841,7 +4847,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         ImGui::DragFloat("vort_confine", &cfd.clipmap.vort_confine, 0.01f, 0.0f, 1.0f);
         
 
-        ImGui::Text("%d, %f", cfd.sliceOrder[3], cfd.lodLerp[3]);
+        ImGui::Text("%d, %f", cfd.clipmap.sliceOrder[3], cfd.lodLerp[3]);
 
 
         if (cfd.clipmap.showSlice)
@@ -4881,21 +4887,6 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
     ImGui::PopFont();
 }
 
-if (ImGui::Button("restart"))
-{
-    requestRestart = true;
-}
-if (ImGui::Button("save path"))
-{
-    std::ofstream ofs;
-    ofs.open("e:/flightpath.raw", std::ios::binary);
-    if (ofs)
-    {
-        ofs.write((char*)&recordIndex, sizeof(int));
-        ofs.write((char*)&pathRecord, sizeof(float3) * recordIndex);
-        ofs.close();
-    }
-}
 
 // The game GUI
 void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, float2 _screen)
@@ -4920,6 +4911,17 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
                         ImGui::OpenPopup("TodPopup");
                     }
                     if (ImGui::Button("Launch", ImVec2(400, 0))) {
+                        paraRuntime.requestRestart = true;
+                    }
+                    if (ImGui::Button("Save path", ImVec2(400, 0))) {
+                        std::ofstream ofs;
+                        ofs.open("e:/flightpath.raw", std::ios::binary);
+                        if (ofs)
+                        {
+                            ofs.write((char*)&paraRuntime.recordIndex, sizeof(int));
+                            ofs.write((char*)&paraRuntime.pathRecord, sizeof(float3) * paraRuntime.recordIndex);
+                            ofs.close();
+                        }
                     }
                     if (ImGui::Button("Settings", ImVec2(400, 0))) {
                     }
@@ -7078,30 +7080,73 @@ bool terrainManager::update(RenderContext* _renderContext)
     if (terrainMode == 4)
     {
         {
-            if (cfd.clipmap.sliceNew)
-            {
-                FALCOR_PROFILE("cfd slice update");
-                //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
-                cfd.sliceOrder[cfd.clipmap.slicelod] = (cfd.sliceOrder[cfd.clipmap.slicelod] + 1) % 2;
-                cfd.sliceTime[cfd.clipmap.slicelod] = 0;
-
-                _renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.clipmap.slicelod][cfd.sliceOrder[cfd.clipmap.slicelod]].get(), cfd.clipmap.volumeData);
-                //updateSubresourceData
-                cfd.clipmap.sliceNew = false;
-            }
-
             static std::chrono::steady_clock::time_point prev;
             std::chrono::steady_clock::time_point current = high_resolution_clock::now();
             float dT = (float)duration_cast<microseconds>(current - prev).count() / 1000000.;
             prev = current;
 
-
-            cfd.sliceTime[0] = __min(cfd.sliceTime[0] + dT / 32, 1.f);
+            dT *= 1.2f; // not quite hitting 1 second 
+            /*/cfd.sliceTime[0] = __min(cfd.sliceTime[0] + dT / 32, 1.f);
             cfd.sliceTime[1] = __min(cfd.sliceTime[1] + dT / 16, 1.f);
             cfd.sliceTime[2] = __min(cfd.sliceTime[2] + dT / 8, 1.f);
             cfd.sliceTime[3] = __min(cfd.sliceTime[3] + dT / 4, 1.f);
             cfd.sliceTime[4] = __min(cfd.sliceTime[4] + dT / 2, 1.f);
             cfd.sliceTime[5] = __min(cfd.sliceTime[5] + dT, 1.f);
+            */
+
+            if (cfd.clipmap.sliceOrder[0] == 0)      cfd.sliceTime[0] = __max(cfd.sliceTime[0] - dT / 32, 0.f);
+            else                                     cfd.sliceTime[0] = __min(cfd.sliceTime[0] + dT / 32, 1.f);
+
+            if (cfd.clipmap.sliceOrder[1] == 0)      cfd.sliceTime[1] = __max(cfd.sliceTime[1] - dT / 16, 0.f);
+            else                                     cfd.sliceTime[1] = __min(cfd.sliceTime[1] + dT / 16, 1.f);
+
+            if (cfd.clipmap.sliceOrder[2] == 0)      cfd.sliceTime[2] = __max(cfd.sliceTime[2] - dT / 8, 0.f);
+            else                                     cfd.sliceTime[2] = __min(cfd.sliceTime[2] + dT / 8, 1.f);
+
+            if (cfd.clipmap.sliceOrder[3] == 0)      cfd.sliceTime[3] = __max(cfd.sliceTime[3] - dT / 4, 0.f);
+            else                                     cfd.sliceTime[3] = __min(cfd.sliceTime[3] + dT / 4, 1.f);
+
+            if (cfd.clipmap.sliceOrder[4] == 0)      cfd.sliceTime[4] = __max(cfd.sliceTime[4] - dT / 2, 0.f);
+            else                                     cfd.sliceTime[4] = __min(cfd.sliceTime[4] + dT / 2, 1.f);
+
+            if (cfd.clipmap.sliceOrder[5] == 0)      cfd.sliceTime[5] = __max(cfd.sliceTime[5] - dT / 1, 0.f);
+            else                                     cfd.sliceTime[5] = __min(cfd.sliceTime[5] + dT / 1, 1.f);
+
+
+            static bool NowSwap = false;
+            static int swapLOD = 0;
+            static int swapOrder = 0;
+            if (cfd.clipmap.sliceNew)
+            {
+                FALCOR_PROFILE("cfd slice update");
+                uint LOD = cfd.clipmap.slicelod;
+                uint toChange = cfd.clipmap.sliceOrder[LOD];
+                //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
+                //cfd.clipmap.sliceOrder[cfd.clipmap.slicelod] = (cfd.clipmap.sliceOrder[cfd.clipmap.slicelod] + 1) % 2;
+                
+
+                // always load to 3, then swap
+                _renderContext->updateTextureData(cfd.sliceVolumeTexture[LOD][2].get(), cfd.clipmap.volumeData);
+                //Texture::SharedPtr SWP = cfd.sliceVolumeTexture[LOD][3];
+                //cfd.sliceVolumeTexture[LOD][3] = cfd.sliceVolumeTexture[LOD][toChange];
+                //cfd.sliceVolumeTexture[LOD][toChange] = SWP;
+                std::swap(cfd.sliceVolumeTexture[LOD][2], cfd.sliceVolumeTexture[LOD][toChange]);
+                //cfd.sliceTime[LOD] = 0;
+                NowSwap = true;
+                swapLOD = cfd.clipmap.slicelod;
+                swapOrder = cfd.clipmap.sliceOrder[LOD];
+
+                //_renderContext->updateTextureData(cfd.sliceVolumeTexture[cfd.clipmap.slicelod][cfd.clipmap.sliceOrder[cfd.clipmap.slicelod]].get(), cfd.clipmap.volumeData);
+                //updateSubresourceData
+                cfd.clipmap.sliceNew = false;
+            }
+
+            if (NowSwap)
+            {
+                //std::swap(cfd.sliceVolumeTexture[swapLOD][2], cfd.sliceVolumeTexture[swapLOD][swapOrder]);
+                //cfd.sliceTime[swapLOD] = 0;
+                NowSwap = false;
+            }
 
             cfd.lodLerp[0] = cfd.sliceTime[0];
             cfd.lodLerp[1] = cfd.sliceTime[1];
@@ -7110,18 +7155,24 @@ bool terrainManager::update(RenderContext* _renderContext)
             cfd.lodLerp[4] = cfd.sliceTime[4];
             cfd.lodLerp[5] = cfd.sliceTime[5];
 
-            if (cfd.sliceOrder[0] == 0) cfd.lodLerp[0] = 1.f - cfd.sliceTime[0];
-            if (cfd.sliceOrder[1] == 0) cfd.lodLerp[1] = 1.f - cfd.sliceTime[1];
-            if (cfd.sliceOrder[2] == 0) cfd.lodLerp[2] = 1.f - cfd.sliceTime[2];
-            if (cfd.sliceOrder[3] == 0) cfd.lodLerp[3] = 1.f - cfd.sliceTime[3];
-            if (cfd.sliceOrder[4] == 0) cfd.lodLerp[4] = 1.f - cfd.sliceTime[4];
-            if (cfd.sliceOrder[5] == 0) cfd.lodLerp[5] = 1.f - cfd.sliceTime[5];
+            /*
+            if (cfd.clipmap.sliceOrder[0] == 0) cfd.lodLerp[0] = 1.f - cfd.sliceTime[0];
+            if (cfd.clipmap.sliceOrder[1] == 0) cfd.lodLerp[1] = 1.f - cfd.sliceTime[1];
+            if (cfd.clipmap.sliceOrder[2] == 0) cfd.lodLerp[2] = 1.f - cfd.sliceTime[2];
+            if (cfd.clipmap.sliceOrder[3] == 0) cfd.lodLerp[3] = 1.f - cfd.sliceTime[3];
+            if (cfd.clipmap.sliceOrder[4] == 0) cfd.lodLerp[4] = 1.f - cfd.sliceTime[4];
+            if (cfd.clipmap.sliceOrder[5] == 0) cfd.lodLerp[5] = 1.f - cfd.sliceTime[5];
+            */
 
+            cfd.clipmap.lodOffsets[2][0].w = cfd.lodLerp[2];
+            cfd.clipmap.lodOffsets[3][0].w = cfd.lodLerp[3];
+            cfd.clipmap.lodOffsets[4][0].w = cfd.lodLerp[4];
+            cfd.clipmap.lodOffsets[5][0].w = cfd.lodLerp[5];
 
-            cfd.clipmap.lodOffsets[2].w = cfd.lodLerp[2];
-            cfd.clipmap.lodOffsets[3].w = cfd.lodLerp[3];
-            cfd.clipmap.lodOffsets[4].w = cfd.lodLerp[4];
-            cfd.clipmap.lodOffsets[5].w = cfd.lodLerp[5];
+            cfd.clipmap.lodOffsets[2][1].w = cfd.lodLerp[2];
+            cfd.clipmap.lodOffsets[3][1].w = cfd.lodLerp[3];
+            cfd.clipmap.lodOffsets[4][1].w = cfd.lodLerp[4];
+            cfd.clipmap.lodOffsets[5][1].w = cfd.lodLerp[5];
         }
     }
 

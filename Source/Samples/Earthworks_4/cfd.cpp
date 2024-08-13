@@ -908,6 +908,7 @@ void _cfd_lod::bouyancy(float _dt)
 void _cfd_lod::pre_pass(float _dt)
 {
     int heat_lod_Scale = (int)pow(2, 5 - lod);
+    float heat_Scale = (float)pow(1.1, 5 - lod); // shit account for time
 
     for (uint z = 0; z < width; z++) {
         for (uint x = 0; x < width; x++)
@@ -919,8 +920,8 @@ void _cfd_lod::pre_pass(float _dt)
             if (heat_lod_Scale < 32)
             {
                 deltaTemp = ((float)_cfdClipmap::heatMap_4k[hIndex] - 128.f) / 128.f;
-                deltaTemp /= heat_lod_Scale;
-                deltaTemp *= 2.f;
+                deltaTemp /= heat_Scale;
+                deltaTemp *= 0.6f;
             }
 
             for (uint y = 0; y < height; y++)
@@ -1335,8 +1336,12 @@ void _cfdClipmap::simulate(float _dt)
 
             if (showSlice && lod >= 2)
             {
+                
                 slicelod = lod;
-                lodOffsets[lod] = float4(-20000, 350, -20000, 0) + L.cellSize * float4(L.offset, 0);
+                sliceOrder[lod] = (sliceOrder[lod] + 1) % 2;
+                lodOffsets[lod][sliceOrder[lod]] = float4(-20000, 350, -20000, 0) + L.cellSize * float4(L.offset, 0);
+                
+                //lodOffsets[lod][1] = float4(-20000, 350, -20000, 0) + L.cellSize * float4(L.offset, 0);
                 lodScales[lod] = float4(1.f / (L.cellSize * L.width), 1.f / (L.cellSize * L.height), 1.f / (L.cellSize * L.width), 0);
 
                 for (int y = 0; y < L.height; y++)

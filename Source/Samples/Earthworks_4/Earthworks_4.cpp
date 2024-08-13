@@ -297,7 +297,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
 
-    atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
+    
 
     fprintf(logFile, "terrain.cfdStart()\n");
     fflush(logFile);
@@ -381,7 +381,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     {
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
-        terrain.shadowEdges.sunAngle = 0.3605f;
+        terrain.shadowEdges.sunAngle = 2.95605f;
         terrain.shadowEdges.dAngle = 0.0001f;
         terrain.shadowEdges.requestNewShadow = true;
 
@@ -414,10 +414,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
     FALCOR_PROFILE("onFrameUpdate");
     
-    atmosphere.setSunDirection(global_sun_direction);
-    atmosphere.getFar().setCamera(camera);
-    atmosphere.computeSunInAtmosphere(_renderContext);
-    atmosphere.computeVolumetric(_renderContext);
+    
 
     terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
     terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
@@ -448,8 +445,15 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
+    
     terrain.update(_renderContext);
     atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
+    atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
+
+    atmosphere.setSunDirection(global_sun_direction);
+    atmosphere.getFar().setCamera(camera);
+    atmosphere.computeSunInAtmosphere(_renderContext);
+    atmosphere.computeVolumetric(_renderContext);
 }
 
 
@@ -682,7 +686,7 @@ int main(int argc, char** argv)
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
-    config.windowDesc.monitor = 1;
+    config.windowDesc.monitor = 0;
 
     // HDR
     // config.windowDesc.monitor = 1;

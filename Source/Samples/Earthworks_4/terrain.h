@@ -1471,8 +1471,8 @@ private:
 
         Texture::SharedPtr	  sliceVTexture[2];
         Texture::SharedPtr	  sliceDataTexture[2];
-        Texture::SharedPtr	  sliceVolumeTexture[6][2];
-        uint sliceOrder[6] = { 0, 0, 0, 0, 0, 0 };
+        Texture::SharedPtr	  sliceVolumeTexture[6][3];
+        //uint sliceOrder[6] = { 0, 0, 0, 0, 0, 0 };
         float sliceTime[6] = { 0, 0, 0, 0, 0, 0 };
         float lodLerp[6] = { 0, 0, 0, 0, 0, 0 };
     } cfd;      // guess this needs to become its own class or move into _cfdClipmap

@@ -208,32 +208,24 @@ void atmosphereAndFog::setTerrainShadow(Texture::SharedPtr shadow)
     compute_Atmosphere.Vars()->setTexture("terrainShadow", shadow);
 }
 
-void atmosphereAndFog::setSMOKE(Texture::SharedPtr textures[6][2])
+void atmosphereAndFog::setSMOKE(Texture::SharedPtr textures[6][3])
 {
-    compute_Atmosphere.Vars()->setTexture("gLOD0Smoke", textures[0][0]);
-    compute_Atmosphere.Vars()->setTexture("gLOD0SmokeB", textures[0][1]);
-
-    compute_Atmosphere.Vars()->setTexture("gLOD1Smoke", textures[1][0]);
-    compute_Atmosphere.Vars()->setTexture("gLOD1SmokeB", textures[1][1]);
-
-    compute_Atmosphere.Vars()->setTexture("gLOD2Smoke", textures[2][0]);
-    compute_Atmosphere.Vars()->setTexture("gLOD2SmokeB", textures[2][1]);
-
-    compute_Atmosphere.Vars()->setTexture("gLOD3Smoke", textures[3][0]);
-    compute_Atmosphere.Vars()->setTexture("gLOD3SmokeB", textures[3][1]);
-
-    compute_Atmosphere.Vars()->setTexture("gLOD4Smoke", textures[4][0]);
-    compute_Atmosphere.Vars()->setTexture("gLOD4SmokeB", textures[4][1]);
-
-    compute_Atmosphere.Vars()->setTexture("gLOD5Smoke", textures[5][0]);
-    compute_Atmosphere.Vars()->setTexture("gLOD5SmokeB", textures[5][1]);
+    auto& block = compute_Atmosphere.Vars()->getParameterBlock("gCfd");
+    ShaderVar& var = block->findMember("T");        // FIXME pre get
+    {
+        for (uint lod=0; lod<6; lod++)
+        {
+            var[lod * 2 + 0] = textures[lod][0];
+            var[lod * 2 + 1] = textures[lod][1];
+        }
+    }
 }
 
-void atmosphereAndFog::setSmokeTime(float4 lodOffsets[6],float4 lodScales[6])
+void atmosphereAndFog::setSmokeTime(float4 lodOffsets[6][2], float4 lodScales[6])
 {
     //void materialCache::rebuildStructuredBuffer()  look here bfot betetr handling
-    compute_Atmosphere.Vars()["FogAtmosphericParams"]["smk_dTime"] = lodOffsets[5].w;
-
+    //compute_Atmosphere.Vars()["FogAtmosphericParams"]["smk_dTime"] = lodOffsets[5].w;
+    /*
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_0"] = lodOffsets[0];
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_1"] = lodOffsets[1];
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdOffset_time_2"] = lodOffsets[2];
@@ -247,6 +239,21 @@ void atmosphereAndFog::setSmokeTime(float4 lodOffsets[6],float4 lodScales[6])
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_3"] = lodScales[3];
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_4"] = lodScales[4];
     compute_Atmosphere.Vars()["FogAtmosphericParams"]["cfdScale_5"] = lodScales[5];
+    */
+
+    auto& block = compute_Atmosphere.Vars()->getParameterBlock("gCfd");
+    ShaderVar& off= block->findMember("offset"); 
+    ShaderVar& scl = block->findMember("scale"); 
+    {
+        for (uint lod = 0; lod < 6; lod++)
+        {
+            off[lod * 2 + 0] = lodOffsets[lod][0];
+            off[lod * 2 + 1] = lodOffsets[lod][1];
+
+            scl[lod * 2 + 0] = lodScales[lod];
+            scl[lod * 2 + 1] = lodScales[lod];
+        }
+    }
 
     // not sduire why the top lot is broken
     /*

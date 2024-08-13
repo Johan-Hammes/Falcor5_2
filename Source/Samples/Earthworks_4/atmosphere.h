@@ -132,8 +132,8 @@ public:
     void computeVolumetric(RenderContext* _renderContext);
     void setSunDirection(float3 dir);
     void setTerrainShadow(Texture::SharedPtr shadow);
-    void setSMOKE(Texture::SharedPtr textures[6][2]);
-    void setSmokeTime(float4 lodOffsets[6], float4 lodScales[6]);
+    void setSMOKE(Texture::SharedPtr textures[6][3]);
+    void setSmokeTime(float4 lodOffsets[6][2], float4 lodScales[6]);
     FogVolume& getFar() { return mainFar; }
     FogVolume& getNear() { return mainNear; }
     FogVolume& getParabolic() { return parabolicFar; }

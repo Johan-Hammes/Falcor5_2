@@ -272,7 +272,8 @@ struct _cfdClipmap
     unsigned short volumeData[128][128][128];
     bool sliceNew = false;
     float3 sliceCorners[4];
-    float4 lodOffsets[6];
+    float4 lodOffsets[6][2];
+    uint sliceOrder[6] = { 0, 0, 0, 0, 0, 0 };
     float4 lodScales[6];
     std::array<float3, 100> skewTData;
     std::array<float3, 100> skewTV;
