@@ -121,6 +121,7 @@ public:
 struct _cell
 {
     float volume = 0;
+    float inlet_pressure = 0;
     float pressure = 0;
     float old_pressure = 0;
     float reynolds = 0;
@@ -306,6 +307,8 @@ private:
 };
 
 
+/*  Current flying setup */
+
 struct _constraintSetup
 {
     float3 chord = float3(1.f, 0.f, 0.0f);              // pull, push, pressure
@@ -323,6 +326,26 @@ struct _constraintSetup
 
     float3 line_bracing = float3(1.f, 0.f, 0.f);
 };
+
+
+/*
+struct _constraintSetup
+{
+    float3 chord = float3(1.f, 0.f, 0.0f);              // pull, push, pressure
+    float3 chord_verticals = float3(1.f, 0.f, 0.0f);     // pull, push, pressure
+    float3 chord_diagonals = float3(0.7f, 0.f, 0.0f);    // pull, push, pressure
+    // ??? nose stiffner
+    float3 leadingEdge = float3(0.f, 0.6f, 0.0f);    // pull, push, pressure
+    float3 trailingEdge = float3(0.f, 0.0f, 0.0f);    // pull, push, pressure
+
+    float3 span = float3(0.7f, 0.0f, 0.0f);
+    float3 surface = float3(.5f, 0.f, 0.0f);
+    // ??? trailing edge span stiffner
+
+    float3 pressure_volume = float3(0.f, 0.f, 0.2f);
+
+    float3 line_bracing = float3(1.f, 0.f, 0.f);
+};*/
 
 
 class _gliderBuilder
@@ -596,6 +619,65 @@ public:
 };
 
 
+struct _rib
+{
+    float4 plane;
+    std::vector<glm::ivec2> edges;
+    std::vector<glm::ivec2> outer_edge;
+    std::vector<int> outer_idx;
+    std::vector<float3> outerV;
+    std::vector<float3> lower;
+    std::vector<float3> ribVerts;
+
+    float circumference;
+    float3 leadEdge;
+    float3 trailEdge;
+    float chord;
+    float3 front;
+    float3 up;
+};
+
+class _gliderImporter
+{
+public:
+    void processRib();
+    void placeRibVerts();
+
+    std::string rib_file = "E:\\Advance\\OmegaXA5_23_Johan_A01\\OmegaXA5_23_Johan_A01\\LowPoly_OmegaXA5_23_Johan_A01_RibSurfaces.obj";
+    std::string semirib_file;
+    std::string panels_file;
+    std::string diagonals_file;
+    std::string line_file;
+    std::string vecs_file;
+
+    // rib processing
+    std::vector<float3> rib_verts;
+    std::vector<_rib> half_ribs;
+    bool cmp_rib_V(float3 a, float3 b) { return (a.x < b.x); }
+    bool fixedRibcount = false;
+    int ribVertCount = 50;
+    float ribSpacing = 0.15f;    // 10 cm
+    float trailingBias = 1.5f;  // on the last 3de
+    float leadBias = 2.5f;      // on the front 3de
+
+private:
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        archive(CEREAL_NVP(rib_file));
+        archive(CEREAL_NVP(semirib_file));
+        archive(CEREAL_NVP(panels_file));
+        archive(CEREAL_NVP(diagonals_file));
+        archive(CEREAL_NVP(line_file));
+        archive(CEREAL_NVP(vecs_file));
+
+        archive(CEREAL_NVP(fixedRibcount));
+    }
+};
+CEREAL_CLASS_VERSION(_gliderImporter, 100);
+
+
+
 
 
 
@@ -604,6 +686,11 @@ class _gliderRuntime
 public:
     void renderGui(Gui* mpGui);
     void renderHUD(Gui* mpGui, float2 _screen);
+    void renderDebug(Gui* mpGui, float2 _screen);
+    void renderImport(Gui* mpGui, float2 _screen);
+    bool importGui = false;
+    _gliderImporter importer;
+
     void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
     bool requestRestart = false;
     void setupLines();
@@ -797,6 +884,9 @@ public:
     _windTerrain windTerrain;
          
     float energy, energyOld, d_energy;
+
+
+    
 private:
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)

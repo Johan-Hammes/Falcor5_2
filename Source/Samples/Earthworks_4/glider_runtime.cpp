@@ -14,7 +14,7 @@ float3 AllSummedLinedrag;
 
 
 
-
+#define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
 void _cp::load(std::string _name)
 {
@@ -42,6 +42,445 @@ float _cp::get(float _brake, float _aoa, uint _chord)
     float cp = glm::lerp(cpA, cpB, b);
 
     return cp;
+}
+
+
+
+
+void  _gliderImporter::processRib()
+{
+    Assimp::Importer importer;
+    unsigned int flags = aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_JoinIdenticalVertices;
+    const aiScene* sceneRibs = importer.ReadFile(rib_file.c_str(), flags);
+    uint numfaces = 0;
+
+
+
+    if (sceneRibs)
+    {
+        for (int m = 0; m < sceneRibs->mNumMeshes; m++)
+        {
+            aiMesh* M = sceneRibs->mMeshes[m];
+
+            rib_verts.clear();
+            rib_verts.resize(M->mNumVertices);
+            for (uint i = 0; i < M->mNumVertices; i++)
+            {
+                rib_verts[i] = float3(M->mVertices[i].x, M->mVertices[i].y, M->mVertices[i].z);
+            }
+            half_ribs.clear();
+            half_ribs.reserve(50);
+
+            float4 currentPlane = { -100, -100, -100, -100 }; // just wewird
+
+            for (uint j = 0; j < M->mNumFaces; j++)
+            {
+                aiFace face = M->mFaces[j];
+
+                // are we in plane
+                float dP = glm::dot((float3)currentPlane.xyz, rib_verts[face.mIndices[0]]) - currentPlane.w;
+                if (abs(dP) > 0.01f)
+                {
+                    float3 a = rib_verts[face.mIndices[1]] - rib_verts[face.mIndices[0]];
+                    float3 b = rib_verts[face.mIndices[2]] - rib_verts[face.mIndices[0]];
+                    float3 norm = glm::normalize(glm::cross(a, b));
+                    currentPlane.xyz = norm;
+                    currentPlane.w = glm::dot(norm, rib_verts[face.mIndices[0]]);
+                    half_ribs.emplace_back();
+                    half_ribs.back().plane = currentPlane;
+                    half_ribs.back().edges.clear();
+                    half_ribs.back().outer_edge.clear();
+                }
+
+                _rib& R = half_ribs.back();
+
+                for (int idx = 0; idx < face.mNumIndices; idx++)
+                {
+                    int i2 = (idx + 1) % face.mNumIndices;
+                    int v1 = face.mIndices[idx];
+                    int v2 = face.mIndices[i2];
+                    R.edges.push_back(glm::ivec2(v1, v2));
+                }
+            }
+
+            // now find the outer edge
+            for (auto& R : half_ribs)
+            {
+                for (int i = 0; i < R.edges.size(); i++)
+                {
+                    bool edge = true;
+                    for (int j = 0; j < R.edges.size(); j++)
+                    {
+                        if (i != j)
+                        {
+                            auto a = R.edges[i];
+                            auto b = R.edges[j];
+                            if (((a.x == b.x) && (a.y == b.y)) || ((a.x == b.y) && (a.y == b.x)))
+                            {
+                                edge = false;
+                            }
+                        }
+                    }
+
+                    if (edge)
+                    {
+                        R.outer_edge.push_back(R.edges[i]);
+                        bool inEdgeList_x = false;
+                        bool inEdgeList_y = false;
+                        for (auto OI : R.outer_idx)
+                        {
+                            if (R.edges[i].x == OI) inEdgeList_x = true;
+                            if (R.edges[i].y == OI) inEdgeList_y = true;
+                        }
+                        if (!inEdgeList_x)
+                        {
+                            R.outer_idx.push_back(R.edges[i].x);
+                            R.outerV.push_back(rib_verts[R.edges[i].x]);
+                        }
+                        if (!inEdgeList_y)
+                        {
+                            R.outer_idx.push_back(R.edges[i].y);
+                            R.outerV.push_back(rib_verts[R.edges[i].y]);
+                        }
+                    }
+                }
+
+
+                std::sort(R.outerV.begin(), R.outerV.end(), [](float3 a, float3 b) {
+                    // Custom comparison logic 
+                    return a.x > b.x; // this sorts in ascending order 
+                    });
+            
+
+                R.trailEdge = R.outerV[0];
+                R.lower.push_back(R.trailEdge);
+                for (int i = 1; i < R.outerV.size(); i++)
+                {
+                    if (R.outerV[i].z < R.trailEdge.z)
+                    {
+                        R.lower.push_back( R.outerV[i] );
+                    }
+                }
+
+                std::sort(R.outerV.begin(), R.outerV.end(), [](float3 a, float3 b) {
+                    // Custom comparison logic 
+                    return a.x < b.x; // this sorts in ascending order 
+                    });
+
+                R.leadEdge = R.outerV[0];
+                R.chord = glm::length(R.leadEdge - R.trailEdge);
+                for (int i = 1; i < R.outerV.size(); i++)
+                {
+                    if (R.outerV[i].z >= R.trailEdge.z)
+                    {
+                        R.lower.push_back(R.outerV[i]);
+                    }
+                }
+
+                R.circumference = 0;
+                for (int i = 0; i < R.lower.size() - 1; i++)
+                {
+                    R.circumference += glm::length(R.lower[i] - R.lower[i + 1]);
+                }
+
+
+                R.front = glm::normalize(R.leadEdge - R.trailEdge);
+                R.up = glm::normalize(glm::cross(R.front, (float3)R.plane.xyz));
+            }
+
+
+
+            // Now find the trailing edge - largest x value
+        }
+    }
+}
+
+
+void _gliderImporter::placeRibVerts()
+{
+    for (auto& R : half_ribs)
+    {
+        float skewCircumference = 0;
+        for (int i = 0; i < R.lower.size() - 1; i++)
+        {
+            float scale = 1.f;
+            float trail = (R.trailEdge.x - R.lower[i].x) / (R.chord * 0.25f);
+            float lead = (R.lower[i].x - R.leadEdge.x) / (R.chord * 0.25f);
+            if (trail < 1) scale = 1 + 2 * (1 - trail);
+            if (lead < 1) scale = 1 + 3 * (1 - lead);
+            skewCircumference += glm::length(R.lower[i] - R.lower[i + 1]) * scale;
+        }
+
+        R.ribVerts.clear();
+        float step = 0.f;
+        float distance = 0;
+        int numBaseVerts = ribVertCount;
+        if (!fixedRibcount) numBaseVerts = (int)(skewCircumference / ribSpacing);
+        numBaseVerts = __max(numBaseVerts, 16);//clamp at 16
+
+        float spacing = skewCircumference / numBaseVerts;
+
+
+        R.ribVerts.push_back(R.lower.front());        // trailing edge
+
+        for (int i = 0; i < R.lower.size() - 2; i++)    // -2 stay away from back edge , its auot added just to be safe
+        {
+            
+            float scale = 1.f;
+            float trail = (R.trailEdge.x - R.lower[i].x) / (R.chord * 0.25f);
+            float lead = (R.lower[i].x - R.leadEdge.x) / (R.chord * 0.25f);
+            if (trail < 1) scale = 1 + 2 * (1 - trail);
+            if (lead < 1) scale = 1 + 3 * (1 - lead);
+
+            float l = glm::length(R.lower[i] - R.lower[i + 1]) * scale;
+            float step2 = step + l;
+            if (step2 > spacing)
+            {
+                float ds = ((step2 - spacing) / l);
+                R.ribVerts.push_back(glm::lerp(R.lower[i], R.lower[i+1], 1-ds));
+                step -= spacing;
+            }
+            step += l;
+            distance += l;
+        }
+
+        R.ribVerts.push_back(R.lower.back());        // and end on trailing edge again - FIXME bad do top and bottom at the same time?
+    }
+}
+
+
+
+
+
+void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
+{
+    const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32B = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
+    const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
+    const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
+    const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+
+    ImVec2 start = { 100.f, 100.f };
+    ImVec2 end = { 200.f, 200.f };
+
+    ImVec2 chord[100];  // just big enough
+    ImVec2 p[100];  // just big enough
+
+    static int viewChord = 20;
+
+    ImGui::SetCursorPos(ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.75f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
+    ImGui::BeginChildFrame(165, ImVec2(_screen.x, _screen.y));
+    ImGui::PushFont(pGui->getFont("roboto_20"));
+    {
+        ImGui::NewLine();
+        ImGui::Text("import");
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+
+        if (ImGui::Button("close"))
+        {
+            importGui = false;
+        }
+
+        ImGui::NewLine();
+        ImGui::SetNextItemWidth(400);
+        if (ImGui::Button((importer.rib_file + "##1").c_str(), ImVec2(20, 0)))
+        {
+        }
+        TOOLTIP(importer.rib_file.c_str());
+        ImGui::SameLine();
+        if (ImGui::Button("process..."))
+        {
+            importer.processRib();
+            importer.placeRibVerts();
+        }
+
+        if (ImGui::Button((importer.line_file + "##2").c_str(), ImVec2(200, 0)))
+        {
+        }
+        if (ImGui::Button((importer.diagonals_file + "##3").c_str(), ImVec2(200, 0)))
+        {
+        }
+
+        ImGui::Text("ribs - %d  verts - %d", importer.half_ribs.size(), importer.rib_verts.size());
+        uint numR = 0;
+        uint totalRibVerts = 0;
+        for (auto& R : importer.half_ribs)
+        {
+            ImGui::Text("%d : edges - %d  lower - %d  circ - %2.2fm  pts - %d", numR, R.edges.size(), R.lower.size(), R.circumference, R.ribVerts.size());
+            numR++;
+            totalRibVerts += R.ribVerts.size();
+        }
+
+        
+        if (importer.half_ribs.size() > 0)
+        {
+            static int viewChord = 0;
+            auto& R = importer.half_ribs[viewChord];
+
+            ImGui::DragInt("rib", &viewChord, 0.1f, 0, importer.half_ribs.size() - 1);
+            uint drawSize = 0;
+            ImVec2 chord[10000];  // just big enough
+
+            for (int j = 0; j < R.lower.size(); j++)
+            {
+                float z = glm::dot(R.up, R.lower[j] - R.trailEdge);
+                float x = glm::dot(R.front, R.lower[j] - R.trailEdge);
+                chord[j] = ImVec2(600 + x * 500, 200 - z * 500);
+                drawSize++;
+            }
+
+            draw_list->AddPolyline(chord, drawSize, col32R, false, 2);
+
+            for (int j = 0; j < R.ribVerts.size(); j++)
+            {
+                float z = glm::dot(R.up, R.ribVerts[j] - R.trailEdge);
+                float x = glm::dot(R.front, R.ribVerts[j] - R.trailEdge);
+                ImVec2 p = ImVec2(600 + x * 500, 200 - z * 500);
+                draw_list->AddCircle(p, 5, col32YEL );
+            }
+        }
+    }
+
+    ImGui::EndChildFrame();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
+}
+
+
+
+
+
+
+
+void _gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
+{
+    if (importGui)
+    {
+        renderImport(pGui, _screen);
+        return;
+    }
+
+    const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32B = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
+    const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
+    const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
+    const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+
+    ImVec2 start = { 100.f, 100.f };
+    ImVec2 end = { 200.f, 200.f };
+
+    ImVec2 chord[100];  // just big enough
+    ImVec2 p[100];  // just big enough
+
+    static int viewChord = 20;
+
+    ImGui::SetCursorPos(ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.75f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
+    ImGui::BeginChildFrame(119865, ImVec2(800, _screen.y));
+    ImGui::PushFont(pGui->getFont("roboto_20"));
+    {
+        ImGui::NewLine();
+        ImGui::Text("wing gui");
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+        if (ImGui::Button("import"))
+        {
+            importGui = true;
+        }
+
+        ImGui::DragInt("rib", &viewChord, 0.1f, 0, spanSize - 1);
+
+        // AddPolyline
+        // AddConvexPolyFilled
+        // AddBezierCurve
+
+        int base = viewChord * chordSize;
+        float3 c_base = (x[base + 6] + x[base + 10] + x[base + 14] + x[base + 18]) * 0.25f;
+        float3 f = cells[viewChord].front;
+        float3 u = cells[viewChord].up;
+        for (int i = 0; i < chordSize; i++)
+        {
+            float3 c = x[base + i] - c_base;
+            chord[i] = ImVec2(280 - glm::dot(c, f) * 200, 300 - glm::dot(c, u) * 200);
+
+            float cp = Pressure.get(cells[viewChord].AoBrake, cells[viewChord].AoA, i);
+            float3 c_n = c - glm::normalize(n[base + i]) * 0.2f * cp;
+            p[i] = ImVec2(700 - i * 50.f, 700 + cp * 50);
+            if (i > chordSize / 2)
+            {
+                p[i].x = 700 - (chordSize - 1 - i) * 50.f;
+            }
+
+            p[i].x = chord[i].x;
+
+            ImVec2 pres = ImVec2(280 - glm::dot(c_n, f) * 200, 300 - glm::dot(c_n, u) * 200);
+            draw_list->AddLine(chord[i], pres, col32YEL, 2);
+
+        }
+        draw_list->AddPolyline(chord, chordSize, col32R, false, 2);
+        draw_list->AddPolyline(p, chordSize, col32GR, false, 2);
+
+
+        // Do the inside constraints
+        for (auto& c : constraints)
+        {
+            if (c.idx_0 > base && c.idx_0 < base + chordSize && c.idx_1 > base && c.idx_1 < base + chordSize)
+            {
+                float3 c1 = x[c.idx_0] - c_base;
+                float3 c2 = x[c.idx_1] - c_base;
+                ImVec2 a = ImVec2(280 - glm::dot(c1, f) * 200, 300 - glm::dot(c1, u) * 200);
+                ImVec2 b = ImVec2(280 - glm::dot(c2, f) * 200, 300 - glm::dot(c2, u) * 200);
+
+                ImU32 col;
+                float l = glm::length(x[c.idx_0] - x[c.idx_1]);
+                if (c.l < l)
+                {
+                    float dl = __min(1, c.tensileStiff * (l - c.l) / c.l * 100.f);
+                    col = ImColor(ImVec4(dl, 0.0f, 0.1f, 1.0f));
+                }
+                else
+                {
+                    float dl = __min(1, c.compressStiff * (c.l - l) / c.l * 100.f);
+                    col = ImColor(ImVec4(0.0f, dl, 0.1f, 1.0f));
+                }
+
+                draw_list->AddLine(a, b, col, 2);
+            }
+        }
+
+
+
+        ImGui::SetCursorPos(ImVec2(220, 280));
+        ImGui::Text("p %2.2f", cells[viewChord].inlet_pressure);
+
+        ImGui::SetCursorPos(ImVec2(320, 280));
+        ImGui::Text("p %2.2f", cells[viewChord].pressure);
+
+        float3 flow = cells[viewChord].flow_direction;
+        start = { 400.f, 100.f };
+        end = ImVec2(400 - glm::dot(flow, f) * 200, 100 - glm::dot(flow, u) * 200);
+        draw_list->AddLine(start, end, col32B, 2);
+        ImGui::SetCursorPos(ImVec2(420, 120));
+        ImGui::Text("AoA %2.1fº", cells[viewChord].AoA * 57.f);
+
+        ImGui::SetCursorPos(ImVec2(420, 180));
+        float _brake = glm::clamp(cells[viewChord].AoBrake * 5.f, 0.f, 4.99f);
+        ImGui::Text("AoB %2.1fº (%2.1f)", cells[viewChord].AoBrake * 57.f, _brake);
+
+
+    }
+
+    ImGui::EndChildFrame();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
 }
 
 
@@ -98,14 +537,14 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen)
         float Vgrnd = glm::length(vel) * 3.6f;
         float Vair = glm::length(vel - pilotWind) * 3.6f;
 
-        ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 2* dLine));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 2 * dLine));
         ImGui::Text("ground %d", (int)Vgrnd);
-        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 2* dLine));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 2 * dLine));
         ImGui::Text("km/h");
 
-        ImGui::SetCursorPos(ImVec2(_screen.x - 400, _screen.y / 2 + 3* dLine));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 400, _screen.y / 2 + 3 * dLine));
         ImGui::Text("air %d", (int)Vair);
-        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 3* dLine));
+        ImGui::SetCursorPos(ImVec2(_screen.x - 170, _screen.y / 2 + 3 * dLine));
         ImGui::Text("km/h");
         /*
         ImGui::SetCursorPos(ImVec2(_screen.x - 500, _screen.y / 2 + 4* dLine));
@@ -488,6 +927,7 @@ void _gliderRuntime::solve_pressure(float _dT, bool _left)
         float pressure10 = glm::clamp(Pressure.get(cells[i].AoBrake, cells[i].AoA, 10), 0.f, 1.f);
         float pressure11 = glm::clamp(Pressure.get(cells[i].AoBrake, cells[i].AoA, 11), 0.f, 1.f);
         float P = __max(pressure10, pressure11);
+        cells[i].inlet_pressure = P;
         float windPscale = __min(1.f, cells[i].cellVelocity * 0.25f);
         P *= pow(windPscale, 4);
         cells[i].old_pressure = glm::lerp(cells[i].pressure, P, 0.08f);
@@ -545,7 +985,8 @@ void _gliderRuntime::solve_surface(float _dT, bool _left)
 
         //cp_feedback[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
         //sumFwing += cp_feedback[i];
-        n[i] = n[i] * (-cp) * cells[span].rho * 0.6f;
+        //n[i] = n[i] * (-cp) * cells[span].rho * 0.6f;
+        n[i] = n[i] * (cells[span].pressure - cp) * cells[span].rho;
         sumFwing += n[i];
 
         float dragIncrease = pow(2.f - cells[span].pressure, 2.f);
@@ -574,10 +1015,10 @@ void _gliderRuntime::solve_PRE(float _dT)
         {
             weightPilot += 1.f / w[i];
         }
-  //      else if (w[i] > 0)
-   //     {
-    //        weightLines += 1.f / w[i];
-     //   }
+        else if (w[i] > 0)
+        {
+            //weightLines += 1.f / w[i];
+        }
 
         x[i] += (_dT * v[i]) + (a * _dT * _dT);     // 0.06ms
     }
@@ -741,7 +1182,7 @@ void _gliderRuntime::solve_POST(float _dT)
     glideRatio = relDist / relAlt;
 
 
-    
+
 }
 
 
@@ -781,7 +1222,7 @@ void _gliderRuntime::eye_andCamera()
     float3 pilotRight = glm::normalize(x[start + 0] - x[start + 1]);
     //float3 pilotback = glm::cross(x[start + 1] - x[start], x[start + 2] - x[start]);
     //float3 pilotUp = glm::normalize(glm::cross(pilotback, pilotRight));
-    
+
     //pilotUp = glm::lerp(pilotUp, float3(0, 1, 0), 0.1f);
     //float3 pilotUp = glm::normalize(glm::cross(x[start + 2] - x[start], x[start + 3] - x[start + 1]));
     float3 pilotUp = glm::normalize(x[midWing] - glm::lerp(x[start + 0], x[start + 1], 0.5f));
@@ -803,7 +1244,7 @@ void _gliderRuntime::eye_andCamera()
         smoothUp = glm::lerp(smoothUp, pilotUp, 0.2f);
         smoothBack = glm::lerp(smoothBack, pilotback, 0.04f);
         //EyeLocal = x[start] - smoothBack * 0.3f + smoothUp * 0.4f;
-        EyeLocal = glm::lerp(x[start+0], x[start+1], 0.5f) - smoothBack * 0.3f + smoothUp * 0.7f;
+        EyeLocal = glm::lerp(x[start + 0], x[start + 1], 0.5f) - smoothBack * 0.3f + smoothUp * 0.7f;
 
         // now add rotations
     // yaw
@@ -824,7 +1265,7 @@ void _gliderRuntime::eye_andCamera()
 
 
     case 1:
-        
+
         // // rotate up
 
         //smoothUp = glm::lerp(smoothUp, pilotUp, 0.95f);
@@ -859,7 +1300,7 @@ void _gliderRuntime::eye_andCamera()
         pilotRight = glm::lerp(pilotRight, glm::cross(float3(0, 1, 0), dragShuteBack), 0.5f);
         smoothUp = float3(0, 1, 0);// glm::normalize(glm::cross(dragShuteBack, pilotRight));
         EyeLocal = glm::lerp(x[start], x[midWing], 0.7f);
-        
+
         dragShuteBack = glm::lerp(dragShuteBack, smoothBack, 0.05f);
         // now add rotations
     // yaw
@@ -1389,7 +1830,7 @@ void _gliderRuntime::setJoystick()
             }
             gamePadLeft = state.Gamepad.wButtons & XINPUT_GAMEPAD_X;
 
-            
+
 
             static SHORT normXZero = 0;
             static SHORT normYZero = 0;
@@ -1429,7 +1870,7 @@ void _gliderRuntime::setJoystick()
             */
             // rectangle version
             //uint start = chordSize * spanSize;
-            
+
 
 
             if (pBrakeLeft)

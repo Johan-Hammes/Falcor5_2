@@ -5023,6 +5023,11 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
         else
         {
             paraRuntime.renderHUD(pGui, _screen);
+
+            if (GliderDebugVisuals)
+            {
+                paraRuntime.renderDebug(pGui, _screen);
+            }
         }
     }
 }
@@ -9578,6 +9583,10 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
         if (keyPressed && keyEvent.key == Input::Key::J) {
             useFreeCamWhileGliding = !useFreeCamWhileGliding;
         }
+        if (keyPressed && keyEvent.key == Input::Key::K) {
+            GliderDebugVisuals = !GliderDebugVisuals;
+        }
+        
     }
 
 

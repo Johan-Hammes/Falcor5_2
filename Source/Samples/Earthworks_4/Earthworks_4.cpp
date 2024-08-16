@@ -117,7 +117,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
     {
         ImGuiIO& io = ImGui::GetIO();
         io.WantCaptureMouse = true;
-        if (terrain.useFreeCamWhileGliding) {
+        if (terrain.useFreeCamWhileGliding || terrain.GliderDebugVisuals) {
             io.WantCaptureMouse = false;
         }
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));

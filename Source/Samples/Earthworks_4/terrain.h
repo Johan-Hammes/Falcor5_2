@@ -1191,6 +1191,7 @@ private:
     RasterizerState::SharedPtr      rasterstateGliderWing;
 
     bool useFreeCamWhileGliding = false;
+    bool GliderDebugVisuals = false;
 
     private:
     
