@@ -621,6 +621,9 @@ public:
 
 struct _rib
 {
+    void mirror_Y();
+    void interpolate(_rib& a, _rib& b, float billow);
+
     float4 plane;
     std::vector<glm::ivec2> edges;
     std::vector<glm::ivec2> outer_edge;
@@ -628,13 +631,19 @@ struct _rib
     std::vector<float3> outerV;
     std::vector<float3> lower;
     std::vector<float3> ribVerts;
+    std::vector<float> ribIndex;
 
     float circumference;
     float3 leadEdge;
     float3 trailEdge;
+    int leadindex;
     float chord;
     float3 front;
     float3 up;
+
+    std::vector<float3> ribLineAttach;
+    std::vector<float> ribLinePercentage;
+
 };
 
 class _gliderImporter
@@ -642,13 +651,36 @@ class _gliderImporter
 public:
     void processRib();
     void placeRibVerts();
+    void processLines();
+
+    void ExportLineShape();
+
+    void toObj();
+    int pushRibToVerts(_rib& r, int chord, float y);
+    int CreateRib(_rib &a, _rib &b, float ya, float yb, int numSemiRibs, int vStart);
+    void CreateSurface(int numSemiRibs, bool centerRib);
+    std::vector<glm::ivec2> edges;
+    struct _VTX
+    {
+        float3 v;
+        float3 uv;
+    };
+    std::vector<_VTX> verts;
+    std::vector<glm::ivec3> tris;
 
     std::string rib_file = "E:\\Advance\\OmegaXA5_23_Johan_A01\\OmegaXA5_23_Johan_A01\\LowPoly_OmegaXA5_23_Johan_A01_RibSurfaces.obj";
     std::string semirib_file;
     std::string panels_file;
     std::string diagonals_file;
-    std::string line_file;
+    std::string line_file = "E:\\Advance\\OmegaXA5_23_Johan_A01\\OmegaXA5_23_Johan_A01\\LowPoly_OmegaXA5_23_Johan_A01_Lineset.obj";
     std::string vecs_file;
+
+
+    // Full wing
+    std::vector<_rib> full_ribs;
+    void halfRib_to_Full();
+    void interpolate_Full();
+    void fullWing_to_obj();
 
     // rib processing
     std::vector<float3> rib_verts;
@@ -659,6 +691,46 @@ public:
     float ribSpacing = 0.15f;    // 10 cm
     float trailingBias = 1.5f;  // on the last 3de
     float leadBias = 2.5f;      // on the front 3de
+
+    int totalVertexCount;
+
+    std::vector<std::vector<int>> forceRibVerts = {
+        {31, 42, 56, 101, 107},
+        {31, 42, 56, 101, 107},
+        {31, 42, 56, 101, 107},
+        {31, 42, 56, 101, 107},
+        {31, 42, 55, 101, 107},
+        {31, 42, 55, 101, 107},
+        {31, 42, 55, 101, 107},
+        {31, 42, 55, 101, 107},
+        {31, 42, 54, 101, 107},
+        {31, 42, 54, 101, 107},
+        {31, 42, 54, 101, 107},
+        {31, 42, 54, 101, 107},
+        {31, 42, 53, 101, 107},
+        {31, 42, 53, 101, 107},
+        {31, 42, 53, 101, 107},
+        {31, 42, 53, 101, 107},
+        {31, 42, 53, 101, 107},
+        {31, 53, 101, 107},         //?? about my 31 ramp up
+        {34, 52, 101, 107},
+        {37, 52, 101, 107},
+        {40, 51, 104},
+        {43, 50, 104},
+        {50, 104},
+        {50, 104},
+        {49, 104},
+        {49, 104},
+        {104},
+        {104},
+        {104},
+        {73, 104},          // S
+        {73, 104},          // S
+        {104}
+    };
+
+    // lines
+    std::vector<float3> line_verts;
 
 private:
     template<class Archive>
