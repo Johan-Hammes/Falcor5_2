@@ -622,17 +622,21 @@ public:
 struct _rib
 {
     void mirror_Y();
-    void interpolate(_rib& a, _rib& b, float billow);
+    void interpolate(_rib &_a, _rib &_b, float _billow, bool _finalInterp);
 
+    // used for importing from obj
     float4 plane;
     std::vector<glm::ivec2> edges;
     std::vector<glm::ivec2> outer_edge;
     std::vector<int> outer_idx;
-    std::vector<float3> outerV;
+    std::vector<float3> outerV;     // up to here consider just putting in processRib
+
+
     std::vector<float3> lower;
     std::vector<float3> ribVerts;
+    int v_start;
     std::vector<float> ribIndex;
-
+    
     float circumference;
     float3 leadEdge;
     float3 trailEdge;
@@ -646,20 +650,27 @@ struct _rib
 
 };
 
+
+enum constraintType { skin, ribs, vecs, diagonals, stiffners, lines, straps };
 class _gliderImporter
 {
 public:
     void processRib();
+    void placeSingleRibVerts(_rib& R, int numR, float _scale);
     void placeRibVerts();
     void processLines();
 
     void ExportLineShape();
 
     void toObj();
-    int pushRibToVerts(_rib& r, int chord, float y);
-    int CreateRib(_rib &a, _rib &b, float ya, float yb, int numSemiRibs, int vStart);
-    void CreateSurface(int numSemiRibs, bool centerRib);
-    std::vector<glm::ivec2> edges;
+    //void pushRibToVerts(_rib &_r, int _chord, bool _mirror_y);
+    //int CreateRib(_rib &a, _rib &b, float ya, float yb, int numSemiRibs, int vStart);
+    //void CreateSurface(int numSemiRibs, bool centerRib);
+    std::vector<glm::ivec3> constraints;
+    //std::vector<glm::ivec2> edges_ribs;
+    //std::vector<glm::ivec2> edges_vecs;
+    //s/td::vector<glm::ivec2> edges_diagonals;
+    //std::vector<glm::ivec2> edges_lines;
     struct _VTX
     {
         float3 v;
@@ -679,7 +690,8 @@ public:
     // Full wing
     std::vector<_rib> full_ribs;
     void halfRib_to_Full();
-    void interpolate_Full();
+    void interpolateRibs(int _numSteps);
+    void insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
 
     // rib processing
@@ -694,34 +706,106 @@ public:
 
     int totalVertexCount;
 
+    std::vector<int> vec1 = {
+        -40, -37, - 33, -31, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30,
+        -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -31, -33, -37, -40 }; // [12 - 51]
+
+    std::vector<int> vec2 = {
+        50, 51, 52, 52, 53, 53, 53, 53, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 56, 56, 56, 56,
+        56, 56, 56, 56, 55, 55, 55, 55, 54, 54, 54, 54, 53, 53, 53, 53, 53, 53, 52, 52, 51, 50 }; // [10 - 53]
+
+    std::vector < std::vector<int>> diagonals = {
+        {2, 73, 3, -90, -30},
+        {2, 107, 3, -130, -80},
+
+        {5, 49, 4, -80, -30},
+        {5, 104, 4, -130, -80},
+
+        {6, 49, 7, -80, -25},
+        {6, 104, 7, -140, -80},
+
+        {9, 50, 8,-80, -25},
+        {9, 104, 8, -140, -80},
+
+        {10, 50, 11,-80, -25},
+        {10, 104, 11, -140, -80},
+
+        {12, 52, 11,-80, -25},
+        {12, 101, 11, -104, -80},
+        {12, 107, 11, -140, -105},
+
+        {13, 52, 15,-80, -25},
+        {13, 101, 15, -104, -80},
+        {13, 107, 15, -140, -105},      // Thsi needs special code for that double crosos over do simple first
+
+        {17, 53, 15,-80, -25},
+        {17, 101, 15, -104, -80},
+        {17, 107, 15, -140, -105},      // Thsi needs special code for that double crosos over do simple first
+
+        {18, 53, 19,-80, -25},
+        {18, 101, 19, -104, -80},
+        {18, 107, 19, -140, -105},      // Thsi needs special code for that double crosos over do simple first
+
+        {21, 42, 20,-48, -25},
+        {21, 54, 20,-80, -30},
+        {21, 101, 20, -104, -80},
+        {21, 107, 20, -135, -105},
+
+        {22, 42, 23,-48, -25},
+        {22, 54, 23,-80, -30},
+        {22, 101, 23, -104, -80},
+        {22, 107, 23, -135, -105},
+
+        {25, 42, 24,-48, -25},
+        {25, 55, 24,-80, -30},
+        {25, 101, 24, -104, -80},
+        {25, 107, 24, -135, -105},
+
+        {26, 42, 27,-48, -25},
+        {26, 55, 27,-80, -30},
+        {26, 101, 27, -104, -80},
+        {26, 107, 27, -135, -105},
+
+        {29, 42, 28,-48, -25},
+        {29, 56, 28,-80, -30},
+        {29, 101, 28, -104, -80},
+        {29, 107, 28, -135, -105},
+
+        {30, 42, 31,-48, -25},
+        {30, 56, 31,-80, -30},
+        {30, 101, 31, -104, -80},
+        {30, 107, 31, -135, -105},
+    };
+
+
     std::vector<std::vector<int>> forceRibVerts = {
-        {31, 42, 56, 101, 107},
-        {31, 42, 56, 101, 107},
-        {31, 42, 56, 101, 107},
-        {31, 42, 56, 101, 107},
-        {31, 42, 55, 101, 107},
-        {31, 42, 55, 101, 107},
-        {31, 42, 55, 101, 107},
-        {31, 42, 55, 101, 107},
-        {31, 42, 54, 101, 107},
-        {31, 42, 54, 101, 107},
-        {31, 42, 54, 101, 107},
-        {31, 42, 54, 101, 107},
+        {30, 42, 56, 101, 107},
+        {30, 42, 56, 101, 107},
+        {30, 42, 56, 101, 107},
+        {30, 42, 56, 101, 107},
+        {30, 42, 55, 101, 107},
+        {30, 42, 55, 101, 107},
+        {30, 42, 55, 101, 107},
+        {30, 42, 55, 101, 107},
+        {30, 42, 54, 101, 107},
+        {30, 42, 54, 101, 107},
+        {30, 42, 54, 101, 107},
+        {30, 42, 54, 101, 107}, //20
+        {30, 42, 53, 101, 107},
+        {30, 42, 53, 101, 107},
+        {30, 42, 53, 101, 107},
+        {30, 42, 53, 101, 107},
         {31, 42, 53, 101, 107},
-        {31, 42, 53, 101, 107},
-        {31, 42, 53, 101, 107},
-        {31, 42, 53, 101, 107},
-        {31, 42, 53, 101, 107},
-        {31, 53, 101, 107},         //?? about my 31 ramp up
-        {34, 52, 101, 107},
+        {33, 53, 101, 107},         //?? about my 31 ramp up
         {37, 52, 101, 107},
+        {40, 52, 101, 107}, //12
         {40, 51, 104},
-        {43, 50, 104},
+        {43, 50, 104}, //10
         {50, 104},
         {50, 104},
         {49, 104},
         {49, 104},
-        {104},
+        {49, 104},
         {104},
         {104},
         {73, 104},          // S

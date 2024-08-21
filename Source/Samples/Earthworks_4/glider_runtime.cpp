@@ -2,6 +2,7 @@
 #include "imgui.h"
 #include <imgui_internal.h>
 
+#include"terrafector.h" // for logging
 using namespace std::chrono;
 //#pragma optimize("", off)
 
@@ -52,7 +53,7 @@ float _cp::get(float _brake, float _aoa, uint _chord)
 
 
 
-void _rib::interpolate(_rib& _a, _rib& _b, float _billow)
+void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
 {
     leadEdge = glm::lerp(_a.leadEdge, _b.leadEdge, 0.5f);
     trailEdge = glm::lerp(_a.trailEdge, _b.trailEdge, 0.5f);
@@ -80,16 +81,51 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow)
     // new ribverts
     ribVerts.clear();
     // step 1 just mirror - _a
-    ribIndex = _a.ribIndex;
+    
+
+    if (_finalInterp)
+    {
+        ribIndex.clear();       // should really become int again, just fuxking soimplify
+        ribIndex.push_back(0);
+
+        if (_a.ribIndex.size() > _b.ribIndex.size())        // choose the smalelr one
+        {
+            for (int i = 0; i < _b.ribIndex.size() - 1; i++)
+            {
+                float idx = (_b.ribIndex[i] + _b.ribIndex[i + 1]) / 2;
+                if (i == 0) idx = _b.ribIndex[i + 1] - 1;
+                if (i == _b.ribIndex.size() - 1) idx = _b.ribIndex[i] + 0;
+                ribIndex.push_back(idx);                
+            }
+        }
+        else
+        {
+            for (int i = 0; i < _a.ribIndex.size() - 1; i++)
+            {
+                float idx = (_a.ribIndex[i] + _a.ribIndex[i + 1]) / 2;
+                if (i == 0) idx = _a.ribIndex[i + 1] - 1;
+                if (i == _a.ribIndex.size() - 1) idx = _a.ribIndex[i] + 0;
+                ribIndex.push_back(idx);
+            }
+        }
+
+        ribIndex.push_back((float)(lower.size() - 1));   // trailing edge top
+    }
+    else
+    {
+        if (_a.ribIndex.size() > _b.ribIndex.size())        // choose the biggest one
+        {
+            ribIndex = _a.ribIndex;
+        }
+        else
+        {
+            ribIndex = _b.ribIndex;
+        }
+    }
+
     for (auto& idx : ribIndex)
     {
-        if (idx >= _a.lower.size() - 1) idx = _a.lower.size() - 1.001;  // one mm back
-        float i;
-        float frac = std::modf(idx, &i);
-        int ii = (int)i;
-        //float3 da = glm::lerp(_a.lower[ii], _a.lower[ii + 1], frac);
-        //float3 db = glm::lerp(_b.lower[ii], _b.lower[ii + 1], frac);
-        ribVerts.push_back(lower[ii]);
+        ribVerts.push_back(lower[(int)floor(idx)]);
     }
 }
 
@@ -111,6 +147,7 @@ void _rib::mirror_Y()
 
 
 
+// At this stage it inverts, i.e. start at rigth edge move inwards instead
 void _gliderImporter::halfRib_to_Full()
 {
     full_ribs.clear();
@@ -125,38 +162,91 @@ void _gliderImporter::halfRib_to_Full()
         _rib r = half_ribs[i];
         r.mirror_Y();
         full_ribs.push_back(r);
-        //full_ribs.back().mirror_Y();
     }
 }
 
 
-void _gliderImporter::interpolate_Full()
+
+void _gliderImporter::interpolateRibs(int _numSteps)
 {
-    for (int i = 0; i < full_ribs.size() - 1; i+=2) // jump over teh noew one as well
+    // Only supports 2 and 4 at the moment, so clean up
+    if (_numSteps < 4)
     {
-        _rib newR;
-        newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.025f);
-        full_ribs.insert(full_ribs.begin() + i, newR);
+        for (int i = 0; i < full_ribs.size() - 1; i += 2)     // jump over the newly inserted rib as well, so +2
+        {
+            _rib newR;
+            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.025f, true);
+            full_ribs.insert(full_ribs.begin() + i + 1, newR);
+        }
     }
-    
-    for (int i = 0; i < full_ribs.size() - 1; i += 2) // jump over teh noew one as well
+    else
     {
-        _rib newR;
-        newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.007f);
-        full_ribs.insert(full_ribs.begin() + i, newR);
+        for (int i = 0; i < full_ribs.size() - 1; i += 2)     // jump over the newly inserted rib as well, so +2
+        {
+            _rib newR;
+            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.025f, false);
+            full_ribs.insert(full_ribs.begin() + i + 1, newR);
+        }
+
+        for (int i = 0; i < full_ribs.size() - 1; i += 2) // jump over teh noew one as well
+        {
+            _rib newR;
+            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.007f, true);
+            full_ribs.insert(full_ribs.begin() + i + 1, newR);
+        }
     }
-    
 }
 
+
+/*
+    Expand on edge, either store stiffness in z of an int3, or use z to store the type of edge that this is - I think I like that more
+*/
+void _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search)
+{
+    int va = 0;
+    int vb = 0;
+    for (int j = 0; j < verts.size(); j++) 
+    {
+        if (glm::length(verts[j].v - _a) < _search) va = j;
+        if (glm::length(verts[j].v - _b) < _search) vb = j;
+
+        if (va > 0 && vb > 0)
+        {
+            constraints.push_back(glm::ivec3(va, vb, _type));
+            break;
+        }
+    }
+    
+
+    if (_mirror)
+    {
+        _a.y *= -1;
+        _b.y *= -1;
+        va = 0;
+        vb = 0;
+        for (int j = 0; j < verts.size(); j++)
+        {
+            if (glm::length(verts[j].v - _a) < _search) va = j;
+            if (glm::length(verts[j].v - _b) < _search) vb = j;
+
+            if (va > 0 && vb > 0)
+            {
+                constraints.push_back(glm::ivec3(va, vb, _type));
+                break;
+            }
+        }
+    }
+}
 
 void _gliderImporter::fullWing_to_obj()
 {
     halfRib_to_Full();
-    interpolate_Full();
+    interpolateRibs(2);
 
     verts.clear();
     tris.clear();
-    edges.clear();
+    constraints.clear();
+
     _VTX newVert;
 
     int cnt = 0;
@@ -166,19 +256,202 @@ void _gliderImporter::fullWing_to_obj()
         for (auto v : r.ribVerts)
         {
             newVert.v = v;
-            //if (cnt >= 32) newVert.v.y *= -1;
             verts.push_back(newVert);
         }
 
         int numV = r.ribVerts.size();
         for (int i = 0; i < numV; i++)
         {
-            edges.push_back(glm::ivec2(v_start + i, v_start + ((i + 1) % numV)));
+            //edges.push_back(glm::ivec2(v_start + i, v_start + ((i + 1) % numV)));
         }
+        // internal ribs
+        if (cnt % 2 == 0)
+        {
+            for (int i = 0; i < numV / 2; i++)
+            {
+                constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::ribs));
+            }
+        }
+
+
+        
 
         v_start = verts.size();
         cnt++;
     }
+
+
+    // vecs
+    fprintf(terrafectorSystem::_logfile, "\n\n\nVECS\n");
+    for (int ribNum = 13; ribNum < 50; ribNum++)
+    {
+        int ra = ribNum * 2;    // FIXME work for 4 splits as well
+        int rb = ra + 2;
+        int ia = 107;
+        int ib = 107;
+        int va = 0;
+        int vb = 0;
+        float3 pA = full_ribs[ra].lower[ia];
+        float3 pB = full_ribs[rb].lower[ib];
+        //fprintf(terrafectorSystem::_logfile, "(%d, %d), (%d, %d)\n", ra, ia, rb, ib);
+        insertEdge(pA, pB, false, constraintType::vecs);
+
+        pA = full_ribs[ra].lower[101];
+        pB = full_ribs[rb].lower[101];
+        insertEdge(pA, pB, false, constraintType::vecs);
+    }
+
+    fprintf(terrafectorSystem::_logfile, "top one\n");
+    int ri = 0;
+    for (int ribNum = 12; ribNum < 51; ribNum++)
+    {
+        int ra = ribNum * 2;    // FIXME work for 4 splits as well
+        int rb = ra + 2;
+        int ia = vec1[ri];
+        int ib = vec1[ri + 1];
+        ri++;
+        int va = 0;
+        int vb = 0;
+        if (ia < 0) ia = full_ribs[ra].lower.size() + ia;
+        if (ib < 0) ib = full_ribs[rb].lower.size() + ib;
+        float3 pA = full_ribs[ra].lower[ia];
+        float3 pB = full_ribs[rb].lower[ib];
+        
+        insertEdge(pA, pB, false, constraintType::vecs);
+    }
+
+
+    fprintf(terrafectorSystem::_logfile, "vec2\n");
+    ri = 0;
+    for (int ribNum = 10; ribNum < 53; ribNum++)
+    {
+        int ra = ribNum * 2;    // FIXME work for 4 splits as well
+        int rb = ra + 2;
+        int ia = vec2[ri];
+        int ib = vec2[ri + 1];
+        ri++;
+        int va = 0;
+        int vb = 0;
+        if (ia < 0) ia = full_ribs[ra].lower.size() + ia;
+        if (ib < 0) ib = full_ribs[rb].lower.size() + ib;
+        float3 pA = full_ribs[ra].lower[ia];
+        float3 pB = full_ribs[rb].lower[ib];
+        
+
+        insertEdge(pA, pB, false, constraintType::vecs);
+    }
+    
+    // diagonals
+    fprintf(terrafectorSystem::_logfile, "diagonals\n");
+    for (int d = 0; d < diagonals.size(); d++)
+    {
+        int ri = diagonals[d][0] * 2;
+        int r2 = diagonals[d][2] * 2;
+        float3 ps = full_ribs[ri].lower[diagonals[d][1]];
+        fprintf(terrafectorSystem::_logfile, "from (%d, %d)\n", ri, diagonals[d][1]);
+
+        int ia = diagonals[d][3];
+        int ib = diagonals[d][4];
+        if (ia < 0) ia = full_ribs[ri].lower.size() + ia;
+        if (ib < 0) ib = full_ribs[r2].lower.size() + ib;
+        fprintf(terrafectorSystem::_logfile, "scan (%d, %d - %d)\n", r2, ia, ib);
+        for (int k = ia; k < ib; k++)
+        {
+            float3 pe = full_ribs[r2].lower[k];
+
+            insertEdge(ps, full_ribs[r2].lower[k], true, constraintType::diagonals);
+        }
+    }
+
+
+    // BUld teh surface
+    v_start = 0;
+    for (int idx = 0; idx < full_ribs.size() - 1; idx++)
+    {
+        /*
+        auto& a = full_ribs[idx];
+        auto& b = full_ribs[idx + 1];
+        int cnt_a = 0;
+        int cnt_b = 0;
+        bool flip = false;
+        int numTris = 0;
+        int vA = v_start;
+        int vB = v_start + a.ribVerts.size();
+
+        while (numTris < (a.ribVerts.size() + b.ribVerts.size() - 3))
+        {
+            float dstA = 10000;//just big
+            if (cnt_a < a.ribVerts.size() - 2)
+            {
+                //float3 crd = a.ribVerts[cnt_a] - a.ribVerts[cnt_a + 1];
+                //float3 cross = b.ribVerts[cnt_b] - a.ribVerts[cnt_a];
+                //dstA = glm::length(glm::cross(crd, cross));
+                dstA = glm::length(a.ribVerts[cnt_a] - a.ribVerts[cnt_a + 1]) + glm::length(b.ribVerts[cnt_b] - a.ribVerts[cnt_a + 1]);
+            }
+            //
+
+            float dstB = 10000;//just big
+            if (cnt_b < b.ribVerts.size() - 2)
+            {
+                //float3 crd = b.ribVerts[cnt_b] - b.ribVerts[cnt_b + 1];
+                //float3 cross = b.ribVerts[cnt_b] - a.ribVerts[cnt_a];
+                //dstB = glm::length(glm::cross(crd, cross));
+                dstB = glm::length(b.ribVerts[cnt_b] - b.ribVerts[cnt_b + 1]) + glm::length(a.ribVerts[cnt_a] - b.ribVerts[cnt_b + 1]);
+            }
+            
+
+            if (dstA < dstB)
+            {
+                tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1 ));
+                cnt_a++;
+            }
+            else
+            {
+                tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1 ));
+                cnt_b++;
+            }
+
+            numTris++;
+        }
+        */
+        
+        auto& a = full_ribs[idx];
+        auto& b = full_ribs[idx + 1];
+        int vA = v_start;
+        int vB = v_start + a.ribVerts.size();
+        int size = a.ribVerts.size();
+        if (a.ribVerts.size() > b.ribVerts.size())   // find the smaller one
+        {
+            std::swap(vA, vB);
+            size = b.ribVerts.size();
+
+            for (int i = 0; i < size; i++)
+            {
+                tris.push_back(glm::ivec3(vA + i, vB + i + 1, vB + i));
+                if (i < size - 1)
+                {
+                    tris.push_back(glm::ivec3(vA + i, vA + i + 1, vB + i + 1));
+                }
+            }
+        }
+        else
+        {
+            for (int i = 0; i < size; i++)
+            {
+                tris.push_back(glm::ivec3(vA + i, vB + i, vB + i + 1));
+                if (i < size - 1)
+                {
+                    tris.push_back(glm::ivec3(vA + i, vB + i + 1, vA + i + 1));
+                }
+            }
+        }
+        
+        
+        
+        
+        v_start += a.ribVerts.size();
+    }
+
     toObj();   // edges for now
 }
 
@@ -221,13 +494,14 @@ void _gliderImporter::toObj()
 
         pMesh->mNumVertices = verts.size();
 
-        pMesh->mNumFaces = edges.size();
+        pMesh->mNumFaces = constraints.size() + tris.size();
         pMesh->mFaces = new aiFace[pMesh->mNumFaces];
-        pMesh->mPrimitiveTypes = aiPrimitiveType_LINE | aiPrimitiveType_TRIANGLE;
+        pMesh->mPrimitiveTypes = aiPrimitiveType_LINE;// | aiPrimitiveType_TRIANGLE;
 
         int fidx = 0;
 
         // surface
+        /*
         for (auto& T : tris)
         {
             aiFace& face = pMesh->mFaces[fidx];
@@ -238,7 +512,8 @@ void _gliderImporter::toObj()
             face.mIndices[2] = T.z;
             fidx++;
         }
-        for (auto& E : edges)
+        */
+        for (auto& E : constraints)
         {
             aiFace& face = pMesh->mFaces[fidx];
             face.mIndices = new unsigned int[2];
@@ -255,150 +530,8 @@ void _gliderImporter::toObj()
 }
 
 
-int _gliderImporter::pushRibToVerts(_rib& r, int chord, float _y)
-{
-    _VTX newVert;
-
-    int vStart = verts.size();
-
-    // verts
-    for (auto& V : r.ribVerts)
-    {
-        newVert.v = V;
-        newVert.v.y *= _y;
-        newVert.uv = float3(glm::dot(V - r.trailEdge, r.front) / r.chord, chord, 0);        // chord %
-        verts.push_back(newVert);
-    }
-
-    // rib edges
-    int numV = r.ribVerts.size();
-    for (int i = 0; i < numV; i++)
-    {
-        edges.push_back(glm::ivec2(vStart + i, vStart + ((i + 1) % numV)));
-    }
-
-    // ??? rib verticals
-
-    return vStart;
-}
 
 
-
-int _gliderImporter::CreateRib(_rib& a, _rib& b, float ya, float _yb, int numSemiRibs, int vStart)
-{
-    // just do 2 for now, think again after
-    int numV;
-    std::vector<_VTX> mid_Rib;
-    _VTX newV;
-
-
-    if (a.ribVerts.size() == b.ribVerts.size())
-    {
-        numV = a.ribVerts.size() + 1;
-
-        newV.v = (a.ribVerts[0] + b.ribVerts[0]) * 0.5f;
-        mid_Rib.push_back(newV);
-
-        for (int i = 0; i < a.ribVerts.size() - 1; i++)
-        {
-            newV.v = (a.ribVerts[i] + b.ribVerts[i] + a.ribVerts[i + 1] + b.ribVerts[i + 1]) * 0.25f;
-
-            //Billow - better if we can search on a hig reolution mesh later, same for semi ribs then
-            float scale = 1.f;
-            float trail = (a.trailEdge.x - newV.v.x) / (a.chord * 0.1f);        // really mneeds new chord inm middle, will suck at the edges
-            float lead = (newV.v.x - a.leadEdge.x) / (a.chord * 0.05f);
-            if (trail < 1) scale *= pow(trail, 0.5);
-            if (lead < 1) scale *= lead;
-            //float up = 0.12f * glm::dot(newV.v - a.trailEdge, a.up);
-            float sign = 1;
-            if (glm::dot(newV.v - a.trailEdge, a.up) < 0) sign = -1;
-            newV.v += sign * 0.025f * scale * a.up; // Shouldd really be out rather than up
-            mid_Rib.push_back(newV);
-        }
-
-        newV.v = (a.ribVerts[a.ribVerts.size() - 1] + b.ribVerts[a.ribVerts.size() - 1]) * 0.5f;
-        mid_Rib.push_back(newV);
-    }
-
-    int vMid = verts.size();
-    if (a.ribVerts.size() == b.ribVerts.size())
-    {
-        verts.insert(verts.end(), mid_Rib.begin(), mid_Rib.end());
-    }
-
-    int vNext = verts.size();
-
-    pushRibToVerts(b, 0, _yb); // FIME chord ist it easirt just to duplicate them from the start? ribs I mean, cleaner code here
-
-
-    if (a.ribVerts.size() == b.ribVerts.size())
-    {
-        // Now add teh edges
-        for (int i = 0; i < a.ribVerts.size(); i++)
-        {
-            edges.push_back(glm::ivec2(vStart + i, vMid + i));
-            edges.push_back(glm::ivec2(vStart + i, vMid + i + 1));
-
-            tris.push_back(glm::ivec3(vStart + i, vMid + i, vMid + i + 1));
-            if (i < a.ribVerts.size() - 1)
-            {
-                tris.push_back(glm::ivec3(vStart + i, vMid + i + 1, vStart + i + 1));
-            }
-        }
-
-        //middle
-        for (int i = 0; i <= a.ribVerts.size(); i++)
-        {
-            edges.push_back(glm::ivec2(vMid + i, vMid + ((i + 1) % numV)));
-        }
-
-        for (int i = 0; i < a.ribVerts.size(); i++)
-        {
-            edges.push_back(glm::ivec2(vNext + i, vMid + i));
-            edges.push_back(glm::ivec2(vNext + i, vMid + i + 1));
-
-            tris.push_back(glm::ivec3(vNext + i, vMid + i + 1, vMid + i));
-            if (i < a.ribVerts.size() - 1)
-            {
-                tris.push_back(glm::ivec3(vNext + i, vNext + i + 1, vMid + i + 1));
-            }
-        }
-    }
-
-    return vNext;
-}
-
-
-
-void _gliderImporter::CreateSurface(int numSemiRibs, bool centerRib)
-{
-    edges.clear();
-    verts.clear();
-    tris.clear();
-
-
-    int numRibs = half_ribs.size();
-
-    int v_start = pushRibToVerts(half_ribs[numRibs - 1], 0, 1);
-
-    for (int i = numRibs - 1; i >= 1; i--)
-    {
-        v_start = CreateRib(half_ribs[i], half_ribs[i - 1], 1, 1, numSemiRibs, v_start);
-    }
-    /*
-    if (centerRib)
-    {
-        v_start = CreateRib(half_ribs[0], half_ribs[0], 1, -1, numSemiRibs, v_start);
-    }
-
-    for (int i = 0; i < numRibs - 1; i++)
-    {
-        v_start = CreateRib(half_ribs[i], half_ribs[i + 1], -1, -1, numSemiRibs, v_start);
-    }
-    */  //it a mess, ratehr duplicate them and flit Y beforehand
-
-    toObj();
-}
 
 
 
@@ -678,113 +811,127 @@ void  _gliderImporter::processRib()
 }
 
 
+void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
+{
+    float skewCircumference = 0;
+    for (int i = 0; i < R.lower.size() - 1; i++)
+    {
+        float scale = 1.f;
+        float trail = (R.trailEdge.x - R.lower[i].x) / (R.chord * 0.25f);
+        float lead = (R.lower[i].x - R.leadEdge.x) / (R.chord * 0.25f);
+        if (trail < 1) scale = 1 + 2 * (1 - trail);
+        if (lead < 1) scale = 1 + 3 * (1 - lead);
+        skewCircumference += glm::length(R.lower[i] - R.lower[i + 1]) * scale;
+    }
+
+    R.ribVerts.clear();
+    R.ribIndex.clear();
+    float step = 0.f;
+    float distance = 0;
+    int numBaseVerts = ribVertCount;
+    if (!fixedRibcount) numBaseVerts = (int)(skewCircumference / ribSpacing);
+    numBaseVerts = __max(numBaseVerts, 16);//clamp at 16
+
+    float spacing = 0.3f;// skewCircumference / numBaseVerts;
+
+
+    R.ribVerts.push_back(R.lower.front());        // trailing edge
+    R.ribIndex.push_back(0);
+
+    std::vector<int> fixedVerts = forceRibVerts[numR];
+    fixedVerts.push_back(R.leadindex);
+
+    int baseVertex = 0;
+    for (int i = 0; i < fixedVerts.size(); i++)
+    {
+        spacing = _scale;
+
+        float seglength = 0;
+        for (int j = baseVertex; j < fixedVerts[i]; j++)
+        {
+            float scale = 1.f;
+            float trail = (R.trailEdge.x - R.lower[j].x) / (R.chord * 0.25f);
+            float lead = (R.lower[j].x - R.leadEdge.x) / (R.chord * 0.15f);
+            if (trail < 1) scale = 1 + 2 * (1 - trail);
+            if (lead < 1) scale = 1 + 4 * (1 - lead);
+
+            seglength += glm::length(R.lower[j] - R.lower[j + 1]) * scale;
+        }
+        int numV = (int)ceil(seglength / spacing);
+        float segSpacing = seglength / numV;
+        float segStep = 0;
+
+        for (int j = baseVertex; j < fixedVerts[i] - 1; j++)
+        {
+            float scale = 1.f;
+            float trail = (R.trailEdge.x - R.lower[j].x) / (R.chord * 0.25f);
+            float lead = (R.lower[j].x - R.leadEdge.x) / (R.chord * 0.15f);
+            if (trail < 1) scale = 1 + 2 * (1 - trail);
+            if (lead < 1) scale = 1 + 4 * (1 - lead);
+
+            float l = glm::length(R.lower[j] - R.lower[j + 1]) * scale;
+            float step2 = segStep + l;
+            if (step2 > segSpacing)
+            {
+                float ds = ((step2 - segSpacing) / l);
+                R.ribVerts.push_back(glm::lerp(R.lower[j], R.lower[j + 1], 1 - ds));
+                R.ribIndex.push_back(j + (1 - ds));
+                segStep -= segSpacing;
+            }
+            segStep += l;
+        }
+
+        R.ribVerts.push_back(R.lower[fixedVerts[i]]);
+        R.ribIndex.push_back((float)fixedVerts[i]);
+        baseVertex = fixedVerts[i];
+    }
+
+
+
+    // Now invert for the top, use X search - THIS PART WORKS FOR NOW
+    int start = R.ribVerts.size() - 2;
+    for (int j = start; j >= 0; j--)
+    {
+        float targetX = R.ribVerts[j].x;
+
+        for (int k = baseVertex + 1; k < R.lower.size(); k++)
+        {
+            if ((R.lower[k - 1].x < targetX) && (R.lower[k].x >= targetX))
+            {
+                float ds = (targetX - R.lower[k - 1].x) / (R.lower[k].x - R.lower[k - 1].x);
+                R.ribVerts.push_back(glm::lerp(R.lower[k - 1], R.lower[k], ds));
+                R.ribIndex.push_back((k - 1) + ds);
+                break;
+            }
+        }
+    }
+
+    totalVertexCount += R.ribVerts.size();;
+}
+
+
+
 void _gliderImporter::placeRibVerts()
 {
 
     totalVertexCount = 0;
 
     int numR = 0;
-    for (auto& R : half_ribs)
+    int minimum = 20;
+
+    for (auto &R : half_ribs)
     {
-        float skewCircumference = 0;
-        for (int i = 0; i < R.lower.size() - 1; i++)
+        float scale = 0.2f;
+        int cnt = 0;
+        do
         {
-            float scale = 1.f;
-            float trail = (R.trailEdge.x - R.lower[i].x) / (R.chord * 0.25f);
-            float lead = (R.lower[i].x - R.leadEdge.x) / (R.chord * 0.25f);
-            if (trail < 1) scale = 1 + 2 * (1 - trail);
-            if (lead < 1) scale = 1 + 3 * (1 - lead);
-            skewCircumference += glm::length(R.lower[i] - R.lower[i + 1]) * scale;
-        }
+            placeSingleRibVerts(R, numR, scale);
+            scale *= 0.99f;
+            cnt++;
+            if (cnt == 200) break;
+        } while (R.ribVerts.size() < minimum);
 
-        R.ribVerts.clear();
-        R.ribIndex.clear();
-        float step = 0.f;
-        float distance = 0;
-        int numBaseVerts = ribVertCount;
-        if (!fixedRibcount) numBaseVerts = (int)(skewCircumference / ribSpacing);
-        numBaseVerts = __max(numBaseVerts, 16);//clamp at 16
-
-        float spacing = 0.3f;// skewCircumference / numBaseVerts;
-
-
-        R.ribVerts.push_back(R.lower.front());        // trailing edge
-        R.ribIndex.push_back(0);
-
-        std::vector<int> fixedVerts = forceRibVerts[numR];
-        fixedVerts.push_back(R.leadindex);
-
-        int baseVertex = 0;
-        for (int i = 0; i < fixedVerts.size(); i++)
-        {
-            spacing = 0.1f;
-            //if (i==0) spacing = 0.1f;
-            //if (i == fixedVerts.size() - 1) spacing = 0.1f;
-            //spacing /= 2;
-
-            float seglength = 0;
-            for (int j = baseVertex; j < fixedVerts[i]; j++)
-            {
-                float scale = 1.f;
-                float trail = (R.trailEdge.x - R.lower[j].x) / (R.chord * 0.25f);
-                float lead = (R.lower[j].x - R.leadEdge.x) / (R.chord * 0.15f);
-                if (trail < 1) scale = 1 + 2 * (1 - trail);
-                if (lead < 1) scale = 1 + 4 * (1 - lead);
-
-                seglength += glm::length(R.lower[j] - R.lower[j + 1]) * scale;
-            }
-            int numV = (int)ceil(seglength / spacing);
-            float segSpacing = seglength / numV;
-            float segStep = 0;
-
-            for (int j = baseVertex; j < fixedVerts[i] - 1; j++)
-            {
-                //segStep += glm::length(R.lower[j] - R.lower[j + 1]);
-
-                float scale = 1.f;
-                float trail = (R.trailEdge.x - R.lower[j].x) / (R.chord * 0.25f);
-                float lead = (R.lower[j].x - R.leadEdge.x) / (R.chord * 0.15f);
-                if (trail < 1) scale = 1 + 2 * (1 - trail);
-                if (lead < 1) scale = 1 + 4 * (1 - lead);
-
-                float l = glm::length(R.lower[j] - R.lower[j + 1]) * scale;
-                float step2 = segStep + l;
-                if (step2 > segSpacing)
-                {
-                    float ds = ((step2 - segSpacing) / l);
-                    R.ribVerts.push_back(glm::lerp(R.lower[j], R.lower[j + 1], 1 - ds));
-                    R.ribIndex.push_back(j + (1 - ds));
-                    segStep -= segSpacing;
-                }
-                segStep += l;
-            }
-
-            R.ribVerts.push_back(R.lower[fixedVerts[i]]);
-            R.ribIndex.push_back((float)fixedVerts[i]);
-            baseVertex = fixedVerts[i];
-        }
-
-
-
-        // Now invert for the top, use X search - THIS PART WORKS FOR NOW
-        int start = R.ribVerts.size() - 2;
-        for (int j = start; j >= 0; j--)
-        {
-            float targetX = R.ribVerts[j].x;
-
-            for (int k = baseVertex + 1; k < R.lower.size(); k++)
-            {
-                if ((R.lower[k - 1].x < targetX) && (R.lower[k].x >= targetX))
-                {
-                    float ds = (targetX - R.lower[k - 1].x) / (R.lower[k].x - R.lower[k - 1].x);
-                    R.ribVerts.push_back(glm::lerp(R.lower[k - 1], R.lower[k], ds));
-                    R.ribIndex.push_back((k-1) + ds);
-                    break;
-                }
-            }
-        }
-
-        totalVertexCount += R.ribVerts.size();;
+        minimum = R.ribVerts.size() - 2;
         numR++;
     }
 }
@@ -885,6 +1032,20 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
             }
 
             draw_list->AddPolyline(chord, drawSize, col32R, false, 2);
+
+            int end = R.lower.size() - 1;
+            for (int j = 0; j < R.lower.size() / 2; j += 10)
+            {
+                float z = glm::dot(R.up, R.lower[j] - R.trailEdge);
+                float x = glm::dot(R.front, R.lower[j] - R.trailEdge);
+                ImVec2 p = ImVec2(600 + x * 500, 200 - z * 500);
+
+                z = glm::dot(R.up, R.lower[end - j] - R.trailEdge);
+                x = glm::dot(R.front, R.lower[end - j] - R.trailEdge);
+                ImVec2 p2 = ImVec2(600 + x * 500, 200 - z * 500);
+
+                draw_list->AddLine(p, p2, col32B);      // every 10th upright to chek spacing
+            }
 
             for (int j = 0; j < R.ribVerts.size(); j++)
             {

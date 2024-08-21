@@ -8179,6 +8179,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         FALCOR_PROFILE("setBlob");
 
 
+        //cfd.originRequest = float3(3185, 900, -14377);  //A
+        cfd.originRequest = float3(3190, 800, -15900);  //A_A
+        //cfd.originRequest = float3(-5000, 900, -14302);  //B
 
         /*
         //cfd.originRequest = paraRuntime.pilotPos();
@@ -8192,6 +8195,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         cfd.originRequest = float3(8753, 1257 + 300, 6619);
         //cfd.originRequest = float3(15033, 1498 + 300, 7446);
 
+        
         
         //cfd.originRequest = float3(1852, 1500, 10910);
         */

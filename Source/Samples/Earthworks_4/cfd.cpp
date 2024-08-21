@@ -942,7 +942,7 @@ void _cfd_lod::pre_pass(float _dt)
 
                     // boyancy
                     float baseTemperature = _cfdClipmap::skewT_data[lod][y + offset.y].x;
-                    v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
+                    //v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
                 }
             }
         }
