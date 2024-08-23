@@ -645,9 +645,7 @@ struct _rib
     float3 front;
     float3 up;
 
-    std::vector<float3> ribLineAttach;
-    std::vector<float> ribLinePercentage;
-
+    std::vector<int> ribLineAttach;
 };
 
 
@@ -655,22 +653,15 @@ enum constraintType { skin, ribs, vecs, diagonals, stiffners, lines, straps };
 class _gliderImporter
 {
 public:
+    bool reverseRibs = true;
     void processRib();
     void placeSingleRibVerts(_rib& R, int numR, float _scale);
     void placeRibVerts();
     void processLines();
 
     void ExportLineShape();
-
-    void toObj();
-    //void pushRibToVerts(_rib &_r, int _chord, bool _mirror_y);
-    //int CreateRib(_rib &a, _rib &b, float ya, float yb, int numSemiRibs, int vStart);
-    //void CreateSurface(int numSemiRibs, bool centerRib);
+    void toObj(char *filename, constraintType _type);
     std::vector<glm::ivec3> constraints;
-    //std::vector<glm::ivec2> edges_ribs;
-    //std::vector<glm::ivec2> edges_vecs;
-    //s/td::vector<glm::ivec2> edges_diagonals;
-    //std::vector<glm::ivec2> edges_lines;
     struct _VTX
     {
         float3 v;
@@ -690,7 +681,7 @@ public:
     // Full wing
     std::vector<_rib> full_ribs;
     void halfRib_to_Full();
-    void interpolateRibs(int _numSteps);
+    void interpolateRibs();
     void insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
 
@@ -700,21 +691,27 @@ public:
     bool cmp_rib_V(float3 a, float3 b) { return (a.x < b.x); }
     bool fixedRibcount = false;
     int ribVertCount = 50;
-    float ribSpacing = 0.15f;    // 10 cm
+    float ribSpacing = 0.21f;    // 10 cm
     float trailingBias = 1.5f;  // on the last 3de
-    float leadBias = 2.5f;      // on the front 3de
+    float leadBias = 2.8f;      // on the front 3de
+
+    // scale up
+    int numRibScale = 2; //number fo time to split each rib
+    int numMiniRibs = 4;    // last 4 verts become mini rib attached
 
     int totalVertexCount;
-
-    std::vector<int> vec1 = {
-        -40, -37, - 33, -31, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30,
-        -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -30, -31, -33, -37, -40 }; // [12 - 51]
-
-    std::vector<int> vec2 = {
-        50, 51, 52, 52, 53, 53, 53, 53, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 56, 56, 56, 56,
-        56, 56, 56, 56, 55, 55, 55, 55, 54, 54, 54, 54, 53, 53, 53, 53, 53, 53, 52, 52, 51, 50 }; // [10 - 53]
-
-    std::vector < std::vector<int>> diagonals = {
+    
+    void saveDiagonals();
+    void loadDiagonals();
+    struct _diag
+    {
+        int from_rib;
+        int from_idx;
+        int to_rib;
+        int range_from;
+        int range_to;
+    };
+    std::vector <_diag> diagonals = {
         {2, 73, 3, -90, -30},
         {2, 107, 3, -130, -80},
 
@@ -778,41 +775,59 @@ public:
     };
 
 
-    std::vector<std::vector<int>> forceRibVerts = {
-        {30, 42, 56, 101, 107},
-        {30, 42, 56, 101, 107},
-        {30, 42, 56, 101, 107},
-        {30, 42, 56, 101, 107},
-        {30, 42, 55, 101, 107},
-        {30, 42, 55, 101, 107},
-        {30, 42, 55, 101, 107},
-        {30, 42, 55, 101, 107},
-        {30, 42, 54, 101, 107},
-        {30, 42, 54, 101, 107},
-        {30, 42, 54, 101, 107},
-        {30, 42, 54, 101, 107}, //20
-        {30, 42, 53, 101, 107},
-        {30, 42, 53, 101, 107},
-        {30, 42, 53, 101, 107},
-        {30, 42, 53, 101, 107},
-        {31, 42, 53, 101, 107},
-        {33, 53, 101, 107},         //?? about my 31 ramp up
-        {37, 52, 101, 107},
-        {40, 52, 101, 107}, //12
-        {40, 51, 104},
-        {43, 50, 104}, //10
-        {50, 104},
-        {50, 104},
-        {49, 104},
-        {49, 104},
-        {49, 104},
-        {104},
-        {104},
-        {73, 104},          // S
-        {73, 104},          // S
-        {104}
-    };
 
+    struct _vecs
+    {
+        int from;
+        bool isVec;
+        std::vector<int> idx;
+    };
+    std::vector<_vecs> VECS = {
+        {0, false, { 104, 104, 103, 103, 104, 104, 104, 104, 104, 104, 104, 104 }},
+        {13, true, { 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107 }},
+        {13, true, { 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101 }},
+        {1, false, { 72, 72 }},
+        {5, false, { 48, 48, 49, 50, 50 }},
+        {10, true, { 50, 51, 52, 53, 53, 53, 53, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 56, 56, 56, 56, 56 }},
+        {17, false, { 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 } },
+        {11, true, { -45, -40, -36, -34, -32, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31 }},
+    };
+    /*
+    std::vector<std::vector<int>> forceRibVerts = {
+        {104},
+        {72, 104},
+        {72, 103},
+        {103},
+        { 104 },
+        { 48, 104 },
+        {48, 104},
+        {49, 104},
+        {50, 104},
+        {50, 104},
+        {-43, 50, 104}, //10
+        {-40, 51, 104},
+        {-40, 52, 101, 107}, //12
+        {-37, 53, 101, 107},
+        {-33, 53, 101, 107},         //?? about my 31 ramp up
+        {-31, 42, 53, 101, 107},
+        {-30, 42, 53, 101, 107},
+        {-30, 42, 53, 101, 107},
+        {-30, 42, 53, 101, 107},
+        {-30, 42, 53, 101, 107},
+        {-30, 42, 54, 101, 107},
+        {-30, 42, 54, 101, 107},
+        {-30, 42, 54, 101, 107},
+        {-30, 42, 54, 101, 107}, //20
+        {-30, 42, 55, 101, 107},
+        {-30, 42, 55, 101, 107},
+        {-30, 42, 55, 101, 107},
+        {-30, 42, 55, 101, 107},
+        {-30, 42, 56, 101, 107},
+        {-30, 42, 56, 101, 107},
+        {-30, 42, 56, 101, 107},
+        {-30, 42, 56, 101, 107}
+    };
+    */
     // lines
     std::vector<float3> line_verts;
 
@@ -829,6 +844,7 @@ private:
 
         archive(CEREAL_NVP(fixedRibcount));
     }
+    
 };
 CEREAL_CLASS_VERSION(_gliderImporter, 100);
 

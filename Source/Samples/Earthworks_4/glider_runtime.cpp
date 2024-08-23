@@ -2,6 +2,7 @@
 #include "imgui.h"
 #include <imgui_internal.h>
 
+
 #include"terrafector.h" // for logging
 using namespace std::chrono;
 //#pragma optimize("", off)
@@ -59,6 +60,8 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
     trailEdge = glm::lerp(_a.trailEdge, _b.trailEdge, 0.5f);
     chord = glm::length(leadEdge - trailEdge);
 
+    float width = glm::length(_a.trailEdge - _b.trailEdge);
+
     front = glm::lerp(_a.front, _b.front, 0.5f);
     up = glm::lerp(_a.up, _b.up, 0.5f);
 
@@ -70,18 +73,18 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
 
         float scale = 1.f;
         float trail = (trailEdge.x - lower[i].x) / (chord * 0.1f);        // really mneeds new chord inm middle, will suck at the edges
-        float lead = (lower[i].x - leadEdge.x) / (chord * 0.05f);
+        float lead = (lower[i].x - leadEdge.x) / (chord * 0.1f);
         if (trail < 1) scale *= pow(trail, 0.5);
-        if (lead < 1) scale *= lead;
+        if (lead < 1) scale *= pow(lead, 0.5);
         float sign = 1;
         if (glm::dot(lower[i] - trailEdge, up) < 0) sign = -1;
-        lower[i] += sign * _billow * scale * up; // Shouldd really be out rather than up
+        lower[i] += sign * _billow * width * scale * up; // Shouldd really be out rather than up
     }
 
     // new ribverts
     ribVerts.clear();
     // step 1 just mirror - _a
-    
+
 
     if (_finalInterp)
     {
@@ -93,9 +96,9 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
             for (int i = 0; i < _b.ribIndex.size() - 1; i++)
             {
                 float idx = (_b.ribIndex[i] + _b.ribIndex[i + 1]) / 2;
-                if (i == 0) idx = _b.ribIndex[i + 1] - 1;
-                if (i == _b.ribIndex.size() - 1) idx = _b.ribIndex[i] + 0;
-                ribIndex.push_back(idx);                
+                if (i == 0) idx = _b.ribIndex[i + 1] - 2;
+                if (i == _b.ribIndex.size() - 2) idx = _b.ribIndex[i] + 2;
+                ribIndex.push_back(idx);
             }
         }
         else
@@ -103,8 +106,8 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
             for (int i = 0; i < _a.ribIndex.size() - 1; i++)
             {
                 float idx = (_a.ribIndex[i] + _a.ribIndex[i + 1]) / 2;
-                if (i == 0) idx = _a.ribIndex[i + 1] - 1;
-                if (i == _a.ribIndex.size() - 1) idx = _a.ribIndex[i] + 0;
+                if (i == 0) idx = _a.ribIndex[i + 1] - 2;
+                if (i == _a.ribIndex.size() - 2) idx = _a.ribIndex[i] + 2;
                 ribIndex.push_back(idx);
             }
         }
@@ -133,14 +136,13 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
 
 void _rib::mirror_Y()
 {
-    for (auto &v : outerV)    v.y *= -1;
-    for (auto &v : lower)     v.y *= -1;
-    for (auto &v : ribVerts)  v.y *= -1;
+    for (auto& v : outerV)    v.y *= -1;
+    for (auto& v : lower)     v.y *= -1;
+    for (auto& v : ribVerts)  v.y *= -1;
     leadEdge.y *= -1;
     trailEdge.y *= -1;
     front.y *= -1;
     up.y *= -1;
-    for (auto& v : ribLineAttach)    v.y *= -1;
 }
 
 
@@ -152,12 +154,13 @@ void _gliderImporter::halfRib_to_Full()
 {
     full_ribs.clear();
 
-    for (int i = half_ribs.size() - 1; i >= 0; i--)
+
+    for (int i = 0; i < half_ribs.size(); i++)
     {
         full_ribs.push_back(half_ribs[i]);
     }
 
-    for (int i = 0; i < half_ribs.size(); i++)
+    for (int i = half_ribs.size() - 1; i >= 0; i--)
     {
         _rib r = half_ribs[i];
         r.mirror_Y();
@@ -167,15 +170,15 @@ void _gliderImporter::halfRib_to_Full()
 
 
 
-void _gliderImporter::interpolateRibs(int _numSteps)
+void _gliderImporter::interpolateRibs()
 {
     // Only supports 2 and 4 at the moment, so clean up
-    if (_numSteps < 4)
+    if (numRibScale < 4)
     {
         for (int i = 0; i < full_ribs.size() - 1; i += 2)     // jump over the newly inserted rib as well, so +2
         {
             _rib newR;
-            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.025f, true);
+            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.1f, true);
             full_ribs.insert(full_ribs.begin() + i + 1, newR);
         }
     }
@@ -184,14 +187,14 @@ void _gliderImporter::interpolateRibs(int _numSteps)
         for (int i = 0; i < full_ribs.size() - 1; i += 2)     // jump over the newly inserted rib as well, so +2
         {
             _rib newR;
-            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.025f, false);
+            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.1f, false);
             full_ribs.insert(full_ribs.begin() + i + 1, newR);
         }
 
         for (int i = 0; i < full_ribs.size() - 1; i += 2) // jump over teh noew one as well
         {
             _rib newR;
-            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.007f, true);
+            newR.interpolate(full_ribs[i], full_ribs[i + 1], 0.02f, true);
             full_ribs.insert(full_ribs.begin() + i + 1, newR);
         }
     }
@@ -205,7 +208,7 @@ void _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintT
 {
     int va = 0;
     int vb = 0;
-    for (int j = 0; j < verts.size(); j++) 
+    for (int j = 0; j < verts.size(); j++)
     {
         if (glm::length(verts[j].v - _a) < _search) va = j;
         if (glm::length(verts[j].v - _b) < _search) vb = j;
@@ -216,7 +219,7 @@ void _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintT
             break;
         }
     }
-    
+
 
     if (_mirror)
     {
@@ -241,7 +244,8 @@ void _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintT
 void _gliderImporter::fullWing_to_obj()
 {
     halfRib_to_Full();
-    interpolateRibs(2);
+    //numRibScale == 4;
+    interpolateRibs();
 
     verts.clear();
     tris.clear();
@@ -272,9 +276,17 @@ void _gliderImporter::fullWing_to_obj()
                 constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::ribs));
             }
         }
+        else
+        {
+            // miniribs
+            for (int i = 0; i < numMiniRibs; i++)
+            {
+                constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::ribs));
+            }
+        }
 
 
-        
+
 
         v_start = verts.size();
         cnt++;
@@ -282,6 +294,7 @@ void _gliderImporter::fullWing_to_obj()
 
 
     // vecs
+    /*
     fprintf(terrafectorSystem::_logfile, "\n\n\nVECS\n");
     for (int ribNum = 13; ribNum < 50; ribNum++)
     {
@@ -316,7 +329,7 @@ void _gliderImporter::fullWing_to_obj()
         if (ib < 0) ib = full_ribs[rb].lower.size() + ib;
         float3 pA = full_ribs[ra].lower[ia];
         float3 pB = full_ribs[rb].lower[ib];
-        
+
         insertEdge(pA, pB, false, constraintType::vecs);
     }
 
@@ -336,30 +349,59 @@ void _gliderImporter::fullWing_to_obj()
         if (ib < 0) ib = full_ribs[rb].lower.size() + ib;
         float3 pA = full_ribs[ra].lower[ia];
         float3 pB = full_ribs[rb].lower[ib];
-        
+
 
         insertEdge(pA, pB, false, constraintType::vecs);
     }
-    
+    */
+
+
+    //VECS
+    int totalSize = full_ribs[0].lower.size();
+    for (auto& vec : VECS)
+    {
+        if (vec.isVec)
+        {
+            for (int j = 0; j < vec.idx.size() - 1; j++)
+            {
+                bool mirror = true;
+                int k = vec.idx[j];
+                if (k < 0) k += totalSize;
+                int l = vec.idx[j + 1];
+                if (l < 0) l += totalSize;
+                insertEdge(half_ribs[vec.from + j].lower[k], half_ribs[vec.from + j + 1].lower[l], mirror, constraintType::vecs);
+            }
+            // special case for middle
+            if (vec.from + vec.idx.size() == half_ribs.size())
+            {
+                float3 p1 = half_ribs.back().lower[vec.idx.back()];
+                float3 p2 = p1;
+                p2.y *= -1;
+                insertEdge(p1, p2, false, constraintType::vecs);
+            }
+        }
+    }
+
     // diagonals
+    // Asumes all ribs have equal number of points, otherwise other things break
+    int numRibVerts = full_ribs[0].lower.size();
+
     fprintf(terrafectorSystem::_logfile, "diagonals\n");
     for (int d = 0; d < diagonals.size(); d++)
     {
-        int ri = diagonals[d][0] * 2;
-        int r2 = diagonals[d][2] * 2;
-        float3 ps = full_ribs[ri].lower[diagonals[d][1]];
-        fprintf(terrafectorSystem::_logfile, "from (%d, %d)\n", ri, diagonals[d][1]);
+        int ri = diagonals[d].from_rib * numRibScale;
+        int r2 = diagonals[d].to_rib * numRibScale;
+        float3 ps = full_ribs[ri].lower[diagonals[d].from_idx];
 
-        int ia = diagonals[d][3];
-        int ib = diagonals[d][4];
-        if (ia < 0) ia = full_ribs[ri].lower.size() + ia;
-        if (ib < 0) ib = full_ribs[r2].lower.size() + ib;
-        fprintf(terrafectorSystem::_logfile, "scan (%d, %d - %d)\n", r2, ia, ib);
+        int ia = diagonals[d].range_from;
+        int ib = diagonals[d].range_to;
+        if (ia < 0) ia = numRibVerts + ia;
+        if (ib < 0) ib = numRibVerts + ib;
         for (int k = ia; k < ib; k++)
         {
-            float3 pe = full_ribs[r2].lower[k];
-
-            insertEdge(ps, full_ribs[r2].lower[k], true, constraintType::diagonals);
+            bool mirror = true;
+            insertEdge(ps, full_ribs[r2].lower[k], mirror, constraintType::diagonals);
+            // make a version that is rib aware maybe
         }
     }
 
@@ -368,7 +410,6 @@ void _gliderImporter::fullWing_to_obj()
     v_start = 0;
     for (int idx = 0; idx < full_ribs.size() - 1; idx++)
     {
-        /*
         auto& a = full_ribs[idx];
         auto& b = full_ribs[idx + 1];
         int cnt_a = 0;
@@ -378,81 +419,58 @@ void _gliderImporter::fullWing_to_obj()
         int vA = v_start;
         int vB = v_start + a.ribVerts.size();
 
-        while (numTris < (a.ribVerts.size() + b.ribVerts.size() - 3))
+        while (numTris < (a.ribVerts.size() + b.ribVerts.size()))
         {
-            float dstA = 10000;//just big
-            if (cnt_a < a.ribVerts.size() - 2)
+            if ((cnt_a < a.ribVerts.size() - 2) && (cnt_b < b.ribVerts.size() - 2))
             {
-                //float3 crd = a.ribVerts[cnt_a] - a.ribVerts[cnt_a + 1];
-                //float3 cross = b.ribVerts[cnt_b] - a.ribVerts[cnt_a];
-                //dstA = glm::length(glm::cross(crd, cross));
-                dstA = glm::length(a.ribVerts[cnt_a] - a.ribVerts[cnt_a + 1]) + glm::length(b.ribVerts[cnt_b] - a.ribVerts[cnt_a + 1]);
-            }
-            //
+                float dotA = glm::dot(a.ribVerts[cnt_a + 1] - a.ribVerts[cnt_a], b.ribVerts[cnt_b] - a.ribVerts[cnt_a]);
+                float dotA1 = glm::dot(b.ribVerts[cnt_b + 1] - a.ribVerts[cnt_a + 1], a.ribVerts[cnt_a] - a.ribVerts[cnt_a + 1]);
+                float dotB = glm::dot(b.ribVerts[cnt_b + 1] - b.ribVerts[cnt_b], a.ribVerts[cnt_a] - b.ribVerts[cnt_b]);
+                float dotB1 = glm::dot(a.ribVerts[cnt_a + 1] - b.ribVerts[cnt_b + 1], b.ribVerts[cnt_b] - b.ribVerts[cnt_b + 1]);
 
-            float dstB = 10000;//just big
-            if (cnt_b < b.ribVerts.size() - 2)
-            {
-                //float3 crd = b.ribVerts[cnt_b] - b.ribVerts[cnt_b + 1];
-                //float3 cross = b.ribVerts[cnt_b] - a.ribVerts[cnt_a];
-                //dstB = glm::length(glm::cross(crd, cross));
-                dstB = glm::length(b.ribVerts[cnt_b] - b.ribVerts[cnt_b + 1]) + glm::length(a.ribVerts[cnt_a] - b.ribVerts[cnt_b + 1]);
-            }
-            
+                float angleA = acos(dotA1) + acos(dotB);
+                float angleB = acos(dotA) + acos(dotB1);
 
-            if (dstA < dstB)
-            {
-                tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1 ));
-                cnt_a++;
+
+                if (angleA > angleB)
+                {
+                    tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1));
+                    cnt_a++;
+                }
+                else
+                {
+                    tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1));
+                    cnt_b++;
+                }
+
+                numTris++;
             }
             else
             {
-                tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1 ));
-                cnt_b++;
+                break;
             }
-
-            numTris++;
         }
-        */
-        
-        auto& a = full_ribs[idx];
-        auto& b = full_ribs[idx + 1];
-        int vA = v_start;
-        int vB = v_start + a.ribVerts.size();
-        int size = a.ribVerts.size();
-        if (a.ribVerts.size() > b.ribVerts.size())   // find the smaller one
+        // now we are exactly 3 short start at the longer side and add them in
+        if (cnt_a == a.ribVerts.size() - 2)
         {
-            std::swap(vA, vB);
-            size = b.ribVerts.size();
-
-            for (int i = 0; i < size; i++)
-            {
-                tris.push_back(glm::ivec3(vA + i, vB + i + 1, vB + i));
-                if (i < size - 1)
-                {
-                    tris.push_back(glm::ivec3(vA + i, vA + i + 1, vB + i + 1));
-                }
-            }
+            tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1));
+            tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b + 1, vA + cnt_a + 1));
+            tris.push_back(glm::ivec3(vA + cnt_a + 1, vB + cnt_b + 1, vB + cnt_b + 2));
         }
         else
         {
-            for (int i = 0; i < size; i++)
-            {
-                tris.push_back(glm::ivec3(vA + i, vB + i, vB + i + 1));
-                if (i < size - 1)
-                {
-                    tris.push_back(glm::ivec3(vA + i, vB + i + 1, vA + i + 1));
-                }
-            }
+            tris.push_back(glm::ivec3(vB + cnt_b, vA + cnt_a + 1, vA + cnt_a));
+            tris.push_back(glm::ivec3(vB + cnt_b, vB + cnt_b + 1, vA + cnt_a + 1));
+            tris.push_back(glm::ivec3(vB + cnt_b + 1, vA + cnt_a + 2, vA + cnt_a + 1));
         }
-        
-        
-        
-        
+
         v_start += a.ribVerts.size();
     }
 
-    toObj();   // edges for now
+    toObj("E:/Advance/omega_xpdb_surface.obj", constraintType::skin);
+    toObj("E:/Advance/omega_xpdb_ribs.obj", constraintType::ribs);
+    toObj("E:/Advance/omega_xpdb_vecs.obj", constraintType::vecs);
+    toObj("E:/Advance/omega_xpdb_diagonals.obj", constraintType::diagonals);
 }
 
 
@@ -460,7 +478,7 @@ void _gliderImporter::fullWing_to_obj()
 
 
 
-void _gliderImporter::toObj()
+void _gliderImporter::toObj(char* filename, constraintType _type)
 {
     aiScene* scene = new aiScene;
     scene->mRootNode = new aiNode();
@@ -496,36 +514,45 @@ void _gliderImporter::toObj()
 
         pMesh->mNumFaces = constraints.size() + tris.size();
         pMesh->mFaces = new aiFace[pMesh->mNumFaces];
-        pMesh->mPrimitiveTypes = aiPrimitiveType_LINE;// | aiPrimitiveType_TRIANGLE;
+        pMesh->mPrimitiveTypes = aiPrimitiveType_LINE | aiPrimitiveType_TRIANGLE;
 
         int fidx = 0;
 
         // surface
-        /*
-        for (auto& T : tris)
+        if (_type == constraintType::skin)
         {
-            aiFace& face = pMesh->mFaces[fidx];
-            face.mIndices = new unsigned int[3];
-            face.mNumIndices = 3;
-            face.mIndices[0] = T.x;
-            face.mIndices[1] = T.y;
-            face.mIndices[2] = T.z;
-            fidx++;
+            for (auto& T : tris)
+            {
+                aiFace& face = pMesh->mFaces[fidx];
+                face.mIndices = new unsigned int[3];
+                face.mNumIndices = 3;
+                face.mIndices[0] = T.x;
+                face.mIndices[1] = T.y;
+                face.mIndices[2] = T.z;
+                fidx++;
+            }
         }
-        */
-        for (auto& E : constraints)
+        else
         {
-            aiFace& face = pMesh->mFaces[fidx];
-            face.mIndices = new unsigned int[2];
-            face.mNumIndices = 2;
-            face.mIndices[0] = E.x;
-            face.mIndices[1] = E.y;
-            fidx++;
+            for (auto& E : constraints)
+            {
+                if (E.z == _type)
+                {
+                    aiFace& face = pMesh->mFaces[fidx];
+                    face.mIndices = new unsigned int[2];
+                    face.mNumIndices = 2;
+                    face.mIndices[0] = E.x;
+                    face.mIndices[1] = E.y;
+                    fidx++;
+                }
+            }
         }
     }
 
     Assimp::Exporter exp;
-    exp.Export(scene, "obj", "E:/Advance/omega_xpdb_surface.obj");
+
+    exp.Export(scene, "obj", filename);
+    //exp.Export(scene, "obj", "E:/Advance/omega_xpdb_surface.obj");
 
 }
 
@@ -645,15 +672,20 @@ void  _gliderImporter::processLines()
     {
         for (auto& R : half_ribs)
         {
+            float closest = 1000;// just big
+            int vIdx;
             for (int j = 0; j < R.lower.size(); j++)
             {
                 float l = glm::length(line_verts[i] - R.lower[j]);
-                if (l < 0.01f) //1mm
+                if (l < closest)
                 {
-                    R.ribLineAttach.push_back(line_verts[i]);
-                    float C = glm::dot(R.front, line_verts[i] - R.trailEdge) / R.chord;
-                    R.ribLinePercentage.push_back((float)j);
+                    closest = l;
+                    vIdx = j;
                 }
+            }
+            if (closest < 0.02f) // 2cm, should be fine
+            {
+                R.ribLineAttach.push_back(vIdx);
             }
         }
     }
@@ -808,10 +840,16 @@ void  _gliderImporter::processRib()
             // Now find the trailing edge - largest x value
         }
     }
+
+
+    if (reverseRibs)
+    {
+        std::reverse(half_ribs.begin(), half_ribs.end());
+    }
 }
 
 
-void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
+void _gliderImporter::placeSingleRibVerts(_rib& R, int numR, float _scale)
 {
     float skewCircumference = 0;
     for (int i = 0; i < R.lower.size() - 1; i++)
@@ -819,8 +857,8 @@ void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
         float scale = 1.f;
         float trail = (R.trailEdge.x - R.lower[i].x) / (R.chord * 0.25f);
         float lead = (R.lower[i].x - R.leadEdge.x) / (R.chord * 0.25f);
-        if (trail < 1) scale = 1 + 2 * (1 - trail);
-        if (lead < 1) scale = 1 + 3 * (1 - lead);
+        if (trail < 1) scale = 1 + trailingBias * (1 - trail);
+        if (lead < 1) scale = 1 + leadBias * (1 - lead);
         skewCircumference += glm::length(R.lower[i] - R.lower[i + 1]) * scale;
     }
 
@@ -838,12 +876,35 @@ void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
     R.ribVerts.push_back(R.lower.front());        // trailing edge
     R.ribIndex.push_back(0);
 
-    std::vector<int> fixedVerts = forceRibVerts[numR];
+    //std::vector<int> fixedVerts = forceRibVerts[numR];
+    //fixedVerts.push_back(R.leadindex);
+
+    // Build fixedVerts from VERTS
+    std::vector<int> fixedVerts;
+    for (auto& vec : VECS)
+    {
+        for (int j = 0; j < vec.idx.size(); j++)
+        {
+            if (vec.from + j == numR)
+            {
+                fixedVerts.push_back(vec.idx[j]);
+                if (fixedVerts.back() < 0)
+                {
+                    fixedVerts.back() = abs(fixedVerts.back()) - 1;
+                }
+            }
+        }
+    }
     fixedVerts.push_back(R.leadindex);
+    std::sort(fixedVerts.begin(), fixedVerts.end());
+
 
     int baseVertex = 0;
     for (int i = 0; i < fixedVerts.size(); i++)
     {
+        //fixedVerts[i] = (fixedVerts[i] + R.lower.size()) % R.lower.size(); // move top ones to the bottom
+        //fixedVerts[i] = abs(fixedVerts[i]);
+        if (fixedVerts[i] < 0) fixedVerts[i] = abs(fixedVerts[i]) - 1;
         spacing = _scale;
 
         float seglength = 0;
@@ -852,8 +913,8 @@ void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
             float scale = 1.f;
             float trail = (R.trailEdge.x - R.lower[j].x) / (R.chord * 0.25f);
             float lead = (R.lower[j].x - R.leadEdge.x) / (R.chord * 0.15f);
-            if (trail < 1) scale = 1 + 2 * (1 - trail);
-            if (lead < 1) scale = 1 + 4 * (1 - lead);
+            if (trail < 1) scale = 1 + trailingBias * (1 - trail);
+            if (lead < 1) scale = 1 + leadBias * (1 - lead);
 
             seglength += glm::length(R.lower[j] - R.lower[j + 1]) * scale;
         }
@@ -866,8 +927,8 @@ void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
             float scale = 1.f;
             float trail = (R.trailEdge.x - R.lower[j].x) / (R.chord * 0.25f);
             float lead = (R.lower[j].x - R.leadEdge.x) / (R.chord * 0.15f);
-            if (trail < 1) scale = 1 + 2 * (1 - trail);
-            if (lead < 1) scale = 1 + 4 * (1 - lead);
+            if (trail < 1) scale = 1 + trailingBias * (1 - trail);
+            if (lead < 1) scale = 1 + leadBias * (1 - lead);
 
             float l = glm::length(R.lower[j] - R.lower[j + 1]) * scale;
             float step2 = segStep + l;
@@ -913,32 +974,46 @@ void _gliderImporter::placeSingleRibVerts(_rib &R, int numR, float _scale)
 
 void _gliderImporter::placeRibVerts()
 {
-
     totalVertexCount = 0;
 
-    int numR = 0;
+
     int minimum = 20;
 
-    for (auto &R : half_ribs)
+    for (int i = half_ribs.size() - 1; i >= 0; i--)
     {
-        float scale = 0.2f;
+        float scale = ribSpacing;
         int cnt = 0;
         do
         {
-            placeSingleRibVerts(R, numR, scale);
+            placeSingleRibVerts(half_ribs[i], i, scale);
             scale *= 0.99f;
             cnt++;
             if (cnt == 200) break;
-        } while (R.ribVerts.size() < minimum);
+        } while (half_ribs[i].ribVerts.size() < minimum);
 
-        minimum = R.ribVerts.size() - 2;
-        numR++;
+        minimum = half_ribs[i].ribVerts.size() - 2;
+
     }
 }
 
 
 
+ImVec2 projPos = { 600, 300 };
+float projScale = 700;
+ImVec2 project(float3 p, _rib& R)
+{
+    float x = glm::dot(R.front, p - R.trailEdge) * projScale;
+    float y = glm::dot(R.up, p - R.trailEdge) * projScale;
+    return ImVec2(projPos.x + x, projPos.y - y);
+};
 
+ImVec2 project(int i, _rib& R)
+{
+    i = (i + R.lower.size()) % R.lower.size();
+    float x = glm::dot(R.front, R.lower[i] - R.trailEdge) * projScale;
+    float y = glm::dot(R.up, R.lower[i] - R.trailEdge) * projScale;
+    return ImVec2(projPos.x + x, projPos.y - y);
+};
 
 void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
 {
@@ -947,7 +1022,11 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
     const ImU32 col32B = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
     const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
     const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
+    const ImU32 col32Y = ImColor(ImVec4(0.8f, 0.8f, 0.0f, 1.0f));
     const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+
+    const ImU32 col32Bh = ImColor(ImVec4(0.0f, 0.0f, 0.7f, 0.3f));
+    const ImU32 col32Gh = ImColor(ImVec4(0.0f, 0.5f, 0.0f, 0.3f));
 
     ImVec2 start = { 100.f, 100.f };
     ImVec2 end = { 200.f, 200.f };
@@ -974,8 +1053,18 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         }
 
         ImGui::NewLine();
+        ImGui::Checkbox("reverse ribs", &importer.reverseRibs);
+        ImGui::SetNextItemWidth(200);
+        ImGui::DragFloat("spacing", &importer.ribSpacing, 0.01f, 0.05f, 0.4f, "%2.2fm");
+        ImGui::SetNextItemWidth(200);
+        ImGui::DragFloat("trailingBias", &importer.trailingBias, 0.1f, 1.f, 5.f);
+        ImGui::SetNextItemWidth(200);
+        ImGui::DragFloat("leadBias", &importer.leadBias, 0.1f, 1.f, 5.f);
+        
+            
+            
         ImGui::SetNextItemWidth(400);
-        if (ImGui::Button((importer.rib_file + "##1").c_str(), ImVec2(200, 0)))
+        if (ImGui::Button((importer.rib_file + "##1").c_str(), ImVec2(20, 0)))
         {
         }
         TOOLTIP(importer.rib_file.c_str());
@@ -985,16 +1074,14 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
             importer.processRib();
             importer.placeRibVerts();
             importer.ExportLineShape();
-            //importer.CreateSurface(2, true);
-
             importer.fullWing_to_obj();
         }
 
-        if (ImGui::Button((importer.line_file + "##2").c_str(), ImVec2(200, 0)))
+        if (ImGui::Button((importer.line_file + "##2").c_str(), ImVec2(20, 0)))
         {
         }
         ImGui::SameLine();
-        if (ImGui::Button("process lines ..."))
+        if (ImGui::Button("process lines attachements"))
         {
             importer.processLines();
         }
@@ -1006,9 +1093,11 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         ImGui::Text("ribs - %d  verts - %d", importer.half_ribs.size(), importer.rib_verts.size());
         uint numR = 0;
         uint totalRibVerts = 0;
+        ImGui::NewLine();
+        ImGui::Text("  cord  circ  verts");
         for (auto& R : importer.half_ribs)
         {
-            ImGui::Text("%d : edges - %d  lower - %d  circ - %2.2fm  pts - %d", numR, R.edges.size(), R.lower.size(), R.circumference, R.ribVerts.size());
+            ImGui::Text("%2d:  %2.2fm, %2.2fm  %d", numR, R.chord, R.circumference, R.ribVerts.size());
             numR++;
             totalRibVerts += R.ribVerts.size();
         }
@@ -1019,64 +1108,108 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
             static int viewChord = 0;
             auto& R = importer.half_ribs[viewChord];
 
-            ImGui::DragInt("rib", &viewChord, 0.1f, 0, importer.half_ribs.size() - 1);
+
+
+
+            ImGui::PushFont(pGui->getFont("roboto_48"));
+            {
+                ImGui::SetCursorPos(ImVec2(600, 20));
+                ImGui::SetNextItemWidth(200);
+                ImGui::DragInt("rib #", &viewChord, 0.1f, 0, importer.half_ribs.size() - 1);
+            }
+            ImGui::PopFont();
+
             uint drawSize = 0;
             ImVec2 chord[10000];  // just big enough
-
-            for (int j = 0; j < R.lower.size(); j++)
+            for (drawSize = 0; drawSize < R.lower.size(); drawSize++)
             {
-                float z = glm::dot(R.up, R.lower[j] - R.trailEdge);
-                float x = glm::dot(R.front, R.lower[j] - R.trailEdge);
-                chord[j] = ImVec2(600 + x * 500, 200 - z * 500);
-                drawSize++;
+                chord[drawSize] = project(drawSize, R);
             }
-
             draw_list->AddPolyline(chord, drawSize, col32R, false, 2);
 
-            int end = R.lower.size() - 1;
-            for (int j = 0; j < R.lower.size() / 2; j += 10)
-            {
-                float z = glm::dot(R.up, R.lower[j] - R.trailEdge);
-                float x = glm::dot(R.front, R.lower[j] - R.trailEdge);
-                ImVec2 p = ImVec2(600 + x * 500, 200 - z * 500);
-
-                z = glm::dot(R.up, R.lower[end - j] - R.trailEdge);
-                x = glm::dot(R.front, R.lower[end - j] - R.trailEdge);
-                ImVec2 p2 = ImVec2(600 + x * 500, 200 - z * 500);
-
-                draw_list->AddLine(p, p2, col32B);      // every 10th upright to chek spacing
-            }
 
             for (int j = 0; j < R.ribVerts.size(); j++)
             {
-                float z = glm::dot(R.up, R.ribVerts[j] - R.trailEdge);
-                float x = glm::dot(R.front, R.ribVerts[j] - R.trailEdge);
-                ImVec2 p = ImVec2(600 + x * 500, 200 - z * 500);
-                draw_list->AddCircle(p, 5, col32YEL);
+                draw_list->AddCircle(project(R.ribVerts[j], R), 5, col32R);
 
                 if (j < R.ribVerts.size() / 2)
                 {
-                    float z = glm::dot(R.up, R.ribVerts[R.ribVerts.size() - 1 - j] - R.trailEdge);
-                    float x = glm::dot(R.front, R.ribVerts[R.ribVerts.size() - 1 - j] - R.trailEdge);
-                    ImVec2 p2 = ImVec2(600 + x * 500, 200 - z * 500);
-                    draw_list->AddLine(p, p2, col32YEL);
+                    draw_list->AddLine(project(R.ribVerts[j], R), project(R.ribVerts[R.ribVerts.size() - 1 - j], R), col32R);
                 }
             }
 
-            for (int j = 0; j < R.ribLineAttach.size(); j++)
+            for (int j = 0; j < R.ribLineAttach.size(); j++)    // Where the lines atatch
             {
-                float z = glm::dot(R.up, R.ribLineAttach[j] - R.trailEdge);
-                float x = glm::dot(R.front, R.ribLineAttach[j] - R.trailEdge);
-                ImVec2 p = ImVec2(600 + x * 500, 200 - z * 500);
-                draw_list->AddCircle(p, 5, col32B, 12, 3);
+                ImVec2 p = project(R.ribLineAttach[j], R);
+                draw_list->AddCircle(p, 9, col32B, 12, 3);
+                ImGui::SetCursorPos(ImVec2(p.x + 5, p.y + 5));
+                ImGui::Text("%d", R.ribLineAttach[j]);
             }
 
-            ImGui::NewLine();
-            ImGui::Text("line%");
-            for (int j = 0; j < R.ribLinePercentage.size(); j++)
+
+            // Diagonals
+            int numDiag = 0;
+            ImGui::SetCursorPos(ImVec2(600, 400 + (float)numDiag * 30));
+            ImGui::Text("Diagonals");
+            numDiag++;
+
+            for (auto& diag : importer.diagonals)
             {
-                ImGui::Text("%2.3f", R.ribLinePercentage[j]);
+                if (diag.from_rib == viewChord)
+                {
+                    draw_list->AddTriangleFilled(project(diag.from_idx, R), project(diag.range_from, R), project(diag.range_to, R), col32Gh);
+
+                    int size = (int)R.lower.size() - 1;
+                    ImGui::PushID(123456 + numDiag);
+                    {
+                        ImGui::SetCursorPos(ImVec2(600, 400 + (float)numDiag * 30));
+
+                        ImGui::SetNextItemWidth(100);
+                        ImGui::DragInt("start", &diag.from_idx, 0.1f, 0, size);
+                        ImGui::SameLine(0, 20);
+
+                        ImGui::SetNextItemWidth(100);
+                        ImGui::DragInt("rib#", &diag.to_rib, 0.1f, 0, size);
+                        ImGui::SameLine(0, 20);
+
+                        ImGui::SetNextItemWidth(200);
+                        ImGui::DragInt2("range", &diag.range_from, 0.1f, -size, size);
+                        ImGui::SameLine(0, 20);
+                    }
+                    ImGui::PopID();
+                    numDiag++;
+                }
             }
+
+
+            for (auto& vec : importer.VECS)
+            {
+                for (int j = 0; j < vec.idx.size(); j++)
+                {
+                    if (vec.from + j == viewChord)
+                    {
+                        if (vec.isVec)
+                        {
+                            draw_list->AddCircle(project(vec.idx[j], R), 5, col32Y, 12, 3);
+                        }
+                        else
+                        {
+                            draw_list->AddCircle(project(vec.idx[j], R), 5, col32W, 12, 3);
+                        }
+                    }
+                }
+            }
+
+
+            // Vecs
+            /*
+            int numVecs = 0;
+
+            auto& vecs = importer.forceRibVerts[viewChord];
+            for (auto& V : vecs)
+            {
+                draw_list->AddCircle(project(V, R), 4, col32Y, 12, 3);
+            }*/
         }
 
 
@@ -1087,7 +1220,7 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         ImGui::Text("numLineVerts %d", importer.line_verts.size());
         ImGui::Text("numberOfFullRibs %d", importer.full_ribs.size());
 
-        
+
 
     }
 
@@ -3065,8 +3198,8 @@ void _swissBuildings::exportBuilding(std::string _path, std::vector<float3> _v, 
                 face.mIndices[3] = F.vertIndex[3];
 
                 faceNum++;
-            }
-        }
+    }
+}
 #else
         pMesh->mNumFaces = _f.size() / 4;
         pMesh->mFaces = new aiFace[pMesh->mNumFaces];
@@ -3085,7 +3218,7 @@ void _swissBuildings::exportBuilding(std::string _path, std::vector<float3> _v, 
             face.mIndices[3] = _f[i * 4 + 3];
         }
 #endif
-    }
+}
 
     Assimp::Exporter exp;
     exp.Export(scene, "obj", _path + ".obj");
