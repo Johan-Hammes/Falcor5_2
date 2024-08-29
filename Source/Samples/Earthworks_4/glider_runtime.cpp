@@ -274,7 +274,7 @@ bool _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintT
 }
 
 
-void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c, bool isA)
+void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c)
 {
     tris.push_back(glm::ivec3(_a, _b, _c));
 
@@ -294,8 +294,6 @@ void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c, bool isA)
     verts[tris.back().x].mass += area * wingWeightPerSqrm;
     verts[tris.back().y].mass += area * wingWeightPerSqrm;
     verts[tris.back().z].mass += area * wingWeightPerSqrm;
-    
-    
 }
 
 
@@ -317,8 +315,10 @@ void _gliderImporter::fullWing_to_obj()
 
     int cnt = 0;
     int v_start = 0;
-    for (auto r : full_ribs)
+    for (auto &r : full_ribs)
     {
+        r.v_start = v_start;
+
         for (auto v : r.ribVerts)
         {
             newVert._x = v;
@@ -469,12 +469,12 @@ void _gliderImporter::fullWing_to_obj()
 
                 if (angleA > angleB)
                 {
-                    insertSkinTriangle(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1, true);
+                    insertSkinTriangle(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1);
                     cnt_a++;
                 }
                 else
                 {
-                    insertSkinTriangle(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1, false);
+                    insertSkinTriangle(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1);
                     cnt_b++;
                 }
 
@@ -488,26 +488,21 @@ void _gliderImporter::fullWing_to_obj()
         // now we are exactly 3 short start at the longer side and add them in
         if (cnt_a == a.ribVerts.size() - 2)
         {
-            //insertSkinTriangle(); skips that final horizontal, but since its trailing edge and already have one, I think this is the right behavior
-            insertSkinTriangle(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1, false);
-            insertSkinTriangle(vA + cnt_a, vB + cnt_b + 1, vA + cnt_a + 1, true);
-            insertSkinTriangle(vA + cnt_a + 1, vB + cnt_b + 1, vB + cnt_b + 2, false);
-            //tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1));
-            //tris.push_back(glm::ivec3(vA + cnt_a, vB + cnt_b + 1, vA + cnt_a + 1));
-            //tris.push_back(glm::ivec3(vA + cnt_a + 1, vB + cnt_b + 1, vB + cnt_b + 2));
+            insertSkinTriangle(vA + cnt_a, vB + cnt_b, vB + cnt_b + 1);
+            insertSkinTriangle(vA + cnt_a, vB + cnt_b + 1, vA + cnt_a + 1);
+            insertSkinTriangle(vA + cnt_a + 1, vB + cnt_b + 1, vB + cnt_b + 2);
         }
         else
         {
-            insertSkinTriangle(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1, true);
-            insertSkinTriangle(vA + cnt_a + 1, vB + cnt_b, vB + cnt_b + 1, false);
-            insertSkinTriangle(vA + cnt_a + 1, vB + cnt_b + 1, vA + cnt_a + 2, true);
-            //tris.push_back(glm::ivec3(vB + cnt_b, vA + cnt_a + 1, vA + cnt_a));
-            //tris.push_back(glm::ivec3(vB + cnt_b, vB + cnt_b + 1, vA + cnt_a + 1));
-            //tris.push_back(glm::ivec3(vB + cnt_b + 1, vA + cnt_a + 2, vA + cnt_a + 1));
+            insertSkinTriangle(vA + cnt_a, vB + cnt_b, vA + cnt_a + 1);
+            insertSkinTriangle(vA + cnt_a + 1, vB + cnt_b, vB + cnt_b + 1);
+            insertSkinTriangle(vA + cnt_a + 1, vB + cnt_b + 1, vA + cnt_a + 2);
         }
 
         v_start += a.ribVerts.size();
     }
+
+    addEndCaps();
 
     toObj("E:/Advance/omega_xpdb_surface.obj", constraintType::skin);
     toObj("E:/Advance/omega_xpdb_ribs.obj", constraintType::ribs);
@@ -516,8 +511,97 @@ void _gliderImporter::fullWing_to_obj()
 }
 
 
+/* Add new cap verts*/
+void _gliderImporter::addEndCaps()
+{
+    int numV = full_ribs[0].ribVerts.size();
+    int numSegments = (numV - 1) / 2;
+    int numNew = numSegments - 2;
+
+    std::vector<float3> capVerts;
+
+    uint vCaps = verts.size();
+    uint vRight = full_ribs[0].v_start;
+    uint vLeft = full_ribs.back().v_start;
+    
+    for (int i = 0; i < numNew; i++)
+    {
+        float3 avs = { 0, 0, 0 };
+        avs += full_ribs[0].ribVerts[i + 1];
+        avs += full_ribs[0].ribVerts[i + 2];
+        avs += full_ribs[0].ribVerts[numV - i - 2];
+        avs += full_ribs[0].ribVerts[numV - i - 3];
+        avs *= 0.25f;
+        float l = glm::length(full_ribs[0].ribVerts[i + 1] - full_ribs[0].ribVerts[numV - i - 3]) * endcapBuldge;
+
+        avs -= full_ribs[0].plane.xyz * l;
+        capVerts.push_back(avs);
+
+        _VTX vert;
+        vert._x = avs;
+        verts.push_back(vert);
+        vert._x.y *= -1;
+        verts.push_back(vert);
+    }
+
+    // constriants downt he middle
+    bool mirror = true;
+    insertEdge(full_ribs[0].ribVerts[0], capVerts[0], mirror, constraintType::skin);
+    for (int i = 0; i < capVerts.size() - 1; i++)
+    {
+        insertEdge(capVerts[i], capVerts[i+1], mirror, constraintType::skin);
+    }
+    insertEdge(capVerts.back(), full_ribs[0].ribVerts[numSegments], mirror, constraintType::skin);
+
+    // triangles
+    int numTri = numNew * 2 + 1;
+    int center = 0;
+    int edge = 0;
+
+    // right
+    int vLast = vRight + numV - 1;
+    insertSkinTriangle(vRight, vRight + 1, vCaps);
+    insertSkinTriangle(vLast, vCaps, vLast - 1);
+    for (int i = 0; i < numNew; i++)
+    {
+        insertSkinTriangle(vCaps + (i*2), vRight + i + 1, vRight + i + 2);
+        insertSkinTriangle(vLast - i - 1, vCaps + (i * 2), vLast - i - 2);
+        if (i < numNew - 1)
+        {
+            insertSkinTriangle(vCaps + (i * 2), vRight + i + 2, vCaps + (i + 1) * 2);
+            insertSkinTriangle(vLast - i - 2, vCaps + (i * 2), vCaps + (i + 1) * 2);
+        }
+        else
+        {
+            // last one
+            insertSkinTriangle(vCaps + (i * 2), vRight + i + 2, vRight + i + 3);
+            insertSkinTriangle(vLast - i - 2, vCaps + (i * 2), vLast - i - 3);
+        }
+    }
 
 
+    // lef6t
+    vCaps += 1;
+    vLast = vLeft + numV - 1;
+    insertSkinTriangle(vLeft, vCaps, vLeft + 1);
+    insertSkinTriangle(vLast, vLast - 1, vCaps);
+    for (int i = 0; i < numNew; i++)
+    {
+        insertSkinTriangle(vCaps + (i * 2), vLeft + i + 2, vLeft + i + 1);
+        insertSkinTriangle(vLast - i - 1, vLast - i - 2, vCaps + (i * 2));
+        if (i < numNew - 1)
+        {
+            insertSkinTriangle(vCaps + (i * 2), vCaps + (i + 1) * 2, vLeft + i + 2);
+            insertSkinTriangle(vLast - i - 2, vCaps + (i + 1) * 2, vCaps + (i * 2));
+        }
+        else
+        {
+            // last one
+            insertSkinTriangle(vCaps + (i * 2), vLeft + i + 3, vLeft + i + 2);
+            insertSkinTriangle(vLast - i - 2, vLast - i - 3, vCaps + (i * 2));
+        }
+    }
+}
 
 
 void _gliderImporter::toObj(char* filename, constraintType _type)

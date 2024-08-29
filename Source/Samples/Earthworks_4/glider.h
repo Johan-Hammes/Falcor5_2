@@ -675,7 +675,8 @@ public:
     void placeSingleRibVerts(_rib& R, int numR, float _scale);
     void placeRibVerts();
     void processLineAttachmentPoints();
-    void insertSkinTriangle(int _a, int _b, int _c, bool isA);
+    void insertSkinTriangle(int _a, int _b, int _c);
+    
 
     void ExportLineShape();
     void toObj(char *filename, constraintType _type);
@@ -706,6 +707,8 @@ public:
     void interpolateRibs();
     bool insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
+    void addEndCaps();
+    float endcapBuldge = 0.2f;
 
     void sanityChecks();
     int numSkinVerts;
