@@ -142,7 +142,7 @@ class lodTriangleMesh_LoadCombiner {
 public:
     void create(uint _lod);
     void addMesh(std::string _path, lodTriangleMesh &mesh);
-    void loadToGPU(std::string _path);
+    void loadToGPU(std::string _path, bool _log);
     gpuTileTerrafector* getTile(uint _index) {
         if (_index < gpuTiles.size()) {
             return &gpuTiles[_index];

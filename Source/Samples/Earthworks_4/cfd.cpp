@@ -19,6 +19,7 @@ std::vector<cfd_data_type> _cfd_lod::root_data;
 float                   _cfdClipmap::incompres_relax = 1.9f;
 int                     _cfdClipmap::incompres_loop = 4;
 float                   _cfdClipmap::vort_confine = 0.f;;
+float                   _cfdClipmap::sun_heat_scale = 0;
 std::vector<cfd_V_type> _cfdClipmap::v_back;
 std::vector<cfd_V_type> _cfdClipmap::v_bfecc;
 std::vector<cfd_data_type> _cfdClipmap::data_back;
@@ -908,7 +909,7 @@ void _cfd_lod::bouyancy(float _dt)
 void _cfd_lod::pre_pass(float _dt)
 {
     int heat_lod_Scale = (int)pow(2, 5 - lod);
-    float heat_Scale = (float)pow(1.1, 5 - lod); // shit account for time
+    float heat_Scale = (float)pow(1.1, 5 - lod) ; // shit account for time
 
     for (uint z = 0; z < width; z++) {
         for (uint x = 0; x < width; x++)
@@ -921,7 +922,7 @@ void _cfd_lod::pre_pass(float _dt)
             {
                 deltaTemp = ((float)_cfdClipmap::heatMap_4k[hIndex] - 128.f) / 128.f;
                 deltaTemp /= heat_Scale;
-                deltaTemp *= 0.6f;
+                deltaTemp *= 0.6f * _cfdClipmap::sun_heat_scale;
             }
 
             for (uint y = 0; y < height; y++)
@@ -942,7 +943,7 @@ void _cfd_lod::pre_pass(float _dt)
 
                     // boyancy
                     float baseTemperature = _cfdClipmap::skewT_data[lod][y + offset.y].x;
-                    //v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
+                    v[i].y += (1.f - baseTemperature / data[i].x) * _dt * 9.8f;
                 }
             }
         }

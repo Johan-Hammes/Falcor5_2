@@ -3494,6 +3494,7 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
 
 terrainManager::terrainManager()
 {
+    /*
     std::ifstream is("lastFile.xml");
     if (is.good()) {
         cereal::XMLInputArchive archive(is);
@@ -3509,6 +3510,7 @@ terrainManager::terrainManager()
     }
 
     terrafectorSystem::pEcotopes = &mEcosystem;
+    */
 }
 
 
@@ -3527,6 +3529,52 @@ terrainManager::~terrainManager()
 
 void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 {
+    // Move the constructor code here
+    std::ifstream is("lastFile.xml");
+    if (is.good()) {
+        cereal::XMLInputArchive archive(is);
+        archive(CEREAL_NVP(lastfile));
+
+        mRoadNetwork.lastUsedFilename = lastfile.road;
+    }
+    else
+    {
+        fprintf(_logfile, "ERROR - unable to load lastfile.xml, shutting down\n");
+        fprintf(_logfile, "shutting down\n");
+        gpFramework->getWindow()->shutdown();
+        return;
+    }
+
+    std::ifstream isT(lastfile.terrain);
+    if (isT.good()) {
+        cereal::JSONInputArchive archive(isT);
+        settings.serialize(archive, 100);
+    }
+    else
+    {
+        std::filesystem::path path;
+        FileDialogFilterVec filters = { {"terrainSettings.json"} };
+        if (openFileDialog(filters, path))
+        {
+            lastfile.terrain = path.string();
+            std::ifstream isT(lastfile.terrain);
+            if (isT.good()) {
+                cereal::JSONInputArchive archive(isT);
+                settings.serialize(archive, 100);
+            }
+            else
+            {
+                fprintf(_logfile, "ERROR - unable to load a terrain  (/terrain/__somewhere__.terrainSettings.json), shutting down\n");
+                fprintf(_logfile, "shutting down\n");
+                gpFramework->getWindow()->shutdown();
+                return;
+            }
+        }
+    }
+
+    terrafectorSystem::pEcotopes = &mEcosystem;
+
+
     fprintf(_logfile, "terrain.onLoad()\n");
     fflush(_logfile);
 
@@ -3546,8 +3594,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         sampler_Ribbons = Sampler::create(samplerDesc);
     }
 
-    fprintf(_logfile, "a\n");
-    fflush(_logfile);
 
     {
         split.debug_texture = Texture::create2D(tile_numPixels, tile_numPixels, Falcor::ResourceFormat::RGBA8Unorm, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess);
@@ -3557,31 +3603,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.vertex_B_texture = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, nullptr, Resource::BindFlags::ShaderResource | Falcor::Resource::BindFlags::UnorderedAccess);
     }
 
-    fprintf(_logfile, "b\n");
-    fflush(_logfile);
     {
         std::vector<glm::uint16> vertexData(tile_numPixels / 2 * tile_numPixels / 2);
         memset(vertexData.data(), 0, tile_numPixels / 2 * tile_numPixels / 2 * sizeof(glm::uint16));	  // set to zero's
         split.vertex_clear = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, vertexData.data(), Resource::BindFlags::ShaderResource);
-
-        // This is the preload for the square pattern
-        /*
-        std::array<glm::uint16, 17> pattern = { 0, 7, 15, 23, 31, 39, 47, 55, 63, 71, 79, 87, 95, 103, 111, 119, 126 };
-        for (int y = 0; y <= 16; y++)
-        {
-            int mY = pattern[y];
-            for (int x = 0; x <= 16; x++)
-            {
-                int mX = pattern[x];
-                glm::uint index = (mY + 4) * 128 + mX + 4;
-                if (x == 16) index -= 4;
-                if (y == 16) index -= 4 * 128;
-
-                unsigned int packValue = ((mX + 1) << 9) + ((mY + 1) << 1);
-                vertexData[index] = packValue;
-            }
-        }
-        */
 
         // kante
         for (uint i = 1; i < 128; i += 2)
@@ -3609,8 +3634,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         }
         split.vertex_preload = Texture::create2D(tile_numPixels / 2, tile_numPixels / 2, Falcor::ResourceFormat::R16Uint, 1, 1, vertexData.data(), Resource::BindFlags::ShaderResource);
     }
-    fprintf(_logfile, "c\n");
-    fflush(_logfile);
 
     {
         split.buffer_tileCenters = Buffer::createStructured(sizeof(float4), numTiles);
@@ -3716,15 +3739,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-
-
-
-
-
-
-
-
-
         std::mt19937 G(12);
         std::uniform_real_distribution<> D(-1.f, 1.f);
         std::uniform_real_distribution<> D2(0.7f, 1.4f);
@@ -3735,8 +3749,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-        fprintf(_logfile, "d\n");
-        fflush(_logfile);
         /*
         Texture::SharedPtr tex = Texture::createFromFile(settings.dirResource + "/textures/bark/Oak1_albedo.dds", false, true);
         ribbonTextures.emplace_back(tex);
@@ -4119,7 +4131,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     //paraRuntime.setWind(settings.dirRoot + "/gis/_export/root4096.bil", glm::normalize(float3(-1, 0, 0.4f)));
     paraRuntime.loadWind();
 
-    paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
+    paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints, false, cameraViews[CameraType_Main_Center].view);
     paraRuntime.Cp = paraBuilder.Cp;
     memcpy(paraRuntime.CPbrakes, paraBuilder.CPbrakes, sizeof(float) * 6 * 11 * 25);
     //paraRuntime.CPbrakes = paraBuilder.CPbrakes;
@@ -4793,6 +4805,15 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         }
 
 
+        ImGui::NewLine();
+        if (ImGui::Button("launch from here"))
+        {
+            paraRuntime.requestRestart = true;
+            paraRuntime.usePosDir = true;
+            paraRuntime.restartPos = cameraOrigin;
+            paraRuntime.restartDir = cameraViews[CameraType_Main_Center].view[2];
+            useFreeCamWhileGliding = false;
+        }
 
         ImGui::NewLine();
         ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
@@ -4809,15 +4830,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         }
 
 
-        ImGui::NewLine();
-        ImGui::Text("Time of day");
-        ImGui::SetNextItemWidth(300);
-        ImGui::DragFloat("angle", &shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
-        ImGui::NewLine();
-        if (ImGui::Button("change"))
-        {
-            shadowEdges.requestNewShadow = true;
-        }
+
 
 
         ImGui::NewLine();
@@ -4845,6 +4858,10 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         
         ImGui::DragInt("num Inc", &cfd.clipmap.incompres_loop, 1, 1, 100);
         ImGui::DragFloat("vort_confine", &cfd.clipmap.vort_confine, 0.01f, 0.0f, 1.0f);
+
+        ImGui::NewLine();
+        ImGui::DragFloat("sun_heat_scale", &cfd.clipmap.sun_heat_scale, 0.01f, 0.0f, 1.0f);
+        
         
 
         ImGui::Text("%d, %f", cfd.clipmap.sliceOrder[3], cfd.lodLerp[3]);
@@ -4889,7 +4906,8 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
 
 
 // The game GUI
-void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, float2 _screen)
+//fogAtmosphericParams params;
+void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, float2 _screen, fogAtmosphericParams* pAtmosphere)
 {
     if (renderGui_Menu)
     {
@@ -4980,6 +4998,20 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
                             {
                                 shadowEdges.requestNewShadow = true;
                             }
+
+                            ImGui::SetNextItemWidth(300);
+                            ImGui::DragFloat("haze turbidity", &pAtmosphere->haze_Turbidity, 0.01f, 1.f, 15.f, "%1.2f");
+
+                            ImGui::SetNextItemWidth(300);
+                            ImGui::DragFloat("fog turbidity", &pAtmosphere->fog_Turbidity, 0.01f, 1.f, 125.f, "%1.2f");
+
+                            ImGui::SetNextItemWidth(300);
+                            ImGui::DragFloat("fog base", &pAtmosphere->fog_BaseAltitudeKm, 0.001f, 0.f, 1.f, "%1.2fkm");
+
+                            ImGui::SetNextItemWidth(300);
+                            ImGui::DragFloat("fog height", &pAtmosphere->fog_AltitudeKm, 0.001f, 0.05f, 1.f, "%1.2f");
+
+                            
                         }
                         ImGui::PopFont();
 
@@ -5003,16 +5035,8 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
             ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.4f));
             ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
-            ImGui::PushFont(pGui->getFont("H2"));
-            {
 
-
-            }
-            ImGui::PopFont();
-
-
-
-            onGuiRendercfd_params(_window, pGui, _screen);
+           onGuiRendercfd_params(_window, pGui, _screen);
 
 
 
@@ -5022,7 +5046,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
         }
         else
         {
-            paraRuntime.renderHUD(pGui, _screen);
+            paraRuntime.renderHUD(pGui, _screen, !GliderDebugVisuals);
 
             if (GliderDebugVisuals)
             {
@@ -7084,6 +7108,8 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     if (terrainMode == 4)
     {
+        //fprintf(terrafectorSystem::_logfile, "cfd\n");
+        //fflush(terrafectorSystem::_logfile);
         {
             static std::chrono::steady_clock::time_point prev;
             std::chrono::steady_clock::time_point current = high_resolution_clock::now();
@@ -7207,6 +7233,8 @@ bool terrainManager::update(RenderContext* _renderContext)
 
 
         {
+            //fprintf(terrafectorSystem::_logfile, "update_roads\n");
+            //fflush(terrafectorSystem::_logfile);
             FALCOR_PROFILE("update_roads");
             updateDynamicRoad(false);
             mRoadNetwork.testHit(split.feedback.tum_Position);
@@ -8101,7 +8129,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     if (terrainMode == 4)
     {
         {
-            FALCOR_PROFILE("SOLVE_glider");
+            //FALCOR_PROFILE("SOLVE_glider");
             //paraRuntime.solve(0.0005f);
         }
 
@@ -8180,7 +8208,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
         //cfd.originRequest = float3(3185, 900, -14377);  //A
-        cfd.originRequest = float3(3190, 800, -15900);  //A_A
+        //cfd.originRequest = float3(3190, 800, -15900);  //A_A  test for air video in the north
         //cfd.originRequest = float3(-5000, 900, -14302);  //B
 
         /*
@@ -8505,14 +8533,14 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
 
-
+    /*
     if (cfd.recordingCFD)
     {
         cfd.recordingCFD = cfd.clipmap.import_V(settings.dirRoot + "/cfd/dump/east3ms__" + std::to_string(cfd.cfd_play_k) + "sec");
         cfd.clipmap.streamlines(float3(-2800, 450, 12500), cfd.flowlines.data(), float3(1, 0, 0));
         thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
         cfd.cfd_play_k++;
-    }
+    } */
 
     if (cfd.clipmap.showStreamlines)
     {
@@ -10581,7 +10609,7 @@ void terrainManager::paragliderThread(BarrierThrd& bar)
             if (paraRuntime.requestRestart)
             {
                 //bool requestRestart = false;
-                paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints);
+                paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints, true, cameraViews[CameraType_Main_Center].view);
                 paraRuntime.requestRestart = false;
             }
 

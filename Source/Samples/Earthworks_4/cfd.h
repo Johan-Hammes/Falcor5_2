@@ -291,6 +291,7 @@ struct _cfdClipmap
     static float incompres_relax;
     static int incompres_loop;
     static float vort_confine;
+    static float sun_heat_scale;
 
     static std::vector<cfd_V_type> v_back;      // my scratch buffers
     static std::vector<cfd_V_type> v_bfecc;

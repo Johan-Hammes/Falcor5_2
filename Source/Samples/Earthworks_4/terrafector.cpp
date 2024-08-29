@@ -377,7 +377,7 @@ void lodTriangleMesh_LoadCombiner::create(uint _lod)
 
 
 
-void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path)
+void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path, bool _log)
 {
 
 
@@ -448,9 +448,12 @@ void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path)
                     fwrite(tiles[i].verts.data(), sizeof(triVertex), gpuTiles[i].numVerts, file);
                     fwrite(tiles[i].tempIndexBuffer.data(), sizeof(uint), gpuTiles[i].numBlocks * 128 * 3, file);
                 }
-                
-                if (i%(int)(pow(2, lod)) == 0)fprintf(terrafectorSystem::_logfile, "\n");
-                fprintf(terrafectorSystem::_logfile, "%7.d ", gpuTiles[i].numVerts);
+
+                if (_log)
+                {
+                    if (i % (int)(pow(2, lod)) == 0)fprintf(terrafectorSystem::_logfile, "\n");
+                    fprintf(terrafectorSystem::_logfile, "%7.d ", gpuTiles[i].numVerts);
+                }
             }
             fclose(file);
         }
@@ -460,9 +463,12 @@ void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path)
     // now release all CPU memory
     tiles.clear();
 
-    fprintf(terrafectorSystem::_logfile, "\n  lod %d  %dx%d\n", lod, grid, grid);
-    fprintf(terrafectorSystem::_logfile, "  block with most triangles has %d\n", mostTri / 3);
-    fprintf(terrafectorSystem::_logfile, "  %d Mb VB   %d Mb IB\n\n", vertexData / 1024 / 1024, indexData / 1024 / 1024);
+    if (_log)
+    {
+        fprintf(terrafectorSystem::_logfile, "\n  lod %d  %dx%d\n", lod, grid, grid);
+        fprintf(terrafectorSystem::_logfile, "  block with most triangles has %d\n", mostTri / 3);
+        fprintf(terrafectorSystem::_logfile, "  %d Mb VB   %d Mb IB\n\n", vertexData / 1024 / 1024, indexData / 1024 / 1024);
+    }
 
 
 
@@ -2003,7 +2009,7 @@ void terrafectorSystem::loadPath(std::string _path, std::string _exportPath, boo
 {
     forceAllTerrfectorRebuild = _rebuild;
 
-    fprintf(terrafectorSystem::_logfile, "\n\nterrafectorSystem::loadPath    %s\n", _path.c_str());
+    fprintf(terrafectorSystem::_logfile, "terrafectorSystem::loadPath    %s\n", _path.c_str());
     logTab = 0;
 
     terrafectorSystem::loadCombine_LOD2.create(2);
@@ -2018,26 +2024,26 @@ void terrafectorSystem::loadPath(std::string _path, std::string _exportPath, boo
     root.loadPath(_path);
     fprintf(terrafectorSystem::_logfile, "\n\n");
 
+    bool donotlog = false;
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD2.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD2.loadToGPU(_exportPath + "/terrafector_lod2.gpu", donotlog);   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD4.loadToGPU(_exportPath + "/terrafector_lod4.gpu", donotlog);   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD6.loadToGPU(_exportPath + "/terrafector_lod6.gpu", donotlog);   // this also releases CPU memory
 
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD2.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD2.loadToGPU(_exportPath + "/terrafector_lod2.gpu");   // this also releases CPU memory
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4.loadToGPU(_exportPath + "/terrafector_lod4.gpu");   // this also releases CPU memory
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD6.loadToGPU(_exportPath + "/terrafector_lod6.gpu");   // this also releases CPU memory
-
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_top.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_top.loadToGPU(_exportPath + "/terrafector_lod4_top.gpu");   // this also releases CPU memory
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6_top.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD6_top.loadToGPU(_exportPath + "/terrafector_lod6_top.gpu");   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_top.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD4_top.loadToGPU(_exportPath + "/terrafector_lod4_top.gpu", donotlog);   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD6_top.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD6_top.loadToGPU(_exportPath + "/terrafector_lod6_top.gpu", donotlog);   // this also releases CPU memory
 
 
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeLow.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_bakeLow.loadToGPU("");   // this also releases CPU memory
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeHigh.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_bakeHigh.loadToGPU("");   // this also releases CPU memory
-    fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_overlay.loadToGPU()\n");
-    terrafectorSystem::loadCombine_LOD4_overlay.loadToGPU("");   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeLow.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD4_bakeLow.loadToGPU("", donotlog);   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_bakeHigh.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD4_bakeHigh.loadToGPU("", donotlog);   // this also releases CPU memory
+    //fprintf(terrafectorSystem::_logfile, "loadCombine_LOD4_overlay.loadToGPU()\n");
+    terrafectorSystem::loadCombine_LOD4_overlay.loadToGPU("", donotlog);   // this also releases CPU memory
 
     terrafectorEditorMaterial::static_materials.rebuildAll();
 

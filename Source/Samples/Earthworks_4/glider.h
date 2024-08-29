@@ -19,6 +19,23 @@
 
 using namespace Falcor;
 
+
+enum controllerType { xbox, bandarra, noController };
+
+struct _gliderSettings
+{
+    //controller
+    controllerType controller = controllerType::xbox;
+
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+        _archive(CEREAL_NVP(controller));
+    }
+};
+CEREAL_CLASS_VERSION(_gliderSettings, 100);
+
+
 struct rvPackedGlider
 {
     unsigned int a;
@@ -316,13 +333,13 @@ struct _constraintSetup
     float3 chord_diagonals = float3(0.7f, 0.f, 0.0f);    // pull, push, pressure
     // ??? nose stiffner
     float3 leadingEdge = float3(0.f, 0.6f, 0.3f);    // pull, push, pressure
-    float3 trailingEdge = float3(0.f, 0.0f, 0.3f);    // pull, push, pressure
+    float3 trailingEdge = float3(0.f, 0.0f, 0.011f);    // pull, push, pressure
 
-    float3 span = float3(0.7f, 0.1f, 0.2f);
-    float3 surface = float3(.5f, 0.f, 0.01f);
+    float3 span = float3(0.7f, 0.01f, 0.05f);
+    float3 surface = float3(.5f, 0.f, 0.05f);
     // ??? trailing edge span stiffner
 
-    float3 pressure_volume = float3(0.f, 0.f, 0.2f);
+    float3 pressure_volume = float3(0.f, 0.f, 0.08f);
 
     float3 line_bracing = float3(1.f, 0.f, 0.f);
 };
@@ -649,7 +666,7 @@ struct _rib
 };
 
 
-enum constraintType { skin, ribs, vecs, diagonals, stiffners, lines, straps };
+enum constraintType { skin, ribs, half_ribs, vecs, diagonals, stiffners, lines, straps, harnass, smallLines, maxCTypes };
 class _gliderImporter
 {
 public:
@@ -657,15 +674,20 @@ public:
     void processRib();
     void placeSingleRibVerts(_rib& R, int numR, float _scale);
     void placeRibVerts();
-    void processLines();
+    void processLineAttachmentPoints();
+    void insertSkinTriangle(int _a, int _b, int _c, bool isA);
 
     void ExportLineShape();
     void toObj(char *filename, constraintType _type);
     std::vector<glm::ivec3> constraints;
     struct _VTX
     {
-        float3 v;
-        float3 uv;
+        float3 _x;
+        float2 uv;          // chord and span. Span is in float but  integer ribs, chord is in xfoil space0 trailing edge, t 0.5 lead, to top 1.0 trail again, linear chord projection
+        uint4  cross_idx;  // 4 indicis to compute normal with
+        float area;
+        float _w;       // ??? UNNESSASARY ??? just use M here cvonver to _w on save
+        float mass;   // we need this to calculate _w
     };
     std::vector<_VTX> verts;
     std::vector<glm::ivec3> tris;
@@ -682,8 +704,29 @@ public:
     std::vector<_rib> full_ribs;
     void halfRib_to_Full();
     void interpolateRibs();
-    void insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
+    bool insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
+
+    void sanityChecks();
+    int numSkinVerts;
+    int numLineVerts;
+    int numDuplicateVerts;
+    int numVconstraints[100];   // just very big
+    int numConstraints[maxCTypes];
+    int numDuplicateConstraints[maxCTypes];
+    int num1C_perType[maxCTypes];
+    // Info
+    float totalLineMeters;
+    float totalLineWeight;
+    float totalWingSurface;
+    float totalWingWeight;
+    int numLineVertsOnSurface;
+    float3 min, max;
+    int carabinerRight;
+    int carabinerLeft;
+    int brakeRight;
+    int brakeLeft;
+
 
     // rib processing
     std::vector<float3> rib_verts;
@@ -694,6 +737,14 @@ public:
     float ribSpacing = 0.21f;    // 10 cm
     float trailingBias = 1.5f;  // on the last 3de
     float leadBias = 2.8f;      // on the front 3de
+    float lineSpacing = 0.1f;
+
+    // Omega size 22  3.15kg, 21.54m^2
+    // ?? surface 2kg, lines 1kg
+    float wingWeightPerSqrm = 2.0f / 34.f; // area twice for top and bottom
+    float lineWeightPerMeter = 0.05f;   // GUESS
+
+    
 
     // scale up
     int numRibScale = 2; //number fo time to split each rib
@@ -713,12 +764,12 @@ public:
     };
     std::vector <_diag> diagonals = {
         {2, 73, 3, -90, -30},
-        {2, 107, 3, -130, -80},
+        {2, 103, 3, -130, -70},
 
-        {5, 49, 4, -80, -30},
+        {5, 48, 4, -80, -30},
         {5, 104, 4, -130, -80},
 
-        {6, 49, 7, -80, -25},
+        {6, 48, 7, -80, -25},
         {6, 104, 7, -140, -80},
 
         {9, 50, 8,-80, -25},
@@ -731,7 +782,7 @@ public:
         {12, 101, 11, -104, -80},
         {12, 107, 11, -140, -105},
 
-        {13, 52, 15,-80, -25},
+        {13, 53, 15,-80, -25},
         {13, 101, 15, -104, -80},
         {13, 107, 15, -140, -105},      // Thsi needs special code for that double crosos over do simple first
 
@@ -740,12 +791,12 @@ public:
         {17, 107, 15, -140, -105},      // Thsi needs special code for that double crosos over do simple first
 
         {18, 53, 19,-80, -25},
-        {18, 101, 19, -104, -80},
+        {18, 101, 19, -104, -75},
         {18, 107, 19, -140, -105},      // Thsi needs special code for that double crosos over do simple first
 
         {21, 42, 20,-48, -25},
         {21, 54, 20,-80, -30},
-        {21, 101, 20, -104, -80},
+        {21, 101, 20, -104, -75},
         {21, 107, 20, -135, -105},
 
         {22, 42, 23,-48, -25},
@@ -784,50 +835,15 @@ public:
     };
     std::vector<_vecs> VECS = {
         {0, false, { 104, 104, 103, 103, 104, 104, 104, 104, 104, 104, 104, 104 }},
-        {13, true, { 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107 }},
-        {13, true, { 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101 }},
-        {1, false, { 72, 72 }},
+        {12, true, { 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107 }},
+        {12, true, { 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101 }},
+        {1, false, { 72, 73 }},
         {5, false, { 48, 48, 49, 50, 50 }},
         {10, true, { 50, 51, 52, 53, 53, 53, 53, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 56, 56, 56, 56, 56 }},
         {17, false, { 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 } },
         {11, true, { -45, -40, -36, -34, -32, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31 }},
     };
-    /*
-    std::vector<std::vector<int>> forceRibVerts = {
-        {104},
-        {72, 104},
-        {72, 103},
-        {103},
-        { 104 },
-        { 48, 104 },
-        {48, 104},
-        {49, 104},
-        {50, 104},
-        {50, 104},
-        {-43, 50, 104}, //10
-        {-40, 51, 104},
-        {-40, 52, 101, 107}, //12
-        {-37, 53, 101, 107},
-        {-33, 53, 101, 107},         //?? about my 31 ramp up
-        {-31, 42, 53, 101, 107},
-        {-30, 42, 53, 101, 107},
-        {-30, 42, 53, 101, 107},
-        {-30, 42, 53, 101, 107},
-        {-30, 42, 53, 101, 107},
-        {-30, 42, 54, 101, 107},
-        {-30, 42, 54, 101, 107},
-        {-30, 42, 54, 101, 107},
-        {-30, 42, 54, 101, 107}, //20
-        {-30, 42, 55, 101, 107},
-        {-30, 42, 55, 101, 107},
-        {-30, 42, 55, 101, 107},
-        {-30, 42, 55, 101, 107},
-        {-30, 42, 56, 101, 107},
-        {-30, 42, 56, 101, 107},
-        {-30, 42, 56, 101, 107},
-        {-30, 42, 56, 101, 107}
-    };
-    */
+    
     // lines
     std::vector<float3> line_verts;
 
@@ -857,14 +873,20 @@ class _gliderRuntime
 {
 public:
     void renderGui(Gui* mpGui);
-    void renderHUD(Gui* mpGui, float2 _screen);
+    void renderHUD(Gui* mpGui, float2 _screen, bool allowMouseCamControl);
     void renderDebug(Gui* mpGui, float2 _screen);
     void renderImport(Gui* mpGui, float2 _screen);
     bool importGui = false;
     _gliderImporter importer;
 
-    void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints);
+    int controllerId = -1;
+    _gliderSettings settings;
+    void saveSettings();
+    void setup(std::vector<float3>& _x, std::vector<float>& _w, std::vector<uint4>& _cross, uint _span, uint _chord, std::vector<_constraint>& _constraints, bool useView, glm::mat4x4 view);
     bool requestRestart = false;
+    float3 restartPos;
+    float3 restartDir;
+    bool usePosDir = false;
     void setupLines();
     void solve_air(float _dT, bool _left);
     void solve_aoa(float _dT, bool _left);
@@ -899,6 +921,7 @@ public:
     void solveConstraint(uint _i, float _step);
 
     void setJoystick();
+    void setJoystick_bandarra();
 
     void exportGliderShape();
 
@@ -948,7 +971,13 @@ public:
 
     _lineBuilder* pSLeft = nullptr;
     _lineBuilder* pSRight = nullptr;
-    float maxBrake, maxEars, maxS;
+    float maxBrake, maxEars, maxS, maxAStrap, maxBStrap;
+
+    _lineBuilder* pA_strap_left = nullptr;
+    _lineBuilder* pA_strap_right = nullptr;
+    _lineBuilder* pB_strap_left = nullptr;
+    _lineBuilder* pB_strap_right = nullptr;
+    float speedbar = 0.f;
 
     struct _xpdb
     {

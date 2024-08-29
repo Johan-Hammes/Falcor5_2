@@ -16,6 +16,13 @@ void FogVolume::onLoad(FogVolumeParameters params)
     outscatter_sky = Texture::create2D(params.m_x, params.m_y, Falcor::ResourceFormat::RGBA16Float, 1, 1, nullptr, Falcor::Resource::BindFlags::UnorderedAccess | Falcor::Resource::BindFlags::ShaderResource);
 }
 
+void FogVolume::updateFogparameters(fogAtmosphericParams params)
+{
+    compute_Params.haze_Turbidity = params.haze_Turbidity;
+    compute_Params.fog_Turbidity = params.fog_Turbidity;
+    compute_Params.fog_BaseAltitudeKm = params.fog_BaseAltitudeKm;
+    compute_Params.fog_AltitudeKm = params.fog_AltitudeKm;
+}
 
 void FogVolume::setCamera(Camera::SharedPtr _camera)
 {
@@ -86,6 +93,10 @@ void atmosphereAndFog::onLoad(RenderContext* _renderContext, FILE* _logfile)
 
 void atmosphereAndFog::computeSunInAtmosphere(RenderContext* _renderContext)
 {
+    mainFar.updateFogparameters(params);
+    mainNear.updateFogparameters(params);
+    parabolicFar.updateFogparameters(params);
+
     FALCOR_PROFILE("sunlight");
     compute_sunSlice.Vars()["FogCloudCommonParams"]["sun_direction"] = common.sun_direction;
     compute_sunSlice.Vars()["FogCloudCommonParams"]["cloudBase"] = common.cloudBase;

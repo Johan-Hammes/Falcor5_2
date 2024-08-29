@@ -813,7 +813,7 @@ struct _lastFile
     std::string terrafectorMaterial = "";
     std::string texture = "";
     std::string fbx = "";
-    std::string EVO = "C:/Kunos/acevo_content/content";
+    std::string EVO = "";
 
     std::string weed = "F:/terrains/_resources/vegetation_weeds/";
     std::string twig = "F:/terrains/_resources/vegetation_twigs/";
@@ -1051,6 +1051,7 @@ struct jp2Dir
     }
 };
 
+#include "atmosphere.h"
 
 class terrainManager
 {
@@ -1061,7 +1062,7 @@ public:
     void onLoad(RenderContext* _renderContext, FILE* _logfile);
     void onShutdown();
     void onGuiRender(Gui* pGui);
-    void onGuiRenderParaglider(Gui::Window &_window, Gui* pGui, float2 _screen);
+    void onGuiRenderParaglider(Gui::Window &_window, Gui* pGui, float2 _screen, fogAtmosphericParams *pAtmosphere);
     void onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _screen);
     void onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen);
     void onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float2 _screen);

@@ -100,6 +100,7 @@ class FogVolume {
 
 public:
     void onLoad(FogVolumeParameters params);
+    void updateFogparameters(fogAtmosphericParams params);
     void setCamera(Camera::SharedPtr _camera);
     //void setLights(const std::vector<LightRenderData>& L);
 
@@ -141,12 +142,14 @@ public:
 
 public:
     Texture::SharedPtr  sunlightTexture = nullptr;
+    fogAtmosphericParams params;
+
 private:
     computeShader		compute_sunSlice;
     
     Texture::SharedPtr  phaseFunction = nullptr;
     fogCloudCommonParams common;
-    fogAtmosphericParams params;
+    
 
     FogVolume mainNear;
     FogVolume mainFar;

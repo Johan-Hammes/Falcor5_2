@@ -90,6 +90,8 @@ void Earthworks_4::onGuiRender(Gui* _gui)
     static bool first = true;
     if (first)
     {
+        fprintf(logFile, "add fonts Sienthas\n");
+        fflush(logFile);
         _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 14);
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
         guiStyle();
@@ -126,7 +128,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
             //all.graph()
             all.windowPos(0, 0);
             all.windowSize((int)screenSize.x, (int)screenSize.y);
-            terrain.onGuiRenderParaglider(all, _gui, screenSize);
+            terrain.onGuiRenderParaglider(all, _gui, screenSize, &atmosphere.params);
         }
         all.release();
         ImGui::PopStyleColor();
@@ -138,7 +140,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
 void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
-
+    /*
     float a = -10;
     float b = 0;
     float c = 10;
@@ -217,6 +219,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
             fprintf(logFile, "%1.15f mm, %1.15f mm      dL %1.15f mm     , %1.15f\n", (p[0] - p0[0]) * 1000, (p[4] - p0[4]) * 1000, dL, CoM);
         }
     }
+    */
     
     /*
     float2 A = float2(-20906.8073893663f, 21854.7731031066f);
@@ -299,13 +302,13 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 
     
 
+    
     fprintf(logFile, "terrain.cfdStart()\n");
     fflush(logFile);
-
     terrain.cfdStart();
     std::thread thread_obj_cfd(&terrainManager::cfdThread, &terrain);
     thread_obj_cfd.detach();
-
+    
 
 
     std::thread thread_obj_paraglider(&terrainManager::paragliderThread, &terrain, std::ref(glider_barrier));
@@ -335,6 +338,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     tonemapper.load("Samples/Earthworks_4/hlsl/compute_tonemapper.hlsl", "vsMain", "psMain", Vao::Topology::TriangleList);
     //loadColorCube("F:/terrains/colorcubes/K_TONE Vintage_KODACHROME.cube");
     loadColorCube(terrain.settings.dirResource + "/colorcubes/ColdChrome.cube");
+
 }
 
 
@@ -364,6 +368,11 @@ void Earthworks_4::loadColorCube(std::string name)
         }
         colorCube = Texture::create3D(33, 33, 33, Falcor::ResourceFormat::RGB32Float, 1, colorcube, Falcor::Resource::BindFlags::ShaderResource);
     }
+    else
+    {
+        fprintf(logFile, "ERROR - loadColorCube() - failed\n");
+        fflush(logFile);
+    }
 }
 
 
@@ -379,6 +388,8 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     static bool first = true;
     if (first)
     {
+        fprintf(logFile, "if (first)\n");
+        fflush(logFile);
         first = false;
         terrain.shadowEdges.load(terrain.settings.dirRoot + "/gis/_export/root4096.bil", -global_sun_direction.y);
         terrain.shadowEdges.sunAngle = 2.95605f;
@@ -396,13 +407,15 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
-        
+
     }
 
     {
         static int cnt = 0;
         if (terrain.shadowEdges.shadowReady)
         {
+            fprintf(logFile, "terrain.shadowEdges.shadowReady\n");
+            fflush(logFile);
             FALCOR_PROFILE("shadow update");
             _renderContext->updateTextureData(terrain.terrainShadowTexture.get(), terrain.shadowEdges.shadowH);
             global_sun_direction = terrain.shadowEdges.sunAng;
@@ -412,10 +425,10 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         
     }
 
+    
     FALCOR_PROFILE("onFrameUpdate");
     
     
-
     terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
     terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
     terrain.gliderwingShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
@@ -445,8 +458,9 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
     terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
-    
+
     terrain.update(_renderContext);
+
     atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
     atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
 
@@ -454,6 +468,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
     atmosphere.getFar().setCamera(camera);
     atmosphere.computeSunInAtmosphere(_renderContext);
     atmosphere.computeVolumetric(_renderContext);
+
 }
 
 
@@ -463,7 +478,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     gpDevice->toggleVSync(true);
     onFrameUpdate(_renderContext);
 
-    
+
     // clear
     graphicsState->setFbo(pTargetFbo);
     const float4 clearColor(0.0f, 0.f, 0.f, 1);
@@ -498,14 +513,13 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     }*/
     static uint cnt = 0;
 
+    /*
     if (terrain.cfd.recordingCFD)
     {
         pTargetFbo->getColorTexture(0)->captureToFile(0, 0, "E:/record/frame__" + std::to_string(cnt) + ".png");
         cnt++;
-    }
+    }*/
 
-
-    //Sleep(2);
 }
 
 
@@ -533,6 +547,9 @@ void Earthworks_4::onRenderOverlay(RenderContext* _renderContext, const Fbo::Sha
 
 void Earthworks_4::onShutdown()
 {
+    fprintf(logFile, "Earthworks_4::onShutdown()\n");
+    fflush(logFile);
+
     terrain.onShutdown();
 
     FILE* file = fopen("camera.bin", "wb");
@@ -557,11 +574,12 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
 
     if (_keyEvent.type == KeyboardEvent::Type::KeyPressed)
     {
+        /*
         if (_keyEvent.key == Input::Key::G)
         {
             terrain.cfd.recordingCFD = true;
             terrain.cfd.cfd_play_k = 0;
-        }
+        }*/
         if (_keyEvent.key == Input::Key::D)
         {
             showEditGui = !showEditGui;
