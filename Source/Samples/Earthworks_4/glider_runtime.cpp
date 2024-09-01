@@ -283,14 +283,38 @@ void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c)
     float3 a = verts[_a]._x;
     float3 b = verts[_b]._x;
     float3 c = verts[_c]._x;
-    float area = glm::length(glm::cross(b - a, c - a));
+
+    // build teh join lists
+    // now we have waht we need to build the normals index
+    if (std::find(verts[_a].joint_verts.begin(), verts[_a].joint_verts.end(), _b) != verts[_a].joint_verts.end()) verts[_a].joint_verts.push_back(_b);
+    if (std::find(verts[_a].joint_verts.begin(), verts[_a].joint_verts.end(), _c) != verts[_a].joint_verts.end()) verts[_a].joint_verts.push_back(_c);
+
+    if (std::find(verts[_b].joint_verts.begin(), verts[_b].joint_verts.end(), _a) != verts[_b].joint_verts.end()) verts[_b].joint_verts.push_back(_a);
+    if (std::find(verts[_b].joint_verts.begin(), verts[_b].joint_verts.end(), _c) != verts[_b].joint_verts.end()) verts[_b].joint_verts.push_back(_c);
+
+    if (std::find(verts[_c].joint_verts.begin(), verts[_c].joint_verts.end(), _a) != verts[_c].joint_verts.end()) verts[_c].joint_verts.push_back(_a);
+    if (std::find(verts[_c].joint_verts.begin(), verts[_c].joint_verts.end(), _b) != verts[_c].joint_verts.end()) verts[_c].joint_verts.push_back(_b);
+    
+
+    float3 cross = glm::cross(b - a, c - a);
+    float area = 0.5f * glm::length(cross);      // 0.5 because....
+    
+    //totalWingSurface += area;
+    totalWingSurface += area;
+    totalWingWeight += area * wingWeightPerSqrm;    // FIXME do for all tri pushes
+    totalSurfaceTriangles++;
+
+    area /= 3.f;
+
     verts[tris.back().x].area += area;
     verts[tris.back().y].area += area;
     verts[tris.back().z].area += area;
-    totalWingSurface += area;
-    totalWingWeight += area * wingWeightPerSqrm;    // FIXME do for all tri pushes
 
-    area /= 3.f;
+    verts[tris.back().x].temp_norm += cross;
+    verts[tris.back().y].temp_norm += cross;
+    verts[tris.back().z].temp_norm += cross;
+    
+
     verts[tris.back().x].mass += area * wingWeightPerSqrm;
     verts[tris.back().y].mass += area * wingWeightPerSqrm;
     verts[tris.back().z].mass += area * wingWeightPerSqrm;
@@ -310,6 +334,13 @@ void _gliderImporter::fullWing_to_obj()
     totalLineWeight = 0;
     totalWingSurface = 0;
     totalWingWeight = 0;
+    totalSurfaceTriangles = 0;
+
+    trailsSpan = 0;
+    for (int i = 0; i < full_ribs.size() - 1; i++)
+    {
+        trailsSpan += glm::length(full_ribs[i].trailEdge - full_ribs[i + 1].trailEdge);
+    }
 
     _VTX newVert;
 
@@ -439,6 +470,7 @@ void _gliderImporter::fullWing_to_obj()
             insertEdge(newDvert, D, mirror, constraintType::diagonals);
         }
     }
+    numDiagonalVerts = verts.size() - numSkinVerts;
 
 
     // BUld teh surface
@@ -503,6 +535,7 @@ void _gliderImporter::fullWing_to_obj()
     }
 
     addEndCaps();
+    calculateNormals();
 
     toObj("E:/Advance/omega_xpdb_surface.obj", constraintType::skin);
     toObj("E:/Advance/omega_xpdb_ribs.obj", constraintType::ribs);
@@ -523,7 +556,8 @@ void _gliderImporter::addEndCaps()
     uint vCaps = verts.size();
     uint vRight = full_ribs[0].v_start;
     uint vLeft = full_ribs.back().v_start;
-    
+    numEndcapVerts = 0;
+
     for (int i = 0; i < numNew; i++)
     {
         float3 avs = { 0, 0, 0 };
@@ -542,7 +576,10 @@ void _gliderImporter::addEndCaps()
         verts.push_back(vert);
         vert._x.y *= -1;
         verts.push_back(vert);
+        numEndcapVerts += 2;
     }
+
+    
 
     // constriants downt he middle
     bool mirror = true;
@@ -560,7 +597,7 @@ void _gliderImporter::addEndCaps()
 
     // right
     int vLast = vRight + numV - 1;
-    insertSkinTriangle(vRight, vRight + 1, vCaps);
+    insertSkinTriangle(vRight, vRight + 1, vCaps);  // FIXME _a, _b is inserted intot he edge list, so make sure my oders are correct
     insertSkinTriangle(vLast, vCaps, vLast - 1);
     for (int i = 0; i < numNew; i++)
     {
@@ -602,6 +639,20 @@ void _gliderImporter::addEndCaps()
         }
     }
 }
+
+
+
+void _gliderImporter::calculateNormals()
+{
+    for (auto& V : verts)
+    {
+        V.temp_norm = glm::normalize(V.temp_norm);
+
+        // now search for 2 good vectors
+    }
+}
+
+
 
 
 void _gliderImporter::toObj(char* filename, constraintType _type)
@@ -680,6 +731,11 @@ void _gliderImporter::toObj(char* filename, constraintType _type)
     exp.Export(scene, "obj", filename);
     //exp.Export(scene, "obj", "E:/Advance/omega_xpdb_surface.obj");
 
+    if (_type == constraintType::skin)
+    {
+        exp.Export(scene, "stl", filename);
+    }
+
 }
 
 
@@ -695,7 +751,6 @@ void _gliderImporter::sanityChecks()
         num1C_perType[i] = 0;
     }
     //numSkinVerts = 0;
-    numLineVerts = verts.size() - numSkinVerts;
     numDuplicateVerts = 0;
     min = float3(1000, 1000, 1000);
     max = float3(-1000, -1000, -1000);
@@ -736,27 +791,14 @@ void _gliderImporter::sanityChecks()
     }
 
 
-    //for (auto& V : v_c_count)
-    for (int idx=0; idx < v_c_count.size(); idx++)
-    {
-        if (v_c_count[idx] == 1)
-        {
-            for (auto& C : constraints)
-            {
-                if (C.x == idx || C.y == idx)
-                {
-                    num1C_perType[C.z]++;
-                }
-            }
-        }
-    }
+    
 
     for (int j = 0; j < verts.size(); j++)
     {
         for (int k = j + 1; k < verts.size(); k++)
         {
             float L = glm::length(verts[j]._x - verts[k]._x);
-            if (L < 0.02f)
+            if (L < 0.005f)
             {
                 numDuplicateVerts++;
             }
@@ -794,6 +836,21 @@ void _gliderImporter::sanityChecks()
             {
                 if (verts[idx]._x.y > 0)    brakeRight = idx;
                 else                        brakeLeft = idx;
+            }
+        }
+    }
+
+    //for (auto& V : v_c_count)
+    for (int idx = 0; idx < v_c_count.size(); idx++)
+    {
+        if (v_c_count[idx] == 1)
+        {
+            for (auto& C : constraints)
+            {
+                if (C.x == idx || C.y == idx)
+                {
+                    num1C_perType[C.z]++;
+                }
             }
         }
     }
@@ -893,6 +950,7 @@ void  _gliderImporter::processLineAttachmentPoints()
     const aiScene* sceneLines = importer.ReadFile(line_file.c_str(), flags);
     uint numfaces = 0;
 
+    numLineVerts = 0;
     uint carabinerIndex;
     float carabinerZ = 100000;  // find the carabiner
     if (sceneLines)
@@ -964,10 +1022,13 @@ void  _gliderImporter::processLineAttachmentPoints()
                 verts.push_back(v);
                 v._x.y *= -1;
                 verts.push_back(v);
+                numLineVerts += 2;
             }
         }
     }
 
+    
+    numSmallLineVerts = 0;
     if (sceneLines)
     {
         for (int m = 0; m < sceneLines->mNumMeshes; m++)
@@ -1008,17 +1069,20 @@ void  _gliderImporter::processLineAttachmentPoints()
                         v.mass = lineWeightPerMeter * lineSpacing;
 
                         // I dont think we need cross or uv
+                        
                         if (j < numSteps)   // dont add right at the end its already there, just add teh constraint
                         {
                             verts.push_back(v);
                             v._x.y *= -1;
                             verts.push_back(v);
+                            numSmallLineVerts += 2;
                         }
 
                         if (!insertEdge(first, newV, mirror, constraintType::smallLines, 0.005f)) // high acuracy since we are acurqte ... and make sunLine type
                         {
                             insertEdge(first, newV, mirror, constraintType::smallLines);    // FIXND THE SURFACE
                         }
+                        
                         first = newV;
                     }
                     
@@ -1031,6 +1095,8 @@ void  _gliderImporter::processLineAttachmentPoints()
         // we could always split the file and do this in steps, or see if we can do some material assignement thing
         // And tehn add teh inbetween lines
     }
+
+    
 
     toObj("E:/Advance/omega_xpdb_lines.obj", constraintType::lines);
     toObj("E:/Advance/omega_xpdb_smalllines.obj", constraintType::smallLines);
@@ -1344,8 +1410,9 @@ void _gliderImporter::placeRibVerts()
 
 
 
-ImVec2 projPos = { 600, 300 };
-float projScale = 700;
+ImVec2 projPos = { 350, 300 };
+ImVec2 projPos_B = { 350, 800 };
+float projScale = 650;
 ImVec2 project(float3 p, _rib& R)
 {
     float x = glm::dot(R.front, p - R.trailEdge) * projScale;
@@ -1359,6 +1426,14 @@ ImVec2 project(int i, _rib& R)
     float x = glm::dot(R.front, R.lower[i] - R.trailEdge) * projScale;
     float y = glm::dot(R.up, R.lower[i] - R.trailEdge) * projScale;
     return ImVec2(projPos.x + x, projPos.y - y);
+};
+
+
+ImVec2 project_B(float3 p, _rib& R)
+{
+    float x = glm::dot(R.front, p - R.trailEdge) * projScale;
+    float y = glm::dot(R.up, p - R.trailEdge) * projScale;
+    return ImVec2(projPos_B.x + x, projPos_B.y - y);
 };
 
 void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
@@ -1446,61 +1521,6 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         {
         }
 
-        ImGui::NewLine();
-        ImGui::Text("sanity checks");
-        ImGui::Text("verts skin %d, line %d, total %d", importer.numSkinVerts, importer.numLineVerts, (int)importer.verts.size());
-        
-        ImGui::Text("lines on surface 1 side only - %d", importer.numLineVertsOnSurface);
-        ImGui::Text("MIN - %2.2f, %2.2f, %2.2fm", importer.min.x, importer.min.y, importer.min.z);
-        ImGui::Text("MAX - %2.2f, %2.2f, %2.2fm", importer.max.x, importer.max.y, importer.max.z);
-
-        ImGui::NewLine();
-        ImGui::Text("carabiners L %d, R %d", importer.carabinerLeft, importer.carabinerRight);
-        ImGui::Text("brake lines L %d, R %d", importer.brakeLeft, importer.brakeRight);
-        ImGui::NewLine();
-
-        ImGui::Text("lines %2.2fm  %2.2fkg", importer.totalLineMeters, importer.totalLineWeight);
-        ImGui::Text("skin %2.2fm^2  %2.2fkg", importer.totalWingSurface, importer.totalWingWeight);
-        ImGui::Text("num skin triangles - %d", (int)importer.tris.size());
-        ImGui::Text("num duplicate Verts - %d", importer.numDuplicateVerts);
-        ImGui::Text("TOTAL : skin, ribs, semiribs, vecs, diagonals, stiffners, lines, straps, harnass, smallLines");
-        
-        ImGui::Text("[%d],   ", (int)importer.constraints.size());
-        ImGui::SameLine();
-        for (auto& C : importer.numConstraints)
-        {
-
-            ImGui::Text("%d,   ", C);
-            ImGui::SameLine();
-        }
-        ImGui::NewLine();
-        ImGui::Text("duplicate constraints");
-        for (auto& C : importer.numDuplicateConstraints)
-        {
-            ImGui::Text("%d,   ", C);
-            ImGui::SameLine();
-        }
-        ImGui::NewLine();
-
-        ImGui::Text("floating VERTS [1]");
-        for (auto& C : importer.num1C_perType)
-        {
-            ImGui::Text("%d,   ", C);
-            ImGui::SameLine();
-        }
-        ImGui::NewLine();
-        
-        
-        ImGui::Text("vertex constraints");
-        for (int i=0; i<20; i++)
-        {
-            ImGui::Text("%d,   ", importer.numVconstraints[i]);
-            ImGui::SameLine();
-        }
-        ImGui::NewLine();
-        ImGui::NewLine();
-
-        //ImGui::Text("ribs - %d  verts - %d", importer.half_ribs.size(), importer.rib_verts.size());
         uint numR = 0;
         uint totalRibVerts = 0;
         ImGui::NewLine();
@@ -1513,6 +1533,101 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         }
         ImGui::Text("totalRibVerts - %d", totalRibVerts);
 
+
+
+
+
+        ImGui::SetCursorPos(ImVec2(_screen.x - 850, 50));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.75f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
+        ImGui::BeginChildFrame(1273994, ImVec2(800, 600));
+        {
+            if (importer.half_ribs.size() > 0)
+            {
+                ImGui::Text("Lines");
+                ImGui::Text("# attachents - %d", importer.numLineVertsOnSurface);
+                ImGui::Text("length %2.2fm, weight %2.2fkg", importer.totalLineMeters, importer.totalLineWeight);
+                ImGui::Text("total surface %2.2fm^2, weight %2.2fkg, tris - %d,  span %2.2fm", importer.totalWingSurface, importer.totalWingWeight, importer.totalSurfaceTriangles, importer.trailsSpan);
+                ImGui::NewLine();
+                ImGui::Text("carabiners  L %d, R %d", importer.carabinerLeft, importer.carabinerRight);
+                ImGui::Text("brake lines L %d, R %d", importer.brakeLeft, importer.brakeRight);
+
+                ImGui::NewLine();
+                ImGui::Text("#verts skin %d, diagonal - %d, endcap - %d, line %d, smallLines - %d, total %d", importer.numSkinVerts, importer.numDiagonalVerts, importer.numEndcapVerts, importer.numLineVerts, importer.numSmallLineVerts, (int)importer.verts.size());
+                if (importer.numDuplicateVerts > 0)
+                {
+                    ImGui::Text("ERROR - %d duplicate verts", importer.numDuplicateVerts);
+                }
+
+                ImGui::NewLine();
+                ImGui::Text("total constraints %d", (int)importer.constraints.size());
+                float Y = ImGui::GetCursorPosY();
+                ImGui::SetCursorPos(ImVec2(100, Y));       ImGui::Text("skin");
+                ImGui::SetCursorPos(ImVec2(170, Y));       ImGui::Text("ribs");
+                ImGui::SetCursorPos(ImVec2(240, Y));       ImGui::Text("s_rib");
+                ImGui::SetCursorPos(ImVec2(310, Y));       ImGui::Text("vecs");
+                ImGui::SetCursorPos(ImVec2(380, Y));       ImGui::Text("diag");
+                ImGui::SetCursorPos(ImVec2(450, Y));       ImGui::Text("stiff");
+                ImGui::SetCursorPos(ImVec2(520, Y));       ImGui::Text("lines");
+                ImGui::SetCursorPos(ImVec2(590, Y));       ImGui::Text("straps");
+                ImGui::SetCursorPos(ImVec2(660, Y));       ImGui::Text("hrns");
+                ImGui::SetCursorPos(ImVec2(730, Y));       ImGui::Text("small-L");
+                //ImGui::Text("TOTAL : skin, ribs, semiribs, vecs, diagonals, stiffners, lines, straps, harnass, smallLines");
+
+                ImGui::NewLine();   Y = ImGui::GetCursorPosY();
+                int col = 0;
+                ImGui::Text("# cnst");
+                for (auto& C : importer.numConstraints)
+                {
+                    ImGui::SetCursorPos(ImVec2(100 + 70.f * col, Y));
+                    ImGui::Text("%d", C);
+                    col++;
+                }
+                Y = ImGui::GetCursorPosY();
+                
+                ImGui::Text("# dupl");
+                col = 0;
+                for (auto& C : importer.numDuplicateConstraints)
+                {
+                    ImGui::SetCursorPos(ImVec2(100 + 70.f * col, Y));
+                    ImGui::Text("%d", C);
+                    col++;
+                }
+
+                Y = ImGui::GetCursorPosY();
+                col = 0;
+                ImGui::Text("#1c");
+                for (auto& C : importer.num1C_perType)
+                {
+                    ImGui::SetCursorPos(ImVec2(100 + 70.f * col, Y));
+                    ImGui::Text("%d", C);
+                    col++;
+                }
+                ImGui::NewLine();
+
+
+                ImGui::Text("vertex constraints");
+                for (int i = 0; i < 20; i++)
+                {
+                    ImGui::Text("%d,   ", importer.numVconstraints[i]);
+                    ImGui::SameLine();
+                }
+            }
+        }
+        ImGui::EndChildFrame();
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+        
+
+        ImGui::NewLine();
+        
+        
+        
+        ImGui::NewLine();
+        ImGui::NewLine();
+
+        
+        
         if (importer.half_ribs.size() > 0)
         {
             static int viewChord = 0;
@@ -1624,6 +1739,65 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
 
 
 
+
+        if (importer.full_ribs.size() > 0)
+        {
+            static int viewFullChord = 0;
+            auto& R = importer.full_ribs[viewFullChord];
+
+
+            ImGui::PushFont(pGui->getFont("roboto_48"));
+            {
+                ImGui::SetCursorPos(ImVec2(600, 520));
+                ImGui::SetNextItemWidth(200);
+                ImGui::DragInt("fullrib #", &viewFullChord, 0.1f, 0, importer.full_ribs.size() - 1);
+            }
+            ImGui::PopFont();
+
+            int start = R.v_start;
+            int numV = R.ribVerts.size();
+            if (viewFullChord < importer.full_ribs.size() - 2)
+            {
+                numV = importer.full_ribs[viewFullChord + 1].v_start - start;
+            }
+
+            for (int i = start; i < start + numV; i++)
+            {
+                ImVec2 p = project_B(importer.verts[i]._x, R);
+                float3 N = glm::normalize(importer.verts[i].temp_norm);
+                ImVec2 pn = project_B(importer.verts[i]._x + N * 0.1f, R);
+                
+                draw_list->AddLine(p, pn, ImColor(ImVec4(0.0f, 0.0f, 0.3f, 1.0f)), 2);
+
+                int numC = 0;
+                //int numCType[maxCTypes];
+                for (auto& c : importer.constraints)
+                {
+                    if (c.x == i || c.y == i)
+                    {
+                        numC++;
+                        ImVec2 c1 = project_B(importer.verts[c.x]._x, R);
+                        ImVec2 c2 = project_B(importer.verts[c.y]._x, R);
+
+                        ImU32 clr = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+                        switch (c.z)
+                        {
+                        case constraintType::ribs:
+                        case constraintType::lines:
+                        case constraintType::half_ribs: clr = ImColor(ImVec4(0.7f, 0.0f, 0.0f, 1.0f)); break;
+                        case constraintType::diagonals: clr = ImColor(ImVec4(0.0f, 0.6f, 0.0f, 1.0f)); break;
+                        }
+                        draw_list->AddLine(c1, c2, clr, 1);
+                    }
+
+                    
+                }
+                ImGui::SetCursorPos(pn);
+                ImGui::Text("%d", numC);
+
+                draw_list->AddCircle(p, 5, col32Y, 12, 3);
+            }
+        }
 
 
 

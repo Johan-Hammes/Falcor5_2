@@ -665,7 +665,7 @@ struct _rib
     std::vector<int> ribLineAttach;
 };
 
-
+// MARK SKIN RIB as eie tipe vir upsample
 enum constraintType { skin, ribs, half_ribs, vecs, diagonals, stiffners, lines, straps, harnass, smallLines, maxCTypes };
 class _gliderImporter
 {
@@ -686,9 +686,11 @@ public:
         float3 _x;
         float2 uv;          // chord and span. Span is in float but  integer ribs, chord is in xfoil space0 trailing edge, t 0.5 lead, to top 1.0 trail again, linear chord projection
         uint4  cross_idx;  // 4 indicis to compute normal with
-        float area;
+        float area = 0;
         float _w;       // ??? UNNESSASARY ??? just use M here cvonver to _w on save
-        float mass;   // we need this to calculate _w
+        float mass = 0;   // we need this to calculate _w
+        float3 temp_norm = {0, 0, 0};
+        std::vector<int> joint_verts;
     };
     std::vector<_VTX> verts;
     std::vector<glm::ivec3> tris;
@@ -708,11 +710,17 @@ public:
     bool insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
     void addEndCaps();
+    void calculateNormals();
     float endcapBuldge = 0.2f;
 
     void sanityChecks();
     int numSkinVerts;
+    
+    int numDiagonalVerts;
+    int numEndcapVerts;
     int numLineVerts;
+    int numSmallLineVerts;
+
     int numDuplicateVerts;
     int numVconstraints[100];   // just very big
     int numConstraints[maxCTypes];
@@ -722,6 +730,8 @@ public:
     float totalLineMeters;
     float totalLineWeight;
     float totalWingSurface;
+    float trailsSpan;
+    int totalSurfaceTriangles;
     float totalWingWeight;
     int numLineVertsOnSurface;
     float3 min, max;
@@ -838,11 +848,11 @@ public:
     };
     std::vector<_vecs> VECS = {
         {0, false, { 104, 104, 103, 103, 104, 104, 104, 104, 104, 104, 104, 104 }},
-        {12, true, { 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107 }},
+        {12, true, { 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107, 107 }}, //31
         {12, true, { 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101, 101 }},
         {1, false, { 72, 73 }},
         {5, false, { 48, 48, 49, 50, 50 }},
-        {10, true, { 50, 51, 52, 53, 53, 53, 53, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 56, 56, 56, 56, 56 }},
+        {10, true, { 50, 51, 52, 53, 53, 53, 53, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 56, 56, 56, 56, 56 }}, //31
         {17, false, { 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42 } },
         {11, true, { -45, -40, -36, -34, -32, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31, -31 }},
     };
