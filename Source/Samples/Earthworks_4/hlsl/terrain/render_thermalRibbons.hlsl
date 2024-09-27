@@ -59,7 +59,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         tangent.xyz = right * 3;
     }
 
-    tangent.xyz = right * 0.15;
+    tangent.xyz = right * 1.15;
 
 //    if (L[1].uv.y < .05)
  //       tangent *= 10;

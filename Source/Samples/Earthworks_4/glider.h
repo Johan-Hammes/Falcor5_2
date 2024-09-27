@@ -559,7 +559,7 @@ struct _windTerrain
     void saveRaw();
 
     float3 N(float2 _uv);
-    void loadRaw();
+    void loadRaw(std::string _path);
     float H(float3 _pos);
     float3 W(float3 _pos);
 
@@ -640,6 +640,8 @@ struct _rib
 {
     void mirror_Y();
     void interpolate(_rib &_a, _rib &_b, float _billow, bool _finalInterp);
+    void calcIndices();
+    void calc_V();
 
     // used for importing from obj
     float4 plane;
@@ -651,9 +653,12 @@ struct _rib
 
     std::vector<float3> lower;
     std::vector<float3> ribVerts;
+    std::vector<float2> ribVerts_uv;
     int v_start;
     std::vector<float> ribIndex;
-    
+
+    std::vector<float> v_lookup;
+    std::vector<float> v_circ;
     float circumference;
     float3 leadEdge;
     float3 trailEdge;
@@ -663,6 +668,12 @@ struct _rib
     float3 up;
 
     std::vector<int> ribLineAttach;
+
+    // indicis for Right, and AoA and AoB
+    uint4 R_index;
+    float aLerp;
+    float bLerp;    
+    float chordLerp;
 };
 
 // MARK SKIN RIB as eie tipe vir upsample
@@ -707,10 +718,12 @@ public:
     std::vector<_rib> full_ribs;
     void halfRib_to_Full();
     void interpolateRibs();
+    void exportXfoil(int r);
     bool insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
     void addEndCaps();
     void calculateNormals();
+    void exportWing();
     float endcapBuldge = 0.2f;
 
     void sanityChecks();
@@ -950,7 +963,7 @@ public:
     uint recordIndex = 0;
 
     void setWind(std::string file, float3 _wind) { windTerrain.load(file, _wind); }
-    void loadWind() { windTerrain.loadRaw(); }
+    void loadWind(std::string _path) { windTerrain.loadRaw(_path); }
     void setxfoilDir(std::string dir) { xfoilDir = dir; }
     void setWing(std::string _name) { wingName = _name; }
     std::string xfoilDir;
@@ -991,6 +1004,7 @@ public:
     _lineBuilder* pB_strap_left = nullptr;
     _lineBuilder* pB_strap_right = nullptr;
     float speedbar = 0.f;
+    bool speedBarLock = false;
 
     struct _xpdb
     {
@@ -1111,3 +1125,147 @@ CEREAL_CLASS_VERSION(_gliderRuntime, 100);
 
 
 
+
+
+
+
+
+struct _new_rib    // to show its on the ribs
+{
+    //pressure
+    float2 inlet_uv;
+    float Cp = 0;       // internal coeficitn of pressure
+
+    // orientation  
+    uint4 rightIdx;     // 4 verts to calculate R
+    float aLerp;     // to the centerline
+    float bLerp;
+    float chordLerp;
+    uint startVertex;
+    uint numVerts;
+    // here we want rib triangles, pre saved, not all, just enough. Old version just has cross of 4 verts
+    // front can be trail to lead if we also export like that with brake settings for xfoil, might mess with Cp at leadign edge and inlets
+    float3 front;
+    float3 right;
+    float3 up; 
+
+    // air
+    float3 v;
+    float rho = 0;
+    //float windspeed;
+    float3 flow_direction;  // normalized I think
+    float cellVelocity = 0;
+
+    // params
+    float reynolds = 0;
+    float cD = 0;
+    float chordLength;  // pre calcled for reanolds
+
+    float AoA = 0;
+    float AoBrake = 0;
+
+    // depends on the stiffness of the rib
+    // length vs chord
+    // degree to which multiple rib triangles line op
+    // slackness in teh constraints, but actual shortenign
+    // How much do we blend between lookup tables and some basic sim
+    float ragdoll = 0;
+};
+
+
+enum vertexType { vtx_surface, vtx_internal, vtx_line, vtx_pilot, vtx_motor };
+
+class _new_constraint
+{
+public:
+    _new_constraint() { ; }
+    _new_constraint(uint _a, uint _b, float _l, float _sa, float _sb, float _dmp) :                             //_l is still in integers size but stored in a float
+        idx_0(_a), idx_1(_b), l(_l), old_L(_l), tensileStiff(_sa), compressStiff(_sb), damping(_dmp) { ; }
+   
+    uint    idx_0;
+    uint    idx_1;
+    float   l;
+    float   old_L; // untill I can work out how to do matsh in int
+    uint    type;       //???
+
+    float   w_0;        //w_0 / (w_0 + w_1)
+    float   w_1;
+    
+    float   tensileStiff = 1.0f;
+    float   compressStiff = 0.f;
+    float   damping = 0.001f;
+
+private:
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+    }
+};
+CEREAL_CLASS_VERSION(_new_constraint, 100);
+
+
+
+class _new_gliderRuntime
+{
+public:
+    void solve(float _dT, int _repeats);
+    void solve_airFlow();
+    void solve_wingShape();
+    void solve_internalPressure();
+    void solve_constraints();
+    void solve_intersection();
+    void solve_pre();
+    void apply_constraint(uint _i);
+    void importBin();
+    ImVec2 project(float3 p, _new_rib& R, ImVec2 _pos, float _scale);
+    void renderDebug(Gui* pGui, float2 _screen);
+
+    std::vector<int3>   x;              // position
+    std::vector<int3>   x_prev;         // previous position
+    std::vector<uint4>  cross_idx;      // Index of cross verticies for normal calculation      {_gliderBuilder}
+    std::vector<char>   type;           // what type of vertex is this
+    std::vector<float>  area_x_w;       // area * w because its always used together
+    std::vector<float2> uv;             // uv for skin lookup span, right to left, chord trainling bottom to top
+
+    std::vector<_new_constraint>    constraints;
+
+    std::vector<int3>    tris;          // FIXME, not perfect, but leave int for now, can go to shorts if we are sure about number of triangles, or have a split mechanism
+    
+    std::vector<_new_rib>   ribs;
+
+
+    float time_air_us;
+    float time_wing_us;
+    float time_internal_us;
+    float time_pre_us;
+    float time_intersect_us;
+    float time_constraints_us;
+    float time_total_us;
+
+    uint _dot = 28;
+    uint _scale = 1 << _dot;
+    double _inv = 1. / (double)_scale;
+    double _dt = 0.00208333333;
+    double _dt2 = _dt * _dt;
+    double _time_scale = _scale * _dt2;
+    int i_g_dt = (int)(9.8 * _time_scale);    //658 @ 1ms
+
+    // for building only, should move to own wing exporter calss
+    void process_xfoil_Cp(std::string _folder);
+    void load_xfoil_V(std::string _file);
+    void load_xfoil_Cp(int _flaps, int _aoa, std::string _file);
+    int cp_Flaps;
+    int cp_AoA;
+    int cp_V;
+    std::vector<float> Cp;
+    std::vector<float> xfoil_V;
+
+
+
+private:
+    template<class Archive>
+    void serialize(Archive& _archive, std::uint32_t const _version)
+    {
+    }
+};
+CEREAL_CLASS_VERSION(_new_gliderRuntime, 100);

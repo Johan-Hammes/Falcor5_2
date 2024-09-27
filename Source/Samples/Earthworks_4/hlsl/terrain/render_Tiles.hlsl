@@ -108,6 +108,19 @@ terrainVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 		output.worldPos = position.xyz;
 		output.eye = position.xyz - eye;
 		output.pos =  mul( position, viewproj);
+        /*
+        float4 tmp = mul(position, view);
+        //output.pos.xyz = tmp.x / length(tmp.xyz) * 2556;
+        output.pos.xyz = normalize(tmp.xyz);
+        float SGN = -sign(output.pos.z);
+        //output.pos.z = 1 - output.pos.z;
+        output.pos.z = length(tmp.xyz) / 40000 * SGN;
+        output.pos.y *= 2550.f / 1080.f;
+        //output.pos.xy *= 1.8;
+        //output.pos.z = 0.1;
+        output.pos.w = 1;
+        */
+        //output.pos.w = 0.010;
         /// FISHEY
         //if (output.pos.w > 0)
         /*

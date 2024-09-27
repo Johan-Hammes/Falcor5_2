@@ -64,6 +64,16 @@ float shadow(float3 pos, float step)
 	} else {
 		direction = normalize(eye_direction + (dx * coord.x) + (dy * coord.y));
 	}
+    /*
+    float3 eyeCenter = normalize(eye_direction + (dx * 256) + (dy * 128));
+    if (coord.y < 256)
+    {
+    
+        float thetaX = ((float) coord.x - 256) / 160.0f;
+        float thetaZ = ((float) coord.y - 128) / 160.0f;
+        direction = normalize(eyeCenter * cos(thetaX) * cos(thetaZ) + (normalize(dx) * sin(thetaX)) + (normalize(dy) * sin(thetaZ)));
+    }
+    */
 	
 	float depth = sliceZero;
 

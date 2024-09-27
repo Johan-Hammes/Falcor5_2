@@ -56,7 +56,70 @@ float _cp::get(float _brake, float _aoa, uint _chord)
 
 
 
+void _rib::calcIndices()
+{
+    uint size = ribVerts.size();
 
+    R_index.x = 999;
+    R_index.y = ribVerts.size();
+
+    int cnt = 0;
+    int v_cnt = 0;
+    float3 A, B, C, D;
+    for (auto& rv : ribVerts)
+    {
+        float3 V2 = rv - trailEdge;
+        float DOT = glm::dot(V2, front) / chord;    //%
+        if (cnt == 0 && DOT > 0.4f) {
+            cnt++;
+            R_index.x = v_cnt;  // do local first add v_start +  later
+            A = rv;
+        }
+        if (cnt == 1 && DOT > 0.75f) {
+            cnt++;
+            R_index.z = v_cnt;
+            C = rv;
+        }
+        if (cnt == 2 && DOT < 0.75f) {
+            cnt++;
+            R_index.w = v_cnt - 1;
+            D = rv;
+        }
+        if (cnt == 3 && DOT < 0.4f) {
+            cnt++;
+            R_index.y = v_cnt - 1;
+            B = rv;
+        }
+
+        v_cnt++;
+    }
+
+    R_index.y = size - 1 - R_index.x;
+    R_index.w = size - 1 - R_index.z;
+    B = ribVerts[R_index.y];
+    D = ribVerts[R_index.w];
+
+    float da = glm::dot(up, A - trailEdge);
+    float db = glm::dot(up, B - trailEdge);
+    float dc = glm::dot(up, C - trailEdge);
+    float dd = glm::dot(up, D - trailEdge);
+
+    aLerp = -da / (db - da);
+    bLerp = -dc / (dd - dc);
+
+    float3 newA = glm::lerp(ribVerts[R_index.x], ribVerts[R_index.y], aLerp);
+    float3 newB = glm::lerp(ribVerts[R_index.z], ribVerts[R_index.w], bLerp);
+
+    float dca = glm::dot(front, newA - trailEdge) / chord;
+    float dcb = glm::dot(front, newB - trailEdge) / chord;
+    chordLerp = (0.25f - dca) / (dcb - dca);
+
+    R_index.x += v_start;
+    R_index.y += v_start;
+    R_index.z += v_start;
+    R_index.w += v_start;
+
+}
 
 
 void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
@@ -133,7 +196,9 @@ void _rib::interpolate(_rib& _a, _rib& _b, float _billow, bool _finalInterp)
 
     for (auto& idx : ribIndex)
     {
-        ribVerts.push_back(lower[(int)floor(idx)]);
+        int vIdx = (int)floor(idx);
+        ribVerts.push_back(lower[vIdx]);
+        //ribVerts_uv.push_back(float2(0.f, v_lookup[vIdx]));
     }
 }
 
@@ -149,6 +214,40 @@ void _rib::mirror_Y()
     front.y *= -1;
     up.y *= -1;
 }
+
+
+void _rib::calc_V()
+{
+    circumference = 0;
+    v_circ.resize(lower.size());
+    v_lookup.resize(lower.size());
+    v_circ[0] = 0;
+    float circLead;
+
+    for (int i = 0; i < lower.size() - 1; i++)
+    {
+        circumference += glm::length(lower[i] - lower[i + 1]);
+        v_circ[i + 1] = circumference;
+        if ((i + 1) == leadindex) {
+            circLead = circumference;
+        }
+    }
+
+    // bottom V
+    for (int i = 0; i < leadindex; i++)
+    {
+        v_lookup[i] = 0.5f * v_circ[i] / circLead;
+    }
+
+    // top V
+    for (int i = leadindex; i < lower.size(); i++)
+    {
+        v_lookup[i] = 0.5f + (0.5f * (v_circ[i] - circLead) / (circumference - circLead));
+    }
+}
+
+
+
 
 
 
@@ -226,6 +325,9 @@ void _gliderImporter::interpolateRibs()
             full_ribs.insert(full_ribs.begin() + i + 1, newR);
         }
     }
+
+
+
 }
 
 
@@ -294,11 +396,11 @@ void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c)
 
     if (std::find(verts[_c].joint_verts.begin(), verts[_c].joint_verts.end(), _a) != verts[_c].joint_verts.end()) verts[_c].joint_verts.push_back(_a);
     if (std::find(verts[_c].joint_verts.begin(), verts[_c].joint_verts.end(), _b) != verts[_c].joint_verts.end()) verts[_c].joint_verts.push_back(_b);
-    
+
 
     float3 cross = glm::cross(b - a, c - a);
     float area = 0.5f * glm::length(cross);      // 0.5 because....
-    
+
     //totalWingSurface += area;
     totalWingSurface += area;
     totalWingWeight += area * wingWeightPerSqrm;    // FIXME do for all tri pushes
@@ -313,11 +415,38 @@ void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c)
     verts[tris.back().x].temp_norm += cross;
     verts[tris.back().y].temp_norm += cross;
     verts[tris.back().z].temp_norm += cross;
-    
+
 
     verts[tris.back().x].mass += area * wingWeightPerSqrm;
     verts[tris.back().y].mass += area * wingWeightPerSqrm;
     verts[tris.back().z].mass += area * wingWeightPerSqrm;
+}
+
+
+void _gliderImporter::exportXfoil(int r)
+{
+    auto& R = full_ribs[r];
+
+    std::ofstream outfile("E:/Omega.txt");
+    for (int i = R.lower.size() - 1; i >= 0; i--)
+    {
+        float x, y;
+        float3 V = R.lower[i] - R.lower[0];
+        x = 1.f - glm::dot(V, R.front) / R.chord;
+        y = glm::dot(V, R.up) / R.chord;
+        outfile << x << " " << y << "\n";
+    }
+    outfile.close();
+
+
+    std::ofstream outfile2("E:/Omega_V.txt");
+    for (int i = 0; i < R.lower.size(); i++)
+    {
+        float y;
+        y = R.v_lookup[i];
+        outfile2  << y << "\n";
+    }
+    outfile2.close();
 }
 
 
@@ -326,6 +455,10 @@ void _gliderImporter::fullWing_to_obj()
     halfRib_to_Full();
     //numRibScale == 4;
     interpolateRibs();
+
+    
+
+
 
     verts.clear();
     tris.clear();
@@ -346,15 +479,22 @@ void _gliderImporter::fullWing_to_obj()
 
     int cnt = 0;
     int v_start = 0;
-    for (auto &r : full_ribs)
+    for (auto& r : full_ribs)
     {
         r.v_start = v_start;
+        r.calc_V();
 
+        int idx = 0;
         for (auto v : r.ribVerts)
         {
             newVert._x = v;
             newVert.area = 0;
             newVert.mass = 0;
+
+            int vIdx = (int)floor(r.ribIndex[idx]);
+            newVert.uv.y =  r.v_lookup[vIdx];
+            newVert.uv.x = (float)cnt / ((float)full_ribs.size() - 1.f);
+            idx++;
             verts.push_back(newVert);
         }
 
@@ -391,6 +531,13 @@ void _gliderImporter::fullWing_to_obj()
 
     numSkinVerts = verts.size();
 
+
+    // has to hampeen after v_start calc
+    for (auto& r : full_ribs)
+    {
+        r.calcIndices();
+        //r.calc_V(); 
+    }
 
     //VECS
     int totalSize = full_ribs[0].lower.size();
@@ -451,7 +598,7 @@ void _gliderImporter::fullWing_to_obj()
         }
 
         float3 newDvert;
-        for (auto &D : diagonalTopSpots)
+        for (auto& D : diagonalTopSpots)
         {
             newDvert += glm::lerp(ps, D, 0.1f);
         }
@@ -541,6 +688,112 @@ void _gliderImporter::fullWing_to_obj()
     toObj("E:/Advance/omega_xpdb_ribs.obj", constraintType::ribs);
     toObj("E:/Advance/omega_xpdb_vecs.obj", constraintType::vecs);
     toObj("E:/Advance/omega_xpdb_diagonals.obj", constraintType::diagonals);
+
+    exportXfoil(full_ribs.size() / 2 - 1);
+    exportWing();
+}
+
+
+void _gliderImporter::exportWing()
+{
+    uint _dot = 28;
+    uint _scale = 1 << _dot;
+
+    std::ofstream ofs;
+    ofs.open("E:/Advance/omega_export_low.bin", std::ios::binary);
+    if (ofs)
+    {
+        int numV = verts.size();
+        int numT = tris.size();
+        int numC = constraints.size();
+        int numR = full_ribs.size();
+        ofs.write((const char*)&numV, sizeof(int));
+        ofs.write((const char*)&numT, sizeof(int));
+        ofs.write((const char*)&numC, sizeof(int));
+        ofs.write((const char*)&numR, sizeof(int));
+
+        for (int i = 0; i < numV; i++)              //_x
+        {
+            int3 x;
+            x.x = -(int)((double)verts[i]._x.x * _scale);
+            x.y = (int)((double)verts[i]._x.z * _scale);
+            x.z = (int)((double)verts[i]._x.y * _scale);
+            ofs.write((const char*)&x, sizeof(int3));
+        }
+
+        for (int i = 0; i < numV; i++)              // cross_idx
+        {
+            ofs.write((const char*)&verts[i].cross_idx, sizeof(uint4));
+        }
+
+        for (int i = 0; i < numV; i++)              // type
+        {
+            char type = 0;  // FIXME
+            ofs.write((const char*)&type, sizeof(char));
+        }
+
+        for (int i = 0; i < numV; i++)              // area * w
+        {
+            float areasW = verts[i].area * verts[i]._w;
+            ofs.write((const char*)&areasW, sizeof(float));
+        }
+
+        for (int i = 0; i < numV; i++)              // uv
+        {
+            ofs.write((const char*)&verts[i].uv, sizeof(float2));
+        }
+
+
+        // triangles
+        ofs.write((const char*)&tris, sizeof(glm::ivec3) * numT);
+
+
+        // constraints
+        for (int i = 0; i < numC; i++)              // uv
+        {
+            _new_constraint NC;
+            NC.idx_0 = constraints[i].x;
+            NC.idx_1 = constraints[i].y;
+            float wSum = verts[NC.idx_0]._w + verts[NC.idx_1]._w;
+            NC.w_0 = verts[NC.idx_0]._w / wSum;
+            NC.w_1 = verts[NC.idx_1]._w / wSum;
+
+            NC.type = constraints[i].z;
+            NC.l = glm::length(verts[NC.idx_0]._x - verts[NC.idx_1]._x) * _scale;
+            NC.old_L = NC.l;
+            NC.tensileStiff = 1.f;
+            NC.compressStiff = 0.01f;
+            NC.damping = 0.01f;
+
+            if (NC.type == smallLines) {
+                NC.compressStiff = 1.f;
+            }
+
+
+            ofs.write((const char*)&NC, sizeof(_new_constraint));
+        }
+
+
+        // ribs
+        for (int i = 0; i < numR; i++)
+        {
+            _new_rib newRib;
+
+            newRib.aLerp = full_ribs[i].aLerp;
+            newRib.bLerp = full_ribs[i].bLerp;
+            newRib.chordLerp = full_ribs[i].chordLerp;
+            newRib.startVertex = full_ribs[i].v_start;
+            newRib.numVerts = full_ribs[i].ribVerts.size();
+            newRib.rightIdx = full_ribs[i].R_index;
+            newRib.inlet_uv = float2((float)i / (float)(numR - 1), 0.95f);  //??? Is that the right spot - MEasure it
+            newRib.chordLength = full_ribs[i].chord;
+
+            ofs.write((const char*)&newRib, sizeof(_new_rib));
+        }
+
+
+        ofs.close();
+    }
 }
 
 
@@ -579,14 +832,14 @@ void _gliderImporter::addEndCaps()
         numEndcapVerts += 2;
     }
 
-    
+
 
     // constriants downt he middle
     bool mirror = true;
     insertEdge(full_ribs[0].ribVerts[0], capVerts[0], mirror, constraintType::skin);
     for (int i = 0; i < capVerts.size() - 1; i++)
     {
-        insertEdge(capVerts[i], capVerts[i+1], mirror, constraintType::skin);
+        insertEdge(capVerts[i], capVerts[i + 1], mirror, constraintType::skin);
     }
     insertEdge(capVerts.back(), full_ribs[0].ribVerts[numSegments], mirror, constraintType::skin);
 
@@ -601,7 +854,7 @@ void _gliderImporter::addEndCaps()
     insertSkinTriangle(vLast, vCaps, vLast - 1);
     for (int i = 0; i < numNew; i++)
     {
-        insertSkinTriangle(vCaps + (i*2), vRight + i + 1, vRight + i + 2);
+        insertSkinTriangle(vCaps + (i * 2), vRight + i + 1, vRight + i + 2);
         insertSkinTriangle(vLast - i - 1, vCaps + (i * 2), vLast - i - 2);
         if (i < numNew - 1)
         {
@@ -644,11 +897,69 @@ void _gliderImporter::addEndCaps()
 
 void _gliderImporter::calculateNormals()
 {
-    for (auto& V : verts)
+    std::vector<uint> neighbourVerts;
+    neighbourVerts.reserve(100);
+
+    for (int i = 0; i < verts.size(); i++)
     {
-        V.temp_norm = glm::normalize(V.temp_norm);
+        verts[i].temp_norm = glm::normalize(verts[i].temp_norm);
 
         // now search for 2 good vectors
+        neighbourVerts.clear();
+        for (auto& c : constraints)
+        {
+            if ((c.x == i) && (std::find(neighbourVerts.begin(), neighbourVerts.end(), c.y) == std::end(neighbourVerts)))
+            {
+                neighbourVerts.push_back(c.y);
+            }
+            if ((c.y == i) && (std::find(neighbourVerts.begin(), neighbourVerts.end(), c.x) == std::end(neighbourVerts)))
+            {
+                neighbourVerts.push_back(c.x);
+            }
+        }
+
+        float best = 0;
+        uint4 idx;
+        int numV = neighbourVerts.size();
+        for (int a = 0; a < numV - 3; a++)
+        {
+            for (int b = a + 1; b < numV - 2; b++)
+            {
+                for (int c = b + 1; c < numV - 1; c++)
+                {
+                    for (int d = c + 1; d < numV; d++)
+                    {
+                        float3 v1 = verts[neighbourVerts[b]]._x - verts[neighbourVerts[a]]._x;
+                        float3 v2 = verts[neighbourVerts[d]]._x - verts[neighbourVerts[c]]._x;
+                        float3 n = glm::normalize(glm::cross(v1, v2));
+                        float dot = glm::dot(n, verts[i].temp_norm);
+                        if (fabs(dot) > best)
+                        {
+                            best = fabs(dot);
+                            if (dot > 0)
+                            {
+                                verts[i].cross_idx = uint4(neighbourVerts[a], neighbourVerts[b], neighbourVerts[c], neighbourVerts[d]);
+                            }
+                            else
+                            {
+                                verts[i].cross_idx = uint4(neighbourVerts[a], neighbourVerts[b], neighbourVerts[d], neighbourVerts[c]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (numV == 3)
+        {
+            verts[i].cross_idx = uint4(neighbourVerts[0], neighbourVerts[1], neighbourVerts[0], neighbourVerts[2]);
+        }
+
+        if (numV == 2)  // its a line
+        {
+            verts[i].cross_idx = uint4(neighbourVerts[0], neighbourVerts[1], neighbourVerts[0], neighbourVerts[1]);
+        }
+
     }
 }
 
@@ -754,7 +1065,7 @@ void _gliderImporter::sanityChecks()
     numDuplicateVerts = 0;
     min = float3(1000, 1000, 1000);
     max = float3(-1000, -1000, -1000);
-    
+
     for (int i = 0; i < 100; i++) numVconstraints[i] = 0;
 
     std::vector<int> v_c_count;
@@ -768,7 +1079,7 @@ void _gliderImporter::sanityChecks()
         numConstraints[C.z]++;
     }
 
-    
+
 
     for (int j = 0; j < constraints.size(); j++)
     {
@@ -791,7 +1102,7 @@ void _gliderImporter::sanityChecks()
     }
 
 
-    
+
 
     for (int j = 0; j < verts.size(); j++)
     {
@@ -944,7 +1255,7 @@ void _gliderImporter::ExportLineShape()
 
 void  _gliderImporter::processLineAttachmentPoints()
 {
-    
+
     Assimp::Importer importer;
     unsigned int flags = aiProcess_PreTransformVertices | aiProcess_JoinIdenticalVertices;
     const aiScene* sceneLines = importer.ReadFile(line_file.c_str(), flags);
@@ -1027,7 +1338,7 @@ void  _gliderImporter::processLineAttachmentPoints()
         }
     }
 
-    
+
     numSmallLineVerts = 0;
     if (sceneLines)
     {
@@ -1037,7 +1348,7 @@ void  _gliderImporter::processLineAttachmentPoints()
 
             for (uint i = 0; i < M->mNumFaces; i++)
             {
-                aiFace &F = M->mFaces[i];
+                aiFace& F = M->mFaces[i];
                 if (F.mNumIndices == 2)
                 {
                     bool mirror = true;
@@ -1055,10 +1366,10 @@ void  _gliderImporter::processLineAttachmentPoints()
 
                     // Now add the small inbetween steps
                     //float L = glm::length(b - a);
-                    int numSteps = (int)( L / lineSpacing) + 1;
+                    int numSteps = (int)(L / lineSpacing) + 1;
                     float dL = 1.f / (float)numSteps;
                     float3 first = a;
-                    
+
                     for (int j = 1; j <= numSteps; j++)
                     {
                         float3 newV = glm::lerp(a, b, j * dL);
@@ -1069,7 +1380,7 @@ void  _gliderImporter::processLineAttachmentPoints()
                         v.mass = lineWeightPerMeter * lineSpacing;
 
                         // I dont think we need cross or uv
-                        
+
                         if (j < numSteps)   // dont add right at the end its already there, just add teh constraint
                         {
                             verts.push_back(v);
@@ -1082,10 +1393,10 @@ void  _gliderImporter::processLineAttachmentPoints()
                         {
                             insertEdge(first, newV, mirror, constraintType::smallLines);    // FIXND THE SURFACE
                         }
-                        
+
                         first = newV;
                     }
-                    
+
                     // rather do this by taking the line constrainta aand splitting them
                     // that surface attachemnt is a mess
                 }
@@ -1096,7 +1407,7 @@ void  _gliderImporter::processLineAttachmentPoints()
         // And tehn add teh inbetween lines
     }
 
-    
+
 
     toObj("E:/Advance/omega_xpdb_lines.obj", constraintType::lines);
     toObj("E:/Advance/omega_xpdb_smalllines.obj", constraintType::smallLines);
@@ -1485,17 +1796,17 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         ImGui::SetNextItemWidth(200);
         ImGui::DragInt("numRibScale", &importer.numRibScale, 0.1f, 2, 8);
         TOOLTIP("2, 4, or 8 \nThe number of times the cells gets subdivided")
-        ImGui::SetNextItemWidth(200);
+            ImGui::SetNextItemWidth(200);
         ImGui::DragInt("numMiniRibs", &importer.numMiniRibs, 0.1f, 0, 50);
         TOOLTIP("In teh half rib position its the number \nof full res vertoicies that will connect to form a mini trailing edge rib")
 
 
-        ImGui::SetNextItemWidth(200);
+            ImGui::SetNextItemWidth(200);
         ImGui::DragFloat("lineSpacing", &importer.lineSpacing, 0.1f, 0.01f, 0.3f);
-            
-        
-            
-            
+
+
+
+
         ImGui::SetNextItemWidth(400);
         if (ImGui::Button((importer.rib_file + "##1").c_str(), ImVec2(20, 0)))
         {
@@ -1584,7 +1895,7 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
                     col++;
                 }
                 Y = ImGui::GetCursorPosY();
-                
+
                 ImGui::Text("# dupl");
                 col = 0;
                 for (auto& C : importer.numDuplicateConstraints)
@@ -1617,17 +1928,17 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
         ImGui::EndChildFrame();
         ImGui::PopStyleVar();
         ImGui::PopStyleColor();
-        
+
 
         ImGui::NewLine();
-        
-        
-        
+
+
+
         ImGui::NewLine();
         ImGui::NewLine();
 
-        
-        
+
+
         if (importer.half_ribs.size() > 0)
         {
             static int viewChord = 0;
@@ -1766,8 +2077,15 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
                 ImVec2 p = project_B(importer.verts[i]._x, R);
                 float3 N = glm::normalize(importer.verts[i].temp_norm);
                 ImVec2 pn = project_B(importer.verts[i]._x + N * 0.1f, R);
-                
+
                 draw_list->AddLine(p, pn, ImColor(ImVec4(0.0f, 0.0f, 0.3f, 1.0f)), 2);
+                // now for computed normal
+                uint4 idx = importer.verts[i].cross_idx;
+                float3 a = importer.verts[idx.y]._x - importer.verts[idx.x]._x;
+                float3 b = importer.verts[idx.w]._x - importer.verts[idx.z]._x;
+                float3 Ncmp = glm::normalize(glm::cross(a, b));
+                ImVec2 pncmpt = project_B(importer.verts[i]._x + Ncmp * 0.1f, R);
+                draw_list->AddLine(p, pncmpt, ImColor(ImVec4(0.0f, 0.3f, 0.0f, 1.0f)), 2);
 
                 int numC = 0;
                 //int numCType[maxCTypes];
@@ -1790,13 +2108,35 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
                         draw_list->AddLine(c1, c2, clr, 1);
                     }
 
-                    
+
                 }
                 ImGui::SetCursorPos(pn);
                 ImGui::Text("%d", numC);
 
                 draw_list->AddCircle(p, 5, col32Y, 12, 3);
             }
+
+
+            //SIT NOU DIE extra inligiting hier in
+            //R.calcIndices();
+            float3 A = glm::lerp(importer.verts[R.R_index.x]._x, importer.verts[R.R_index.y]._x, R.aLerp);
+            float3 B = glm::lerp(importer.verts[R.R_index.z]._x, importer.verts[R.R_index.w]._x, R.bLerp);
+
+            float3 C = glm::lerp(A, B, R.chordLerp);
+            draw_list->AddLine(project_B(importer.verts[R.R_index.x]._x, R), project_B(importer.verts[R.R_index.y]._x, R), col32R, 3);
+            draw_list->AddLine(project_B(importer.verts[R.R_index.z]._x, R), project_B(importer.verts[R.R_index.w]._x, R), col32R, 3);
+
+            draw_list->AddLine(project_B(R.trailEdge, R), project_B(R.trailEdge + R.up, R), col32R, 3);
+            draw_list->AddLine(project_B(R.trailEdge, R), project_B(R.trailEdge + R.front, R), col32R, 3);
+
+            draw_list->AddLine(project_B(A, R), project_B(B, R), col32R, 3);
+            draw_list->AddCircle(project_B(C, R), 9, col32B, 12, 5);
+            ImGui::SetCursorPos(ImVec2(800, 800));
+            ImGui::Text("%d, %d, %d, %d", R.R_index.x, R.R_index.y, R.R_index.z, R.R_index.w);
+            ImGui::SetCursorPos(ImVec2(800, 820));
+            ImGui::Text("%2.2f, %2.2f, %2.2f", R.aLerp, R.bLerp, R.chordLerp);
+
+
         }
 
 
@@ -1852,6 +2192,7 @@ void _gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
         ImGui::NewLine();
         ImGui::Text("wing gui");
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
 
         if (ImGui::Button("import"))
         {
@@ -1985,9 +2326,9 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen, bool allowMouseCamCont
         cameraDistance[cameraType] += 0.1f * mouseDragLeft.y;
         cameraDistance[cameraType] = glm::clamp(cameraDistance[cameraType], 0.01f, 10.f);
     }
-    
 
-    
+
+
     ImGui::PushFont(pGui->getFont("H1"));
     {
         // variometer
@@ -2019,14 +2360,14 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen, bool allowMouseCamCont
         ImGui::Text("km/h");
     }
     ImGui::PopFont();
-    
 
-    
+
+
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
     ImGui::PushFont(pGui->getFont("roboto_32"));
     {
         // weight shift
-        
+
         ImGui::SetCursorPos(ImVec2(_screen.x / 2 - 150, _screen.y - 150));
         ImGui::SetNextItemWidth(300);
         if (ImGui::SliderFloat("weight shift", &weightShift, 0.1f, 0.9f, "%.2f"));
@@ -2035,9 +2376,9 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen, bool allowMouseCamCont
         ImGui::SetNextItemWidth(300);
         if (ImGui::SliderFloat("speed bar", &speedbar, 0.f, 1.f, "%.2f"));
 
-        
-        
-        
+
+
+
         // bake forcves
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.2f, 0.2f, 0.2f, 1.f));
         {
@@ -2078,27 +2419,27 @@ void _gliderRuntime::renderHUD(Gui* pGui, float2 _screen, bool allowMouseCamCont
             }
         }
         ImGui::PopStyleColor();
-        
-        
+
+
 
 
         // warnings
-        
+
         if (CPU_usage < 0.9f)   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.1f, 0.6f, 0.1f, 1.0f));
         else if (CPU_usage < 1.0f)   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.4f, 0.1f, 1.0f));
         else
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.1f, 0.1f, 1.0f));
-            
+
         }
         ImGui::SetCursorPos(ImVec2(_screen.x - 180, 20));
         ImGui::Text("CPU  %d %%", (int)(CPU_usage * 100.f));
         ImGui::PopStyleColor();
-        
+
     }
     ImGui::PopFont();
     ImGui::PopStyleColor();
-    
+
 
 
     ImGui::PopStyleColor();
@@ -2253,7 +2594,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     cells.resize(_span);
 
 
-    
+
     //ROOT = float3(5500, 1900, 11500);   // walensee
     ROOT = float3(-7500, 1300, -10400);// hulftegg
     //ROOT = float3(20000, 1000, 20000);// hulftegg
@@ -2264,7 +2605,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
     //ROOT = float3(-500, 500, 15400);// windy south landings
 
     //ROOT = float3(-1425, 700, 14500);// turb test
-    
+
 
     float3 DIR = float3(0, -1.5, -7);
     if (useView)
@@ -2300,7 +2641,7 @@ void _gliderRuntime::setup(std::vector<float3>& _x, std::vector<float>& _w, std:
         fprintf(terrafectorSystem::_logfile, "wind ( %2.1f, %2.1f, %2.1f)\n", DIR.x, DIR.y, DIR.z);
     }
 
-    
+
 
     for (int i = 0; i < spanSize; i++)
     {
@@ -2983,19 +3324,19 @@ void _gliderRuntime::solve(float _dT)
 
 void _gliderRuntime::solveConstraint(uint _i, float _step)
 {
-#define Cst constraints[_i]
-#define idx0 Cst.idx_0
-#define idx1 Cst.idx_1
+#define Cnst constraints[_i]
+#define idx0 Cnst.idx_0
+#define idx1 Cnst.idx_1
 
     float Wsum = w[idx0] + w[idx1];
     float3 S = x[idx1] - x[idx0];
     float L = glm::length(S);
-    float C = (L - Cst.l) / L * _step;
+    float C = (L - Cnst.l) / L * _step;
     if (C > 0) {
-        C *= Cst.tensileStiff;
+        C *= Cnst.tensileStiff;
     }
     else {
-        C *= __max(Cst.compressStiff, Cst.pressureStiff * cells[Cst.cell].pressure * cells[Cst.cell].pressure);
+        C *= __max(Cnst.compressStiff, Cnst.pressureStiff * cells[Cnst.cell].pressure * cells[Cnst.cell].pressure);
     }
 
     //   if (std::isnan(C))
@@ -3397,7 +3738,7 @@ void _gliderRuntime::setJoystick_bandarra()
         cameraPitch[cameraType] = glm::clamp(cameraPitch[cameraType], -1.3f, 1.3f);
         */
 
-        
+
 
 
         if (pBrakeLeft)
@@ -3473,7 +3814,7 @@ void _gliderRuntime::setJoystick()
                 //fprintf(terrafectorSystem::_logfile, "foubnd setJoystick_bandarra - %d\n", i);
             }
 
-            
+
         }
     }
     else
@@ -3484,7 +3825,7 @@ void _gliderRuntime::setJoystick()
             return;
         }
 
-        
+
         XINPUT_STATE state;
         if (XInputGetState(controllerId, &state) == ERROR_SUCCESS)
         {
@@ -3499,11 +3840,14 @@ void _gliderRuntime::setJoystick()
 
             static SHORT normXZero = 0;
             static SHORT normYZero = 0;
+            // FIXME do this better with 
+            /*
             if ((state.Gamepad.wButtons & XINPUT_GAMEPAD_Y) != 0)
             {
                 normXZero = state.Gamepad.sThumbRX;
                 normYZero = state.Gamepad.sThumbRY;
             }
+            */
 
 
 
@@ -3528,6 +3872,25 @@ void _gliderRuntime::setJoystick()
 
             float normRX = fmaxf(-1, (float)state.Gamepad.sThumbLX / 32767);
             weightShift = glm::lerp(weightShift, normRX * 0.4f + 0.5f, 0.01f);
+
+            float normRY = fmaxf(-1, (float)state.Gamepad.sThumbLY / 32767);
+            if (!speedBarLock)
+            {
+                speedbar = glm::lerp(speedbar, normRY, 0.01f);
+            }
+
+            static bool Y_DEBOUNCE = false;
+            if ((state.Gamepad.wButtons & XINPUT_GAMEPAD_Y) != 0)
+            {
+                if (Y_DEBOUNCE) {
+                    speedBarLock = !speedBarLock;
+                }
+                Y_DEBOUNCE = false;
+            }
+            else
+            {
+                Y_DEBOUNCE = true;
+            }
             /*
             * // triangle version
             constraints[1].l = weightShift * weightLength;
@@ -3624,7 +3987,7 @@ void _gliderRuntime::setJoystick()
 
 
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 
 
@@ -3988,8 +4351,8 @@ void _swissBuildings::exportBuilding(std::string _path, std::vector<float3> _v, 
                 face.mIndices[3] = F.vertIndex[3];
 
                 faceNum++;
-    }
-}
+            }
+        }
 #else
         pMesh->mNumFaces = _f.size() / 4;
         pMesh->mFaces = new aiFace[pMesh->mNumFaces];
@@ -4008,7 +4371,7 @@ void _swissBuildings::exportBuilding(std::string _path, std::vector<float3> _v, 
             face.mIndices[3] = _f[i * 4 + 3];
         }
 #endif
-}
+    }
 
     Assimp::Exporter exp;
     exp.Export(scene, "obj", _path + ".obj");
@@ -4673,10 +5036,10 @@ void _windTerrain::saveRaw()
 
 
 
-void _windTerrain::loadRaw()
+void _windTerrain::loadRaw(std::string _path)
 {
     std::ifstream ifs;
-
+    /*
     ifs.open("E:/wind.bin", std::ios::binary);
     if (ifs)
     {
@@ -4684,8 +5047,9 @@ void _windTerrain::loadRaw()
         ifs.read((char*)windTop, 4096 * 4096 * sizeof(float3));
         ifs.close();
     }
+    */
 
-    ifs.open("E:/height.bin", std::ios::binary);
+    ifs.open(_path + "height.bin", std::ios::binary);
     if (ifs)
     {
         ifs.read((char*)height, 4096 * 4096 * sizeof(float));
@@ -4747,3 +5111,653 @@ float3 _windTerrain::W(float3 _pos)
     W = glm::lerp(float3(0, 0, 0), W, L0) * 2.7f;
     return W;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void _new_gliderRuntime::solve(float _dT, int _repeats)
+{
+    auto a = high_resolution_clock::now();
+    solve_airFlow();
+    auto b = high_resolution_clock::now();
+    solve_wingShape();
+    auto c = high_resolution_clock::now();
+    solve_internalPressure();
+    auto d = high_resolution_clock::now();
+    
+    solve_pre();
+    auto e = high_resolution_clock::now();
+    /*
+    solve_intersection();
+    auto f = high_resolution_clock::now();
+
+    for (int i = 0; i < _repeats; i++) {
+        solve_constraints();
+    }
+    auto g = high_resolution_clock::now();
+    */
+
+    time_air_us = (float)duration_cast<microseconds>(b - a).count();
+    time_wing_us = (float)duration_cast<microseconds>(c - b).count();
+    time_internal_us = (float)duration_cast<microseconds>(d - c).count();
+    time_pre_us = (float)duration_cast<microseconds>(e - d).count();
+    //time_intersect_us = (float)duration_cast<microseconds>(f - e).count();
+    //time_constraints_us = (float)duration_cast<microseconds>(g - f).count();
+    time_total_us = (float)duration_cast<microseconds>(e - a).count();
+
+}
+
+void _new_gliderRuntime::solve_airFlow()
+{
+    for (auto& r : ribs)
+    {
+        r.v = float3(0, 0, 0);
+        /*
+        for (int j = 0; j < r.numVerts; j++)    // too much but time it first
+        {
+            r.v += x[r.startVertex + j] - x_prev[r.startVertex + j];
+        }
+        r.v *= 1.f / (float)r.numVerts * _inv / _dt;        // this ribs velocity
+        */
+
+        float3 tempWind = { -10, 1, 0 };    // placeholder wind, interpolated wind + wing speed at cell
+        r.v += tempWind;
+        r.cellVelocity = glm::length(r.v);
+        r.flow_direction = glm::normalize(r.v);
+
+        float AIRDENSITY = 1.11225f;    // Fixme form CFD later
+        r.rho = __min(300.f, 0.5f * AIRDENSITY * (r.cellVelocity * r.cellVelocity));       // dynamic pressure , nut sure why its clamped
+        r.reynolds = (1.125f * r.cellVelocity * r.chordLength) / (0.0000186f);
+        r.cD = 0.027f / pow(r.reynolds, 1.f / 7.f);
+    }
+}
+
+
+void _new_gliderRuntime::solve_wingShape()
+{
+    for (auto& r : ribs)
+    {
+        float3 vx = x[r.rightIdx.x];
+        float3 vy = x[r.rightIdx.y];
+        float3 vz = x[r.rightIdx.z];
+        float3 vw = x[r.rightIdx.w];
+        float3 trail = x[r.startVertex];
+
+        float3 v1 = vw - vx;
+        float3 v2 = vy - vz;
+        r.right = glm::normalize(glm::cross(v1, v2));
+
+        float3 A = glm::lerp(vx, vy, r.aLerp);
+        float3 B = glm::lerp(vz, vw, r.bLerp);
+        float3 C = glm::lerp(A, B, r.chordLerp);
+        r.front = glm::normalize(B - A);
+        r.up = glm::normalize(glm::cross(r.right, r.front));
+
+        float aoa = asin(glm::dot(r.up, r.flow_direction));
+        if (glm::dot(r.flow_direction, r.front) > 0) {
+            aoa = 3.14159f - aoa;
+        }
+        r.AoA = glm::lerp(r.AoA, aoa, 0.982f);                          // very slightly smoothed AoA - experiment here
+        r.AoA = aoa;
+
+        float3 vBrake = C - trail;
+        float aob = asin(glm::dot(r.up, glm::normalize(vBrake)));
+        r.AoBrake = aob;// glm::lerp(r.AoBrake, aob, 0.5f);                  // more smoothed AoB - experiment here
+    }
+}
+
+
+void _new_gliderRuntime::solve_internalPressure()
+{
+}
+
+
+void _new_gliderRuntime::solve_constraints()
+{
+    for (uint i = 0; i < constraints.size(); i++)
+    {
+        apply_constraint(i);
+    }
+}
+
+
+void _new_gliderRuntime::solve_intersection()
+{
+}
+
+
+void _new_gliderRuntime::solve_pre()
+{
+    float3 tempWind = { 10, 1, 0 };    // placeholder wind, interpolated wind + wing speed at cell
+    float tempQ = 50.f;        // dynamic pressure 1/2 rho v^2
+    float tempCp = 2.f;       // (Cp_internal - Cp)
+    float tempCd_surface = 0.0039f;  // surface coeficient of drag, vary with wrincles, lots of tests needed
+    float tempCd_lines = 0.8f;
+    float tempCd_pilot = 0.6f;
+    float tempArea_pilot = 1.0f;    // 1m^2
+
+    float3 c1, c2, n, t;
+    int3 a_dt2;
+    float scale = (float)_time_scale;
+
+    for (int i = 0; i < x.size(); i++)
+    {
+        // normals and tangents
+        c1 = x[cross_idx[i].x] - x[cross_idx[i].y];
+        c2 = x[cross_idx[i].z] - x[cross_idx[i].w];
+        n = glm::normalize(glm::cross(c1, c2));
+        // n = glm::cross(c1, c2);
+        t = glm::normalize(tempWind - glm::dot(tempWind, n) * n);
+
+        // all the forces
+        /*
+        {
+            // gravity
+            a_dt2 = float3(0, -i_g_dt, 0);
+
+            // skin surface
+            if (type[i] == vertexType::vtx_surface)
+            {
+                a_dt2 += area_x_w[i] * tempCp * tempQ * scale * n;
+                a_dt2 += area_x_w[i] * tempCd_surface * tempQ * scale * t;
+            }
+
+            // line drag
+            if (type[i] == vertexType::vtx_line)
+            {
+                t = glm::normalize(tempWind);
+                a_dt2 += tempCd_lines * area_x_w[i] * tempQ * scale * t;
+            }
+
+            // pilot drag
+            if (type[i] == vertexType::vtx_pilot)
+            {
+                t = glm::normalize(tempWind);
+                a_dt2 += tempCd_pilot * tempArea_pilot * area_x_w[i] * tempQ * scale * t;
+            }
+        }
+
+        x[i] += (x[i] - x_prev[i]) + a_dt2;   // calc v_dt[i] on the spot        // Christian dampens the position as well, I am not yet convinced
+        
+        x_prev[i] = x[i];
+        */
+    }
+}
+
+
+
+
+
+/*
+    For now I cant find a way out of float 4.28 fixed will overrun when calculating length()
+    Less acuracy, but likely enough for what we need with 6 decimal bits
+    and not classy with that if, but maybe not the bottelneck either
+*/
+void _new_gliderRuntime::apply_constraint(uint _i)  // allow softness and stretch later
+{
+    auto& cnst = constraints[_i];
+
+    float3 vec = x[cnst.idx_1] - x[cnst.idx_0];
+    float L = glm::length(vec);
+    float C = (L - cnst.l) / cnst.l;
+    if (C > 0) {
+        C *= cnst.tensileStiff;
+    }
+    else {
+        C *= cnst.compressStiff;
+    }
+
+    // velocity damping
+    float v = (L - cnst.old_L) / cnst.l;
+    C += v * cnst.damping;
+
+
+    x[cnst.idx_0] += (C * cnst.w_0) * vec;
+    x[cnst.idx_1] -= (C * cnst.w_1) * vec;
+
+    cnst.old_L = L;
+}
+
+
+void _new_gliderRuntime::importBin()
+{
+    std::ifstream ifs;
+    ifs.open("E:/Advance/omega_export_low.bin", std::ios::binary);
+    if (ifs)
+    {
+        fprintf(terrafectorSystem::_logfile, "_new_gliderRuntime::importBin()\n");
+        int numV;
+        int numT;
+        int numC;
+        int numR;
+        ifs.read((char*)&numV, sizeof(int));
+        ifs.read((char*)&numT, sizeof(int));
+        ifs.read((char*)&numC, sizeof(int));
+        ifs.read((char*)&numR, sizeof(int));
+
+        fprintf(terrafectorSystem::_logfile, "%d %d %d\n", numV, numT, numC);
+        fflush(terrafectorSystem::_logfile);
+
+        x.resize(numV);
+        x_prev.resize(numV);
+        cross_idx.resize(numV);
+        type.resize(numV);
+        area_x_w.resize(numV);
+        uv.resize(numV);
+
+
+        ifs.read((char*)x.data(), sizeof(int3) * numV);
+        x_prev = x;
+        ifs.read((char*)cross_idx.data(), sizeof(uint4) * numV);
+        ifs.read((char*)type.data(), sizeof(char) * numV);
+        ifs.read((char*)area_x_w.data(), sizeof(float) * numV);
+        ifs.read((char*)uv.data(), sizeof(float2) * numV);
+
+
+        // triangles
+        tris.resize(numT);
+        ifs.read((char*)tris.data(), sizeof(glm::ivec3) * numT);
+
+
+        // constraints
+        constraints.resize(numC);
+        ifs.read((char*)constraints.data(), sizeof(_new_constraint) * numC);
+
+
+        ribs.resize(numR);
+        ifs.read((char*)ribs.data(), sizeof(_new_rib) * numR);
+
+        ifs.close();
+    }
+}
+
+
+
+ImVec2 _new_gliderRuntime::project(float3 p, _new_rib& R, ImVec2 _pos, float _scale)
+{
+    float3 trail = x[R.startVertex];
+    float3 vec = (p - trail) * (float)_inv;
+    float x = glm::dot(R.front, vec) * _scale;
+    float y = glm::dot(R.up, vec) * _scale;
+    return ImVec2(_pos.x + x, _pos.y - y);
+};
+
+
+
+void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
+{
+
+    const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+    const ImU32 col32B = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 1.0f));
+    const ImU32 col32G = ImColor(ImVec4(0.0f, 0.6f, 0.0f, 1.0f));
+    const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
+    const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
+    const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+
+    ImVec2 start = { 100.f, 100.f };
+    ImVec2 end = { 200.f, 200.f };
+
+    ImVec2 chord[100];  // just big enough
+    ImVec2 chord_cp[100];  // just big enough
+    ImVec2 p[100];  // just big enough
+
+    ImVec2 AoA[200];  // just big enough
+    ImVec2 AoB[200];  // just big enough
+    ImVec2 spanCp[200];  // just big enough
+    ImVec2 V[200];  // just big enough
+
+    static int viewChord = 20;
+
+    ImGui::SetCursorPos(ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.95f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
+    ImGui::BeginChildFrame(119865, ImVec2(800, _screen.y));
+    ImGui::PushFont(pGui->getFont("roboto_20"));
+    {
+        ImGui::NewLine();
+        ImGui::Text("_new_gliderRuntime");
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+        float x_space = 700.f / (float)(ribs.size() - 1);
+        for (int i = 0; i < ribs.size(); i++)
+        {
+            AoA[i] = ImVec2(50 + i * x_space, 500 - ribs[i].AoA * 500.f);
+            AoB[i] = ImVec2(50 + i * x_space, 500 - ribs[i].AoBrake * 500.f);
+            spanCp[i] = ImVec2(50 + i * x_space, 500 - ribs[i].Cp * 100.f);
+            V[i] = ImVec2(50 + i * x_space, 500 - ribs[i].cellVelocity * 10.f);
+        }
+
+        draw_list->AddLine(ImVec2(50, 500), ImVec2(750, 500), col32GR);
+        draw_list->AddLine(ImVec2(50, 400), ImVec2(50, 600), col32GR);
+        draw_list->AddLine(ImVec2(750, 400), ImVec2(750, 600), col32GR);
+
+        draw_list->AddPolyline(AoA, ribs.size(), col32R, false, 2);
+        draw_list->AddPolyline(AoB, ribs.size(), col32G, false, 2);
+        draw_list->AddPolyline(spanCp, ribs.size(), col32B, false, 2);
+        //draw_list->AddPolyline(V, ribs.size(), col32YEL, false, 2);
+
+
+        ImGui::SetCursorPos(ImVec2(0, 700));
+        ImGui::SetNextItemWidth(100);
+        ImGui::DragInt("rib", &viewChord, 0.1f, 0, ribs.size() - 1);
+        auto& R = ribs[viewChord];
+
+        for (int i = 0; i < R.numVerts; i++)
+        {
+            float3 p = x[R.startVertex + i];
+            chord[i] = project(p, R, ImVec2(50, 800), 300.f);
+
+            float3 c1 = x[cross_idx[R.startVertex + i].x] - x[cross_idx[R.startVertex + i].y];
+            float3 c2 = x[cross_idx[R.startVertex + i].z] - x[cross_idx[R.startVertex + i].w];
+            float3 n = glm::normalize(glm::cross(c1, c2));
+            float3 t = glm::normalize(R.flow_direction - glm::dot(R.flow_direction, n) * n);
+
+            
+            ImVec2 pn = project(p + n * (float)_scale * 0.3f, R, ImVec2(50, 800), 300.f);
+            ImVec2 pt = project(p + t * (float)_scale * 0.2f, R, ImVec2(50, 800), 300.f);
+            draw_list->AddLine(chord[i], pn, col32B, 2);
+            draw_list->AddLine(chord[i], pt, col32YEL, 1);
+        }
+
+
+
+        for (int i = 0; i < R.numVerts; i++)
+        {
+            float3 p = x[R.startVertex + i];
+            int v = (int)(127.f * uv[R.startVertex + i].y);
+            chord_cp[i] = project(p, R, ImVec2(50, 800), 300.f);
+            chord_cp[i].y = 1000 + 50 * (Cp[16*128 + v]);
+        }
+        draw_list->AddPolyline(chord_cp, R.numVerts, col32R, false, 2);
+
+        ImGui::SetCursorPos(ImVec2(0, 1100));
+        ImGui::Text("chord %2.2fm", R.chordLength);
+
+        int3 TRL = x[R.startVertex];
+        float3 TRLf = TRL;
+        TRLf *= (float)_inv;
+        ImGui::Text("trail (%d %d %d) ", TRL.x, TRL.y, TRL.z);
+        ImGui::Text("trail (%2.2f %2.2f %2.2f) m", TRLf.x, TRLf.y, TRLf.z);
+
+        ImGui::NewLine();
+        ImGui::Text("wing - %2.1fus ", time_air_us);
+        ImGui::Text("internal - %2.1fus ", time_internal_us);
+        ImGui::Text("pre - %2.1fus ", time_pre_us);
+        
+
+        float3 vx = x[R.rightIdx.x];
+        float3 vy = x[R.rightIdx.y];
+        float3 vz = x[R.rightIdx.z];
+        float3 vw = x[R.rightIdx.w];
+        float3 trail = x[R.startVertex];
+        float3 A = glm::lerp(vx, vy, R.aLerp);
+        float3 B = glm::lerp(vz, vw, R.bLerp);
+        float3 C = glm::lerp(A, B, R.chordLerp);
+        
+
+        float3 front = C + 8.f * (A - C);
+        draw_list->AddLine(project(C, R, ImVec2(50, 800), 300.f), project(front, R, ImVec2(50, 800), 300.f), col32GR, 2);
+        draw_list->AddLine(project(C, R, ImVec2(50, 800), 300.f), project(trail, R, ImVec2(50, 800), 300.f), col32G, 2);
+
+        float3 wind = -R.flow_direction * (float)_scale;
+        draw_list->AddLine(project(B, R, ImVec2(50, 800), 300.f), project(B + wind, R, ImVec2(50, 800), 300.f), col32G, 2);
+
+        draw_list->AddCircle(project(C, R, ImVec2(50, 800), 300.f), 5, col32W);
+
+        draw_list->AddPolyline(chord, R.numVerts, col32R, false, 2);
+
+        ImVec2 B2 = project(B, R, ImVec2(50, 800), 300.f);
+        ImGui::SetCursorPos(ImVec2(B2.x + 0, B2.y - 20));
+        ImGui::Text("AoA %2.1fº %2.1fm/s", R.AoA * 57.f, R.cellVelocity);
+
+        ImVec2 C2 = project(C, R, ImVec2(50, 800), 300.f);
+        ImGui::SetCursorPos(ImVec2(C2.x + 5, C2.y + 5));
+        ImGui::Text("AoB %2.1fº", R.AoBrake * 57.f);
+
+        /*
+        ImGui::DragInt("rib", &viewChord, 0.1f, 0, spanSize - 1);
+
+        // AddPolyline
+        // AddConvexPolyFilled
+        // AddBezierCurve
+
+        int base = viewChord * chordSize;
+        float3 c_base = (x[base + 6] + x[base + 10] + x[base + 14] + x[base + 18]) * 0.25f;
+        float3 f = cells[viewChord].front;
+        float3 u = cells[viewChord].up;
+        for (int i = 0; i < chordSize; i++)
+        {
+            float3 c = x[base + i] - c_base;
+            chord[i] = ImVec2(280 - glm::dot(c, f) * 200, 300 - glm::dot(c, u) * 200);
+
+            float cp = Pressure.get(cells[viewChord].AoBrake, cells[viewChord].AoA, i);
+            float3 c_n = c - glm::normalize(n[base + i]) * 0.2f * cp;
+            p[i] = ImVec2(700 - i * 50.f, 700 + cp * 50);
+            if (i > chordSize / 2)
+            {
+                p[i].x = 700 - (chordSize - 1 - i) * 50.f;
+            }
+
+            p[i].x = chord[i].x;
+
+            ImVec2 pres = ImVec2(280 - glm::dot(c_n, f) * 200, 300 - glm::dot(c_n, u) * 200);
+            draw_list->AddLine(chord[i], pres, col32YEL, 2);
+
+        }
+        draw_list->AddPolyline(chord, chordSize, col32R, false, 2);
+        draw_list->AddPolyline(p, chordSize, col32GR, false, 2);
+
+
+        // Do the inside constraints
+        for (auto& c : constraints)
+        {
+            if (c.idx_0 > base && c.idx_0 < base + chordSize && c.idx_1 > base && c.idx_1 < base + chordSize)
+            {
+                float3 c1 = x[c.idx_0] - c_base;
+                float3 c2 = x[c.idx_1] - c_base;
+                ImVec2 a = ImVec2(280 - glm::dot(c1, f) * 200, 300 - glm::dot(c1, u) * 200);
+                ImVec2 b = ImVec2(280 - glm::dot(c2, f) * 200, 300 - glm::dot(c2, u) * 200);
+
+                ImU32 col;
+                float l = glm::length(x[c.idx_0] - x[c.idx_1]);
+                if (c.l < l)
+                {
+                    float dl = __min(1, c.tensileStiff * (l - c.l) / c.l * 100.f);
+                    col = ImColor(ImVec4(dl, 0.0f, 0.1f, 1.0f));
+                }
+                else
+                {
+                    float dl = __min(1, c.compressStiff * (c.l - l) / c.l * 100.f);
+                    col = ImColor(ImVec4(0.0f, dl, 0.1f, 1.0f));
+                }
+
+                draw_list->AddLine(a, b, col, 2);
+            }
+        }
+
+
+
+        ImGui::SetCursorPos(ImVec2(220, 280));
+        ImGui::Text("p %2.2f", cells[viewChord].inlet_pressure);
+
+        ImGui::SetCursorPos(ImVec2(320, 280));
+        ImGui::Text("p %2.2f", cells[viewChord].pressure);
+
+        float3 flow = cells[viewChord].flow_direction;
+        start = { 400.f, 100.f };
+        end = ImVec2(400 - glm::dot(flow, f) * 200, 100 - glm::dot(flow, u) * 200);
+        draw_list->AddLine(start, end, col32B, 2);
+        ImGui::SetCursorPos(ImVec2(420, 120));
+        ImGui::Text("AoA %2.1fº", cells[viewChord].AoA * 57.f);
+
+        ImGui::SetCursorPos(ImVec2(420, 180));
+        float _brake = glm::clamp(cells[viewChord].AoBrake * 5.f, 0.f, 4.99f);
+        ImGui::Text("AoB %2.1fº (%2.1f)", cells[viewChord].AoBrake * 57, _brake);
+
+
+        ImGui::Text("num Constraints %d", constraints.size());
+
+        if (ImGui::Button("re-start"))
+        {
+            requestRestart = true;
+        }
+        */
+    }
+
+    ImGui::EndChildFrame();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
+}
+
+
+
+
+void _new_gliderRuntime::process_xfoil_Cp(std::string _folder)
+{
+    cp_Flaps = 1;
+    cp_AoA = 37;
+    cp_V = 128;
+    Cp.resize(cp_Flaps * cp_AoA * cp_V);
+
+    std::string flapName = _folder + "profileV.txt";
+    load_xfoil_V(flapName);
+
+    for (int i = 0; i < cp_Flaps; i++)
+    {
+        for (int j = 0; j < cp_AoA; j += 1)
+        {
+            flapName = _folder + "/cp/cp_" + std::to_string(i) + "_" + std::to_string(j) + ".txt";
+            //xfoil_buildCP(i, j, flapName);
+            load_xfoil_Cp(i, j, flapName);
+        }
+    }
+}
+
+
+void _new_gliderRuntime::load_xfoil_V(std::string _file)
+{
+    float v;
+    xfoil_V.clear();
+
+    std::ifstream infile(_file);     // read the cp
+    if (infile.good())
+    {
+        fprintf(terrafectorSystem::_logfile, "_new_gliderRuntime::load_xfoil_V %s\n", _file.c_str());
+        fflush(terrafectorSystem::_logfile);
+        while (infile >> v)
+        {
+            xfoil_V.push_back(v);
+        }
+        infile.close();
+    }
+
+    std::reverse(std::begin(xfoil_V), std::end(xfoil_V));
+}
+
+void _new_gliderRuntime::load_xfoil_Cp(int _flaps, int _aoa, std::string _file)
+{
+    std::string line;
+    uint idxW = 0;
+    uint idx = 0;
+    float count = 0;
+    float cp = 0;
+
+    float allCp[500];
+    float allCount[500];
+    for (int i = 0; i < cp_V; i++)
+    {
+        allCp[i] = 0;
+        allCount[i] = 0;
+    }
+
+    int V_Aoa = cp_V * cp_AoA;
+
+    std::ifstream infile(_file);     // read the cp
+    if (infile.good())
+    {
+        fprintf(terrafectorSystem::_logfile, "\n_new_gliderRuntime::load_xfoil_Cp %s\n", _file.c_str());
+        fflush(terrafectorSystem::_logfile);
+        std::getline(infile, line);
+        std::getline(infile, line);
+        std::getline(infile, line);
+        float x, y, cp_in;
+        float cp = 0.f;
+        while (infile >> x >> y >> cp_in)
+        {
+            float v = xfoil_V[idx];
+            int v_idx = (int)__min((float)cp_V - 1.f, v * (float)cp_V);
+            allCp[v_idx] += cp_in;
+            allCount[v_idx] += 1.f;
+            /*
+            cp += cp_in;
+
+            if (idx >= v_idx)
+            {
+                fprintf(terrafectorSystem::_logfile, "%d, %f \n", v_idx, v);
+                Cp[_flaps * V_Aoa  + _aoa * cp_V + (127 - v_idx)] = cp / count;
+                cp = 0.f;
+                count = 0.f;
+            }
+
+            count += 1.f;
+            */
+            idx++;
+            
+        }
+        infile.close();
+    }
+
+    for (int i = 0; i < cp_V; i++)
+    {
+        Cp[_flaps * V_Aoa + _aoa * cp_V +i] = allCp[i] / allCount[i];
+        fprintf(terrafectorSystem::_logfile, "%d, %f \n", i, allCp[i] / allCount[i]);
+    }
+}
+
+/*
+    Velocity flow
+    left - middle - right    or  per cell, likely overkill
+    wing velocity and air velocity combined.
+    then calc dynamic pressure.
+
+    Wing shape calculation
+    very likely per cell
+    AoA, Brake, B-stall, Collapse
+
+    Cp lookup from wing shape
+    Internal pressure, per cell, and averaged / flow just 0.6 for a start
+    External per vertex UV lookup
+    This could move to Gaelerkin panel method in future
+
+    Constraint solver.
+
+    Intersection solver
+    lines / surface
+    top / bottom surfaces
+    far surfaces - collapse
+*/

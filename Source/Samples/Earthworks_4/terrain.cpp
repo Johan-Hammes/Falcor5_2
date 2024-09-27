@@ -3494,23 +3494,7 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
 
 terrainManager::terrainManager()
 {
-    /*
-    std::ifstream is("lastFile.xml");
-    if (is.good()) {
-        cereal::XMLInputArchive archive(is);
-        archive(CEREAL_NVP(lastfile));
 
-        mRoadNetwork.lastUsedFilename = lastfile.road;
-    }
-
-    std::ifstream isT(lastfile.terrain);
-    if (isT.good()) {
-        cereal::JSONInputArchive archive(isT);
-        settings.serialize(archive, 100);
-    }
-
-    terrafectorSystem::pEcotopes = &mEcosystem;
-    */
 }
 
 
@@ -3529,6 +3513,9 @@ terrainManager::~terrainManager()
 
 void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 {
+    std::filesystem::path currentPath = std::filesystem::current_path();
+    fprintf(_logfile, "root directory - %s\n\n", currentPath.string().c_str());
+
     // Move the constructor code here
     std::ifstream is("lastFile.xml");
     if (is.good()) {
@@ -3540,15 +3527,38 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     else
     {
         fprintf(_logfile, "ERROR - unable to load lastfile.xml, shutting down\n");
-        fprintf(_logfile, "shutting down\n");
         gpFramework->getWindow()->shutdown();
         return;
     }
 
+    fprintf(_logfile, "terrain name - %s\n\n", lastfile.terrain.c_str());
+    std::string appendedName = currentPath.string() + lastfile.terrain;
     std::ifstream isT(lastfile.terrain);
+    std::ifstream isT_2(appendedName);
     if (isT.good()) {
+        fprintf(_logfile, "loading absolute terrain {%s}\n\n", lastfile.terrain.c_str());
         cereal::JSONInputArchive archive(isT);
         settings.serialize(archive, 100);
+    }
+    else if (isT_2.good())
+    {
+        cereal::JSONInputArchive archive(isT_2);
+        settings.serialize(archive, 100);
+
+        fprintf(_logfile, "loading relative terrain, prepending root directory - %s\n", appendedName.c_str());
+        fprintf(_logfile, "root - %s\n", settings.dirRoot.c_str());
+        fprintf(_logfile, "gis - %s\n", settings.dirGis.c_str());
+        fprintf(_logfile, "resource - %s\n\n", settings.dirResource.c_str());
+
+
+        settings.dirRoot = currentPath.string() + settings.dirRoot;
+        settings.dirGis = currentPath.string() + settings.dirGis;
+        settings.dirResource = currentPath.string() + settings.dirResource;
+
+
+        fprintf(_logfile, "root - %s\n", settings.dirRoot.c_str());
+        fprintf(_logfile, "gis - %s\n", settings.dirGis.c_str());
+        fprintf(_logfile, "resource - %s\n\n", settings.dirResource.c_str());
     }
     else
     {
@@ -4098,7 +4108,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mSpriteRenderer.onLoad();
 
     mEcosystem.terrainSize = settings.size;
-    mEcosystem.load(settings.dirRoot + "/ecosystem/steg.ecosystem");    // FIXME MOVE To lastFILE
+    mEcosystem.load(settings.dirRoot + "/ecosystem/steg.ecosystem", settings.dirResource + "/");    // FIXME MOVE To lastFILE
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
     terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
     mRoadNetwork.rootPath = settings.dirRoot + "/";
@@ -4129,7 +4139,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraRuntime.setWing("naca4415");
 
     //paraRuntime.setWind(settings.dirRoot + "/gis/_export/root4096.bil", glm::normalize(float3(-1, 0, 0.4f)));
-    paraRuntime.loadWind();
+    paraRuntime.loadWind(settings.dirRoot + "\\cfd\\");
 
     paraRuntime.setup(paraBuilder.x, paraBuilder.w, paraBuilder.cross, paraBuilder.spanSize, paraBuilder.chordSize, paraBuilder.constraints, false, cameraViews[CameraType_Main_Center].view);
     paraRuntime.Cp = paraBuilder.Cp;
@@ -4139,6 +4149,12 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraRuntime.linesRight = paraBuilder.linesRight;
     glider.loaded = true;
 
+    
+    newGliderRuntime.importBin();
+    newGliderRuntime.solve(0.001f, 10);
+    newGliderRuntime.process_xfoil_Cp(settings.dirResource + "/xfoil/Omega/");
+    glider.newGliderLoaded = true;
+    
     _swissBuildings buildings;
     //buildings.process(settings.dirRoot + "/buildings/testQGISDXF.dxf");
     //buildings.processGeoJSON(settings.dirRoot + "/buildings/QGIS.geojson");
@@ -4497,6 +4513,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
     ImVec2 offset = { 400, 200 };
     ImGui::SetCursorPos(offset);
 
+    static bool IsHovered = false;
     static int editMode = 0;
 
     const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
@@ -4508,7 +4525,8 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 1.f, 1.f, 0.75f));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 0.f, 1.f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 10));
-    ImGui::BeginChildFrame(987651, ImVec2(1000, 1100));
+    ImGui::BeginChildFrame(987651, ImVec2(1000, 1120));
+    ImGui::PopStyleVar();//ImGuiStyleVar_FramePadding
     ImGui::PushFont(pGui->getFont("roboto_20_bold"));
     {
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -4525,7 +4543,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             end.x += 500;
             end.y -= 1000;
             float width = 1.f;
-            if (T%10 == 0) width = 2.f;
+            if (T % 10 == 0) width = 2.f;
             if (T == 0) width = 3.f;
             draw_list->AddLine(start, end, col32, width);
 
@@ -4563,7 +4581,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
         for (int j = 1; j < 100; j++)
         {
             data = cfd.skewT_data[j];
-            ImVec2 P1 = { offset.x + 300 + data.x * 20.f + j*5, offset.y + 1000 - j * 10 };
+            ImVec2 P1 = { offset.x + 300 + data.x * 20.f + j * 5, offset.y + 1000 - j * 10 };
             draw_list->AddLine(P, P1, col32R, 2);
             P = P1;
         }
@@ -4573,7 +4591,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
         for (int j = 1; j < 100; j++)
         {
             data = cfd.skewT_data[j];
-            ImVec2 P1 = { offset.x + 300 + data.y * 20.f + j*5, offset.y + 1000 - j * 10 };
+            ImVec2 P1 = { offset.x + 300 + data.y * 20.f + j * 5, offset.y + 1000 - j * 10 };
             draw_list->AddLine(P, P1, col32B, 2);
             P = P1;
         }
@@ -4603,7 +4621,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
         // wind direction
         data = cfd.skewT_V[0];
         float3 dir = glm::normalize(data);
-        int angle = (int)(360.f - atan2(dir.x, dir.z) * 57.2958f) %360;
+        int angle = (int)(360.f - atan2(dir.x, dir.z) * 57.2958f) % 360;
         P = { offset.x + 10 + angle * 2.f, offset.y + 1000 };
         for (int j = 1; j < 100; j++)
         {
@@ -4654,12 +4672,21 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             ImGui::Text("%2.1fkt %dº", vspeed * 1.94384f, (int)angle);
 
 
+            ImVec2 cursor = ImGui::GetMousePos();
+            cursor.x -= offset.x;
+            cursor.y -= offset.y;
+            IsHovered = false;
+            if ((cursor.x > 0) && (cursor.x < 1000) && (cursor.y > 0) && (cursor.y < 1000))
+            {
+                IsHovered = true;
+            }
+            //ImGui::SetTooltip("%f %f", cursor.x, cursor.y);
 
             // mouse click
-            if (cfd.editMode)
+            if (cfd.editMode && IsHovered)
             {
-                
-                
+
+
                 float T = (p.x - offset.x - 300 - (dy * 0.5f)) / 20.f;
 
 
@@ -4673,13 +4700,16 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
                         {
                         case 0:
                             cfd.skewT_data[idx].x = (cfd.skewT_data[idA].x + cfd.skewT_data[idx].x + cfd.skewT_data[idB].x) / 3;
+                            cfd.editChanged = true;
                             break;
                         case 1:
                             cfd.skewT_data[idx].y = (cfd.skewT_data[idA].y + cfd.skewT_data[idx].y + cfd.skewT_data[idB].y) / 3;
+                            cfd.editChanged = true;
                             break;
                         case 2:
                         case 3:
                             cfd.skewT_V[idx] = (cfd.skewT_V[idA] + cfd.skewT_V[idx] + cfd.skewT_V[idB]) / 3.f;
+                            cfd.editChanged = true;
                             break;
                         }
                     }
@@ -4689,24 +4719,28 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
                         {
                         case 0:
                             cfd.skewT_data[idx].x = T;
+                            cfd.editChanged = true;
                             break;
                         case 1:
                             cfd.skewT_data[idx].y = T;
+                            cfd.editChanged = true;
                             break;
                         case 2:
                         {
                             float V = __max(0.001f, (p.x - offset.x - 10) / 20.f);
                             float3 newV = glm::normalize(cfd.skewT_V[idx]) * V;
                             cfd.skewT_V[idx] = newV;
+                            cfd.editChanged = true;
                         }
-                            break;
+                        break;
                         case 3:
                         {
                             float angle = (p.x - offset.x - 10) / 114.591f;
                             float v = glm::length(cfd.skewT_V[idx]);
                             cfd.skewT_V[idx] = v * float3(sin(-angle), 0, cos(-angle));
+                            cfd.editChanged = true;
                         }
-                            break;
+                        break;
                         }
                     }
                 }
@@ -4727,63 +4761,108 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             }
         }
 
+
+
+
         ImGui::SetCursorPos(ImVec2(10, 1030));
-        if (ImGui::Checkbox("edit", &cfd.editMode))
-        {
-        }
-        ImGui::SameLine(0, 50);
-        if (ImGui::Button("Load"))
-        {
-            std::filesystem::path path;
-            FileDialogFilterVec filters = { {"skewT_5000"} };
-            if (openFileDialog(filters, path))
+        ImGui::Text(cfd.rootFile.c_str());
+        ImGui::NewLine();
+        ImGui::SameLine(10, 0);
+        if (!cfd.editMode) {
+            if (ImGui::Button("Edit Mode"))
             {
-                std::ifstream ifs;
-                ifs.open(path, std::ios::binary);
-                if (ifs)
-                {
-                    ifs.read((char*)&cfd.skewT_data, sizeof(float3) * 100);
-                    ifs.read((char*)&cfd.skewT_V, sizeof(float3) * 100);
-                    ifs.close();
-                }
+                cfd.editMode = true;
+                cfd.editChanged = false;
             }
         }
-        ImGui::SameLine(0, 50);
-        if (ImGui::Button("Save"))
-        {
-            std::filesystem::path path;
-            FileDialogFilterVec filters = { {"skewT_5000"} };
-            if (saveFileDialog(filters, path))
+        else {
+            if (ImGui::Button("Cancel Edit"))
             {
-                std::ofstream ofs;
-                ofs.open(path, std::ios::binary);
-                if (ofs)
-                {
-                    ofs.write((char*)&cfd.skewT_data, sizeof(float3) * 100);
-                    ofs.write((char*)&cfd.skewT_V, sizeof(float3) * 100);
-                    ofs.close();
-                }
+                cfd.editMode = false;
+                cfd.editChanged = false;
             }
-        }
-        ImGui::SameLine(0, 50);
-        if (ImGui::Button("Set atmosphere")) {
+            if (cfd.editChanged) {
+                TOOLTIP("There are unsaved changes\nClicking this button will discard them");
+            }
+
+            ImGui::SameLine(180, 0);
+            if (ImGui::Button("Load"))
+            {
+                std::filesystem::path path = cfd.rootPath;
+                
+                FileDialogFilterVec filters = { {"skewT_5000"} };
+                if (openFileDialog(filters, path))
+                {
+                    std::ifstream ifs;
+                    ifs.open(path, std::ios::binary);
+                    if (ifs)
+                    {
+                        ifs.read((char*)&cfd.skewT_data, sizeof(float3) * 100);
+                        ifs.read((char*)&cfd.skewT_V, sizeof(float3) * 100);
+                        ifs.close();
+                    }
+                }
+                cfd.editChanged = false;
+                cfd.rootPath = path.parent_path().string() + "\\";
+                cfd.rootFile = path.filename().string();
+                fprintf(terrafectorSystem::_logfile, "\n%s\n", path.string().c_str());
+                fprintf(terrafectorSystem::_logfile, "%s\n", path.parent_path().string().c_str());
+                fprintf(terrafectorSystem::_logfile, "%s\n", path.root_path().string().c_str());
+                fprintf(terrafectorSystem::_logfile, "path %s   name %s\n", cfd.rootPath.c_str(), cfd.rootFile.c_str());
+            }
+            ImGui::SameLine(0, 20);
+            if (ImGui::Button("Save"))
+            {
+                std::filesystem::path path = cfd.rootPath;
+                FileDialogFilterVec filters = { {"skewT_5000"} };
+                if (saveFileDialog(filters, path))
+                {
+                    std::ofstream ofs;
+                    ofs.open(path, std::ios::binary);
+                    if (ofs)
+                    {
+                        ofs.write((char*)&cfd.skewT_data, sizeof(float3) * 100);
+                        ofs.write((char*)&cfd.skewT_V, sizeof(float3) * 100);
+                        ofs.close();
+                    }
+                }
+                cfd.editChanged = false;
+                cfd.rootPath = path.parent_path().string() + "\\";
+                cfd.rootFile = path.filename().string();
+            }
+            ImGui::SameLine(0, 50);
+            if (ImGui::Button("Set atmosphere"))
+            {
+                cfd.clipmap.loadSkewT(cfd.rootPath + cfd.rootFile);
+                cfd.clipmap.windrequest = true;
+            }
+            TOOLTIP("Set this to atmosphere and restart cfd\nThis will only work of the file was saved, cannot set it from memory.");
+
+            ImGui::SameLine(0, 50);
+            ImGui::PushItemWidth(200);
+            if (ImGui::Combo("###modeSelector", &editMode, "Temperature\0Humidity\0Wind speed\0Wind direction\0")) { ; }
+            ImGui::PopItemWidth();
 
         }
 
-        ImGui::SameLine(0, 50);
-        ImGui::PushItemWidth(200);
-        if (ImGui::Combo("###modeSelector", &editMode, "Temperature\0Humidity\0Wind speed\0Wind direction\0")) { ; }
-        ImGui::PopItemWidth();
-
-
-        
 
     }
     ImGui::PopFont();
     ImGui::EndChildFrame();
+    IsHovered = ImGui::IsItemHovered() || ImGui::IsItemClicked();//EndChildFrame();
+
+    ImVec2 rectMin = ImGui::GetItemRectMin();
+    ImVec2 rectMax = ImGui::GetItemRectMax();
+    ImVec2 cursor = ImGui::GetCursorPos();
+    IsHovered = false;
+    if (cursor.x > 0 && cursor.x < 1000 && cursor.y > 0 && cursor.y < 1000)
+    {
+        IsHovered = true;
+    }
+
     ImGui::PopStyleColor();
     ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleVar(); // frame padding
 }
 
 
@@ -4794,10 +4873,10 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
     ImGui::BeginChildFrame(98765, ImVec2(300, _screen.y));
     ImGui::PushFont(pGui->getFont("roboto_20"));
     {
-        ImGui::NewLine();
-        ImGui::Checkbox("profile", &cfd.clipmap.profile);
-        ImGui::NewLine();
-        
+        //ImGui::NewLine();
+        //ImGui::Checkbox("profile", &cfd.clipmap.profile);
+        //ImGui::NewLine();
+
         ImGui::Text("      time   maxV  vert  stp   maxP");
         for (int i = 0; i <= 5; i++)
         {
@@ -4806,7 +4885,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
 
 
         ImGui::NewLine();
-        if (ImGui::Button("launch from here"))
+        if (ImGui::Button("launch glider from here"))
         {
             paraRuntime.requestRestart = true;
             paraRuntime.usePosDir = true;
@@ -4816,26 +4895,31 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         }
 
         ImGui::NewLine();
-        ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
-        if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
-        {
-            cfd.clipmap.newWind.y = 0;
-        }
-        ImGui::Checkbox("use this wind", &cfd.clipmap.windSeperateSkewt);
-        
 
-        if (ImGui::Button("change"))
+        ImGui::Checkbox("custom wind", &cfd.clipmap.windSeperateSkewt);
+        if (cfd.clipmap.windSeperateSkewt)
+        {
+            ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
+            if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
+            {
+                cfd.clipmap.newWind.y = 0;
+            }
+        }
+
+
+        if (ImGui::Button("re-start cfd"))
         {
             cfd.clipmap.windrequest = true;
         }
+        TOOLTIP("Set the new wind speed if custom wind is selected above\nand re-start the cfd simulation");
 
 
 
 
 
-        ImGui::NewLine();
-        ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
-        ImGui::Checkbox("PAUSE cfd", &cfd.pause);
+        //ImGui::NewLine();
+        //ImGui::DragFloat3("ORIGIN", &cfd.originRequest.x, 10.f, -20000.f, 20000.f, "%4.0f");
+        //ImGui::Checkbox("PAUSE cfd", &cfd.pause);
 
 
         ImGui::NewLine();
@@ -4846,7 +4930,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         ImGui::NewLine();
         ImGui::Checkbox("show viz", &cfd.clipmap.showSlice);
         ImGui::Checkbox("skewT", &cfd.clipmap.showskewT);       // shouldn tbe in clipmap
-        
+
         ImGui::SliderInt("lod", &cfd.clipmap.slicelod, 0, 5);
         ImGui::SliderInt("slice", &cfd.clipmap.sliceIndex, 0, 127);
         ImGui::Text("%d, %d %d", (int)cfd.clipmap.lodOffsets[5][0].x, (int)cfd.clipmap.lodOffsets[5][0].y, (int)cfd.clipmap.lodOffsets[5][0].z);
@@ -4855,25 +4939,26 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
         ImGui::NewLine();
         ImGui::DragFloat("relax", &cfd.clipmap.incompres_relax, 0.01f, 1.0f, 2.0f);
 
-        
+
         ImGui::DragInt("num Inc", &cfd.clipmap.incompres_loop, 1, 1, 100);
         ImGui::DragFloat("vort_confine", &cfd.clipmap.vort_confine, 0.01f, 0.0f, 1.0f);
 
         ImGui::NewLine();
-        ImGui::DragFloat("sun_heat_scale", &cfd.clipmap.sun_heat_scale, 0.01f, 0.0f, 1.0f);
-        
-        
+        ImGui::DragFloat("sun heat", &cfd.clipmap.sun_heat_scale, 0.01f, 0.0f, 1.0f);
+        TOOLTIP("amount of sun heat to apply to the earth\nPlease not that this is testing phase still and applies it as if its 3pm\nit ignores the time of day settings");
+
+
 
         ImGui::Text("%d, %f", cfd.clipmap.sliceOrder[3], cfd.lodLerp[3]);
 
-
+        /*
         if (cfd.clipmap.showSlice)
         {
             cfd.clipmap.slicelod = __max(0, cfd.clipmap.slicelod);
             cfd.clipmap.slicelod = __min(5, cfd.clipmap.slicelod);
             auto& lod = cfd.clipmap.lods[cfd.clipmap.slicelod];
 
-            
+
             ImGui::Text("(%d, %d, %d) abs", lod.offset.x, lod.offset.y, lod.offset.z);
             ImGui::Text("(%d, %d, %d) rel", lod.offset.x % lod.width, lod.offset.y % lod.height, lod.offset.z % lod.width);
 
@@ -4888,6 +4973,7 @@ void terrainManager::onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, floa
             ImGui::Text("diffuse %d ms", (int)lod.simTimeLod_edges_ms);
 
         }
+        */
     }
 
     ImGui::EndChildFrame();
@@ -4964,6 +5050,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
                         // Draw popup contents.
                         ImGui::PushFont(pGui->getFont("roboto_48"));
                         {
+                            /*
                             ImGui::Text("Wind speed - %2.1f km/h", glm::length(cfd.clipmap.newWind) * 3.6f);
                             ImGui::SetNextItemWidth(300);
                             if (ImGui::DragFloat3("m/s", &cfd.clipmap.newWind.x, 1, -10, 10, "%1.1f"))
@@ -4975,6 +5062,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
                             {
                                 cfd.clipmap.windrequest = true;
                             }
+                            */
 
                             ImGui::NewLine();
                             ImGui::Checkbox("show streamlines", &cfd.clipmap.showStreamlines);
@@ -5011,7 +5099,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
                             ImGui::SetNextItemWidth(300);
                             ImGui::DragFloat("fog height", &pAtmosphere->fog_AltitudeKm, 0.001f, 0.05f, 1.f, "%1.2f");
 
-                            
+
                         }
                         ImGui::PopFont();
 
@@ -5036,7 +5124,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
             ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.2f, 0.2f, 0.2f, 0.1f));
 
 
-           onGuiRendercfd_params(_window, pGui, _screen);
+            onGuiRendercfd_params(_window, pGui, _screen);
 
 
 
@@ -5050,7 +5138,16 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
 
             if (GliderDebugVisuals)
             {
-                paraRuntime.renderDebug(pGui, _screen);
+                
+                if (glider.newGliderLoaded)
+                {
+                    newGliderRuntime.renderDebug(pGui, _screen);
+                    //paraRuntime.renderDebug(pGui, _screen);
+                }
+                else
+                {
+                    paraRuntime.renderDebug(pGui, _screen);
+                }
             }
         }
     }
@@ -7154,7 +7251,7 @@ bool terrainManager::update(RenderContext* _renderContext)
                 uint toChange = cfd.clipmap.sliceOrder[LOD];
                 //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
                 //cfd.clipmap.sliceOrder[cfd.clipmap.slicelod] = (cfd.clipmap.sliceOrder[cfd.clipmap.slicelod] + 1) % 2;
-                
+
 
                 // always load to 3, then swap
                 _renderContext->updateTextureData(cfd.sliceVolumeTexture[LOD][2].get(), cfd.clipmap.volumeData);
@@ -7209,6 +7306,10 @@ bool terrainManager::update(RenderContext* _renderContext)
 
 
 
+    if (glider.newGliderLoaded)
+    {
+        newGliderRuntime.solve(0.001f, 1);
+    }
 
 
 
@@ -7435,7 +7536,7 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
 */
 void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 {
-    
+
 
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
 
@@ -7496,8 +7597,8 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
                     fprintf(terrafectorSystem::_logfile, "offset %d, lod %d, %s\n", mapTile.fileOffset, mapTile.lod, file.filename.c_str());
                     fprintf(terrafectorSystem::_logfile, "itH file %d, tile %d\n", itH->second.x, itH->second.y);
                     fprintf(terrafectorSystem::_logfile, "Bug is liekly here at teh ned void jp2Dir::load(std::string _name). The thing that changed is that I changed FOV, so diffirent amount fo tiles vissible\n");
-                    
-                    
+
+
                     fflush(terrafectorSystem::_logfile);
                     // should never get here but handle it somehow
                     // split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
@@ -8148,7 +8249,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             //paraRuntime.setPilotWind(float3(0, 0, 0));
             //paraRuntime.setWingWind(float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0));
         }
-        
+
 
 
 
@@ -8223,8 +8324,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         cfd.originRequest = float3(8753, 1257 + 300, 6619);
         //cfd.originRequest = float3(15033, 1498 + 300, 7446);
 
-        
-        
+
+
         //cfd.originRequest = float3(1852, 1500, 10910);
         */
 
@@ -8494,6 +8595,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         //terrainShader.State() = _graphicsState;
         terrainShader.State()->setFbo(_fbo);
         terrainShader.State()->setViewport(0, _viewport, true);
+        terrainShader.Vars()["gConstantBuffer"]["view"] = view;
         terrainShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
         terrainShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
         terrainShader.renderIndirect(_renderContext, split.drawArgs_tiles);
@@ -8526,6 +8628,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         FALCOR_PROFILE("buildings");
         rappersvilleShader.State()->setFbo(_fbo);
         rappersvilleShader.State()->setViewport(0, _viewport, true);
+        rappersvilleShader.Vars()["PerFrameCB"]["view"] = view;
         rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
         rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
@@ -8563,7 +8666,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
 
-    
+
 
 
 
@@ -9618,7 +9721,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
         if (keyPressed && keyEvent.key == Input::Key::K) {
             GliderDebugVisuals = !GliderDebugVisuals;
         }
-        
+
     }
 
 
@@ -10511,11 +10614,14 @@ void terrainManager::cfdStart()
 
 void terrainManager::cfdThread()
 {
-
+    bool firstStart = true;
     cfd.numLines = 200;
     cfd.flowlines.resize(cfd.numLines * 100);
 
     //cfd.clipmap.heightToSmap(settings.dirRoot + "/gis/_export/root4096.bil");
+    cfd.rootPath = settings.dirRoot + "\\cfd\\";
+    cfd.rootFile = "Walenstad_August5_1500.skewT_5000";
+    cfd.clipmap.loadSkewT(cfd.rootPath + cfd.rootFile);
     cfd.clipmap.build(settings.dirRoot + "/cfd");
 
     //uint seconds = 0;// 27040;
@@ -10548,23 +10654,34 @@ void terrainManager::cfdThread()
     static int k = 0;
     while (1)
     {
-
         if (cfd.pause)
         {
             Sleep(10);
         }
         else
         {
+            cfd.clipmap.shiftOrigin(cfd.originRequest);
 
-            if (cfd.clipmap.windrequest)
+            if (firstStart || cfd.clipmap.windrequest)
             {
-                cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind);
+                if (cfd.clipmap.windSeperateSkewt)
+                {
+                    cfd.clipmap.setWind(cfd.clipmap.newWind, cfd.clipmap.newWind);
+                }
+                else
+                {
+                    cfd.clipmap.loadSkewT(cfd.rootPath + cfd.rootFile);
+                }
                 cfd.clipmap.simulate_start(32.0f);
                 cfd.clipmap.windrequest = false;
+                firstStart = false;
+                fprintf(terrafectorSystem::_logfile, "cfd.clipmap.setWind on %s\n", cfd.rootPath.c_str());
+                if (cfd.clipmap.windSeperateSkewt) {
+                    fprintf(terrafectorSystem::_logfile, "windSeperateSkewt (%2.1f, %2.1f, %2.1f) m/s\n", cfd.clipmap.newWind.x, cfd.clipmap.newWind.y, cfd.clipmap.newWind.z);
+                }
             }
 
-            //Sleep(100);
-            cfd.clipmap.shiftOrigin(cfd.originRequest);
+
 
             cfd.clipmap.simulate(32.0f);
 
@@ -10575,7 +10692,7 @@ void terrainManager::cfdThread()
                 cfd.newFlowLines = true;
             }
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) // Look yp my glider velocity requests
             {
                 float rootAltitude = 350.f;   // in voxel space
                 float3 origin = float3(-20000, rootAltitude, -20000);
@@ -10585,7 +10702,7 @@ void terrainManager::cfdThread()
                 cfd.velocityAnswers[i] = cfd.clipmap.lods[5].sample(cfd.clipmap.lods[5].v, p5);
             }
 
-            
+
         }
         k++;
     }

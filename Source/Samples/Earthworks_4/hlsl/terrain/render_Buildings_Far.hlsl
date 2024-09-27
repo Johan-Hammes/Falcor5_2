@@ -13,6 +13,7 @@
 
 cbuffer PerFrameCB
 {
+    float4x4 view;
     float4x4 viewproj;
 
     float3 eye;
@@ -68,6 +69,16 @@ buildingFarVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.texCoords.xy = V.uv;
     output.material = V.material;
     output.normal = V.normal;
+    /*
+    float4 tmp = mul(float4(V.pos, 1), view);
+
+    output.pos.xyz = normalize(tmp.xyz);
+    float SGN = -sign(output.pos.z);
+    output.pos.z = length(tmp.xyz) / 40000 * SGN;
+    output.pos.y *= 2550.f / 1080.f;
+        
+    output.pos.w = 1;
+    */
 	
 	return output;
 }

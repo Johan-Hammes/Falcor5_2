@@ -28,6 +28,9 @@ void spriteCache::rebuildStructuredBuffer()
 }
 */
 
+
+std::string ecotopeSystem::resPath;
+
 float ecotopeSystem::terrainSize;
 
 ecotope::ecotope() {
@@ -59,18 +62,20 @@ void ecotope::loadTexture(int i) {
             case 4: aoName = path.string(); break;
             }
 
-            reloadTextures();
+            reloadTextures(ecotopeSystem::resPath);
         }
     }
 }
 
-void ecotope::reloadTextures()
+void ecotope::reloadTextures(std::string _resPath)
 {
-    texAlbedo = Texture::createFromFile("E:/terrains/_resources/" + albedoName, true, false);
-    texNoise = Texture::createFromFile("E:/terrains/_resources/" + noiseName, false, false);
-    texDisplacement = Texture::createFromFile("E:/terrains/_resources/" + displacementName, false, false);
-    texRoughness = Texture::createFromFile("E:/terrains/_resources/" + roughnessName, false, false);
-    texAO = Texture::createFromFile("E:/terrains/_resources/" + aoName, false, false);
+    //fprintf(terrafectorSystem::_logfile, "loading ecotope resources from  %s\n", resPath.c_str());
+
+    texAlbedo = Texture::createFromFile(_resPath + albedoName, true, false);
+    texNoise = Texture::createFromFile(_resPath + noiseName, false, false);
+    texDisplacement = Texture::createFromFile(_resPath + displacementName, false, false);
+    texRoughness = Texture::createFromFile(_resPath + roughnessName, false, false);
+    texAO = Texture::createFromFile(_resPath + aoName, false, false);
 }
 
 std::array<std::string, 5> tfWeights = { "Height", "Concavity", "Slope", "Aspect", "Texture" };
@@ -272,17 +277,20 @@ void ecotope::renderPlantGUI(Gui* _gui)
 
 void ecotopeSystem::load()
 {
+    // FIXME broken find a nicver way for respath
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"ecosystem"} };
     if (openFileDialog(filters, path))
     {
-        load(path.string());
+        load(path.string(), ecotopeSystem::resPath);
     }
+    
 }
 
 
-void ecotopeSystem::load(std::string _path)
+void ecotopeSystem::load(std::string _path, std::string _resourcePath)
 {
+    resPath = _resourcePath;
     std::ifstream is(_path);
     cereal::JSONInputArchive archive(is);
     serialize(archive);
@@ -290,7 +298,7 @@ void ecotopeSystem::load(std::string _path)
 
     for (int ect = 0; ect < ecotopes.size(); ect++)
     {
-        ecotopes[ect].reloadTextures();
+        ecotopes[ect].reloadTextures(ecotopeSystem::resPath);
     }
 }
 

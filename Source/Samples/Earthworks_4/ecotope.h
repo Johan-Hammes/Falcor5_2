@@ -113,7 +113,7 @@ public:
 	virtual ~ecotope() { ; }
 
 	void loadTexture(int i);
-	void reloadTextures();
+	void reloadTextures(std::string _resPath);
 
 	template<class Archive>
 	void serialize(Archive & archive)
@@ -188,7 +188,7 @@ public:
 	}
 
 	void load();
-    void load(std::string _path);
+    void load(std::string _path, std::string _resourcePath);
 	void save();
 	void renderGUI(Gui *_pGui);
 	void renderSelectedGUI(Gui *_pGui);
@@ -198,6 +198,8 @@ public:
     ecotopeGpuConstants* getConstants() {
         return &constantbuffer;
     }
+
+    static std::string resPath;
 
 	std::vector<ecotope>	ecotopes;		// FIXME LIST
 

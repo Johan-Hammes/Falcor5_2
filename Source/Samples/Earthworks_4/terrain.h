@@ -1427,6 +1427,7 @@ private:
 
     _gliderBuilder paraBuilder;
     _gliderRuntime paraRuntime;
+    _new_gliderRuntime newGliderRuntime;
     _airSim AirSim;
     //_cfd CFD;
     //_cfdClipmap cfdClip;
@@ -1444,6 +1445,8 @@ private:
     struct
     {
         _cfdClipmap clipmap;
+        std::string rootPath;
+        std::string rootFile;
         bool recordingCFD = false;
         int cfd_play_k = 0;
 
@@ -1469,6 +1472,7 @@ private:
         std::array<float3, 100> skewT_data;
         std::array<float3, 100> skewT_V;
         bool editMode = false;
+        bool editChanged = false;
 
 
         Texture::SharedPtr	  sliceVTexture[2];
@@ -1482,6 +1486,8 @@ private:
 
     struct
     {
+        bool newGliderLoaded = false;
+
         bool loaded = false;
         float frameTime;
         float packTime;

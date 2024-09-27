@@ -19,7 +19,7 @@ std::vector<cfd_data_type> _cfd_lod::root_data;
 float                   _cfdClipmap::incompres_relax = 1.9f;
 int                     _cfdClipmap::incompres_loop = 4;
 float                   _cfdClipmap::vort_confine = 0.f;;
-float                   _cfdClipmap::sun_heat_scale = 0;
+float                   _cfdClipmap::sun_heat_scale = 1.f;
 std::vector<cfd_V_type> _cfdClipmap::v_back;
 std::vector<cfd_V_type> _cfdClipmap::v_bfecc;
 std::vector<cfd_data_type> _cfdClipmap::data_back;
@@ -1067,6 +1067,8 @@ void _cfdClipmap::mipskewT()
 
 void _cfdClipmap::loadSkewT(std::string _path)
 {
+    fprintf(terrafectorSystem::_logfile, "_cfdClipmap::loadSkewT()  %s\n", _path.c_str());
+
     std::ifstream ifs;
     ifs.open(_path, std::ios::binary);
     if (ifs)
@@ -1074,6 +1076,10 @@ void _cfdClipmap::loadSkewT(std::string _path)
         ifs.read((char*)&skewT_corners_Data[0][0], sizeof(float3) * 100);
         ifs.read((char*)&skewT_corners_V[0][0], sizeof(float3) * 100);
         ifs.close();
+    }
+    else
+    {
+        fprintf(terrafectorSystem::_logfile, "FAILURE %s\n", _path.c_str());
     }
 
     for (int j = 0; j < 100; j++)
@@ -1118,10 +1124,7 @@ void _cfdClipmap::loadSkewT(std::string _path)
 
 void _cfdClipmap::build(std::string _path)
 {
-    //loadSkewT(_path + "/Shanis_August3_1400.skewT_5000");
-    loadSkewT(_path + "/Walenstad_August5_1500.skewT_5000");
-
-    //loadSkewT(_path + "/Altenstadt_July18_1600.skewT_5000");
+    //loadSkewT(_path);
 
 
     v_back.resize(128 * 128 * 128);     // maximum of any below or bigger
@@ -1205,18 +1208,21 @@ void _cfdClipmap::build(std::string _path)
 
 void _cfdClipmap::setWind(float3 _bottom, float3 _top)
 {
-    float3 v_samp, data;
-    for (int i = 0; i < 1024; i++)
+    if (windSeperateSkewt)
     {
-        sampleSkewT(float3(0, rootAltitude + 5.f + (i * 10.f), 0), &v_samp, &data);
-        if (windSeperateSkewt)
+        float3 v_samp, data;
+        for (int i = 0; i < 1024; i++)
         {
-            v_samp = glm::mix(_bottom, _top, (float)i / 1024.f);
+            sampleSkewT(float3(0, rootAltitude + 5.f + (i * 10.f), 0), &v_samp, &data);
+            if (windSeperateSkewt)
+            {
+                v_samp = glm::mix(_bottom, _top, (float)i / 1024.f);
+            }
+            skewT_wind[5][i] = v_samp;
+            skewT_data[5][i] = data;
         }
-        skewT_wind[5][i] = v_samp;
-        skewT_data[5][i] = data;
+        mipskewT();
     }
-    mipskewT();
 }
 
 void _cfdClipmap::setFromSkewT(uint lod)
