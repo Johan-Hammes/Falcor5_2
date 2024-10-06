@@ -4151,10 +4151,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     
     newGliderRuntime.importBin();
-    newGliderRuntime.solve(0.001f, 10);
+    newGliderRuntime.solve(0.000f, -1);
     newGliderRuntime.process_xfoil_Cp(settings.dirResource + "/xfoil/Omega/");
     glider.newGliderLoaded = true;
     
+
     _swissBuildings buildings;
     //buildings.process(settings.dirRoot + "/buildings/testQGISDXF.dxf");
     //buildings.processGeoJSON(settings.dirRoot + "/buildings/QGIS.geojson");
@@ -7308,7 +7309,7 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     if (glider.newGliderLoaded)
     {
-        newGliderRuntime.solve(0.001f, 1);
+        //newGliderRuntime.solve(0.001f, 1);
     }
 
 

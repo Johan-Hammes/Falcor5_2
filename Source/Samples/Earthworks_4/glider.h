@@ -677,7 +677,7 @@ struct _rib
 };
 
 // MARK SKIN RIB as eie tipe vir upsample
-enum constraintType { skin, ribs, half_ribs, vecs, diagonals, stiffners, lines, straps, harnass, smallLines, maxCTypes };
+enum constraintType { skin, ribs, half_ribs, vecs, diagonals, nitinol, lines, straps, harnass, smallLines, maxCTypes };
 class _gliderImporter
 {
 public:
@@ -702,6 +702,7 @@ public:
         float mass = 0;   // we need this to calculate _w
         float3 temp_norm = {0, 0, 0};
         std::vector<int> joint_verts;
+        char type;
     };
     std::vector<_VTX> verts;
     std::vector<glm::ivec3> tris;
@@ -723,6 +724,7 @@ public:
     void fullWing_to_obj();
     void addEndCaps();
     void calculateNormals();
+    void calculateMass();
     void exportWing();
     float endcapBuldge = 0.2f;
 
@@ -1135,6 +1137,7 @@ struct _new_rib    // to show its on the ribs
     //pressure
     float2 inlet_uv;
     float Cp = 0;       // internal coeficitn of pressure
+    float Cp_prev = 0;
 
     // orientation  
     uint4 rightIdx;     // 4 verts to calculate R
@@ -1162,7 +1165,9 @@ struct _new_rib    // to show its on the ribs
     float chordLength;  // pre calcled for reanolds
 
     float AoA = 0;
+    float AoA_prev = 0;
     float AoBrake = 0;
+    float AoBrake_prev = 0;
 
     // depends on the stiffness of the rib
     // length vs chord
@@ -1170,10 +1175,19 @@ struct _new_rib    // to show its on the ribs
     // slackness in teh constraints, but actual shortenign
     // How much do we blend between lookup tables and some basic sim
     float ragdoll = 0;
+
+    // Debug
+    struct
+    {
+        float3 forcePressure;
+        float3 forceSkin;
+        float3 forceGravity;
+        float3 forceInternal;
+    }_debug;
 };
 
 
-enum vertexType { vtx_surface, vtx_internal, vtx_line, vtx_pilot, vtx_motor };
+enum vertexType { vtx_surface, vtx_internal, vtx_line, vtx_small_line, vtx_pilot, vtx_motor };
 
 class _new_constraint
 {
@@ -1204,6 +1218,7 @@ private:
 CEREAL_CLASS_VERSION(_new_constraint, 100);
 
 
+#define DEBUG_GLIDER
 
 class _new_gliderRuntime
 {
@@ -1215,9 +1230,11 @@ public:
     void solve_constraints();
     void solve_intersection();
     void solve_pre();
-    void apply_constraint(uint _i);
+    void solveAcurateSkinNormals();
+    inline void apply_constraint(_new_constraint &cnst);
     void importBin();
     ImVec2 project(float3 p, _new_rib& R, ImVec2 _pos, float _scale);
+    ImVec2 project(float3 p, float3 root, float3 right, ImVec2 _pos, float _scale);
     void renderDebug(Gui* pGui, float2 _screen);
 
     std::vector<int3>   x;              // position
@@ -1226,12 +1243,24 @@ public:
     std::vector<char>   type;           // what type of vertex is this
     std::vector<float>  area_x_w;       // area * w because its always used together
     std::vector<float2> uv;             // uv for skin lookup span, right to left, chord trainling bottom to top
+    std::vector<float3> N;              // uv for skin lookup span, right to left, chord trainling bottom to top
+#ifdef DEBUG_GLIDER
+    std::vector<float>  area;
+    std::vector<float>  w;
+#endif
 
     std::vector<_new_constraint>    constraints;
+    std::vector<_new_constraint>    line_constraints;
 
     std::vector<int3>    tris;          // FIXME, not perfect, but leave int for now, can go to shorts if we are sure about number of triangles, or have a split mechanism
     
     std::vector<_new_rib>   ribs;
+
+    int carabinerRight;
+    int carabinerLeft;
+    int brakeRight;
+    int brakeLeft;
+    int3 posFixed[4];
 
 
     float time_air_us;
@@ -1240,12 +1269,13 @@ public:
     float time_pre_us;
     float time_intersect_us;
     float time_constraints_us;
+    float time_norms_us;
     float time_total_us;
 
     uint _dot = 28;
     uint _scale = 1 << _dot;
     double _inv = 1. / (double)_scale;
-    double _dt = 0.00208333333;
+    double _dt = 0.00208333333 / 2;
     double _dt2 = _dt * _dt;
     double _time_scale = _scale * _dt2;
     int i_g_dt = (int)(9.8 * _time_scale);    //658 @ 1ms
@@ -1260,6 +1290,10 @@ public:
     std::vector<float> Cp;
     std::vector<float> xfoil_V;
 
+
+    // debug
+    int num_vtx_line;
+    float3 debug_wing_F;
 
 
 private:
