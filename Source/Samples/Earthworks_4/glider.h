@@ -640,6 +640,7 @@ struct _rib
 {
     void mirror_Y();
     void interpolate(_rib &_a, _rib &_b, float _billow, bool _finalInterp);
+    void verticalMirror();
     void calcIndices();
     void calc_V();
 
@@ -687,6 +688,7 @@ public:
     void placeRibVerts();
     void processLineAttachmentPoints();
     void insertSkinTriangle(int _a, int _b, int _c);
+    int findBottomTrailingEdge(int idx);
     
 
     void ExportLineShape();
@@ -706,6 +708,7 @@ public:
     };
     std::vector<_VTX> verts;
     std::vector<glm::ivec3> tris;
+    std::vector<glm::ivec3> tris_airtight;
 
     std::string rib_file = "E:\\Advance\\OmegaXA5_23_Johan_A01\\OmegaXA5_23_Johan_A01\\LowPoly_OmegaXA5_23_Johan_A01_RibSurfaces.obj";
     std::string semirib_file;
@@ -744,6 +747,8 @@ public:
     // Info
     float totalLineMeters;
     float totalLineWeight;
+    float totalLineWeight_small;
+    float totalLineLength_small;
     float totalWingSurface;
     float trailsSpan;
     int totalSurfaceTriangles;
@@ -769,8 +774,8 @@ public:
 
     // Omega size 22  3.15kg, 21.54m^2
     // ?? surface 2kg, lines 1kg
-    float wingWeightPerSqrm = 2.0f / 34.f; // area twice for top and bottom
-    float lineWeightPerMeter = 0.05f;   // GUESS
+    float wingWeightPerSqrm = 2 * 1.8f * 2.0f / 34.f; // area twice for top and bottom
+    float lineWeightPerMeter = 0.015f;   // GUESS
 
     
 
@@ -794,62 +799,62 @@ public:
         {2, 73, 3, -90, -30},
         {2, 103, 3, -130, -70},
 
-        {5, 48, 4, -80, -30},
-        {5, 104, 4, -130, -80},
+        {5, 48, 4, -90, -30},       // was -80
+        {5, 104, 4, -130, -70},
 
-        {6, 48, 7, -80, -25},
-        {6, 104, 7, -140, -80},
+        {6, 48, 7, -90, -25},
+        {6, 104, 7, -140, -70},
 
-        {9, 50, 8,-80, -25},
-        {9, 104, 8, -140, -80},
+        {9, 50, 8,-90, -25},
+        {9, 104, 8, -140, -70},
 
-        {10, 50, 11,-80, -25},
-        {10, 104, 11, -140, -80},
+        {10, 50, 11,-90, -25},
+        {10, 104, 11, -140, -70},
 
-        {12, 52, 11,-80, -25},
-        {12, 101, 11, -104, -80},
+        {12, 52, 11,-90, -25},
+        {12, 101, 11, -104, -70},
         {12, 107, 11, -140, -105},
 
-        {13, 53, 15,-80, -25},
-        {13, 101, 15, -104, -80},
+        {13, 53, 15,-90, -25},
+        {13, 101, 15, -104, -70},
         {13, 107, 15, -140, -105},      // Thsi needs special code for that double crosos over do simple first
 
-        {17, 53, 15,-80, -25},
-        {17, 101, 15, -104, -80},
+        {17, 53, 15,-90, -25},
+        {17, 101, 15, -104, -70},
         {17, 107, 15, -140, -105},      // Thsi needs special code for that double crosos over do simple first
 
-        {18, 53, 19,-80, -25},
-        {18, 101, 19, -104, -75},
+        {18, 53, 19,-90, -25},
+        {18, 101, 19, -104, -70},
         {18, 107, 19, -140, -105},      // Thsi needs special code for that double crosos over do simple first
 
         {21, 42, 20,-48, -25},
-        {21, 54, 20,-80, -30},
-        {21, 101, 20, -104, -75},
+        {21, 54, 20,-90, -30},
+        {21, 101, 20, -104, -70},
         {21, 107, 20, -135, -105},
 
         {22, 42, 23,-48, -25},
-        {22, 54, 23,-80, -30},
-        {22, 101, 23, -104, -80},
+        {22, 54, 23,-90, -30},
+        {22, 101, 23, -104, -70},
         {22, 107, 23, -135, -105},
 
         {25, 42, 24,-48, -25},
-        {25, 55, 24,-80, -30},
-        {25, 101, 24, -104, -80},
+        {25, 55, 24,-90, -30},
+        {25, 101, 24, -104, -70},
         {25, 107, 24, -135, -105},
 
         {26, 42, 27,-48, -25},
-        {26, 55, 27,-80, -30},
-        {26, 101, 27, -104, -80},
+        {26, 55, 27,-90, -30},
+        {26, 101, 27, -104, -70},
         {26, 107, 27, -135, -105},
 
         {29, 42, 28,-48, -25},
-        {29, 56, 28,-80, -30},
-        {29, 101, 28, -104, -80},
+        {29, 56, 28,-90, -30},
+        {29, 101, 28, -104, -70},
         {29, 107, 28, -135, -105},
 
         {30, 42, 31,-48, -25},
-        {30, 56, 31,-80, -30},
-        {30, 101, 31, -104, -80},
+        {30, 56, 31,-90, -30},
+        {30, 101, 31, -104, -70},
         {30, 107, 31, -135, -105},
     };
 
@@ -874,6 +879,28 @@ public:
     
     // lines
     std::vector<float3> line_verts;
+    struct _line {
+        uint v_0;
+        uint v_1;
+        int material;
+        char name[8];
+    };
+    std::vector<_line> line_segments;
+
+    struct _lineType
+    {
+        std::string name;
+        float width;    //m
+        float weight;   //kg pe rmeter length
+    };
+    std::vector<_lineType>  lineTypes;
+
+    ImVec2 project(float3 p, float3 root, float3 right, ImVec2 _pos, float _scale);
+    void renderImport_Lines(Gui* mpGui, float2 _screen);
+    void cleanupLineSet();
+    void mergeLines(uint a, uint b);
+    void saveLineSet();
+    void loadLineSet();
 
 private:
     template<class Archive>
@@ -904,7 +931,11 @@ public:
     void renderHUD(Gui* mpGui, float2 _screen, bool allowMouseCamControl);
     void renderDebug(Gui* mpGui, float2 _screen);
     void renderImport(Gui* mpGui, float2 _screen);
+
+    
+
     bool importGui = false;
+    bool cleanLineSet = true;
     _gliderImporter importer;
 
     int controllerId = -1;
@@ -1169,6 +1200,10 @@ struct _new_rib    // to show its on the ribs
     float AoBrake = 0;
     float AoBrake_prev = 0;
 
+    float CL;
+    float CD;
+    float AREA;
+
     // depends on the stiffness of the rib
     // length vs chord
     // degree to which multiple rib triangles line op
@@ -1187,7 +1222,7 @@ struct _new_rib    // to show its on the ribs
 };
 
 
-enum vertexType { vtx_surface, vtx_internal, vtx_line, vtx_small_line, vtx_pilot, vtx_motor };
+enum vertexType { vtx_surface, vtx_internal, vtx_line, vtx_small_line, vtx_straps, vtx_pilot, vtx_motor, vtx_MAX };
 
 class _new_constraint
 {
@@ -1199,6 +1234,7 @@ public:
     uint    idx_0;
     uint    idx_1;
     float   l;
+    float   current_L;
     float   old_L; // untill I can work out how to do matsh in int
     uint    type;       //???
 
@@ -1223,6 +1259,8 @@ CEREAL_CLASS_VERSION(_new_constraint, 100);
 class _new_gliderRuntime
 {
 public:
+    float sampleCp(float _AoA, float _AoB, float _v);
+    float sampleCp(float _AoA, float _AoB, float _v, float _v2);
     void solve(float _dT, int _repeats);
     void solve_airFlow();
     void solve_wingShape();
@@ -1235,10 +1273,18 @@ public:
     void importBin();
     ImVec2 project(float3 p, _new_rib& R, ImVec2 _pos, float _scale);
     ImVec2 project(float3 p, float3 root, float3 right, ImVec2 _pos, float _scale);
+    float3 projectXFoil(float3 p, _new_rib& R);
     void renderDebug(Gui* pGui, float2 _screen);
+
+    void toObj(char* filename, char * _ext, constraintType _type);
+    void toXFoil(std::string filename, int _rib);
+    void toXFoil_scrip(std::string filename, int _rib, int _aob);
+    void loadXFoil_Cp(std::string _folder, int _rib);
+    void loadXFoil_file(int _AoB, int _AoA, std::string _file);
 
     std::vector<int3>   x;              // position
     std::vector<int3>   x_prev;         // previous position
+    std::vector<int3>   a_dt2;
     std::vector<uint4>  cross_idx;      // Index of cross verticies for normal calculation      {_gliderBuilder}
     std::vector<char>   type;           // what type of vertex is this
     std::vector<float>  area_x_w;       // area * w because its always used together
@@ -1253,8 +1299,11 @@ public:
     std::vector<_new_constraint>    line_constraints;
 
     std::vector<int3>    tris;          // FIXME, not perfect, but leave int for now, can go to shorts if we are sure about number of triangles, or have a split mechanism
+    std::vector<int3>    tris_airtight;
     
     std::vector<_new_rib>   ribs;
+
+    float3 ROOT = {0, 0, 0};
 
     int carabinerRight;
     int carabinerLeft;
@@ -1275,7 +1324,7 @@ public:
     uint _dot = 28;
     uint _scale = 1 << _dot;
     double _inv = 1. / (double)_scale;
-    double _dt = 0.00208333333 / 2;
+    double _dt = 0.00208333333 / 4;
     double _dt2 = _dt * _dt;
     double _time_scale = _scale * _dt2;
     int i_g_dt = (int)(9.8 * _time_scale);    //658 @ 1ms
@@ -1294,6 +1343,20 @@ public:
     // debug
     int num_vtx_line;
     float3 debug_wing_F;
+    float3 debug_wing_Skin;
+    int PULL_DEPTH = 0;
+    int SMALL_LINE_SMOOTH = 20;
+    float AoA_smooth = 1.f;
+    float AoB_smooth = 1.f;
+
+#ifdef DEBUG_GLIDER
+    float wingArea;
+    float mass[vtx_MAX];
+    float3 lineDrag;
+    float3 sumWingArea;
+    float3 sumWingN;
+    float3 sumWingNAll;
+#endif
 
 
 private:

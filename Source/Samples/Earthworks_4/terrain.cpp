@@ -4149,11 +4149,13 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     paraRuntime.linesRight = paraBuilder.linesRight;
     glider.loaded = true;
 
+
     
     newGliderRuntime.importBin();
     newGliderRuntime.solve(0.000f, -1);
-    newGliderRuntime.process_xfoil_Cp(settings.dirResource + "/xfoil/Omega/");
-    glider.newGliderLoaded = true;
+    //newGliderRuntime.process_xfoil_Cp(settings.dirResource + "/xfoil/Omega/");
+    newGliderRuntime.loadXFoil_Cp(settings.dirResource + "/xfoil/Omega/", 52);  // FIXXXME rib numer is a little hardcoded, and process this to a singel file
+   // glider.newGliderLoaded = true;
     
 
     _swissBuildings buildings;
