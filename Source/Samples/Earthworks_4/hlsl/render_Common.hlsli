@@ -49,6 +49,8 @@ Texture2D SunInAtmosphere : register(t16);
 Texture2D cloudShadow : register(t20);
 Texture2D terrainShadow : register(t21);
 
+Texture2D gAtmosphereInscatter_Sky : register(t22);
+
 
 float shadow(float3 pos, float step)
 {

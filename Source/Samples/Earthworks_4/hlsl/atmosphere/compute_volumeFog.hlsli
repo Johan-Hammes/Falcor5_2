@@ -1,6 +1,7 @@
 
 
 #include "compute_fogCloudAtmosphereCommon.hlsli"
+#include "noise.inc"
 
 // more compact light structure for Volumetric fog only. Only support spotlights, and can mimic point lights by making the spot angle very large
 // iliminates the if(), and allows more optimization, can discard a lot of lights earlier
@@ -300,14 +301,23 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     {
         cfd = sample_cfd(smokePos, eye_dir * step);
     }
-    Optical.y += 100.1f * cfd.x;    // smoke
-    Optical.z += 200.1f * cfd.x;
+    Optical.y += 1000.1f * cfd.x;    // smoke
+    Optical.z += 2000.1f * cfd.x;
     Optical.y += 70.1f * cfd.y;    // cloud
     Optical.z += 5900.1f * cfd.y;
+
+    // fake cirrus
+    float cirrus = 1 - saturate(abs((altKm - 8) * 5));
+    float N1 = pow(abs(_snoise(smokePos / 600)), 1.95);
+    float N2 = pow(gnoise(smokePos / 39000), 1);
+    float N3 = pow(gnoise(smokePos / 9000), 1);
+    //Optical.z += cirrus * 1000 * pow(abs(_snoise(smokePos / 600)), 0.5) * pow(gnoise(smokePos / 39000), 1);
+    //Optical.z += cirrus * 1500 *  N1 * N2 * N3;
+    //Optical.y += cirrus * 1000 * N1 * N2 * N3;
     
 
 
-    float pRayleigh = Optical.x * stepKm;
+        float pRayleigh = Optical.x * stepKm;
 	float pMie_haze = Optical.y * stepKm;
 	float pMie_fog = Optical.z * stepKm;
 
@@ -343,14 +353,14 @@ void calculateStep(float3 eye_dir, float phaseR, float2 phaseUV, float3 IBL, flo
     float3 inscatterIBL =  (Haze_scattering * pMie_haze * haze_Colour) + (Fog_scattering * pMie_fog * fog_Colour) + (pMie_rain * rain_Colour);
 
 
-    newIn = inscatterRayleigh * (sunlight.rgb + IBL) + inscatterMie * sunlight.rgb + inscatterIBL * IBL;
+    newIn = inscatterRayleigh * (sunlight.rgb + IBL*0.5) + inscatterMie * sunlight.rgb + inscatterIBL * IBL;
     newOut += (Rayleigh_extinction * pRayleigh) + (Haze_extinction * pMie_haze) + (Fog_extinction * pMie_fog) + (1 * pMie_rain);
 
-    newIn += IBL * min(0.1, saturate(cfd.x * 0.52)) * step * 0.030;
-    newOut += cfd.x * 2.172 * step * 0.030;
+    newIn += IBL * min(0.1, saturate(cfd.x * 0.52)) * step * 0.30;
+    newOut += cfd.x * 2.172 * step * 0.10;
 
-    newIn += IBL * min(0.2, saturate(cfd.y * 0.052)) * step * 2.3930;
-    newOut += cfd.y * 0.0172 * step * 0.5130;
+    //newIn += IBL * min(0.2, saturate(cfd.y * 0.052)) * step * 2.3930;
+    //newOut += cfd.y * 0.0172 * step * 0.5130;
 
     //if (UP > 0.4)               newIn += float3(1, 0.7, 0.4) * pow(UP, 2.5) * 1.01;
     //else if (UP > 0.3)          newIn += float3(1, 0, 0) * pow(UP, 2.5) * 1.01;

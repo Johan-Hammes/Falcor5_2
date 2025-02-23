@@ -809,8 +809,8 @@ void _cfd_lod::addTemperature(float _dt)
                     float3(9324, 758 + 280, 5391),
                     float3(9524, 758 + 240, 4791) };
 
-    float s1 = 20.f + cellSize / 2;
-    float s0 = 20.f + 10.f / 2;
+    float s1 = 30.f + cellSize / 2;
+    float s0 = 30.f + 10.f / 2;
     float volume = 4.18879020f * s1 * s1;
     float volumeZero = 4.18879020f * s0 * s0;
     float energy = volumeZero / volume * 1.5f;
@@ -837,6 +837,7 @@ void _cfd_lod::addTemperature(float _dt)
                 {
 
                     // kk7
+                    /*
                     for (int i = 0; i < 24; i++)
                     {
                         float l = glm::length(P - thermals[i].rgb);
@@ -848,6 +849,7 @@ void _cfd_lod::addTemperature(float _dt)
                             data[idx(x, h, z)].z += 0.01f;  // and a little bit of humidity
                         }
                     }
+                    */
 
                     /*
                     int scale = 32;
@@ -871,14 +873,14 @@ void _cfd_lod::addTemperature(float _dt)
 
 
 
-                for (int i = 0; i < 0; i++)
+                for (int i = 0; i < 5; i++)
                 {
                     float l = glm::length(P - t1[i]);
                     if (l < 5 * cellSize)
                     {
                         float alpha = glm::smoothstep(0.5f, 1.5f, s1 / l);
-                        data[idx(x, h, z)].z = __max(data[idx(x, h, z)].z, energy * alpha * 0.5f);
-                        data[idx(x, h, z)].x = __max(data[idx(x, h, z)].x, to_K(24 + alpha * 4.05));
+                        data[idx(x, h, z)].z = __max(data[idx(x, h, z)].z, energy * alpha * 0.95f);
+                        data[idx(x, h, z)].x = __max(data[idx(x, h, z)].x, to_K(24 + alpha * 6.05));
                     }
                 }
             }

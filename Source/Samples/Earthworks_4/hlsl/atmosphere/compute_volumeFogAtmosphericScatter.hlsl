@@ -37,8 +37,9 @@ float shadow(float3 pos, float step)
 {
     float2 uv = saturate((pos.xz / (4096 * 9.765625)) + 0.5);
     float2 params = terrainShadow.SampleLevel(linearSampler, uv, 0).rg;
-    float h = (pos.y + params.g * .5 - params.r) / (params.g); //    (pos.y - params.r) / params.g;
-    return saturate(h);
+    //float h = (pos.y + params.g * .5 - params.r) / (params.g); //    (pos.y - params.r) / params.g;
+    float h = (pos.y + params.g * 0.05 - params.r) / (params.g); //    (pos.y - params.r) / params.g;
+    return saturate(h * 1);
 
 }
 
@@ -102,7 +103,7 @@ float shadow(float3 pos, float step)
     {
         float step = depth * sliceStep;
         float3 pos = eye_position + direction * (depth + (step / 2));
-        float S = shadow(pos, sliceStep);
+        float S = shadow(pos, step * 5);
         if (SLICE == 0) S = 0;  // No sun light in first slice ever
         calculateStep(direction, phaseRayleigh, phaseUV, IBL, S, depth, newIn, newOut, R);
 		acumulateFog(inScatter, outScatter, newIn, newOut);

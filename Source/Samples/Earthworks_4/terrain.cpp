@@ -110,7 +110,8 @@ void _shadowEdges::solve(float _angle, bool dx)
     {
         for (int x = 0; x < 4095; x++)
         {
-            shadowH[y][x] = float2(height[y][x] - 15.f, 0.f);
+            //shadowH[y][x] = float2(height[y][x] - 15.f, 0.f);
+            shadowH[y][x] = float2(-5000.f, 0.f);   // when splittign the two
         }
     }
 
@@ -3728,6 +3729,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainShader.Vars()["PerFrameCB"]["redStrength"] = gis_overlay.redStrength;
         terrainShader.Vars()["PerFrameCB"]["redScale"] = gis_overlay.redScale;
         terrainShader.Vars()["PerFrameCB"]["redOffset"] = gis_overlay.redOffset;
+        terrainShader.Vars()->setSampler("gSmpLinearClamp", sampler_Clamp);
 
         spriteTexture = Texture::createFromFile(settings.dirRoot + "/ecosystem/sprite_diff.DDS", true, true);
         spriteNormalsTexture = Texture::createFromFile(settings.dirRoot + "/ecosystem/sprite_norm.DDS", true, false);
@@ -3847,6 +3849,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         triangleShader.Vars()->setBuffer("instanceBuffer", triangleData);        // WHY BOTH
         triangleShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         triangleShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
+        triangleShader.Vars()->setSampler("gSmpLinearClamp", sampler_ClampAnisotropic);
 
 
         {
@@ -4150,13 +4153,13 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     glider.loaded = true;
 
 
-    
+
     newGliderRuntime.importBin();
     newGliderRuntime.solve(0.000f, -1);
     //newGliderRuntime.process_xfoil_Cp(settings.dirResource + "/xfoil/Omega/");
     newGliderRuntime.loadXFoil_Cp(settings.dirResource + "/xfoil/Omega/", 52);  // FIXXXME rib numer is a little hardcoded, and process this to a singel file
-   // glider.newGliderLoaded = true;
-    
+    glider.newGliderLoaded = true;
+
 
     _swissBuildings buildings;
     //buildings.process(settings.dirRoot + "/buildings/testQGISDXF.dxf");
@@ -4792,7 +4795,7 @@ void terrainManager::onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float
             if (ImGui::Button("Load"))
             {
                 std::filesystem::path path = cfd.rootPath;
-                
+
                 FileDialogFilterVec filters = { {"skewT_5000"} };
                 if (openFileDialog(filters, path))
                 {
@@ -5008,6 +5011,11 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
             {
                 ImGui::BeginChildFrame(12734, ImVec2(400, _screen.y));
                 {
+                    //ImGui::SetCursorPos(ImVec2(screenSize.x - 100, 0));
+                    ImGui::NewLine();
+                    ImGui::SameLine(30, 0);
+                    ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+
                     ImGui::NewLine();
                     if (ImGui::Button("Glider", ImVec2(400, 0))) {
                     }
@@ -5141,7 +5149,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
 
             if (GliderDebugVisuals)
             {
-                
+
                 if (glider.newGliderLoaded)
                 {
                     newGliderRuntime.renderDebug(pGui, _screen);
@@ -7249,7 +7257,8 @@ bool terrainManager::update(RenderContext* _renderContext)
             static int swapOrder = 0;
             if (cfd.clipmap.sliceNew)
             {
-                FALCOR_PROFILE("cfd slice update");
+                //FALCOR_PROFILE("cfd slice update");
+
                 uint LOD = cfd.clipmap.slicelod;
                 uint toChange = cfd.clipmap.sliceOrder[LOD];
                 //uint oldSlice = cfd.sliceOrder[cfd.clipmap.slicelod];
@@ -7820,7 +7829,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     }
 
     {
-        //       splitRenderTopdown(_tile, _renderContext);
+               splitRenderTopdown(_tile, _renderContext);
         _renderContext->copySubresource(height_Array.get(), _tile->index, split.tileFbo->getColorTexture(0).get(), 0);  // for picking only
     }
 
@@ -8229,122 +8238,36 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     rmcv::mat4 view_ribbon, proj_ribbon, viewproj_ribbon;
     rmcv::mat4 view, proj, viewproj;
-
-    if (terrainMode == 4)
     {
+        if (terrainMode == 4)
         {
-            //FALCOR_PROFILE("SOLVE_glider");
-            //paraRuntime.solve(0.0005f);
-        }
-
-        if (!useFreeCamWhileGliding)
-        {
-
-            cfd.originRequest = paraRuntime.pilotPos();
-            cfd.velocityRequets[0] = paraRuntime.pilotPos();
-            cfd.velocityRequets[1] = paraRuntime.wingPos(0);
-            cfd.velocityRequets[2] = paraRuntime.wingPos(25);
-            cfd.velocityRequets[3] = paraRuntime.wingPos(49);
-
-            paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
-            paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
-
-            //paraRuntime.setPilotWind(float3(0, 0, 0));
-            //paraRuntime.setWingWind(float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0));
-        }
-
-
-
-
-        /*
-        _camera->setFarPlane(40000);
-        _camera->setUpVector(paraRuntime.camUp);
-        _camera->setTarget(paraEyeLocal + paraRuntime.camDir * 100.f);
-        _camera->setPosition(paraEyeLocal);
-
-        glm::mat4 V = toGLM(_camera->getViewMatrix());
-        glm::mat4 P = toGLM(_camera->getProjMatrix());
-        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                view_ribbon[j][i] = V[j][i];
-                proj_ribbon[j][i] = P[j][i];
-                viewproj_ribbon[j][i] = VP[j][i];
+            {
+                //FALCOR_PROFILE("SOLVE_glider");
+                //paraRuntime.solve(0.0005f);
             }
-        }
 
-        _camera->setTarget(paraCamPos + paraRuntime.camDir * 100.f);
-        _camera->setPosition(paraCamPos);
-        */
-    }
-    else
-    {
-        _camera->setUpVector(float3(0, 1, 0));
-    }
+            if (!useFreeCamWhileGliding)
+            {
 
+                cfd.originRequest = paraRuntime.pilotPos();
+                cfd.velocityRequets[0] = paraRuntime.pilotPos();
+                cfd.velocityRequets[1] = paraRuntime.wingPos(0);
+                cfd.velocityRequets[2] = paraRuntime.wingPos(25);
+                cfd.velocityRequets[3] = paraRuntime.wingPos(49);
 
-    /*
-    glm::mat4 V = toGLM(_camera->getViewMatrix());
-    glm::mat4 P = toGLM(_camera->getProjMatrix());
-    glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
-    rmcv::mat4 view, proj, viewproj;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            view[j][i] = V[j][i];
-            proj[j][i] = P[j][i];
-            viewproj[j][i] = VP[j][i];
-        }
-    }*/
+                paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
+                paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
 
-    // PARAGLIDER BUILDER
-        // ########################################################################################################################
-
-        //if ((terrainMode == 4) && paraRuntime.changed)
-    while ((terrainMode == 4) && requestParaPack == true)
-    {
-        auto b = high_resolution_clock::now();
-    }
-
-    if ((terrainMode == 4) && requestParaPack == false)
-        //if ((terrainMode == 4) && AirSim.changed)
-    {
-        FALCOR_PROFILE("setBlob");
-
-
-        //cfd.originRequest = float3(3185, 900, -14377);  //A
-        //cfd.originRequest = float3(3190, 800, -15900);  //A_A  test for air video in the north
-        //cfd.originRequest = float3(-5000, 900, -14302);  //B
-
-        /*
-        //cfd.originRequest = paraRuntime.pilotPos();
-        cfd.originRequest = float3(-1425 + 2800, 425 + 140 + 800, 12533);
-        //cfd.originRequest = float3(1184, 422 + 20, 14829);
-        cfd.originRequest = float3(9224 + 580, 1458, 4291);     // my smoke in teh mifddle
-        //cfd.originRequest = float3(11500, 1818, 11800);     // south better mounrains
-
-
-        cfd.originRequest = float3(12500, 1362 + 300, 4701);
-        cfd.originRequest = float3(8753, 1257 + 300, 6619);
-        //cfd.originRequest = float3(15033, 1498 + 300, 7446);
+                //paraRuntime.setPilotWind(float3(0, 0, 0));
+                //paraRuntime.setWingWind(float3(0, 0, 0), float3(0, 0, 0), float3(0, 0, 0));
+            }
 
 
 
-        //cfd.originRequest = float3(1852, 1500, 10910);
-        */
 
-        cfd.velocityRequets[0] = paraRuntime.pilotPos();
-        cfd.velocityRequets[1] = paraRuntime.wingPos(0);
-        cfd.velocityRequets[2] = paraRuntime.wingPos(25);
-        cfd.velocityRequets[3] = paraRuntime.wingPos(49);
-
-        paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
-        paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
-
-        if (!useFreeCamWhileGliding)
-        {
+            /*
             _camera->setFarPlane(40000);
-            _camera->setUpVector(float3(0, 1, 0));
-            //_camera->setUpVector(paraRuntime.camUp);
+            _camera->setUpVector(paraRuntime.camUp);
             _camera->setTarget(paraEyeLocal + paraRuntime.camDir * 100.f);
             _camera->setPosition(paraEyeLocal);
 
@@ -8359,89 +8282,140 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
                 }
             }
 
-
             _camera->setTarget(paraCamPos + paraRuntime.camDir * 100.f);
             _camera->setPosition(paraCamPos);
+            */
         }
-        /*
-        V = toGLM(_camera->getViewMatrix());
-        P = toGLM(_camera->getProjMatrix());
-        VP = toGLM(_camera->getViewProjMatrix());
+        else
+        {
+            _camera->setUpVector(float3(0, 1, 0));
+        }
 
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                view[j][i] = V[j][i];
-                proj[j][i] = P[j][i];
-                viewproj[j][i] = VP[j][i];
+
+     
+
+        if ((terrainMode == 4) && requestParaPack == false)
+            //if ((terrainMode == 4) && AirSim.changed)
+        {
+            //FALCOR_PROFILE("setBlob");
+
+
+            //cfd.originRequest = float3(3185, 900, -14377);  //A
+            //cfd.originRequest = float3(3190, 800, -15900);  //A_A  test for air video in the north
+            //cfd.originRequest = float3(-5000, 900, -14302);  //B
+
+            /*
+            //cfd.originRequest = paraRuntime.pilotPos();
+            cfd.originRequest = float3(-1425 + 2800, 425 + 140 + 800, 12533);
+            //cfd.originRequest = float3(1184, 422 + 20, 14829);
+            cfd.originRequest = float3(9224 + 580, 1458, 4291);     // my smoke in teh mifddle
+            //cfd.originRequest = float3(11500, 1818, 11800);     // south better mounrains
+
+
+            cfd.originRequest = float3(12500, 1362 + 300, 4701);
+            cfd.originRequest = float3(8753, 1257 + 300, 6619);
+            //cfd.originRequest = float3(15033, 1498 + 300, 7446);
+
+
+
+            //cfd.originRequest = float3(1852, 1500, 10910);
+            */
+
+            cfd.velocityRequets[0] = paraRuntime.pilotPos();
+            cfd.velocityRequets[1] = paraRuntime.wingPos(0);
+            cfd.velocityRequets[2] = paraRuntime.wingPos(25);
+            cfd.velocityRequets[3] = paraRuntime.wingPos(49);
+
+            paraRuntime.setPilotWind(cfd.velocityAnswers[0]);
+            paraRuntime.setWingWind(cfd.velocityAnswers[1], cfd.velocityAnswers[2], cfd.velocityAnswers[3]);
+
+            if (!useFreeCamWhileGliding)
+            {
+                _camera->setFarPlane(40000);
+                _camera->setUpVector(float3(0, 1, 0));
+                //_camera->setUpVector(paraRuntime.camUp);
+                _camera->setTarget(paraEyeLocal + paraRuntime.camDir * 100.f);
+                _camera->setPosition(paraEyeLocal);
+
+                glm::mat4 V = toGLM(_camera->getViewMatrix());
+                glm::mat4 P = toGLM(_camera->getProjMatrix());
+                glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+                for (int i = 0; i < 4; i++) {
+                    for (int j = 0; j < 4; j++) {
+                        view_ribbon[j][i] = V[j][i];
+                        proj_ribbon[j][i] = P[j][i];
+                        viewproj_ribbon[j][i] = VP[j][i];
+                    }
+                }
+
+
+                _camera->setTarget(paraCamPos + paraRuntime.camDir * 100.f);
+                _camera->setPosition(paraCamPos);
+            }
+            /*
+            V = toGLM(_camera->getViewMatrix());
+            P = toGLM(_camera->getProjMatrix());
+            VP = toGLM(_camera->getViewProjMatrix());
+
+            for (int i = 0; i < 4; i++) {
+                for (int j = 0; j < 4; j++) {
+                    view[j][i] = V[j][i];
+                    proj[j][i] = P[j][i];
+                    viewproj[j][i] = VP[j][i];
+                }
+            }
+            */
+
+
+            //paraRuntime.pack_canopy();
+            //paraRuntime.pack_lines();
+            //paraRuntime.pack_feedback();
+            //paraRuntime.pack();
+
+            paraRuntime.changed = false;
+            ribbonInstanceNumber = 1;
+            bufferidx = (bufferidx + 1) % 2;
+            ribbonData[bufferidx]->setBlob(paraRuntime.packedRibbons, 0, paraRuntime.ribbonCount * sizeof(unsigned int) * 6);
+            numLoadedRibbons = paraRuntime.ribbonCount;
+
+            //ribbonData->setBlob(AirSim.packedRibbons, 0, AirSim.ribbonCount * sizeof(unsigned int) * 6);
+
+            ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[bufferidx]);
+
+            ribbonShader.State()->setFbo(_fbo);
+            ribbonShader.State()->setViewport(0, _viewport, true);
+
+            ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+
+            ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
+            ribbonShader.State()->setBlendState(split.blendstateSplines);
+
+
+            gliderwingData[bufferidx]->setBlob(paraRuntime.packedWing, 0, paraRuntime.wingVertexCount * sizeof(_gliderwingVertex));
+            wingloadedCnt = paraRuntime.wingVertexCount;
+            gliderwingShader.Vars()->setBuffer("vertexBuffer", gliderwingData[bufferidx]);
+
+            requestParaPack = true;
+        }
+
+
+        {
+            glm::mat4 V = toGLM(_camera->getViewMatrix());
+            glm::mat4 P = toGLM(_camera->getProjMatrix());
+            glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
+
+            for (int i = 0; i < 4; i++) {
+                for (int j = 0; j < 4; j++) {
+                    view[j][i] = V[j][i];
+                    proj[j][i] = P[j][i];
+                    viewproj[j][i] = VP[j][i];
+                }
             }
         }
-        */
-
-
-        //paraRuntime.pack_canopy();
-        //paraRuntime.pack_lines();
-        //paraRuntime.pack_feedback();
-        //paraRuntime.pack();
-
-        paraRuntime.changed = false;
-        ribbonInstanceNumber = 1;
-        bufferidx = (bufferidx + 1) % 2;
-        ribbonData[bufferidx]->setBlob(paraRuntime.packedRibbons, 0, paraRuntime.ribbonCount * sizeof(unsigned int) * 6);
-        numLoadedRibbons = paraRuntime.ribbonCount;
-
-        //ribbonData->setBlob(AirSim.packedRibbons, 0, AirSim.ribbonCount * sizeof(unsigned int) * 6);
-
-        ribbonShader.Vars()->setBuffer("instanceBuffer", ribbonData[bufferidx]);
-
-        ribbonShader.State()->setFbo(_fbo);
-        ribbonShader.State()->setViewport(0, _viewport, true);
-
-        ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
-        ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-        ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-        ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
-
-        ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
-        ribbonShader.State()->setBlendState(split.blendstateSplines);
-
-
-        gliderwingData[bufferidx]->setBlob(paraRuntime.packedWing, 0, paraRuntime.wingVertexCount * sizeof(_gliderwingVertex));
-        wingloadedCnt = paraRuntime.wingVertexCount;
-        gliderwingShader.Vars()->setBuffer("vertexBuffer", gliderwingData[bufferidx]);
-
-        requestParaPack = true;
     }
-
-
-    {
-        glm::mat4 V = toGLM(_camera->getViewMatrix());
-        glm::mat4 P = toGLM(_camera->getProjMatrix());
-        glm::mat4 VP = toGLM(_camera->getViewProjMatrix());
-
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                view[j][i] = V[j][i];
-                proj[j][i] = P[j][i];
-                viewproj[j][i] = VP[j][i];
-            }
-        }
-    }
-
-
-    {
-        /*
-           mouseVegYaw += 0.002f;
-
-           glm::vec3 camPos;
-           camPos.y = sin(mouseVegPitch);
-           camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
-           camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
-           _camera->setPosition(camPos * mouseVegOrbit);
-           _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
-          */
-    }
-
-
 
     if ((terrainMode == 0) || (terrainMode == 4))
     {
@@ -8455,7 +8429,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             triangleShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
             triangleShader.State()->setRasterizerState(split.rasterstateSplines);
             triangleShader.State()->setBlendState(split.blendstateSplines);
-            //triangleShader.drawInstanced(_renderContext, 36, 1);
+            triangleShader.drawInstanced(_renderContext, 36, 1);
             //triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
         }
 
@@ -8574,6 +8548,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["time"] = time;
 
             ribbonShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
+            terrainShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
 
 
             // ribbonShader.drawInstanced(_renderContext, paraRuntime.ribbonCount, 1);
@@ -8621,20 +8596,23 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         //terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
         //terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
 
-        terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
+        //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
 
         //terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
         //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
     }
 
     {
+        
         FALCOR_PROFILE("buildings");
+
         rappersvilleShader.State()->setFbo(_fbo);
         rappersvilleShader.State()->setViewport(0, _viewport, true);
         rappersvilleShader.Vars()["PerFrameCB"]["view"] = view;
         rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
-        rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
+        //rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
+        
     }
 
 
@@ -8654,7 +8632,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         if (cfd.newFlowLines)
         {
-            FALCOR_PROFILE("CFD update");
+            //FALCOR_PROFILE("CFD update");
             thermalsData->setBlob(cfd.flowlines.data(), 0, numThermals * 100 * sizeof(float4));
             cfd.newFlowLines = false;
         }
@@ -8790,6 +8768,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     if (debug)
     {
+        FALCOR_PROFILE("debug");
         glm::vec4 srcRect = glm::vec4(0, 0, tile_numPixels, tile_numPixels);
         glm::vec4 dstRect;
 

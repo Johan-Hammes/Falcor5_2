@@ -10,6 +10,56 @@ Texture2DArray gNormArray;
 Texture2DArray gAlbedoArray;
 Texture2DArray gPBRArray;
 Texture2D gGISAlbedo;
+Texture2D gHalfBuffer;
+
+
+
+
+float4 cubic(float v)
+{
+    float4 n = float4(1.0, 2.0, 3.0, 4.0) - v;
+    float4 s = n * n * n;
+    float x = s.x;
+    float y = s.y - 4.0 * s.x;
+    float z = s.z - 4.0 * s.y + 6.0 * s.x;
+    float w = 6.0 - x - y - z;
+    return float4(x, y, z, w) * (1.0 / 6.0);
+}
+
+float4 textureBicubic(float3 texCoords)
+{
+    float4 texSize;
+    gAtmosphereInscatter.GetDimensions(0, texSize.x, texSize.y, texSize.z, texSize.w);
+    float2 invTexSize = 1.0 / texSize.xy;
+   
+    texCoords.xy = texCoords.xy * texSize.xy - 0.5;
+
+   
+    float2 fxy = frac(texCoords.xy);
+    texCoords.xy -= fxy;
+
+    float4 xcubic = cubic(fxy.x);
+    float4 ycubic = cubic(fxy.y);
+
+    float4 c = texCoords.xxyy + float2(-0.5, +1.5).xyxy;
+    
+    float4 s = float4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
+    float4 offset = c + float4(xcubic.yw, ycubic.yw) / s;
+    
+    offset *= invTexSize.xxyy;
+
+    
+    float4 sample0 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.xz, texCoords.z));
+    float4 sample1 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.yz, texCoords.z));
+    float4 sample2 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.xw, texCoords.z));
+    float4 sample3 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.yw, texCoords.z));
+
+
+    float sx = s.x / (s.x + s.y);
+    float sy = s.z / (s.z + s.w);
+
+    return lerp(lerp(sample3, sample2, sx), lerp(sample1, sample0, sx), sy);
+}
 
 
 
@@ -310,8 +360,21 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
     diffuse += float3(0.01, 0.02, 0.04) * 1.82 * mat.diff.rgb;
 	float3 colour = diffuse + specular * 0.1;
 	
-	
-	
+	/*
+    float edgeBlend = smoothstep(0, 0.01, -dot(Attr.E, Attr.N));
+
+    if (edgeBlend > 0.1)
+    {
+        //colour = float3(edgeBlend, 0, 0);
+        
+        float2 buffSize;
+        gHalfBuffer.GetDimensions(buffSize.x, buffSize.y);
+        float2 uv = vIn.pos.xy / (buffSize * 2.f);
+        float3 prev = saturate(gHalfBuffer.Sample(gSmpAniso, uv).rgb);
+        colour = lerp(colour, prev, edgeBlend);
+
+    }
+*/
 
 
     //colour.rgb = mat.diff.rgb * light;
@@ -326,6 +389,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
     
 	// Now for my atmospeher code --------------------------------------------------------------------------------------------------------
 	{
+
 		//far one
 		float3 atmosphereUV;
         atmosphereUV.xy = vIn.pos.xy / screenSize;
@@ -333,9 +397,11 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);
 		colour.rgb *= gAtmosphereOutscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
-		colour.rgb += gAtmosphereInscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
+		//colour.rgb += gAtmosphereInscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
         //colour.r = atmosphereUV.z;
 
+        float4 inscatter = textureBicubic(atmosphereUV);
+        colour.rgb += inscatter.rgb;
         
 		//atmosphereUV.z = log( length(vIn.eye.xyz) / fog_near_Start) * fog_near_log_F + fog_near_one_over_k;   
 		//float4 FOG = gSmokeAndDustInscatter.Sample( gSmpLinearClamp, atmosphereUV );

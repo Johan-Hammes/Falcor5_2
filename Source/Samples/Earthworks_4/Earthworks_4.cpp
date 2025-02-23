@@ -82,6 +82,8 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
         if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
     }
     ImGui::EndMainMenuBar();
+
+    
 }
 
 
@@ -306,6 +308,10 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.gliderwingShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.gliderwingShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
 
+    //terrain.triangleShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
+    //terrain.triangleShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
+    terrain.triangleShader.Vars()->setTexture("gAtmosphereInscatter_Sky", atmosphere.getFar().inscatter_sky);
+    
     
 
     
@@ -431,49 +437,57 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         
     }
 
-    
-    FALCOR_PROFILE("onFrameUpdate");
-    
-    
-    terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
-    terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
-    terrain.gliderwingShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
-    //terrain.terrainShader.Vars()["LightsCB"]["sunColour"] = float3(10, 10, 10);
+    {
+        FALCOR_PROFILE("onFrameUpdate");
 
-    terrain.terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
-    terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
-    terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
-    terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
-    //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_Start"] = gis_overlay.strenght;
-    //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_log_F"] = gis_overlay.strenght;
-    //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_one_over_k"] = gis_overlay.strenght;
 
-    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["screenSize"] = screenSize;
-    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
-    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
-    terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+        {
 
-    terrain.rappersvilleShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
-    terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
-    terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
-    terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+            terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+            terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+            terrain.gliderwingShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+            //terrain.terrainShader.Vars()["LightsCB"]["sunColour"] = float3(10, 10, 10);
 
-    terrain.gliderwingShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
-    terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
-    terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
-    terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+            terrain.terrainShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+            terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.terrainShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+            //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_Start"] = gis_overlay.strenght;
+            //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_log_F"] = gis_overlay.strenght;
+            //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_one_over_k"] = gis_overlay.strenght;
 
-    terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
+            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["screenSize"] = screenSize;
+            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
-    terrain.update(_renderContext);
+            terrain.rappersvilleShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+            terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
-    atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
-    atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
+            terrain.gliderwingShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+            terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.gliderwingShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
-    atmosphere.setSunDirection(global_sun_direction);
-    atmosphere.getFar().setCamera(camera);
-    atmosphere.computeSunInAtmosphere(_renderContext);
-    atmosphere.computeVolumetric(_renderContext);
+            terrain.setCamera(CameraType_Main_Center, toGLM(camera->getViewMatrix()), toGLM(camera->getProjMatrix()), camera->getPosition(), true, 1920);
+        }
+
+        
+
+        {
+            atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
+            atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
+
+            atmosphere.setSunDirection(global_sun_direction);
+            atmosphere.getFar().setCamera(camera);
+            atmosphere.computeSunInAtmosphere(_renderContext);
+            atmosphere.computeVolumetric(_renderContext);
+        }
+
+        terrain.update(_renderContext);
+    }
 
 }
 
@@ -481,35 +495,45 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
 void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    gpDevice->toggleVSync(true);
+    gpDevice->toggleVSync(false);
     onFrameUpdate(_renderContext);
 
 
-    // clear
-    graphicsState->setFbo(pTargetFbo);
-    const float4 clearColor(0.0f, 0.f, 0.f, 1);
-    _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
-    _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
-
     {
-        // blit the sky
-        glm::vec4 srcRect = glm::vec4(0, 0, atmosphere.getFar().m_params.m_x, atmosphere.getFar().m_params.m_y);
-        glm::vec4 dstRect = glm::vec4(0, 0, screenSize.x, screenSize.y);
-        _renderContext->blit(atmosphere.getFar().inscatter_sky->getSRV(0, 1, 0, 1), hdrFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
+        FALCOR_PROFILE("onFrameRender");
+
+        // clear
+        {
+            graphicsState->setFbo(pTargetFbo);
+            const float4 clearColor(0.0f, 0.f, 0.f, 1);
+            _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+            _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+        }
+
+        {
+            // blit the sky
+            glm::vec4 srcRect = glm::vec4(0, 0, atmosphere.getFar().m_params.m_x, atmosphere.getFar().m_params.m_y);
+            glm::vec4 dstRect = glm::vec4(0, 0, screenSize.x, screenSize.y);
+            _renderContext->blit(atmosphere.getFar().inscatter_sky->getSRV(0, 1, 0, 1), hdrFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
+        }
+
+
+        terrain.onFrameRender(_renderContext, hdrFbo, camera, graphicsState, viewport3d, hdrHalfCopy);
+
+        {
+            FALCOR_PROFILE("tonemapper");
+            tonemapper.Vars()->setTexture("hdr", hdrFbo->getColorTexture(0));
+            tonemapper.Vars()->setTexture("cube", colorCube);
+            tonemapper.Vars()->setSampler("linearSampler", terrain.sampler_Clamp);
+            tonemapper.State()->setFbo(pTargetFbo);
+            tonemapper.State()->setRasterizerState(graphicsState->getRasterizerState());
+            tonemapper.drawInstanced(_renderContext, 3, 1);
+        }
+
+        onRenderOverlay(_renderContext, pTargetFbo);
+
+        _renderContext->blit(hdrFbo->getColorTexture(0)->getSRV(0, 1, 0, 1), hdrHalfCopy->getRTV());
     }
-
-    terrain.onFrameRender(_renderContext, hdrFbo, camera, graphicsState, viewport3d, hdrHalfCopy);
-
-    tonemapper.Vars()->setTexture("hdr", hdrFbo->getColorTexture(0));
-    tonemapper.Vars()->setTexture("cube", colorCube);
-    tonemapper.Vars()->setSampler("linearSampler", terrain.sampler_Clamp);
-    tonemapper.State()->setFbo(pTargetFbo);
-    tonemapper.State()->setRasterizerState(graphicsState->getRasterizerState());
-    tonemapper.drawInstanced(_renderContext, 3, 1);
-
-    onRenderOverlay(_renderContext, pTargetFbo);
-
-    _renderContext->blit(hdrFbo->getColorTexture(0)->getSRV(0, 1, 0, 1), hdrHalfCopy->getRTV());
     /*
     if (changed) slowTimer = 10;
     slowTimer--;

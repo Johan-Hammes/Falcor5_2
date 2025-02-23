@@ -354,8 +354,13 @@ void _gliderImporter::interpolateRibs()
 /*
     Expand on edge, either store stiffness in z of an int3, or use z to store the type of edge that this is - I think I like that more
 */
-bool _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search)
+bool _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _mass, float _area, float _search)
 {
+    _CNST C;
+    C.type = _type;
+    C.mass = _mass;
+    C.area = _area;
+
     bool found = false;
     int va = 0;
     int vb = 0;
@@ -366,7 +371,10 @@ bool _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintT
 
         if (va > 0 && vb > 0)
         {
-            constraints.push_back(glm::ivec3(va, vb, (int)_type));
+            C.v_0 = va;
+            C.v_1 = vb;
+            constraints.push_back(C);
+            //constraints.push_back(glm::ivec3(va, vb, (int)_type));
             found = true;
             break;
         }
@@ -386,7 +394,10 @@ bool _gliderImporter::insertEdge(float3 _a, float3 _b, bool _mirror, constraintT
 
             if (va > 0 && vb > 0)
             {
-                constraints.push_back(glm::ivec3(va, vb, (int)_type));
+                C.v_0 = va;
+                C.v_1 = vb;
+                constraints.push_back(C);
+                //constraints.push_back(glm::ivec3(va, vb, (int)_type));
                 found = true;
                 break;
             }
@@ -415,7 +426,12 @@ void _gliderImporter::insertSkinTriangle(int _a, int _b, int _c)
     // WATERTIGHT
     tris_airtight.push_back(glm::ivec3(findBottomTrailingEdge(_a), findBottomTrailingEdge(_b), findBottomTrailingEdge(_c)));
 
-    constraints.push_back(glm::ivec3(_a, _b, constraintType::skin));
+    _CNST C;
+    C.v_0 = _a;
+    C.v_1 = _b;
+    C.type = constraintType::skin;
+    constraints.push_back(C);
+    //constraints.push_back(glm::ivec3(_a, _b, constraintType::skin));
 
     float3 a = verts[_a]._x;
     float3 b = verts[_b]._x;
@@ -542,16 +558,26 @@ void _gliderImporter::fullWing_to_obj()
             int start = (int)(r.ribVerts.size() * 0.375f);
             if (cnt % numRibScale == 0 && (i >= start) && (i < r.ribVerts.size() - numMiniRibs - 2))
             {
-                isNitonol = true;                
+                isNitonol = true;
             }
 
             if (isNitonol)
             {
-                constraints.push_back(glm::ivec3(v_start + i, v_start + ((i + 1) % numV), constraintType::nitinol));
+                _CNST C;
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + ((i + 1) % numV);
+                C.type = constraintType::nitinol;
+                constraints.push_back(C);
+                //                constraints.push_back(glm::ivec3(v_start + i, v_start + ((i + 1) % numV), constraintType::nitinol));
             }
             else
             {
-                constraints.push_back(glm::ivec3(v_start + i, v_start + ((i + 1) % numV), constraintType::skin));
+                _CNST C;
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + ((i + 1) % numV);
+                C.type = constraintType::skin;
+                constraints.push_back(C);
+                //                constraints.push_back(glm::ivec3(v_start + i, v_start + ((i + 1) % numV), constraintType::skin));
             }
         }
 
@@ -564,7 +590,13 @@ void _gliderImporter::fullWing_to_obj()
             for (int i = start; i < end - 1; i++)
             {
                 //constraints.push_back(glm::ivec3(v_start + i, v_start + i + 1, constraintType::nitinol));
-                constraints.push_back(glm::ivec3(v_start + i, v_start + i + 2, constraintType::nitinol));
+
+                _CNST C;
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + i + 2;
+                C.type = constraintType::nitinol;
+                constraints.push_back(C);
+                //constraints.push_back(glm::ivec3(v_start + i, v_start + i + 2, constraintType::nitinol));
             }
         }
 
@@ -572,31 +604,67 @@ void _gliderImporter::fullWing_to_obj()
         // Start at 1. ) is already included in teh circumference
         if (cnt % numRibScale == 0)
         {
+            _CNST C;
+            C.type = constraintType::ribs;
+
             for (int i = 1; i < (numV / 2) - 1; i++)
             {
-                constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::ribs));
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + numV - 1 - i;
+                constraints.push_back(C);
 
-                constraints.push_back(glm::ivec3(v_start + i + 1, v_start + numV - 1 - i, constraintType::ribs));   // CROSS - I think this results in duplicates at leadign edge
-                constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 2 - i, constraintType::ribs));
+                C.v_0 = v_start + i + 1;
+                C.v_1 = v_start + numV - 1 - i;
+                constraints.push_back(C);
+
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + numV - 2 - i;
+                constraints.push_back(C);
+
+                //constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::ribs));
+                //constraints.push_back(glm::ivec3(v_start + i + 1, v_start + numV - 1 - i, constraintType::ribs));   // CROSS - I think this results in duplicates at leadign edge
+                //constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 2 - i, constraintType::ribs));
             }
 
-            constraints.push_back(glm::ivec3(v_start + ((numV / 2) - 1), v_start + numV - 1 - ((numV / 2) - 1), constraintType::ribs));
+            C.v_0 = v_start + ((numV / 2) - 1);
+            C.v_1 = v_start + numV - 1 - ((numV / 2) - 1);
+            constraints.push_back(C);
+            //constraints.push_back(glm::ivec3(v_start + ((numV / 2) - 1), v_start + numV - 1 - ((numV / 2) - 1), constraintType::ribs));
         }
         else if (cnt % (numRibScale / 2) == 0)
         {
+            _CNST C;
+            C.type = constraintType::half_ribs;
+
             // miniribs
             for (int i = 1; i < numMiniRibs; i++)
             {
-                constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::half_ribs));
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + numV - 1 - i;
+                constraints.push_back(C);
 
-                constraints.push_back(glm::ivec3(v_start + i + 1, v_start + numV - 1 - i, constraintType::ribs));   // CROSS - I think this results in duplicates at leadign edge
-                constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 2 - i, constraintType::ribs));
+                C.v_0 = v_start + i + 1;
+                C.v_1 = v_start + numV - 1 - i;
+                constraints.push_back(C);
+
+                C.v_0 = v_start + i;
+                C.v_1 = v_start + numV - 2 - i;
+                constraints.push_back(C);
+
+                //constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 1 - i, constraintType::half_ribs));
+                //constraints.push_back(glm::ivec3(v_start + i + 1, v_start + numV - 1 - i, constraintType::ribs));   // CROSS - I think this results in duplicates at leadign edge
+                //constraints.push_back(glm::ivec3(v_start + i, v_start + numV - 2 - i, constraintType::ribs));
             }
         }
         else
         {
+            _CNST C;
+            C.type = constraintType::half_ribs;
             // Just o 1 minirin to simulat stich stiffneess at trrailign edge and foldover of materials
-            constraints.push_back(glm::ivec3(v_start + 1, v_start + numV - 1 - 1, constraintType::half_ribs));
+            C.v_0 = v_start + 1;
+            C.v_1 = v_start + numV - 1 - 1;
+            constraints.push_back(C);
+            //constraints.push_back(glm::ivec3(v_start + 1, v_start + numV - 1 - 1, constraintType::half_ribs));
         }
 
 
@@ -775,6 +843,7 @@ void _gliderImporter::fullWing_to_obj()
     addEndCaps();
     calculateNormals();
     calculateMass();
+    calculateConstraintBuckets();
 
     toObj("E:/Advance/omega_xpdb_surface.obj", constraintType::skin);
     toObj("E:/Advance/omega_xpdb_ribs.obj", constraintType::ribs);
@@ -785,6 +854,56 @@ void _gliderImporter::fullWing_to_obj()
 
 }
 
+void _gliderImporter::calculateConstraintBuckets()
+{
+
+    int numC = constraints.size();
+    int numV = verts.size();
+    int minBuckets = (numC / BUCKET_SIZE) + 1;
+    //int bucketNum = 0;
+    int totalC = 0;
+
+    ConstraintBuckets.clear();
+
+    std::vector<char> ConstraintUsed;
+    ConstraintUsed.resize(numC);
+    memset(ConstraintUsed.data(), 0, numC);  // CLEAR
+
+    std::vector<char> VertsUsed;
+    VertsUsed.resize(numV);
+    memset(VertsUsed.data(), 0, numV);  // CLEAR
+
+    while (totalC < numC)
+    {
+        ConstraintBuckets.emplace_back();
+        auto& B = ConstraintBuckets.back();
+        for (int i = 0; i < BUCKET_SIZE; i++)       B[i] = -1;   // clear to -1
+        int numCurrent = 0;
+
+        memset(VertsUsed.data(), 0, numV);  // CLEAR
+
+        for (int j = 0; j < numC; j++)
+        {
+            if ((ConstraintUsed[j] == 0) && (VertsUsed[constraints[j].v_0] == 0) && (VertsUsed[constraints[j].v_1] == 0))
+            {
+                B[numCurrent] = j;
+                ConstraintUsed[j] = 1;
+                VertsUsed[constraints[j].v_0] = 1;
+                VertsUsed[constraints[j].v_1] = 1;
+                numCurrent++;
+                totalC++;
+
+                if (numCurrent == BUCKET_SIZE)
+                {
+                    break;
+                }
+            }
+        }
+
+        fprintf(terrafectorSystem::_logfile, "Bucket %d - numC %d, totalC %d / %d\n", (int)ConstraintBuckets.size(), numCurrent, totalC, numC);
+
+    }
+}
 
 void _gliderImporter::calculateMass()
 {
@@ -809,6 +928,7 @@ void _gliderImporter::calculateMass()
 void _gliderImporter::exportWing()
 {
     calculateMass();
+    calculateConstraintBuckets();
 
     uint _dot = 28;
     uint _scale = 1 << _dot;
@@ -827,10 +947,14 @@ void _gliderImporter::exportWing()
         int numT = tris.size();
         int numC = constraints.size();
         int numR = full_ribs.size();
+        int bucketSize = BUCKET_SIZE;
+        int numBuckets = ConstraintBuckets.size();
         ofs.write((const char*)&numV, sizeof(int));
         ofs.write((const char*)&numT, sizeof(int));
         ofs.write((const char*)&numC, sizeof(int));
         ofs.write((const char*)&numR, sizeof(int));
+        ofs.write((const char*)&bucketSize, sizeof(int));
+        ofs.write((const char*)&numBuckets, sizeof(int));
 
         for (int i = 0; i < numV; i++)              //_x
         {
@@ -878,22 +1002,45 @@ void _gliderImporter::exportWing()
         {
             fprintf(terrafectorSystem::_logfile, "AAAAAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHH airtight\n");
         }
-        
+
+        // Constraint buckets
+        for (int i = 0; i < numBuckets; i++)
+        {
+            ofs.write((const char*)ConstraintBuckets[i].data(), sizeof(int) * bucketSize);
+        }
 
         // constraints
         for (int i = 0; i < numC; i++)              // uv
         {
             _new_constraint NC;
-            NC.idx_0 = constraints[i].x;
-            NC.idx_1 = constraints[i].y;
+            NC.idx_0 = constraints[i].v_0;
+            NC.idx_1 = constraints[i].v_1;
             float wSum = verts[NC.idx_0]._w + verts[NC.idx_1]._w;
-            NC.w_0 = verts[NC.idx_0]._w / wSum;
-            NC.w_1 = verts[NC.idx_1]._w / wSum;
+            NC.w_rel_0 = verts[NC.idx_0]._w / wSum;
+            NC.w_rel_1 = verts[NC.idx_1]._w / wSum;
 
-            NC.type = constraints[i].z;
+            NC.w0 = verts[NC.idx_0]._w;
+            NC.w1 = verts[NC.idx_1]._w;
+            NC.wsum = wSum;
+            NC.name[0] = 0;
+
+            if (constraints[i].type >= lines)
+            {
+                wSum = constraints[i].w0 + constraints[i].w1;
+                NC.w_rel_0 = constraints[i].w0 / wSum;
+                NC.w_rel_1 = constraints[i].w1 / wSum;
+
+                NC.w0 = constraints[i].w0;
+                NC.w1 = constraints[i].w1;
+                NC.wsum = wSum;
+                memcpy(NC.name, constraints[i].name, 8);
+
+            }
+
+            NC.type = constraints[i].type;
             NC.l = __max(0.001f, glm::length(verts[NC.idx_0]._x - verts[NC.idx_1]._x));
             NC.old_L = NC.l;
-            NC.current_L = NC.l;
+            //NC.current_L = NC.l;
             NC.tensileStiff = 1.f;
             NC.compressStiff = 0.01f;
             NC.damping = 0.01f;
@@ -926,34 +1073,34 @@ void _gliderImporter::exportWing()
             switch (NC.type)
             {
             case constraintType::skin:
-                fprintf(terrafectorSystem::_logfile, "skin   %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "skin   %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::ribs:
-                fprintf(terrafectorSystem::_logfile, "ribs   %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "ribs   %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::half_ribs:
-                fprintf(terrafectorSystem::_logfile, "hlf_ri %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "hlf_ri %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::vecs:
-                fprintf(terrafectorSystem::_logfile, "vecs   %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "vecs   %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::diagonals:
-                fprintf(terrafectorSystem::_logfile, "diagon %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "diagon %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::nitinol:
-                fprintf(terrafectorSystem::_logfile, "nitinol %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "nitinol %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::lines:
-                fprintf(terrafectorSystem::_logfile, "lines  %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "lines  %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::straps:
-                fprintf(terrafectorSystem::_logfile, "straps %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "straps %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::harnass:
-                fprintf(terrafectorSystem::_logfile, "harnas %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "harnas %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             case constraintType::smallLines:
-                fprintf(terrafectorSystem::_logfile, "sml_ln %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_0, NC.w_1);
+                fprintf(terrafectorSystem::_logfile, "sml_ln %d, %dmm, (%d, %d), %d (%2.2f, %2.2f)\n", i, (int)(1000.f * NC.l), NC.idx_0, NC.idx_1, NC.type, NC.w_rel_0, NC.w_rel_1);
                 break;
             }
 
@@ -1116,44 +1263,44 @@ void _gliderImporter::calculateNormals()
         V.cross_idx = int4(0, 0, 0, 0);
     }
 
-    for (auto &C : constraints)
+    for (auto& C : constraints)
     {
-        if (C.z == constraintType::smallLines)
+        if (C.type == constraintType::smallLines)
         {
             //verts[C.x].cross_idx.x = C.y;   // FIXME THIS IS WRONG 
             //verts[C.y].cross_idx.y = C.x;
 
-            if (verts[C.x].cross_idx.x == 0)
+            if (verts[C.v_0].cross_idx.x == 0)
             {
-                verts[C.x].cross_idx.x = C.y;
+                verts[C.v_0].cross_idx.x = C.v_1;
             }
-            else if(verts[C.x].cross_idx.y == 0)
+            else if (verts[C.v_0].cross_idx.y == 0)
             {
-                verts[C.x].cross_idx.y = C.y;
+                verts[C.v_0].cross_idx.y = C.v_1;
             }
 
 
-            if (verts[C.y].cross_idx.x == 0)
+            if (verts[C.v_1].cross_idx.x == 0)
             {
-                verts[C.y].cross_idx.x = C.x;
+                verts[C.v_1].cross_idx.x = C.v_0;
             }
-            else if (verts[C.y].cross_idx.y == 0)
+            else if (verts[C.v_1].cross_idx.y == 0)
             {
-                verts[C.y].cross_idx.y = C.x;
+                verts[C.v_1].cross_idx.y = C.v_0;
             }
         }
     }
 
     for (int i = 0; i < verts.size(); i++)
     {
-        if (verts[i].type == vertexType::vtx_small_line)
+        if (verts[i].type == vertexType::vtx_line)
 
         {
             if (verts[i].cross_idx.x == 0)  fprintf(terrafectorSystem::_logfile, "VTX %d, cross.x == 0\n", i);
             else if (verts[i].cross_idx.y == 0)  fprintf(terrafectorSystem::_logfile, "VTX %d, cross.y == 0\n", i);
             else if (verts[i].cross_idx.x >= verts.size())  fprintf(terrafectorSystem::_logfile, "VTX %d, cross.x >= verts.size()\n", i);
             else if (verts[i].cross_idx.y >= verts.size())  fprintf(terrafectorSystem::_logfile, "VTX %d, cross.y >= verts.size()\n", i);
-            else fprintf(terrafectorSystem::_logfile, "VTX %d, OK %d, %d\n", i, verts[i].cross_idx.x, verts[i].cross_idx.y);
+            //else fprintf(terrafectorSystem::_logfile, "VTX %d, OK %d, %d\n", i, verts[i].cross_idx.x, verts[i].cross_idx.y);
         }
 
         verts[i].temp_norm = glm::normalize(verts[i].temp_norm);
@@ -1180,24 +1327,7 @@ void _gliderImporter::calculateNormals()
         std::sort(neighbourVerts.begin(), neighbourVerts.end());
         neighbourVerts.erase(unique(neighbourVerts.begin(), neighbourVerts.end()), neighbourVerts.end());
 
-        /*
-        // now search for 2 good vectors
-        neighbourVerts.clear();
-        for (auto& c : constraints)
-        {
-            if (c.z == constraintType::skin)
-            {
-                if ((c.x == i) && (std::find(neighbourVerts.begin(), neighbourVerts.end(), c.y) == std::end(neighbourVerts)))
-                {
-                    neighbourVerts.push_back(c.y);
-                }
-                if ((c.y == i) && (std::find(neighbourVerts.begin(), neighbourVerts.end(), c.x) == std::end(neighbourVerts)))
-                {
-                    neighbourVerts.push_back(c.x);
-                }
-            }
-        }
-        */
+
         int numV = neighbourVerts.size();
         if (numV > 0)
         {
@@ -1323,13 +1453,13 @@ void _gliderImporter::toObj(char* filename, constraintType _type)
         {
             for (auto& E : constraints)
             {
-                if (E.z == _type)
+                if (E.type == _type)
                 {
                     aiFace& face = pMesh->mFaces[fidx];
                     face.mIndices = new unsigned int[2];
                     face.mNumIndices = 2;
-                    face.mIndices[0] = E.x;
-                    face.mIndices[1] = E.y;
+                    face.mIndices[0] = E.v_0;
+                    face.mIndices[1] = E.v_1;
                     fidx++;
                 }
             }
@@ -1373,9 +1503,9 @@ void _gliderImporter::sanityChecks()
 
     for (auto& C : constraints)
     {
-        v_c_count[C.x]++;
-        v_c_count[C.y]++;
-        numConstraints[C.z]++;
+        v_c_count[C.v_0]++;
+        v_c_count[C.v_1]++;
+        numConstraints[C.type]++;
     }
 
 
@@ -1385,11 +1515,21 @@ void _gliderImporter::sanityChecks()
         for (int k = j + 1; k < constraints.size(); k++)
         {
             // compare j, k
-            if (((constraints[j].x == constraints[k].x) && (constraints[j].y == constraints[k].y)) ||
-                ((constraints[j].x == constraints[k].y) && (constraints[j].y == constraints[k].x)))
+            if (((constraints[j].v_0 == constraints[k].v_0) && (constraints[j].v_1 == constraints[k].v_1)) ||
+                ((constraints[j].v_0 == constraints[k].v_1) && (constraints[j].v_1 == constraints[k].v_0)))
             {
-                numDuplicateConstraints[constraints[j].z]++;
-                numDuplicateConstraints[constraints[k].z]++;
+                numDuplicateConstraints[constraints[j].type]++;
+                numDuplicateConstraints[constraints[k].type]++;
+
+                if (numDuplicateConstraints[constraints[j].type] > 1)
+                {
+                    fprintf(terrafectorSystem::_logfile, "DUPLICATE constraint %d, %d (%2.2f, %2.2f, %2.2f)\n", constraints[j].v_0, constraints[j].v_1, verts[constraints[j].v_0]._x.x, verts[constraints[j].v_0]._x.y, verts[constraints[j].v_0]._x.z);
+                    fprintf(terrafectorSystem::_logfile, "DUPLICATE constraint %d, %d (%2.2f, %2.2f, %2.2f)\n", constraints[j].v_0, constraints[j].v_1, verts[constraints[j].v_1]._x.x, verts[constraints[j].v_1]._x.y, verts[constraints[j].v_1]._x.z);
+                }
+
+                if (numDuplicateConstraints[constraints[k].type] > 1)
+                {
+                }
             }
         }
     }
@@ -1426,21 +1566,23 @@ void _gliderImporter::sanityChecks()
     for (int i = 0; i < verts.size(); i++) v_c_count[i] = 0;
     for (auto& C : constraints)
     {
-        if (C.z != constraintType::lines)
+        if (C.type != constraintType::lines)
         {
-            v_c_count[C.x]++;
-            v_c_count[C.y]++;
+            v_c_count[C.v_0]++;
+            v_c_count[C.v_1]++;
         }
     }
 
+    // BRAKES
+    /*
     for (int idx = 0; idx < v_c_count.size(); idx++)
     {
-        if (v_c_count[idx] == 1)
+        if (v_c_count[idx] <= 1)
         {
             if (verts[idx]._x.z < min.z + 0.1f)
             {
-                if (verts[idx]._x.y > 0)    carabinerRight = idx;
-                else                        carabinerLeft = idx;
+                //if (verts[idx]._x.y > 0)    carabinerRight = idx;
+                //else                        carabinerLeft = idx;
             }
             else
             {
@@ -1448,10 +1590,37 @@ void _gliderImporter::sanityChecks()
                 else                        brakeLeft = idx;
             }
 
-            verts[idx].mass = 1000;
-            verts[idx]._w = 0.001f;
+            //verts[idx].mass = 1000;
+            //verts[idx]._w = 0.001f;
         }
     }
+
+    // CARABINER
+    for (int idx = 0; idx < v_c_count.size(); idx++)
+    {
+        //if (v_c_count[idx] <= 2)
+        {
+            if (verts[idx]._x.z < min.z + 0.01f)
+            {
+                if (verts[idx]._x.y > 0)    carabinerRight = idx;
+                else                        carabinerLeft = idx;
+
+                verts[idx].mass = 1000;
+                verts[idx]._w = 0.001f;
+            }
+        }
+    }
+    */
+
+    verts[carabinerRight].mass = 1000;
+    verts[carabinerRight]._w = 0.001f;
+    verts[carabinerLeft].mass = 1000;
+    verts[carabinerLeft]._w = 0.001f;
+
+    verts[brakeRight].mass = 1000;
+    verts[brakeRight]._w = 0.001f;
+    verts[brakeLeft].mass = 1000;
+    verts[brakeLeft]._w = 0.001f;
 
     //for (auto& V : v_c_count)
     for (int idx = 0; idx < v_c_count.size(); idx++)
@@ -1460,9 +1629,9 @@ void _gliderImporter::sanityChecks()
         {
             for (auto& C : constraints)
             {
-                if (C.x == idx || C.y == idx)
+                if (C.v_0 == idx || C.v_1 == idx)
                 {
-                    num1C_perType[C.z]++;
+                    num1C_perType[C.type]++;
                 }
             }
         }
@@ -1587,7 +1756,7 @@ void _gliderImporter::loadLineSet()
     lineTypes.push_back({ "A-8001-280" , 0.0015f, 0.00172f });
     lineTypes.push_back({ "A-8001-340" , 0.0018f, 0.0021f });
     lineTypes.push_back({ "A-7850-240" , 0.0019f, 0.0024f });
-    lineTypes.push_back({ "STRAP_A" , 0.019f, 0.07f });
+    lineTypes.push_back({ "STRAP_A" , 0.019f, 0.16f });
 
     std::ifstream ifs;
     ifs.open("E:/Advance/omega_LINESET.bin", std::ios::binary);
@@ -1631,6 +1800,95 @@ void _gliderImporter::mergeLines(uint a, uint b)
     line_segments.erase(line_segments.begin() + b);
 }
 
+
+int _gliderImporter::insertVertex(float3 _p)
+{
+    for (int i = 0; i < line_verts.size(); i++)
+    {
+        if (glm::length(line_verts[i] - _p) < 0.001f) return i;
+    }
+
+    line_verts.push_back(_p);
+    return line_verts.size() - 1;
+}
+
+
+void _gliderImporter::importCSV()
+{
+    lineTypes.clear();
+    lineTypes.push_back({ "A-9200-035" , 0.00035f, 0.00012f });
+    lineTypes.push_back({ "A-8001-040" , 0.00045f, 0.0002f });
+    lineTypes.push_back({ "A-8001-050" , 0.0005f, 0.00026f });
+    lineTypes.push_back({ "A-8001-070" , 0.0007f, 0.00044f });
+    lineTypes.push_back({ "A-8001-090" , 0.0008f, 0.00053f });
+    lineTypes.push_back({ "A-8001-130" , 0.001f, 0.0009f });
+    lineTypes.push_back({ "A-8001-190" , 0.0012f, 0.00109f });
+    lineTypes.push_back({ "A-8001-230" , 0.0014f, 0.00135f });
+    lineTypes.push_back({ "A-8001-280" , 0.0015f, 0.00172f });
+    lineTypes.push_back({ "A-8001-340" , 0.0018f, 0.0021f });
+    lineTypes.push_back({ "A-7850-240" , 0.0019f, 0.0024f });
+    lineTypes.push_back({ "STRAP" , 0.019f, 0.07f });
+    lineTypes.push_back({ "STRAP_BYPASS" , 0.019f, 0.07f });
+
+    line_segments.clear();
+    line_verts.clear();
+    char name[8];
+    int level;
+    char riser[256];
+    int counter;
+    float3 p1, p2;
+    float length, diameter, mass;
+    char material[256];
+    uint idx1, idx2;
+
+    std::ifstream ifs;
+    ifs.open("E:/Advance/OmegaXA5_23_Johan_A01_LineData.csv");
+    if (ifs)
+    {
+        //while (1)
+        for (int i = 0; i < 104; i++)
+        {
+            ifs >> name >> level >> riser >> counter >> p1.x >> p1.y >> p1.z >> p2.x >> p2.y >> p2.z >> length >> material >> diameter >> mass;
+            idx1 = insertVertex(p1);
+            idx2 = insertVertex(p2);
+            _line L = { idx1, idx2, 0 };
+            memset(L.name, 0, 8);
+            memcpy(L.name, name, 8);
+            L.diameter = diameter;
+            L.mass = mass;
+            L.material = 0;
+            for (int j = 0; j < lineTypes.size(); j++)
+            {
+                if (std::strstr(material, lineTypes[j].name.c_str()))
+                {
+                    L.material = j;
+                }
+            }
+
+            line_segments.push_back(L);
+
+            //fprintf(terrafectorSystem::_logfile, "%s %d %s %d, (%2.2f, %2.2f, %2.2f), %2.2fm, %s, %2.8fm, %2.8fkg/m\n", name, level, riser, counter, p1.x, p1.y, p1.z, length, material, diameter, mass);
+
+
+            //if (ifs.eof()) break;
+        }
+
+        ifs.clear();
+        ifs.seekg(0);
+
+        {
+        }
+
+        ifs.close();
+
+        mergeLines(24, 25);
+        mergeLines(4, 5);
+    }
+
+}
+
+
+
 void _gliderImporter::cleanupLineSet()
 {
     lineTypes.clear();
@@ -1645,10 +1903,10 @@ void _gliderImporter::cleanupLineSet()
     lineTypes.push_back({ "A-8001-280" , 0.0015f, 0.00172f });
     lineTypes.push_back({ "A-8001-340" , 0.0018f, 0.0021f });
     lineTypes.push_back({ "A-7850-240" , 0.0019f, 0.0024f });
-    lineTypes.push_back({ "STRAP_A" , 0.019f, 0.07f });
-    
-    
-    
+    lineTypes.push_back({ "STRAP_A" , 0.019f, 0.16f });
+
+
+
 
 
     Assimp::Importer importer;
@@ -1691,9 +1949,348 @@ void _gliderImporter::cleanupLineSet()
     mergeLines(4, 5);
 }
 
+void _gliderImporter::SubdivideLine(float3 a, float3 b, float mass, float area)
+{
+    mass /= 2.f;
+    area /= 2.f;
+    float L = glm::length(a - b);
+    float3 NEW = (a + b) * 0.5f;
+
+    _VTX v;
+    v.area = area;
+    v.mass = mass;
+    v._w = 1.f / v.mass;
+    v._x = NEW;
+    v.type = vtx_line;
+    //if (L < 0.4f)          v.type = vtx_small_line;
+
+    verts.push_back(v);
+    v._x.y *= -1;
+    verts.push_back(v);
+
+
+
+    if (L > 0.2f)
+    {
+        bool mirror = true;
+        if (L < 0.4f)
+        {
+            insertEdge(a, NEW, mirror, constraintType::smallLines, 0.005f);
+            insertEdge(NEW, b, mirror, constraintType::smallLines, 0.005f);
+        }
+        else
+        {
+            insertEdge(a, NEW, mirror, constraintType::lines, 0.005f);
+            insertEdge(NEW, b, mirror, constraintType::lines, 0.005f);
+        }
+
+        SubdivideLine(a, NEW, mass, area);
+        SubdivideLine(NEW, b, mass, area);
+    }
+}
+
+//startLineIdx
+void _gliderImporter::pushLine(float3 _a, float3 _b, float _mass, float _area, constraintType _type, float _l)
+{
+    float L = glm::length(_a - _b);
+
+    if (L < _l)
+    {
+        bool mirror = true;
+        pushVertex(_a);
+        pushVertex(_b);
+        insertEdge(_a, _b, mirror, _type, _mass, _area, 0.01f);
+    }
+    else
+    {
+        float3 NEW = (_a + _b) * 0.5f;
+        pushLine(_a, NEW, _mass / 2, _area / 2, _type, _l);
+        pushLine(NEW, _b, _mass / 2, _area / 2, _type, _l);
+    }
+}
+
+
+void _gliderImporter::pushVertex(float3 _a)
+{
+    int i = 0;
+    for (auto& V : verts)
+    {
+        if (glm::length(_a - V._x) < 0.01f)
+        {
+            //fprintf(terrafectorSystem::_logfile, "found and existing vertex # %d   type - %d\n", i, V.type);
+            return;
+        }
+        i++;
+    }
+
+
+    _VTX v;
+    v.area = 0.0f;
+    v.mass = 0;
+    v._x = _a;
+    v._w = 0;
+
+    v.type = vtx_line;
+
+    verts.push_back(v);
+    v._x.y *= -1;
+    verts.push_back(v);
+
+    numLineVerts += 2;
+    endLineIdx = verts.size();
+}
+
+void _gliderImporter::findBrakesCarabiners()
+{
+    for (auto& L : line_segments)
+    {
+        if (strstr(L.name, "AC"))   // carabiner
+        {
+            float3 a = line_verts[L.v_0];
+            float3 b = line_verts[L.v_1];
+            if (a.z > b.z)
+            {
+                a = b;
+            }
+            b = a;
+            b.y *= -1;
+
+            for (int vx = 0; vx < verts.size(); vx++)
+            {
+                if (glm::length(verts[vx]._x - a) < 0.001f) carabinerRight = vx;
+                if (glm::length(verts[vx]._x - b) < 0.001f) carabinerLeft = vx;
+            }
+
+        }
+
+        if (strstr(L.name, "5Br1"))   // carabiner
+        {
+            float3 a = line_verts[L.v_0];
+            float3 b = line_verts[L.v_1];
+            if (a.z > b.z)
+            {
+                a = b;
+            }
+            b = a;
+            b.y *= -1;
+
+            for (int vx = 0; vx < verts.size(); vx++)
+            {
+                if (glm::length(verts[vx]._x - a) < 0.001f) brakeRight = vx;
+                if (glm::length(verts[vx]._x - b) < 0.001f) brakeLeft = vx;
+            }
+        }
+    }
+}
+
+
+void _gliderImporter::printLineTests()
+{
+    for (auto& L : line_segments)
+    {
+        if (strstr(L.name, "1A1") || strstr(L.name, "2A1") || strstr(L.name, "3A1") || strstr(L.name, "AG")
+            || strstr(L.name, "EG") || strstr(L.name, "AE"))
+        {
+            float3 a = line_verts[L.v_0];
+            float3 b = line_verts[L.v_1];
+            int i0, i1, cidx;
+            for (int i = 0; i < verts.size(); i++)
+            {
+                if (glm::length(a - verts[i]._x) < 0.005f) i0 = i;
+                if (glm::length(b - verts[i]._x) < 0.005f) i1 = i;
+            }
+
+            for (int i = 0; i < constraints.size(); i++)
+            {
+                if ((constraints[i].v_0 == i0) && (constraints[i].v_1 == i1) ||
+                    (constraints[i].v_0 == i1) && (constraints[i].v_1 == i0)) {
+                    cidx = i;
+                }
+            }
+
+            double _dt = 0.00208333333 / 4;
+            double _dt2 = _dt * _dt;
+            float Lng = glm::length(a - b);
+            float Lng2 = Lng * 0.02f;
+            float wSum = verts[i0]._w + verts[i1]._w;
+            float force2 = Lng2 / wSum / _dt2;
+            float K = force2 / Lng2;
+
+            float gpm = L.mass * 1000;
+            float g = gpm * Lng;
+            float diam = L.diameter * 1000;
+            float area = diam * Lng;
+            fprintf(terrafectorSystem::_logfile, "%s, %2.3f m, %2.2f N, wsum - %2.2f, k - %2.2f, linemass %2.2f g (%2.2f g), diameter %2.2f mm (area %2.2f g) \n", L.name, Lng, force2, wSum, K, gpm, g, diam, area);
+
+            float m10 = L.mass * 0.1f;
+            float d2_10 = 0.002f;
+            float wsum10 = 2.f * (1.f / (m10 / 2.f));
+            float f10 = d2_10 / wsum10 / _dt2;
+            float k10 = f10 / d2_10;
+            fprintf(terrafectorSystem::_logfile, "10 cm line, %2.2f N, wsum - %2.2f, k - %2.2f\n", f10, wsum10, k10);
+
+            fprintf(terrafectorSystem::_logfile, "%d, Z %2.2f m, _w %2.2f, m - %2.2f g, type %d \n", i0, verts[i0]._x.z, verts[i0]._w, verts[i0].mass * 1000, verts[i0].type);
+            fprintf(terrafectorSystem::_logfile, "%d, Z %2.2f m, _w %2.2f, m - %2.2f g, type %d  \n\n", i1, verts[i1]._x.z, verts[i1]._w, verts[i1].mass * 1000, verts[i1].type);
+        }
+    }
+
+    //fprintf(terrafectorSystem::_logfile, "\n\n from %d to %d\n\n", startLineIdx, endLineIdx);
+    for (auto& L : line_segments)
+    {
+        if (strstr(L.name, "1C3") || strstr(L.name, "2C2") || strstr(L.name, "3C2") || strstr(L.name, "4C1") || strstr(L.name, "AF")
+            || strstr(L.name, "CF") || strstr(L.name, "AC"))
+        {
+            float3 a = line_verts[L.v_0];
+            float3 b = line_verts[L.v_1];
+            int i0, i1, cidx;
+            for (int i = 0; i < verts.size(); i++)
+            {
+                if (glm::length(a - verts[i]._x) < 0.005f) i0 = i;
+                if (glm::length(b - verts[i]._x) < 0.005f) i1 = i;
+            }
+
+            for (int i = 0; i < constraints.size(); i++)
+            {
+                if ((constraints[i].v_0 == i0) && (constraints[i].v_1 == i1) ||
+                    (constraints[i].v_0 == i1) && (constraints[i].v_1 == i0)) {
+                    cidx = i;
+                }
+            }
+
+            double _dt = 0.00208333333 / 4;
+            double _dt2 = _dt * _dt;
+            float Lng = glm::length(a - b);
+            float Lng2 = Lng * 0.02f;
+            float wSum = verts[i0]._w + verts[i1]._w;
+            float force2 = Lng2 / wSum / _dt2;
+            float K = force2 / Lng2;
+
+            float gpm = L.mass * 1000;
+            float g = gpm * Lng;
+            float diam = L.diameter * 1000;
+            float area = diam * Lng;
+            fprintf(terrafectorSystem::_logfile, "%s, %2.3f m, %2.2f N, wsum - %2.2f, k - %2.2f, linemass %2.2f g (%2.2f g), diameter %2.2f mm (area %2.2f g) \n", L.name, Lng, force2, wSum, K, gpm, g, diam, area);
+
+            fprintf(terrafectorSystem::_logfile, "%d, Z %2.2f m, _w %2.2f, m - %2.2f g, type %d \n", i0, verts[i0]._x.z, verts[i0]._w, verts[i0].mass * 1000, verts[i0].type);
+            fprintf(terrafectorSystem::_logfile, "%d, Z %2.2f m, _w %2.2f, m - %2.2f g, type %d  \n\n", i1, verts[i1]._x.z, verts[i1]._w, verts[i1].mass * 1000, verts[i1].type);
+
+        }
+    }
+}
+
+void _gliderImporter::pushLines(constraintType _type, float _cut_length)
+{
+    float SumLineMass = 0;
+    float SumLineMassV = 0;
+    float SumLineAREA = 0;
+    float SumLineLENGTH = 0;
+
+    fprintf(terrafectorSystem::_logfile, "Pushing lines at %2.3f m\n", _cut_length);
+    startCIdx = constraints.size();
+    for (auto& L : line_segments)
+    {
+        float3 a = line_verts[L.v_0];
+        float3 b = line_verts[L.v_1];
+        float Length = glm::length(b - a);
+        //fprintf(terrafectorSystem::_logfile, "pushLine %s %2.2f g, %2.3f m\n", L.name, L.mass * 1000, Length);
+        //if(_cut_length >= 100.f || )
+        pushLine(a, b, L.mass * Length / 2 * 3, L.diameter * Length, _type, _cut_length);
+        memcpy(constraints.back().name, L.name, 8);
+        memcpy(constraints[constraints.size() - 2].name, L.name, 8);
+
+
+    }
+    endCIdx = constraints.size();
+
+    findBrakesCarabiners();
+
+    // clear verts
+    for (int i = startLineIdx; i < endLineIdx; i++)
+    {
+        verts[i].area = 0;
+        verts[i].mass = 0;
+        verts[i]._w = 0;
+    }
+
+    // sum lines
+    fprintf(terrafectorSystem::_logfile, "sum lines %d to %d\n", startCIdx, endCIdx);
+    for (int i = startCIdx; i < endCIdx; i++)
+    {
+        auto& C = constraints[i];
+
+
+        if (verts[C.v_0].type == vtx_line)
+        {
+            verts[C.v_0].area += C.area * 0.5f;
+            verts[C.v_0].mass += C.mass * 0.5f;
+        }
+
+        if (verts[C.v_1].type == vtx_line)
+        {
+            verts[C.v_1].area += C.area * 0.5f;
+            verts[C.v_1].mass += C.mass * 0.5f;
+        }
+        SumLineMass += C.mass;
+        SumLineAREA += C.area;
+        SumLineLENGTH += glm::length(verts[C.v_1]._x - verts[C.v_0]._x);
+    }
+
+    verts[carabinerRight].mass = 1000;
+    verts[carabinerLeft].mass = 1000;
+    verts[brakeRight].mass = 1000;
+    verts[brakeLeft].mass = 1000;
+
+    for (int i = startLineIdx; i < endLineIdx; i++)
+    {
+        verts[i]._w = 1.f / verts[i].mass;
+    }
+
+    // write to C
+    for (int i = startCIdx; i < endCIdx; i++)
+    {
+        auto& C = constraints[i];
+
+        C.w0 = verts[C.v_0]._w;
+        C.w1 = verts[C.v_1]._w;
+    }
+
+    fprintf(terrafectorSystem::_logfile, "SumLineMass % 2.2f g, % 2.2f mm*m, %2.3f m \n", SumLineMass * 1000, SumLineAREA * 1000, SumLineLENGTH);
+}
+
+
+void _gliderImporter::processLineAttachmentPoints_LineSet()
+{
+    loadLineSet();
+
+    startLineIdx = verts.size();
+
+
+    pushLines(constraintType::lines, 100.f);
+
+
+    // Do reports on lines %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    fprintf(terrafectorSystem::_logfile, "\n\n from %d to %d\n\n", startLineIdx, endLineIdx);
+    printLineTests();
+
+
+    pushLines(constraintType::lines, 0.9f);
+    pushLines(constraintType::lines, 0.2f);
+    pushLines(constraintType::smallLines, 0.05f);
+
+
+
+    calculateConstraintBuckets();
+
+
+    toObj("E:/Advance/omega_xpdb_lines.obj", constraintType::lines);
+    toObj("E:/Advance/omega_xpdb_smalllines.obj", constraintType::smallLines);
+}
+
 
 void  _gliderImporter::processLineAttachmentPoints()
 {
+    /*
     totalLineMeters = 0;
     totalLineWeight = 0;
     totalLineWeight_small = 0;
@@ -1706,6 +2303,7 @@ void  _gliderImporter::processLineAttachmentPoints()
 
     numLineVerts = 0;
     uint carabinerIndex;
+    float3 CAR_POS;
     float carabinerZ = 100000;  // find the carabiner
     if (sceneLines)
     {
@@ -1722,10 +2320,13 @@ void  _gliderImporter::processLineAttachmentPoints()
                 {
                     carabinerZ = line_verts[i].z;
                     carabinerIndex = i;
+                    CAR_POS = line_verts[i];
                 }
             }
         }
     }
+
+    CAR_POS.y = 0;  // center it
 
     numLineVertsOnSurface = (int)line_verts.size();
     for (int i = 0; i < line_verts.size(); i++)
@@ -1768,13 +2369,15 @@ void  _gliderImporter::processLineAttachmentPoints()
 
             if (!found)
             {
+                float dst = glm::length(line_verts[i] - CAR_POS);
+                float scale = glm::clamp(1.f / dst, 0.1f, 1.0f);
                 _VTX v;
                 v.area = 0.01f;
-                v.mass = 0.01f;  // FIXME just veryu light for now  LINES
+                v.mass = 0;// 0.01f * scale;  // FIXME just veryu light for now  LINES
                 v._x = line_verts[i];
                 v.area = 0;
-                v._w = 0;   // then let the segments add this later
-                v.mass = 0;
+                v._w = 0;// 1.f / v.mass;   // then let the segments add this later
+
                 v.type = vtx_line;
                 if (line_verts[i].z < (carabinerZ + 1.f))
                 {
@@ -1815,7 +2418,7 @@ void  _gliderImporter::processLineAttachmentPoints()
                     verts[(constraints.back()).y].mass += lineWeightPerMeter * L / 2;
                     totalLineMeters += L * 2;
                     totalLineWeight += lineWeightPerMeter * L * 2;
-                    
+
 
 
                     // Now add the small inbetween steps
@@ -1867,6 +2470,7 @@ void  _gliderImporter::processLineAttachmentPoints()
 
     toObj("E:/Advance/omega_xpdb_lines.obj", constraintType::lines);
     toObj("E:/Advance/omega_xpdb_smalllines.obj", constraintType::smallLines);
+    */
 }
 
 
@@ -2196,7 +2800,7 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
     const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
     const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
     const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-    
+
 
     ImGui::SetCursorPos(ImVec2(0, 0));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.01f, 0.003f, 0.005f, 1.f));
@@ -2207,7 +2811,8 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
         if (ImGui::Button("importLineSet")) {
-            cleanupLineSet();
+            //cleanupLineSet();
+            importCSV();
         }
         ImGui::Text("%d verts", line_verts.size());
         ImGui::Text("%d segments", line_segments.size());
@@ -2215,7 +2820,7 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
         if (ImGui::Button("load")) {
             loadLineSet();
         }
-        
+
 
         if (line_segments.size() > 0)
         {
@@ -2236,9 +2841,9 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
             ImGui::DragInt("type", &line_segments[SEG].material, 0.1f, 0, lineTypes.size() - 1);
             int mat = line_segments[SEG].material;
             ImGui::Text(" %s, % 2.2f mm, % 2.2f g", lineTypes[mat].name.c_str(), lineTypes[mat].width * 1000.f, lineTypes[mat].weight * 1000.f);
-            
 
-            
+
+
 
             ImGui::NewLine();
             static float scale = 200;
@@ -2264,7 +2869,7 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
                 draw_list->AddCircle(a, 3.f, ImColor(ImVec4(0.3f, 0.3f, 0.3f, 0.5f)));
             }
 
-            for (int i=0; i< line_segments.size(); i++)
+            for (int i = 0; i < line_segments.size(); i++)
             {
                 auto& L = line_segments[i];
                 ImVec2 a = project(line_verts[L.v_0], start, R, offset, scale);
@@ -2277,6 +2882,8 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
                 }
                 else
                 {
+                    //draw_list->AddLine(a, b, ImColor(ImVec4(0.5f, 0.5f, 0.5f, 1.0f)), W);
+
                     switch (L.material)
                     {
                     case 0: draw_list->AddLine(a, b, ImColor(ImVec4(0.0f, 0.0f, 0.1f, 1.0f)), W);     break;
@@ -2303,7 +2910,7 @@ void _gliderImporter::renderImport_Lines(Gui* mpGui, float2 _screen)
     ImGui::EndChildFrame();
     ImGui::PopStyleVar();
     ImGui::PopStyleColor();
-    
+
 }
 
 
@@ -2419,12 +3026,13 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
             importer.placeRibVerts();
             importer.ExportLineShape();
             importer.fullWing_to_obj();                 // FIXME move sdave to OBJ out of this I think
-            importer.processLineAttachmentPoints();
+            //importer.processLineAttachmentPoints();
+            importer.processLineAttachmentPoints_LineSet();
             importer.calculateNormals();    // since it now does the lines as well
             importer.sanityChecks();
             importer.exportWing();
 
-            
+
         }
 
         if (ImGui::Button((importer.line_file + "##2").c_str(), ImVec2(20, 0)))
@@ -2462,8 +3070,8 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
                 float longL = 0;
                 for (auto& C : importer.constraints)
                 {
-                    if (C.z == constraintType::lines) longL += glm::length(importer.verts[C.x]._x - importer.verts[C.y]._x);
-                    if (C.z == constraintType::smallLines) shortL += glm::length(importer.verts[C.x]._x - importer.verts[C.y]._x);
+                    if (C.type == constraintType::lines) longL += glm::length(importer.verts[C.v_0]._x - importer.verts[C.v_1]._x);
+                    if (C.type == constraintType::smallLines) shortL += glm::length(importer.verts[C.v_0]._x - importer.verts[C.v_1]._x);
                 }
                 ImGui::Text("Lines");
                 ImGui::Text("# attachents - %d", importer.numLineVertsOnSurface);
@@ -2703,15 +3311,15 @@ void _gliderRuntime::renderImport(Gui* pGui, float2 _screen)
                 //int numCType[maxCTypes];
                 for (auto& c : importer.constraints)
                 {
-                    if (c.x == i || c.y == i)
+                    if (c.v_0 == i || c.v_1 == i)
                     {
                         numC++;
-                        if (c.z == constraintType::skin) numC_skin++;
-                        ImVec2 c1 = project_B(importer.verts[c.x]._x, R);
-                        ImVec2 c2 = project_B(importer.verts[c.y]._x, R);
+                        if (c.type == constraintType::skin) numC_skin++;
+                        ImVec2 c1 = project_B(importer.verts[c.v_0]._x, R);
+                        ImVec2 c2 = project_B(importer.verts[c.v_1]._x, R);
 
                         ImU32 clr = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
-                        switch (c.z)
+                        switch (c.type)
                         {
                         case constraintType::ribs:
                         case constraintType::lines:
@@ -5774,20 +6382,20 @@ float3 _windTerrain::W(float3 _pos)
 void _new_gliderRuntime::solve(float _dT, int _repeats)
 {
     auto a = high_resolution_clock::now();
-    solve_airFlow();
+    //solve_airFlow();
     auto b = high_resolution_clock::now();
-    solve_wingShape();
+    //solve_wingShape();
     auto c = high_resolution_clock::now();
 
 
     if (_repeats >= 0)
     {
-        solve_internalPressure();
+        //solve_internalPressure();
         auto d = high_resolution_clock::now();
 
         solve_pre();
         auto e = high_resolution_clock::now();
-        
+
         solve_intersection();
         auto f = high_resolution_clock::now();
 
@@ -5795,6 +6403,9 @@ void _new_gliderRuntime::solve(float _dT, int _repeats)
             solve_constraints();
         }
 
+        
+
+        /*
         for (auto& C : constraints)
         {
             int3 vint = x[C.idx_1] - x[C.idx_0];
@@ -5809,9 +6420,9 @@ void _new_gliderRuntime::solve(float _dT, int _repeats)
             C.old_L = C.current_L;
             C.current_L = glm::length(vec);
         }
-
+        */
         auto g = high_resolution_clock::now();
-        
+
 
         time_internal_us = (float)duration_cast<microseconds>(d - c).count();
         time_pre_us = (float)duration_cast<microseconds>(e - d).count();
@@ -5820,15 +6431,20 @@ void _new_gliderRuntime::solve(float _dT, int _repeats)
         time_total_us = (float)duration_cast<microseconds>(e - a).count();
     }
 
-    
+
 
     time_air_us = (float)duration_cast<microseconds>(b - a).count();
     time_wing_us = (float)duration_cast<microseconds>(c - b).count();
 
 
     // root
-    int3 vC = x[carabinerRight];
-    int3 vT = x[2000];              // FIXME also save this during export
+    //int3 vC = x[carabinerRight];
+    //int3 vT = x[2000];              // FIXME also save this during export
+
+    // root for Cube
+    int3 vC = x[0];
+    int3 vT = x[x.size() - 1];              // FIXME also save this during export
+
     float3 fC = { vC.x * _inv, vC.y * _inv , vC.z * _inv };
     float3 fT = { vT.x * _inv, vT.y * _inv , vT.z * _inv };
     float3 fRoot = (fC + fT) * 0.5f;
@@ -5842,14 +6458,35 @@ void _new_gliderRuntime::solve(float _dT, int _repeats)
     {
         _x -= iOff;
     }
-    for (auto& _x : x_prev)
+    for (auto& _xPrev : x_prev)
     {
-        _x -= iOff;
+        _xPrev -= iOff;
     }
     posFixed[0] -= iOff;
     posFixed[1] -= iOff;
     posFixed[2] -= iOff;
     posFixed[3] -= iOff;
+
+    rope_i_start -= iOff;
+    rope_i_end -= iOff;
+
+
+
+
+
+
+
+    // not block Y from going below zero simulate ground
+    /*
+    for (auto& _x : x)
+    {
+        float H = _x.y * _inv + ROOT.y;
+        if (H < 0)
+        {
+            _x.y -= (int)(H * _scale);
+        }
+    }
+    */
 }
 
 void _new_gliderRuntime::solve_airFlow()
@@ -5857,15 +6494,15 @@ void _new_gliderRuntime::solve_airFlow()
     for (auto& r : ribs)
     {
         r.v = float3(0, 0, 0);
-        
+
         for (int j = 0; j < r.numVerts; j++)    // too much but time it first
         {
             r.v += x[r.startVertex + j] - x_prev[r.startVertex + j];
         }
         r.v *= (1.f / (float)r.numVerts) * _inv / _dt;        // this ribs velocity
-        
 
-        float3 tempWind = { -15, 0.0, 0 };    // placeholder wind, interpolated wind + wing speed at cell
+
+        float3 tempWind = { -10, 1.0, 0 };    // placeholder wind, interpolated wind + wing speed at cell
         //tempWind *= 0.3f;
         //r.v += tempWind;
         float3 sum = tempWind - r.v;
@@ -5893,7 +6530,7 @@ void _new_gliderRuntime::solve_wingShape()
     float v_aoa[900];
     float v_aob[900];
 
-    for (int i=0; i<ribs.size(); i++)
+    for (int i = 0; i < ribs.size(); i++)
     {
         auto& r = ribs[i];
 
@@ -5927,7 +6564,7 @@ void _new_gliderRuntime::solve_wingShape()
 
         float3 vBrake = C - trail;
         float aob = asin(glm::dot(r.up, glm::normalize(vBrake)));
-       // r.AoBrake = glm::lerp(r.AoBrake, aob, 0.5f);                  // more smoothed AoB - experiment here
+        // r.AoBrake = glm::lerp(r.AoBrake, aob, 0.5f);                  // more smoothed AoB - experiment here
         v_aob[i] = aob;
     }
 
@@ -5940,8 +6577,9 @@ void _new_gliderRuntime::solve_wingShape()
     }
     */
 
-    /*
+
     // Wintip Vortices
+    /*
     int numWintip = 30;
     float twist = -0.1f;
     for (int i = 0; i <= numWintip; i++)
@@ -5952,6 +6590,7 @@ void _new_gliderRuntime::solve_wingShape()
         v_aoa[ribs.size() - 1 - i] += twist * dt;
     }
     */
+
     //smooth span wise
     for (int i = 0; i < ribs.size(); i++)
     {
@@ -5995,7 +6634,7 @@ float _new_gliderRuntime::sampleCp(float _AoA, float _AoB, float _v)
     int i_v = (int)_v;
     float dv = _v - i_v;
 
-    
+
 
     _AoA = glm::clamp((_AoA * 57.2958f) + 5.f, 0.f, 23.99f);
     int i_aoa = (int)_AoA;
@@ -6012,8 +6651,8 @@ float _new_gliderRuntime::sampleCp(float _AoA, float _AoB, float _v)
     int idx_A1 = cp_V * i_aoa;
     int idx_A2 = cp_V * i_aoa + cp_V;
 
-    int idx_B1 = cp_V* cp_AoA* i_AoB;
-    int idx_B2 = cp_V* cp_AoA* i_AoB + (cp_V * cp_AoA);
+    int idx_B1 = cp_V * cp_AoA * i_AoB;
+    int idx_B2 = cp_V * cp_AoA * i_AoB + (cp_V * cp_AoA);
 
     float a = glm::mix(Cp[idx_B1 + idx_A1 + i_v], Cp[idx_B1 + idx_A1 + i_v + 1], dv);
     float b = glm::mix(Cp[idx_B1 + idx_A2 + i_v], Cp[idx_B1 + idx_A2 + i_v + 1], dv);
@@ -6034,21 +6673,21 @@ void _new_gliderRuntime::solve_internalPressure()
     {
         auto& r = ribs[i];
 
-        int Vaoa = glm::clamp(6 + (int)(r.AoA * 57.f), 0, 35);
-        int v = (int)(127.f * 0.475);   // FIXME 0.475 is hardcoded for the opening as is teh 12 ribs below
+        //int Vaoa = glm::clamp(6 + (int)(r.AoA * 57.f), 0, 35);
+        //int v = (int)(127.f * 0.475);   // FIXME 0.475 is hardcoded for the opening as is teh 12 ribs below
         //p[i] = Cp[Vaoa * 128 + v];
         //r.Cp = Cp[Vaoa * 128 + v];
-        p[i] = sampleCp(r.AoA, r.AoBrake, 0.475f );
+        p[i] = sampleCp(r.AoA, r.AoBrake, 0.47f);
     }
 
-    int NoIntakes = 12 * 2;
+    int NoIntakes = 12 * 1;
     for (int i = 0; i < NoIntakes; i++)
     {
         p[i] = p[NoIntakes];
         p[ribs.size() - 1 - i] = p[ribs.size() - NoIntakes - 1];
     }
 
-    int smoothWidth = 20;
+    int smoothWidth = 10;
     for (int i = 0; i < ribs.size(); i++)
     {
         auto& r = ribs[i];
@@ -6060,7 +6699,9 @@ void _new_gliderRuntime::solve_internalPressure()
             Cp += p[idx];
         }
         Cp /= smoothWidth * 2 + 1;
-        r.Cp = glm::lerp(r.Cp, Cp, 0.9f);
+        r.Cp = glm::lerp(r.Cp, Cp, 1.f);
+
+        r.Cp = p[i];
         /*
         int ia = __max(0, i - 1);
         int ib = __min(ribs.size() - 1, i + 1);
@@ -6069,7 +6710,7 @@ void _new_gliderRuntime::solve_internalPressure()
         r.Cp = glm::lerp(r.Cp, Cp, 0.9f);
         */
     }
-    
+
     /*
     float Cp = 0;
     for (int i = 0; i < ribs.size(); i++)
@@ -6087,7 +6728,17 @@ void _new_gliderRuntime::solve_internalPressure()
 void _new_gliderRuntime::solve_constraints()
 {
     auto a = high_resolution_clock::now();
-    
+    /*
+    x[carabinerRight] = posFixed[0];
+    x[carabinerLeft] = posFixed[1];
+    x[brakeRight] = posFixed[2];
+    x[brakeLeft] = posFixed[3];
+
+    x_prev[carabinerRight] = posFixed[0];
+    x_prev[carabinerLeft] = posFixed[1];
+    x_prev[brakeRight] = posFixed[2];
+    x_prev[brakeLeft] = posFixed[3];
+    */
     static int PULLCOUNT = 0;
     if (PULLCOUNT < PULL_DEPTH)
     {
@@ -6101,14 +6752,16 @@ void _new_gliderRuntime::solve_constraints()
         posFixed[3].y += (int)(0.001 * _scale);
         PULLCOUNT--;
     }
-    
+
+
+
     for (int i = 0; i < 1; i++)
     {
         for (auto& C : line_constraints)
         {
-            apply_constraint(C);
+            //apply_constraint(C);
         }
-
+        /*
         x[carabinerRight] = posFixed[0];
         x[carabinerLeft] = posFixed[1];
         x[brakeRight] = posFixed[2];
@@ -6118,12 +6771,38 @@ void _new_gliderRuntime::solve_constraints()
         x_prev[carabinerLeft] = posFixed[1];
         x_prev[brakeRight] = posFixed[2];
         x_prev[brakeLeft] = posFixed[3];
+        */
     }
 
     for (auto& C : constraints)
     {
         apply_constraint(C);
     }
+    /*
+    x[carabinerRight] = posFixed[0];
+    x[carabinerLeft] = posFixed[1];
+    x[brakeRight] = posFixed[2];
+    x[brakeLeft] = posFixed[3];
+
+    x_prev[carabinerRight] = posFixed[0];
+    x_prev[carabinerLeft] = posFixed[1];
+    x_prev[brakeRight] = posFixed[2];
+    x_prev[brakeLeft] = posFixed[3];
+    for (auto& C : line_constraints)
+    {
+        //apply_constraint(C);
+    }
+
+    x[carabinerRight] = posFixed[0];
+    x[carabinerLeft] = posFixed[1];
+    x[brakeRight] = posFixed[2];
+    x[brakeLeft] = posFixed[3];
+
+    x_prev[carabinerRight] = posFixed[0];
+    x_prev[carabinerLeft] = posFixed[1];
+    x_prev[brakeRight] = posFixed[2];
+    x_prev[brakeLeft] = posFixed[3];
+    */
     auto b = high_resolution_clock::now();
     time_constraints_us = (float)duration_cast<microseconds>(b - a).count();
 }
@@ -6184,18 +6863,18 @@ void _new_gliderRuntime::solveAcurateSkinNormals()
         }
         sumWingNAll += N[i];
     }
-    
+
 #endif
 }
 
 void _new_gliderRuntime::solve_pre()
 {
-    float3 tempWind = { -15, 0.0, 0 };    // placeholder wind, interpolated wind + wing speed at cell
+    float3 tempWind = { -10, 1.0, 0 };    // placeholder wind, interpolated wind + wing speed at cell
     //tempWind *= 0.3f;
     float V = glm::length(tempWind);
     float tempQ = 0.5f * 1.05f * V * V;        // dynamic pressure 1/2 rho v^2
     float tempCd_surface = 0.0039f;  // surface coeficient of drag, vary with wrincles, lots of tests needed
-    float tempCd_lines = 0.8f;
+    float tempCd_lines = 0.6f;
     float tempCd_pilot = 0.6f;
     float tempArea_pilot = 1.0f;    // 1m^2
 
@@ -6219,7 +6898,7 @@ void _new_gliderRuntime::solve_pre()
     float Qscale = (float)(_inv / _dt);
 
     num_vtx_line = 0;
-
+    /*
     for (int i = 0; i < x.size(); i++)
     {
         t = glm::normalize(tempWind - glm::dot(tempWind, N[i]) * N[i]);
@@ -6228,6 +6907,7 @@ void _new_gliderRuntime::solve_pre()
         {
             // gravity
             a_dt2[i] = float3(0, -i_g_dt, 0);
+
 
             // skin surface
             if (type[i] == vertexType::vtx_surface) // FIXME Rtype is still exportwed wrong everythign si surface
@@ -6242,7 +6922,7 @@ void _new_gliderRuntime::solve_pre()
                 {
                     vCp = ribs.back().Cp - skinCp;
                 }
-                
+
                 if (r >= 0)
                 {
                     //int Vaoa = glm::clamp(6 + (int)(ribs[r].AoA * 57.f), 0, 35);
@@ -6258,15 +6938,15 @@ void _new_gliderRuntime::solve_pre()
                 //a_dt2 += area_x_w[i] * vCp * ribs[r].rho * scale * N[i];
                 //a_dt2 += area_x_w[i] * tempCd_surface * tempQ * scale * t;
                 a_dt2[i] += w[i] * vCp * ribs[r].rho * scale * N[i];
-                a_dt2[i] += area_x_w[i] * tempCd_surface * tempQ * scale * t * 0.1f ;
+                a_dt2[i] += area_x_w[i] * tempCd_surface * tempQ * scale * t * 0.1f;
 
-                
+
                 int3 v1 = x[i] - x_prev[i];
                 int3 v2 = x[cross_idx[i].x] - x_prev[cross_idx[i].x];
                 int3 v3 = x[cross_idx[i].y] - x_prev[cross_idx[i].y];
                 int3 dV = (v2 + v3) / 2 - v1;
                 a_dt2[i] += dV / 2;
-                
+
 
 #ifdef DEBUG_GLIDER
                 ribs[r]._debug.forcePressure += (-skinCp) * ribs[r].rho * N[i];
@@ -6282,7 +6962,7 @@ void _new_gliderRuntime::solve_pre()
                 ribs[r].AREA += glm::length(N[i]);
 
                 debug_wing_F += (-skinCp) * ribs[r].rho * N[i]; //N[i] contains area as well its scaled
-                debug_wing_Skin += area_x_w[i] * tempCd_surface * tempQ * t;
+                debug_wing_Skin += area_x_w[i] * tempCd_surface * tempQ * t; // skin friction
                 //debug_wing_F += ribs[r]._debug.forceSkin;
                 //debug_wing_F += ribs[r]._debug.forceGravity;
                 //debug_wing_F += ribs[r]._debug.forceInternal;
@@ -6295,17 +6975,17 @@ void _new_gliderRuntime::solve_pre()
                 //a_dt2 = float3(0, -(i_g_dt >> 1), 0);   // Only allpy half of teh gravity TEMP
 
                 float3 QV = (x[i] - x_prev[i]);
-                float3 lineV = tempWind -  QV * Qscale;
+                float3 lineV = tempWind -QV * Qscale;
                 float lineV2 = (lineV.x * lineV.x) + (lineV.y * lineV.y) + (lineV.z * lineV.z);
                 float lineQ = 0.5f * 1.05f * lineV2;        // dynamic pressure 1/2 rho v^2             60us cost
 
                 t = glm::normalize(lineV);
                 //t = glm::normalize(tempWind);
                 //a_dt2 += 100.f * tempCd_lines * area_x_w[i] * tempQ * scale * t;
-                a_dt2[i] += 0.2f * tempCd_lines * lineQ * scale * t;
+                a_dt2[i] += 1.0f * tempCd_lines * lineQ * area_x_w[i] * scale * t;
                 num_vtx_line++;
 
-                if (type[i] == vertexType::vtx_small_line)
+                //if (type[i] == vertexType::vtx_small_line)
                 {
                     //if (cross_idx[i].x <= 0)  fprintf(terrafectorSystem::_logfile, "VTX %d, cross.x == 0\n", i);
                     //if (cross_idx[i].y <= 0)  fprintf(terrafectorSystem::_logfile, "VTX %d, cross.y == 0\n", i);
@@ -6317,14 +6997,14 @@ void _new_gliderRuntime::solve_pre()
                     int3 v3 = x[cross_idx[i].y] - x_prev[cross_idx[i].y];
                     int3 dV = (v2 + v3) / 2 - v1;
                     a_dt2[i] += dV / SMALL_LINE_SMOOTH;
-                    
+
                 }
-                
+
 
 #ifdef DEBUG_GLIDER
-                if (w[i] > 0.1f)
+                //if (w[i] > 0.1f)
                 {
-                    lineDrag += 0.2f * tempCd_lines * lineQ * t / w[i];
+                    lineDrag += 1.0f * tempCd_lines * lineQ * area_x_w[i] * t / w[i];
                 }
 #endif
             }
@@ -6337,16 +7017,102 @@ void _new_gliderRuntime::solve_pre()
             }
         }
 
-        
+
+    }
+    */
+
+    // Line damping
+    // for ropes hold the two ends
+    //
+    x[0] = rope_i_start;
+    x_prev[0] = rope_i_start;
+    if (grabEnd)
+    {
+        x[x.size() - 1] = rope_i_end;
+        x_prev[x.size() - 1] = rope_i_end;
     }
 
 
-    // Line damping
+
+    for (int i = 0; i < x.size(); i++)
+    {
+        // smoothing
+        int3 v1 = x[i] - x_prev[i];
+        int3 v2 = x[cross_idx[i].x] - x_prev[cross_idx[i].x];
+        int3 v3 = x[cross_idx[i].y] - x_prev[cross_idx[i].y];
+        int3 v4 = x[cross_idx[i].z] - x_prev[cross_idx[i].z];
+        int3 v5 = x[cross_idx[i].w] - x_prev[cross_idx[i].w];
+        //int3 dV = (v2 + v3 + v4 + v5) / 4 - v1;
+        int3 dV = (v3 + v4) / 2 - v1;
+        a_dt2[i] = glm::ivec3(0, -i_g_dt, 0) + (dV / SMALL_LINE_SMOOTH);
+    }
+
+    // add a force at the end
+    a_dt2[x.size() - 1].y -= (int)(w[x.size() - 1] * addedForceEnd * _time_scale); // 100 nweton
+
     for (int i = 0; i < x.size(); i++)
     {
         int3 oldX = x[i];
-        x[i] += (x[i] - x_prev[i]) + a_dt2[i];   // calc v_dt[i] on the spot        // Christian dampens the position as well, I am not yet convinced
+        int3 dx = (x[i] - x_prev[i]) + a_dt2[i];
+        int3 vx = (x[i] - x_prev[i]);
+        x[i] += dx;   // calc v_dt[i] on the spot
+
+        if (testGround)
+        {
+            float H = x[i].y * _inv + ROOT.y;
+            if (H < 1)
+            {
+
+
+                float3 N = { 0, 1, 0 };
+                int a = (int)(N.x * dx.x) + (int)(N.y * dx.y) + (int)(N.z * dx.z);
+                int3 aN = { N.x * a, N.y * a, N.z * a };
+                int3 aP = dx - aN;
+
+
+
+                float3 nNormal = dx;
+                nNormal = glm::normalize(nNormal);
+                float fricDot = -glm::dot(nNormal, N);
+
+                if (fricDot < 0.65)
+                {
+                    friction[i] = 1;    // sliding
+                    fricDot = 0.02f;
+                    x[i] -= int3(aP.x * fricDot, aP.y * fricDot, aP.z * fricDot);
+                    // mover UP last
+                    x[i] -= aN; // Move out but should really be in the movement direction but this is ok for now
+                }
+                else
+                {
+                    friction[i] = 2; // static
+                    x[i] = oldX;
+                    fricDot = 1.0f;
+                }
+
+
+                // bounce it 50% werk nog nei reg nie, dink hieroor, split velocity update en acelleration update
+                //x[i].y += -vx.y;
+
+
+                
+            }
+            else
+            {
+                friction[i] = 0;
+            }
+        }
+    
+
         x_prev[i] = oldX;
+    }
+
+    x[0] = rope_i_start;
+    x_prev[0] = rope_i_start;
+    if (grabEnd)
+    {
+        x[x.size() - 1] = rope_i_end;
+        x_prev[x.size() - 1] = rope_i_end;
     }
 
 }
@@ -6377,32 +7143,448 @@ void _new_gliderRuntime::apply_constraint(_new_constraint& cnst)  // allow softn
         //float C = (L - cnst.l - 0.3f * (cnst.current_L - cnst.old_L)) / L; // devide by L because we scale by vec
         float C = (L - cnst.l) / L; // devide by L because we scale by vec
 
-        
+
+        cnst.force = (cnst.l - L) / (cnst.wsum) / _dt2;// / (w[cnst.idx_0] + w[cnst.idx_1]);
+        cnst.old_L = L;
 
         if (C > 0) {
             C *= cnst.tensileStiff;// *scale;
+            cnst.force *= cnst.tensileStiff;
         }
         else {
             C *= cnst.compressStiff;
+            cnst.force *= cnst.compressStiff;
         }
-        
+
         // velocity damping
        // float v = (L - cnst.old_L) / cnst.l;
        // C *= 1.f + (v);
         //C += glm::clamp(v * 0.1f, -0.1f, 0.1f);// *cnst.damping;
-        
+
+        // Lamda
+        //float lamda = (cnst.l - L) / (w[cnst.idx_0] + w[cnst.idx_1])
 
 
-        x[cnst.idx_0] += (C * cnst.w_0 * (float)_scale) * vec;
-        x[cnst.idx_1] -= (C * cnst.w_1 * (float)_scale) * vec;
+        x[cnst.idx_0] += (C * cnst.w_rel_0 * (float)_scale) * vec;
+        x[cnst.idx_1] -= (C * cnst.w_rel_1 * (float)_scale) * vec;
 
         //cnst.old_L = L;
     }
 }
 
 
+// horiontal between two points
+void _new_gliderRuntime::importBin_generateRope()
+{
+    bool DistributeWeight = true;
+    uint numLOD = 6;
+    ROOT = float3(0, 0, 0);
+    int numV = (1<< numLOD) + 1;// (int)(rope_L / rope_sub) + 1;
+    int numT = 0;   //triangles
+    int numC = numV * 10;    //jst large we trim after adding
+    int numR = 0; // ribs
+
+    x.resize(numV);
+    x_prev.resize(numV);
+    a_dt2.resize(numV);
+    w.resize(numV);
+
+    // unnesesary
+    cross_idx.resize(numV);
+    type.resize(numV);
+    area_x_w.resize(numV);
+    uv.resize(numV);
+    N.resize(numV);     // for temp normals
+    friction.resize(numV);
+
+    constraints.resize(numC);
+    int C_idx = 0;
+
+    fprintf(terrafectorSystem::_logfile, "_new_gliderRuntime::importBin_generateRope()\n");
+    fprintf(terrafectorSystem::_logfile, "####################################################################\n");
+    fprintf(terrafectorSystem::_logfile, "numV %d\n", numV);
+    fprintf(terrafectorSystem::_logfile, "numC %d, %d\n", numC, C_idx);
+
+    float smallLength = rope_L / (numV - 1);
+    float sectionMass = rope_M_per_meter * smallLength;
+
+    rope_i_start = glm::ivec3(rope_Start.x * _scale, rope_Start.y * _scale, rope_Start.z * _scale);
+    rope_i_end = glm::ivec3(rope_End.x * _scale, rope_End.y * _scale, rope_End.z * _scale);
+
+    for (int i = 0; i < numV; i++)
+    {
+        float3 pos = glm::lerp(rope_Start, rope_End, (float)i / (float)(numV - 1));
+        pos.z += sin((float)i / (float)(numV - 1) * 6.283185f) * 0.03f;
+        x[i] = glm::ivec3(pos.x * _scale, pos.y * _scale, pos.z * _scale);
+        x_prev[i] = x[i];
+        a_dt2[i] = float3(0, -i_g_dt, 0);
+        w[i] = 1.0f / sectionMass;// vir nou ignoireer dat die randte ligter weeg
+        cross_idx[i] = uint4(__max(0, i - 2), __max(0, i - 1), __min((numV - 1), i + 1), __min((numV - 1), i + 2));
+        friction[i] = 0;
+    }
+
+    w[0] = 0;
+    //w[w.size() - 1] = 0.1f;    // 10 kg
+
+
+    float totalMass = rope_M_per_meter * rope_L;
+    for (int lod = 0; lod <= numLOD; lod++)
+    {
+        uint Tp = constraintType::smallLines;
+        int num = 1 << lod;
+        int step = (numV - 1) >> lod;
+        float m = totalMass / (num);
+        float wtemp = 1.0f / sectionMass; //1.f / m;
+        float l = rope_L / (float)num;
+
+        if (lod < numLOD)
+        {
+            float extra = 0.01f / (float)num;
+            l = l * (1.f + extra );
+            Tp = constraintType::lines;
+        }
+    
+        float k = 1.f / (wtemp + wtemp) / _dt2;
+
+
+        float kdt = 20000.f * pow(2.f, ((float)lod * 1.5f));
+        float adt2 = 1.f / kdt / _dt2;
+        if (lod >= 4) adt2 = 0;
+        adt2 = 0;
+        fprintf(terrafectorSystem::_logfile, "\nlod %d   l %2.6f m,   w %2.3f,  m %2.3f kg,  k %2.3f,   adt2  %2.3f,   step %d\n", lod, l, wtemp, m, k, adt2, step);
+
+        float d2 = l * 1.02f - l;
+        float f_raw = d2 / (wtemp + wtemp) / _dt2;
+        float f_a = d2 / (wtemp + wtemp + adt2) / _dt2;
+        fprintf(terrafectorSystem::_logfile, "f raw 2%% %2.3f N      f_a 2%% %2.3f N\n", f_raw, f_a);
+
+        float stiff = 0.f;
+        if (step == 1) stiff = 0.1f;
+        for (int i = 0; i < numV - 1; i += step)
+        {
+            constraints[C_idx] = _new_constraint(i, i + step, l, 1.f, stiff, 0.f, w[i], w[i+step], adt2, Tp);
+            sprintf(constraints[C_idx].name, "lod-%d", lod);
+            //fprintf(terrafectorSystem::_logfile, "C :  %d  %d  l %2.3f m,  wsum %2.3f\n", i, i + step, constraints[C_idx].l, constraints[C_idx].wsum);
+            C_idx++;
+
+            if (step == 1 && i < numV - 2)
+            {
+                constraints[C_idx] = _new_constraint(i, i + 2, l * 2.f, 1.f, 0.001f, 0.f, w[i], w[i + 2], adt2, constraintType::lines);
+                sprintf(constraints[C_idx].name, "bend", lod);
+                C_idx++;
+            }
+        }
+    }
+
+    constraints.resize(C_idx);
+    std::random_device rd;
+    std::mt19937 g(rd());
+    //std::shuffle(constraints.begin(), constraints.end(), g); // baie klein verskil
+
+
+    DistributeWeight = false;
+    if (DistributeWeight)
+    {
+        for (int i = 0; i < numV; i++)
+        {
+            w[i] = 0;
+        }
+
+        float m = 0.1f / 64.f / 2.f;
+        for (auto& C : constraints)
+        {
+            w[C.idx_0] += m;// 1.0f / (C.w0) * 0.5f;
+            w[C.idx_1] += m;//1.0f / (C.w1) * 0.5f;
+        }
+
+        fprintf(terrafectorSystem::_logfile, "\n\n g - ");
+        adjustedMass = 0.f;
+        for (int i = 0; i < numV; i++)
+        {
+            fprintf(terrafectorSystem::_logfile, "  %2.1f ", w[i] * 1000.f);
+            if (i > 0) adjustedMass += w[i];
+            w[i] = 1.0f / w[i];
+        }
+        fprintf(terrafectorSystem::_logfile, "adjustedMass %2.3f kg\n", adjustedMass);
+
+
+        for (auto& C : constraints)
+        {
+            C.w0 = w[C.idx_0];
+            C.w1 = w[C.idx_1];
+            C.wsum = C.w0 + C.w1;
+            C.w_rel_0 = C.w0 / C.wsum;
+            C.w_rel_1 = C.w1 / C.wsum;
+        }
+    }
+
+
+
+
+  
+
+    fprintf(terrafectorSystem::_logfile, "\n\n");
+}
+
+
+
+
+
+
+
+void _new_gliderRuntime::importBin_generateCube()
+{
+    ROOT = float3(0, 3, 0);
+    int grid = 32;
+    int numV = grid * grid * grid;
+    int numT = 0;   //triangles
+    int numC = (grid) * (grid) * (grid) * 6 * 2;    //???
+    int numR = 0; // ribs
+
+    int stepScale = (int)(_scale / 6);
+    float total_mass = 100.0f;      //kg
+    float blockMass = total_mass / ((grid - 1) * (grid - 1) * (grid - 1));
+
+    x.resize(numV);
+    x_prev.resize(numV);
+    a_dt2.resize(numV);
+    w.resize(numV);
+
+    // unnesesary
+    cross_idx.resize(numV);
+    type.resize(numV);
+    area_x_w.resize(numV);
+    uv.resize(numV);
+    N.resize(numV);     // for temp normals
+
+
+
+    for (int dz = 0; dz < grid; dz++)
+    {
+        for (int dy = 0; dy < grid; dy++)
+        {
+            for (int dx = 0; dx < grid; dx++)
+            {
+                int idx = (dz * grid * grid) + (dy * grid) + dx;
+
+
+                x[idx] = glm::ivec3(stepScale * dx, stepScale * dy, stepScale * dz);
+                x_prev[idx] = x[idx];
+                a_dt2[idx] = float3(0, -i_g_dt, 0);
+
+
+
+                int sum = 0;
+                if (dx == 0 || dx == grid - 1) sum++;
+                if (dy == 0 || dy == grid - 1) sum++;
+                if (dz == 0 || dz == grid - 1) sum++;
+                float scale = pow(2, sum);
+
+                w[idx] = 1.0f / blockMass;// *scale; // vir nou ignoireer dat die randte ligter weeg
+
+                uint c1 = idx;
+                uint c2 = idx;
+                uint c3 = idx;
+                uint c4 = idx;
+
+                if (dz > 0) {   // onder
+                    if (dy > 0 && dx > 0)
+                    {
+                        c1 += -(grid * grid) - grid - 1;
+                    }
+
+                    if (dy < grid - 1 && dx < grid - 1)
+                    {
+                        c2 += -(grid * grid) + grid + 1;
+                    }
+                }
+
+                if (dz < grid - 1)  // bo
+                {
+                    if (dy > 0 && dx < grid - 1)
+                    {
+                        c3 += (grid * grid) - grid + 1;
+                    }
+
+                    if (dy < grid - 1 && dx > 0)
+                    {
+                        c4 += (grid * grid) + grid - 1;
+                    }
+                }
+
+                cross_idx[idx] = uint4(c1, c2, c3, c4);
+
+                if (c1 >= numV) fprintf(terrafectorSystem::_logfile, "cross_idx ERROR %d\n", c1);
+                if (c2 >= numV) fprintf(terrafectorSystem::_logfile, "cross_idx ERROR %d\n", c2);
+                if (c3 >= numV) fprintf(terrafectorSystem::_logfile, "cross_idx ERROR %d\n", c3);
+                if (c4 >= numV) fprintf(terrafectorSystem::_logfile, "cross_idx ERROR %d\n", c4);
+            }
+        }
+    }
+
+
+    constraints.resize(numC);
+
+    int C_idx = 0;
+    float straightL = 1.f / 6.f;
+    float skewL = straightL * sqrt(3.0f);
+
+    // sgtraight
+    for (int dz = 0; dz < grid; dz++)
+    {
+        for (int dy = 0; dy < grid; dy++)
+        {
+            for (int dx = 0; dx < grid; dx++)
+            {
+                int idx = (dz * grid * grid) + (dy * grid) + dx;
+                int idx_x = idx + 1;
+                int idx_y = idx + grid;
+                int idx_z = idx + grid * grid;
+
+                constraintType type = constraintType::smallLines;
+                constraintType typeSide = constraintType::straps;
+
+                if (dx < grid - 1)
+                {
+                    constraints[C_idx] = _new_constraint(idx, idx_x, straightL, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = type;
+                    //if (dx == 0 || dx == grid - 2) constraints[C_idx].type = typeSide;
+                    if (dz == 0 || dz == grid - 1) constraints[C_idx].type = typeSide;
+                    C_idx++;
+                }
+
+                if (dy < grid - 1)
+                {
+                    constraints[C_idx] = _new_constraint(idx, idx_y, straightL, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = type;
+                    //if (dy == 0 || dy == grid - 2) constraints[C_idx].type = typeSide;
+                    if (dz == 0 || dz == grid - 1) constraints[C_idx].type = typeSide;
+                    C_idx++;
+                }
+
+                if (dz < grid - 1)
+                {
+                    constraints[C_idx] = _new_constraint(idx, idx_z, straightL, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = type;
+                    //if (dz == 0 || dz == grid - 2) constraints[C_idx].type = typeSide;
+                    //if (dz == 0) constraints[C_idx].type = typeSide;
+                    C_idx++;
+                }
+
+                // Double STEP
+                // ####################################################################################
+                if (dx < grid - 2)
+                {
+                    idx_x = idx + 2;
+                    constraints[C_idx] = _new_constraint(idx, idx_x, straightL * 2, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = type;
+                    //if (dx == 0 || dx == grid - 2) constraints[C_idx].type = typeSide;
+                    if (dz == 0 || dz == grid - 1) constraints[C_idx].type = typeSide;
+                    C_idx++;
+                }
+
+                if (dy < grid - 2)
+                {
+                    idx_y = idx + grid * 2;
+                    constraints[C_idx] = _new_constraint(idx, idx_y, straightL * 2, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = type;
+                    //if (dy == 0 || dy == grid - 2) constraints[C_idx].type = typeSide;
+                    if (dz == 0 || dz == grid - 1) constraints[C_idx].type = typeSide;
+                    C_idx++;
+                }
+
+                if (dz < grid - 2)
+                {
+                    int idx_z = idx + grid * grid * 2;
+                    constraints[C_idx] = _new_constraint(idx, idx_z, straightL * 2, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = type;
+                    //if (dz == 0 || dz == grid - 2) constraints[C_idx].type = typeSide;
+                    //if (dz == 0) constraints[C_idx].type = typeSide;
+                    C_idx++;
+                }
+            }
+        }
+    }
+
+
+
+    // face diagonal
+
+
+
+
+    // diagonal
+    for (int dz = 0; dz < grid; dz++)
+    {
+        for (int dy = 0; dy < grid; dy++)
+        {
+            for (int dx = 0; dx < grid; dx++)
+            {
+                int idx = (dz * grid * grid) + (dy * grid) + dx;
+
+                if ((dx < grid - 1) && (dy < grid - 1) && (dz < grid - 1))
+                {
+                    int idx_x = idx + grid * grid + grid + 1;
+                    constraints[C_idx] = _new_constraint(idx, idx_x, skewL, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = constraintType::lines;
+                    C_idx++;
+                }
+
+                if ((dx > 0) && (dy < grid - 1) && (dz < grid - 1))
+                {
+                    int idx_y = idx + grid * grid + grid - 1;
+                    constraints[C_idx] = _new_constraint(idx, idx_y, skewL, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = constraintType::lines;
+                    C_idx++;
+                }
+
+                if ((dx < grid - 1) && (dy > 0) && (dz < grid - 1))
+                {
+                    int idx_z = idx + grid * grid - grid + 1;
+                    constraints[C_idx] = _new_constraint(idx, idx_z, skewL, 1.f, 1.f, 0.f);
+                    constraints[C_idx].type = constraintType::lines;
+                    C_idx++;
+                }
+
+
+            }
+        }
+    }
+
+    fprintf(terrafectorSystem::_logfile, "_new_gliderRuntime::importBin_generateCube()\n");
+    fprintf(terrafectorSystem::_logfile, "####################################################################\n");
+    fprintf(terrafectorSystem::_logfile, "grid %d\n", grid);
+    fprintf(terrafectorSystem::_logfile, "straightL %f\n", straightL);
+    fprintf(terrafectorSystem::_logfile, "skewL %f\n", skewL);
+    fprintf(terrafectorSystem::_logfile, "numV %d\n", numV);
+    fprintf(terrafectorSystem::_logfile, "numC %d, %d\n", numC, C_idx);
+    constraints.resize(C_idx);
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(constraints.begin(), constraints.end(), g); // baie klein verskil
+
+    // straight K
+    float wtest = 1.0f / blockMass;
+    float onePercent = straightL * 0.01f;
+    float f = onePercent / (wtest + wtest) / _dt2;
+    float straightK = f / onePercent;
+    fprintf(terrafectorSystem::_logfile, "f %f N at 1.0 percent, or %f N f lying flat\n", f, f * grid * grid);
+    fprintf(terrafectorSystem::_logfile, "straightK %f\n", straightK);
+
+
+
+    fprintf(terrafectorSystem::_logfile, "\n\n");
+}
+
+
+
 void _new_gliderRuntime::importBin()
 {
+    importBin_generateRope();
+    //importBin_generateCube();
+    return;
+
+
     std::ifstream ifs;
     ifs.open("E:/Advance/omega_export_low.bin", std::ios::binary);
     if (ifs)
@@ -6422,8 +7604,12 @@ void _new_gliderRuntime::importBin()
         ifs.read((char*)&numT, sizeof(int));
         ifs.read((char*)&numC, sizeof(int));
         ifs.read((char*)&numR, sizeof(int));
+        ifs.read((char*)&bucketSize, sizeof(int));
+        ifs.read((char*)&numBuckets, sizeof(int));
 
-        fprintf(terrafectorSystem::_logfile, "V %d, T %d, C %d, R %d\n", numV, numT, numC, numR);
+
+
+        fprintf(terrafectorSystem::_logfile, "V %d, T %d, C %d, R %d, bucketSize %d %d\n", numV, numT, numC, numR, bucketSize, numBuckets);
 
 
 
@@ -6453,6 +7639,9 @@ void _new_gliderRuntime::importBin()
         tris_airtight.resize(numT);
         ifs.read((char*)tris_airtight.data(), sizeof(glm::ivec3) * numT);
 
+        // constraint buckets
+        ConstraintBuckets.resize(numBuckets * bucketSize);
+        ifs.read((char*)ConstraintBuckets.data(), sizeof(int) * numBuckets * bucketSize);
 
         // constraints
         constraints.resize(numC);
@@ -6464,22 +7653,31 @@ void _new_gliderRuntime::importBin()
 
 
         // Debug data at the end where it can be ignored
-#ifdef DEBUG_GLIDER
+//#ifdef DEBUG_GLIDER
         area.resize(numV);
         w.resize(numV);
         ifs.read((char*)area.data(), sizeof(float) * numV);
         ifs.read((char*)w.data(), sizeof(float) * numV);
-#endif
+        //#endif
 
         ifs.close();
     }
+
+
+
+
+
+
 
     // reset constraints
     line_constraints.clear();
     for (auto& cnst : constraints)
     {
 
-        if (cnst.type == constraintType::nitinol) {
+        if (cnst.type == constraintType::nitinol)
+        {
+            cnst.tensileStiff = 1.f;
+
             if (cnst.idx_1 - cnst.idx_0 == 1) {
                 cnst.compressStiff = 1.0f;          // this is the straigth part
             }
@@ -6488,14 +7686,14 @@ void _new_gliderRuntime::importBin()
             }
         }
 
-        
+
 
         if (cnst.type == constraintType::smallLines)
         {
-            //cnst.l *= 0.995f;   // FIXME ratehr shoirten lines, anddependent on actual length, i.e. number of splits. I knwo it there
+            cnst.l *= 0.993f;   // FIXME ratehr shoirten lines, anddependent on actual length, i.e. number of splits. I knwo it there
             //cnst.w_0 *= 3.01f;
             //cnst.w_1 *= 3.01f;
-            
+            /*
             if (type[cnst.idx_0] == vertexType::vtx_line)
             {
                 cnst.w_0 = 0.333f * (cnst.w_0 + cnst.w_1);
@@ -6506,31 +7704,33 @@ void _new_gliderRuntime::importBin()
                 cnst.w_0 = 0.667f * (cnst.w_0 + cnst.w_1);
                 cnst.w_1 = 0.333f * (cnst.w_0 + cnst.w_1);
             }
-
-            cnst.compressStiff = 0.01f;
-            cnst.tensileStiff = 0.2f;
+            */
+            cnst.compressStiff = 0.0f;
+            cnst.tensileStiff = 1.f;
 
         }
 
         if (cnst.type == constraintType::lines)
         {
             cnst.compressStiff = 0;
-            cnst.tensileStiff = 1.f;
+            cnst.tensileStiff = 1.0f;
 
             int segments = (int)(ceil(cnst.l / 0.1f));
             if (segments > 1)
             {
                 float P = pow((float)(segments - 1), 1.4f);
-                cnst.l *= 1.f + (P * 0.01f * 0.005f);
+                //cnst.l *= 1.f + (P * 0.01f * 0.005f);
 
                 P = pow((float)(segments - 1), 1.3f);
-                cnst.tensileStiff = 1.f / P;
+                //cnst.tensileStiff = 1.f / P;
             }
             //cnst.l *= 1.001f;
 
             line_constraints.push_back(cnst);
             //cnst.w_0 *= 0.01f;
             //cnst.w_1 *= 0.01f;
+
+            fprintf(terrafectorSystem::_logfile, "LINES - %s w(%2.2f, %2.2f), wrel(%2.2f, %2.2f)\n", cnst.name, cnst.w0, cnst.w1, cnst.w_rel_0, cnst.w_rel_1);
         }
 
         if (cnst.type == constraintType::ribs)
@@ -6552,8 +7752,8 @@ void _new_gliderRuntime::importBin()
 
         if (cnst.type == constraintType::skin)
         {
-            cnst.tensileStiff = 0.95f;
-            cnst.compressStiff = 0.036f;    // VERY little
+            cnst.tensileStiff = 1.f;
+            cnst.compressStiff = 0.0083f;    // VERY little
             if (uv[cnst.idx_0].y == 0 || uv[cnst.idx_0].y == 1 || uv[cnst.idx_1].y == 0 || uv[cnst.idx_1].y == 1)
             {
                 cnst.compressStiff = 0.07f; // trailing edge
@@ -6566,6 +7766,7 @@ void _new_gliderRuntime::importBin()
 
     }
 
+#ifdef DEBUG_GLIDER
     for (int i = 0; i < vtx_MAX; i++)
     {
         mass[i] = 0;
@@ -6575,7 +7776,8 @@ void _new_gliderRuntime::importBin()
     {
         mass[type[i]] += 1.f / w[i];
     }
-    
+#endif
+
 
     posFixed[0] = x[carabinerRight];
     posFixed[1] = x[carabinerLeft];
@@ -6584,19 +7786,21 @@ void _new_gliderRuntime::importBin()
 
     //posFixed[2].y -= (int)(0.1f * (float)_scale);
 
-    
+
 
     // Shuffle the vector
     std::random_device rd;
     std::mt19937 g(rd());
-    //std::shuffle(constraints.begin(), constraints.end(), g); // baie klein verskil
+    // BAD BAD BAD std::shuffle(constraints.begin(), constraints.end(), g); // baie klein verskil
 
     // sanity checks
+#ifdef DEBUG_GLIDER
     fprintf(terrafectorSystem::_logfile, "mass\n");
     fprintf(terrafectorSystem::_logfile, "surface %2.4f kg\n", mass[vtx_surface]);
     fprintf(terrafectorSystem::_logfile, "internal %2.4f kg\n", mass[vtx_internal]);
     fprintf(terrafectorSystem::_logfile, "line %2.4f kg\n", mass[vtx_line]);
     fprintf(terrafectorSystem::_logfile, "small line %2.4f kg\n", mass[vtx_small_line]);
+#endif
 
     for (int i = 0; i < x.size(); i++)
     {
@@ -6613,11 +7817,11 @@ void _new_gliderRuntime::importBin()
             if (cross_idx[i].x >= (uint)x.size())  fprintf(terrafectorSystem::_logfile, "vtx_small_line [%d] - cross_idx[i].x >= x.size()\n", i);
             if (cross_idx[i].y >= (uint)x.size())  fprintf(terrafectorSystem::_logfile, "vtx_small_line [%d] - cross_idx[i].y >= x.size()\n", i);
         }
-        
+
     }
 
     fprintf(terrafectorSystem::_logfile, "\n\n\n");
-    
+
 }
 
 
@@ -6661,7 +7865,7 @@ ImVec2 _new_gliderRuntime::project(float3 p, _new_rib& R, ImVec2 _pos, float _sc
     FRONT.y = 0;
     FRONT = glm::normalize(FRONT);
     float3 UP = glm::normalize(glm::cross(R.right, FRONT));
-    
+
 
     //float3 trail = x[R.startVertex];
     float3 vec = (p - ORIGIN) * (float)_inv;
@@ -6673,6 +7877,9 @@ ImVec2 _new_gliderRuntime::project(float3 p, _new_rib& R, ImVec2 _pos, float _sc
 ImVec2 _new_gliderRuntime::project(float3 p, float3 root, float3 right, ImVec2 _pos, float _scale)
 {
     float3 up = { 0, 1, 0 };
+    float3 D = glm::cross(right, float3(0, 1, 0));
+    D.y += 0.3f;
+    up = glm::normalize(glm::cross(D, right));
     float3 vec = (p - root) * (float)_inv;
     float x = glm::dot(right, vec) * _scale;
     float y = glm::dot(up, vec) * _scale;
@@ -6680,17 +7887,252 @@ ImVec2 _new_gliderRuntime::project(float3 p, float3 root, float3 right, ImVec2 _
 }
 
 
+const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+const ImU32 col32B = ImColor(ImVec4(0.0f, 0.3f, 1.0f, 1.0f));
+const ImU32 col32BT = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 0.5f));
+const ImU32 col32G = ImColor(ImVec4(0.0f, 0.6f, 0.0f, 1.0f));
+const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
+const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
+const ImU32 col32YEL_A = ImColor(ImVec4(0.7f, 0.7f, 0.0f, 0.3f));
+const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+const ImU32 col32W_A = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 0.01f));
+
+
+
+void _new_gliderRuntime::renderDebug_ROPE(Gui* pGui, float2 _screen)
+{
+    ImGui::SetCursorPos(ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.02f, 0.01f, 0.01f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
+    ImGui::BeginChildFrame(119865, ImVec2(_screen.x, _screen.y));
+    ImGui::PushFont(pGui->getFont("roboto_20"));
+    {
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+
+        static float ROT = 1.f;
+        static float3 VIEW = { -0.707, 0.0, -0.707 };
+        static ImVec2 OFFSET = ImVec2(1300, 900);
+        static float SCALE = 160.f;
+        int numSteps = 0;
+
+        ImGui::SetCursorPos(ImVec2(0, 700));
+        ImGui::NewLine();
+        ImGui::Text("ROOT %d, %d, %d", (int)ROOT.x, (int)ROOT.y, (int)ROOT.z);
+
+        ImGui::Text("i_g_dt %d", i_g_dt);
+        ImGui::Text("num_vtx_line %d", num_vtx_line);
+
+        ImGui::SetNextItemWidth(300);
+        ImGui::DragInt("SMALL_LINE_SMOOTH", &SMALL_LINE_SMOOTH, 0.1f, 1, 100);
+
+
+        ImGui::SetNextItemWidth(300);
+        if (ImGui::DragFloat("ROT", &ROT, 0.01f, 0, 6))
+        {
+            VIEW = float3(sin(ROT), 0.0, -cos(ROT));
+        }
+
+        ImGui::SetNextItemWidth(300);
+        ImGui::DragFloat("SCALE", &SCALE, 20.0f, 100, 3000);
+
+        ImGui::SetNextItemWidth(300);
+        ImGui::DragFloat("OFFSET Y", &OFFSET.y, 50.0f, 100, 8000);
+
+        static bool PLAY = true;
+        ImGui::Checkbox("play", &PLAY);
+        if (PLAY || ImGui::Button("Step")) {
+            for (int i = 0; i < 1; i++)
+            {
+                solve(0.001f, 1);
+                numSteps++;
+            }
+        }
+
+        if (ImGui::Button("Restart")) { importBin(); numSteps = 0; }
+
+
+        float3 start = float3(x[0].x * _inv, x[0].y * _inv, x[0].z * _inv) + ROOT;
+        ImGui::Text("start %2.2f, %2.2f, %2.2f", start.x, start.y, start.z);
+
+
+        int last = x.size() - 1;
+        float Fsum = 0;
+        float totalLength = 0;
+        for (auto& C : constraints)
+        {
+            if ((C.idx_0 == 0) || (C.idx_1 == 0))
+                //if ((C.idx_0 == 10))
+            {
+                Fsum += C.force;
+                ImGui::Text("%2.3f N  %s", C.force, C.name);
+            }
+
+            if (C.type == constraintType::smallLines)
+            {
+                totalLength += C.old_L;
+            }
+        }
+
+        ImGui::Text("%2.3f N total Force at START", Fsum);
+        ImGui::NewLine();
+
+        float ropeWeight = 0;
+        for (int i = 1; i < last - 1; i++)
+        {
+            ropeWeight += 1.0f / w[i];
+        }
+        ImGui::Text("%2.3f kg rope Weight", ropeWeight);
+        ImGui::Text("%2.3f kg end Weight", 1.0f / w[last]);
+
+        float ropeWeightfromC = 0;
+        for (auto& C : constraints)
+        {
+            float maxW = __max(C.w0, C.w1);
+            ropeWeightfromC += 1.0f / maxW;
+        }
+        ImGui::Text("%2.3f kg rope Weight calculated from constraint weights, so actual ??? How to ignore the ends", ropeWeightfromC);
+
+
+
+        ImGui::NewLine();
+        ImGui::Text("%2.3f m stretch  %2.6f %%", totalLength, (totalLength - rope_L) / rope_L * 100.f);
+
+        // Stetch test
+        static float N_stretch[1001];
+        static ImVec2 F[1001];
+        static bool testing = false;
+        static int testPos = 0;
+        static float stretch = 0;
+        {
+            ImGui::SetCursorPos(ImVec2(0, 50));
+            ImGui::NewLine();
+            ImGui::Text("Stretch Test");
+            if (ImGui::Button("Start Stretch")) { testing = true; testPos = 0; }
+
+            if (testing)
+            {
+                stretch = (float)testPos / 1000.f;
+                rope_End = glm::lerp(rope_Start + float3(rope_L, 0, 0), rope_Start + float3(rope_L * 1.04f, 0, 0), stretch) - ROOT;
+                rope_i_end = glm::ivec3(rope_End.x * _scale, rope_End.y * _scale, rope_End.z * _scale);
+                for (int i = 0; i < 1000; i++)
+                {
+                    solve(0.001f, 1);
+                    numSteps++;
+                }
+
+                float Fsum = 0;
+                for (auto& C : constraints)
+                {
+                    if ((C.idx_0 == 0) || (C.idx_1 == 0))
+                    {
+                        Fsum += C.force;
+                    }
+                }
+                N_stretch[testPos] = Fsum;
+                F[testPos] = ImVec2((float)(200 + testPos), (float)(500 - Fsum));
+
+                testPos++;
+                if (testPos >= 1001) testing = false;
+            }
+
+
+            ImGui::SetNextItemWidth(800);
+            ImGui::DragFloat("Stretch", &stretch, 0.01f, -2.f, 2.f);
+            rope_End = glm::lerp(rope_Start + float3(rope_L, 0, 0), rope_Start + float3(rope_L * 1.04f, 0, 0), stretch) - ROOT;
+            rope_i_end = glm::ivec3(rope_End.x * _scale, rope_End.y * _scale, rope_End.z * _scale);
+            rope_End += ROOT;
+
+            ImGui::DragFloat("addedForceEnd", &addedForceEnd, 1.0f, 0, 1000);
+            ImGui::Checkbox("grabEnd", &grabEnd);
+            ImGui::Checkbox("testGround", &testGround);
+
+
+            draw_list->AddPolyline(F, 1001, col32R, false, 2.5f);
+
+            ImGui::Text("start %2.3f, %2.3f, %2.3f m", rope_Start.x, rope_Start.y, rope_Start.z);
+            ImGui::Text("end   %2.3f, %2.3f, %2.3f m", rope_End.x, rope_End.y, rope_End.z);
+            ImGui::Text("rope length  %2.3f N", rope_L);
+
+
+            ImGui::Text("0%%  %2.3f N", N_stretch[0]);
+            ImGui::Text("1%%  %2.3f N", N_stretch[250]);
+            ImGui::Text("2%%  %2.3f N", N_stretch[500]);
+            ImGui::Text("3%%  %2.3f N", N_stretch[750]);
+            ImGui::Text("4%%  %2.3f N", N_stretch[999]);
+        }
+
+        rope_i_end = glm::ivec3(rope_End.x * _scale, rope_End.y * _scale, rope_End.z * _scale);
+
+
+        for (auto& C : constraints)
+        {
+            float width = 1.f;
+
+            ImVec2 a = project(x[C.idx_0], glm::ivec3(0, 0, 0), VIEW, OFFSET, SCALE);
+            ImVec2 b = project(x[C.idx_1], glm::ivec3(0, 0, 0), VIEW, OFFSET, SCALE);
+
+            float scale = saturate(C.force / 30);
+            draw_list->AddLine(a, b, ImColor(ImVec4(scale, 0.01 + scale, 0.0f, 1.0f)), 1.0f);
+        }
+
+        int idx = 0;
+        for (auto& C : constraints)
+        {
+            float width = 1.f;
+
+            ImVec2 a = project(x[C.idx_0], glm::ivec3(0, 0, 0), VIEW, OFFSET, SCALE);
+            ImVec2 b = project(x[C.idx_1], glm::ivec3(0, 0, 0), VIEW, OFFSET, SCALE);
+
+            //if (C.type == constraintType::lines || C.type == constraintType::smallLines || C.type == constraintType::straps || C.type == constraintType::skin)
+            if (C.type == constraintType::smallLines)
+            {
+                int3 vint = x[C.idx_1] - x[C.idx_0];
+                float3 vec = { vint.x * _inv, vint.y * _inv , vint.z * _inv };
+                float L = glm::length(vec);
+                float dl = (L - C.l) / L;   // Have to devide by L because we scale by vec which is L long
+                if (dl < -0.00f)
+                {
+                    float scale = -dl * 30;
+                    draw_list->AddLine(a, b, ImColor(ImVec4(scale, 0.0f, 1.f - scale, 1.0f)), 2.5f);
+                }
+                else
+                {
+                    draw_list->AddLine(a, b, col32BT, 2.5f);
+                }
+
+
+                idx++;
+            }
+
+
+        }
+
+        for (int i = 0; i < x.size(); i++)
+        {
+            auto& X = x[i];
+            ImVec2 a = project(X, glm::ivec3(0, 0, 0), VIEW, OFFSET, SCALE);
+            draw_list->AddCircle(a, 5, col32BT);
+
+            if (friction[i] == 1)   draw_list->AddCircle(a, 7, col32R);
+            if (friction[i] == 2)   draw_list->AddCircleFilled(a, 5, col32GR );
+        }
+    }
+
+    ImGui::EndChildFrame();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PopFont();
+}
+
+
+
 void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
 {
 
-    const ImU32 col32 = ImColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
-    const ImU32 col32R = ImColor(ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-    const ImU32 col32B = ImColor(ImVec4(0.0f, 0.3f, 1.0f, 1.0f));
-    const ImU32 col32BT = ImColor(ImVec4(0.0f, 0.0f, 1.0f, 0.5f));
-    const ImU32 col32G = ImColor(ImVec4(0.0f, 0.6f, 0.0f, 1.0f));
-    const ImU32 col32GR = ImColor(ImVec4(0.4f, 0.4f, 0.4f, 0.2f));
-    const ImU32 col32YEL = ImColor(ImVec4(0.4f, 0.4f, 0.0f, 1.0f));
-    const ImU32 col32W = ImColor(ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+    renderDebug_ROPE(pGui, _screen);
+    return;
 
     ImVec2 start = { 100.f, 100.f };
     ImVec2 end = { 200.f, 200.f };
@@ -6707,36 +8149,38 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
     ImVec2 CD[900];  // just big enough
 
     static int viewChord = 100;
-    static bool ShowLines = false;
+    static bool ShowLines = true;
     static bool ShowConstraints = false;
     static bool ShowCP = false;
-    static int debugConstraint = 21650;
-    static int debugVertex = 0;
-    static int NUMREPEATS = 4;
+    static int debugConstraint = 18800;
+    static int debugVertex = 5000;
+    static int NUMREPEATS = 1;
     static int numSteps = 0;
 
     //enum constraintType { skin, ribs, half_ribs, vecs, diagonals, nitinol, lines, straps, harnass, smallLines, maxCTypes };
     static bool show_C_skin = false;
+    static float ROT = 1.f;
     static float3 VIEW = { -0.707, 0, -0.707 };
-    static ImVec2 OFFSET = ImVec2(1300, 1400);
-    static float SCALE = 260.f;
+    static ImVec2 OFFSET = ImVec2(1300, 900);
+    static float SCALE = 160.f;
     static int3 BASE;
 
 
     static float CP_dbg[1024];
     ImVec2 dbg_C[1024];  // just big enough
 
-    
+
     ImGui::SetCursorPos(ImVec2(0, 0));
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.95f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(5, 2));
     ImGui::BeginChildFrame(119865, ImVec2(_screen.x, _screen.y));
     ImGui::PushFont(pGui->getFont("roboto_20"));
     {
+
         //;ImGui::NewLine();
         //ImGui::Text("_new_gliderRuntime");
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
-
+        /*
 
         // GRAPHS ########################################################
         {
@@ -6769,11 +8213,11 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
 
 
         // show hide ##########################################################################
-        ImGui::SetCursorPos(ImVec2(0, _screen.y-350 ));
+        ImGui::SetCursorPos(ImVec2(0, _screen.y - 350));
         {
-            ImGui::Checkbox("lines", &ShowLines);
-            ImGui::Checkbox("constraints", &ShowConstraints);
-            ImGui::Checkbox("Cp", &ShowCP);
+            //ImGui::Checkbox("lines", &ShowLines);
+            //ImGui::Checkbox("constraints", &ShowConstraints);
+            //ImGui::Checkbox("Cp", &ShowCP);
         }
 
         ImGui::PushFont(pGui->getFont("roboto_32"));
@@ -6810,8 +8254,8 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
             ImGui::EndChildFrame();
         }
 
-        
-        
+
+
 
 
         auto& R = ribs[viewChord];
@@ -6831,7 +8275,7 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 ImGui::Text("Rho %2.2f pascals", R.rho);
                 ImGui::Text("Reynolds %2.2f M", R.reynolds * 0.000001f);
                 int firstC = 0;
-                for (int i=0; i< constraints.size(); i++)
+                for (int i = 0; i < constraints.size(); i++)
                 {
                     if (constraints[i].idx_0 == R.startVertex || constraints[i].idx_1 == R.startVertex)
                     {
@@ -6840,13 +8284,13 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                     }
                 }
                 ImGui::Text("C-trail %d", firstC);
-                ImGui::DragInt("debug C #", &debugConstraint, 1, 0, (int)constraints.size() - 1);
-                
+                ImGui::DragInt("debug C #", &debugConstraint, 0.3f, 0, (int)constraints.size() - 1);
+
                 ImGui::DragInt("debug Vertex", &debugVertex, 1, 0, (int)x.size() - 1);
                 debugVertex = clamp(debugVertex, 0, (int)x.size() - 1);
 
                 ImGui::Text("%d [%d], %d, %d", debugVertex, type[debugVertex], cross_idx[debugVertex].x, cross_idx[debugVertex].y);
-                
+
                 ImGui::NewLine();
 
 #ifdef DEBUG_GLIDER
@@ -6882,10 +8326,10 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
 
 
 #ifdef DEBUG_GLIDER
-                ImGui::Text("area %2.2f m^2", wingArea); 
+                ImGui::Text("area %2.2f m^2", wingArea);
                 ImGui::Text("SUM area %2.4f m^2 (%2.2f, %2.2f, %2.2f)", glm::length(sumWingArea), sumWingArea.x, sumWingArea.y, sumWingArea.z);
                 ImGui::Text("SUM N %2.4f, %2.4f ", glm::length(sumWingN), glm::length(sumWingNAll));
-                
+
                 ImGui::Text("skin %2.2f kg", mass[vtx_surface]);
                 ImGui::Text("internal %2.2f kg", mass[vtx_internal]);
                 ImGui::Text("line %2.2f kg", mass[vtx_line]);
@@ -6898,21 +8342,56 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 ImGui::Text("wing - %2.1fus ", time_air_us);
                 ImGui::Text("internal - %2.1fus ", time_internal_us);
                 ImGui::Text("pre - %2.1fus ", time_pre_us);
-                ImGui::Text("constraints - %2.1fus [%dx] %d constraints", time_constraints_us, NUMREPEATS, NUMREPEATS* (int)constraints.size());
+                ImGui::Text("constraints - %2.1fus [%dx] %d constraints", time_constraints_us, NUMREPEATS, NUMREPEATS * (int)constraints.size());
                 ImGui::Text("acurate N - %2.1fus", time_norms_us);
 
+
+                // Force in teh carabiners
+                float carabinerLeftNewton = 0;
+                float carabinerRightNewton = 0;
+                float brakeLeftNewton = 0;
+                float brakeRightNewton = 0;
+                int sumB = 0;
+
+                for (auto& C : constraints)
+                {
+                    if (C.idx_0 == carabinerLeft || C.idx_1 == carabinerLeft)
+                    {
+                        carabinerLeftNewton += C.force;
+                        sumB++;
+                    }
+                    if (C.idx_0 == carabinerRight || C.idx_1 == carabinerRight)
+                    {
+                        carabinerRightNewton += C.force;
+                        sumB++;
+                    }
+
+                    if (C.idx_0 == brakeLeft || C.idx_1 == brakeRight)
+                    {
+                        brakeLeftNewton += C.force;
+                    }
+                    if (C.idx_0 == brakeLeft || C.idx_1 == brakeRight)
+                    {
+                        brakeRightNewton += C.force;
+                    }
+                }
+                ImGui::Text("Carabiner Force");
+                ImGui::Text("%2.2f N (%2.2f, %2.2f) [%d]", carabinerLeftNewton + carabinerRightNewton, carabinerLeftNewton, carabinerRightNewton, sumB);
+                ImGui::Text("Brake Force");
+                ImGui::Text("%2.2f N (%2.2f, %2.2f)", brakeLeftNewton + brakeRightNewton, brakeLeftNewton, brakeRightNewton);
             }
             ImGui::PopFont();
             ImGui::EndChildFrame();
         }
+        */
 
-
+        /*
         static int dbg_idx = 0;
         if (debugConstraint > 0)
         {
             for (int j = 0; j < 1024; j++)
             {
-                dbg_C[j] = ImVec2(100.f + j, 900.f - CP_dbg[(dbg_idx + j)%1024] * 10000.f);
+                dbg_C[j] = ImVec2(100.f + j, 900.f - CP_dbg[(dbg_idx + j) % 1024] * 10000.f);
             }
             draw_list->AddLine(ImVec2(100, 900), ImVec2(1124, 900), col32W);
             draw_list->AddLine(ImVec2(100, 700), ImVec2(1124, 700), col32G);
@@ -6934,9 +8413,9 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
             case constraintType::smallLines:  ImGui::Text("smallLines"); break;
             }
             ImGui::SameLine(0, 50);
-            ImGui::Text("%2.2f, %2.2f", constraints[debugConstraint].current_L, (constraints[debugConstraint].current_L / constraints[debugConstraint].l - 1.f) * 100.f);
+            ImGui::Text("%2.2f, %2.2f", constraints[debugConstraint].force, (constraints[debugConstraint].force / constraints[debugConstraint].l - 1.f) * 100.f);
         }
-
+        */
 
 
 
@@ -6944,6 +8423,7 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
         float ribScale = 800;
         if (!ShowLines)
         {
+            /*
             for (int i = 0; i < R.numVerts; i++)
             {
                 float3 p = x[R.startVertex + i];
@@ -6962,9 +8442,9 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 float vCp = R.Cp - skinCp;// Cp[Vaoa * 128 + v];
                 //float vCp_only = -Cp[Vaoa * 128 + v];
 
-                ImVec2 pn = project(p + n * (float)_scale * 10.1f, R, ImVec2(1500, 500), ribScale);
-                ImVec2 pn_acc = project(p + N[R.startVertex + i] * (float)_scale * 26.1f * vCp, R, ImVec2(1500, 500), ribScale);
-                ImVec2 pn_acc_CP = project(p + N[R.startVertex + i] * (float)_scale * 26.1f * (-skinCp), R, ImVec2(1500, 500), ribScale);
+                ImVec2 pn = project(p, R, ImVec2(1500, 500), ribScale);
+                ImVec2 pn_acc = project(p + N[R.startVertex + i] * (float)_scale * 20.1f * vCp, R, ImVec2(1500, 500), ribScale);
+                ImVec2 pn_acc_CP = project(p + N[R.startVertex + i] * (float)_scale * 20.1f * (-skinCp), R, ImVec2(1500, 500), ribScale);
                 ImVec2 pt = project(p + t * (float)_scale * 10.1f, R, ImVec2(1500, 500), ribScale);
                 //draw_list->AddLine(chord[i], pn, col32B, 1);
 
@@ -7018,19 +8498,19 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                                 if (abs(dl) > 0.01f)
                                 {
                                     ImGui::SetCursorPos(ImVec2((a.x + b.x) / 2, (a.y + b.y) / 2));
-                                    ImGui::Text("%2.1f", dl * 100.f, C.w_0, C.w_1);
+                                    ImGui::Text("%2.1f", dl * 100.f, C.w_rel_0, C.w_rel_1);
                                 }
-                                /*
-                                float3 d_A = (dl * C.w_0 * (float)_scale) * vec;
-                                float3 d_B = (dl * C.w_1 * (float)_scale) * vec;
-                                int3 A = x[C.idx_0] + int3(d_A);
-                                int3 B = x[C.idx_1] - int3(d_B);
+                                //
+                                //float3 d_A = (dl * C.w_0 * (float)_scale) * vec;
+                                //float3 d_B = (dl * C.w_1 * (float)_scale) * vec;
+                                //int3 A = x[C.idx_0] + int3(d_A);
+                                //int3 B = x[C.idx_1] - int3(d_B);
 
-                                a = project(A, R, ImVec2(50, 500), 1000.f);
-                                b = project(B, R, ImVec2(50, 500), 1000.f);
-                                draw_list->AddCircle(a, 5, col32B);
-                                draw_list->AddCircle(b, 5, col32G);
-                                */
+                                //a = project(A, R, ImVec2(50, 500), 1000.f);
+                                //b = project(B, R, ImVec2(50, 500), 1000.f);
+                                //draw_list->AddCircle(a, 5, col32B);
+                                //draw_list->AddCircle(b, 5, col32G);
+
                                 counter++;
                             }
                         }
@@ -7039,7 +8519,9 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                         Ccount++;
                     }
                 }
+
             }
+
 
             static int Vaoa = 0;
             //ImGui::DragInt("aoa", &Vaoa, 0.1f, 0, 35);
@@ -7053,7 +8535,7 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 int v = (int)(127.f * uv[R.startVertex + i].y);
                 float skinCp = sampleCp(R.AoA, R.AoBrake, uv[R.startVertex + i].y);
                 chord_cp[i] = project(p, R, ImVec2(1500, 500), ribScale);
-                chord_cp[i].y = 1100 + 80 * (skinCp);
+                chord_cp[i].y = 1100 + 300 * (skinCp);
             }
             draw_list->AddLine(ImVec2(50, 1100), ImVec2(2500, 1100), col32GR, 2);
             draw_list->AddPolyline(chord_cp, R.numVerts, col32R, false, 2);
@@ -7104,16 +8586,17 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
             ImGui::SetCursorPos(ImVec2(C2.x + 8, C2.y - 20));
             ImGui::Text("AoB %2.1fº", R.AoBrake * 57.f);
 
+            */
         }
 
 
 
 
-        
+
         ImGui::SetCursorPos(ImVec2(0, 700));
         ImGui::NewLine();
-        ImGui::Text("ROOT %d, %d, %d", (int)ROOT.x, (int)ROOT.y, (int)ROOT.z );
-        
+        ImGui::Text("ROOT %d, %d, %d", (int)ROOT.x, (int)ROOT.y, (int)ROOT.z);
+
         ImGui::Text("i_g_dt %d", i_g_dt);
         ImGui::Text("num_vtx_line %d", num_vtx_line);
         ImGui::Text("%d steps, %2.2f s", numSteps, (float)numSteps * (float)_dt);
@@ -7131,27 +8614,46 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
 
         ImGui::SetNextItemWidth(300);
         ImGui::DragInt("SMALL_LINE_SMOOTH", &SMALL_LINE_SMOOTH, 0.1f, 1, 20);
-        
-        
-        
-        
+
+
+        ImGui::SetNextItemWidth(300);
+        if (ImGui::DragFloat("ROT", &ROT, 0.01f, 0, 6))
+        {
+            VIEW = float3(sin(ROT), 0, -cos(ROT));
+        }
+
+        ImGui::SetNextItemWidth(300);
+        ImGui::DragFloat("SCALE", &SCALE, 20.0f, 100, 3000);
+
+        ImGui::SetNextItemWidth(300);
+        ImGui::DragFloat("OFFSET Y", &OFFSET.y, 50.0f, 100, 8000);
+
+
+
         static bool PLAY = false;
         ImGui::Checkbox("play", &PLAY);
         if (PLAY || ImGui::Button("Step")) {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 11; i++)
             {
-                solveAcurateSkinNormals();
+                //solveAcurateSkinNormals();
                 solve(0.001f, NUMREPEATS);
                 numSteps++;
 
+                /*
                 if (debugConstraint > 0)
                 {
-                    CP_dbg[dbg_idx] = constraints[debugConstraint].current_L / constraints[debugConstraint].l - 1.f;
+                    //CP_dbg[dbg_idx] = constraints[debugConstraint].current_L / constraints[debugConstraint].l - 1.f;
                     dbg_idx++;
                     dbg_idx %= 1024;
                 }
+                */
             }
         }
+
+        ImGui::Checkbox("lines", &ShowLines);
+        ImGui::Checkbox("constraints", &ShowConstraints);
+        ImGui::Checkbox("Cp", &ShowCP);
+
         if (ImGui::Button("Constraints")) {
             this->solve_constraints();
         }
@@ -7170,6 +8672,7 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
             //toXFoil("", viewChord);   // 268 ija;f rib wiyth line
         }
 
+        /*
         //int xfoil_ribnum[3] = { 104, 105, 106 };
         int xfoil_ribnum[3] = { 52, 53, 53 };
         //static int xfoil_AoB[3] = {0, 0, 0};
@@ -7183,7 +8686,7 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 xfoilPath += std::to_string(xfoil_ribnum[i]) + "_" + std::to_string(iaoB) + ".txt";
                 toXFoil(xfoilPath, xfoil_ribnum[i]);
 
-                for (int aoB = 0; aoB <= 30; aoB+= 5)
+                for (int aoB = 0; aoB <= 30; aoB += 5)
                 {
                     xfoilPath = "E:/terrains/_resources/xfoil/Solve_Omega_";
                     xfoilPath += std::to_string(xfoil_ribnum[i]) + "_" + std::to_string(aoB) + ".txt";
@@ -7192,22 +8695,23 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
 
                 //xfoil_AoB[i]++;
             }
-            
+
         }
-        
+        */
 
-        
 
-        
-        
 
-        
+
+
+
+
 
 
 
         // Lines
         if (ShowLines)
         {
+            /*
             for (int i = 0; i < R.numVerts; i++)
             {
                 float3 p = x[R.startVertex + i];
@@ -7222,6 +8726,23 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 draw_list->AddCircle(a, 5, col32W);
             }
 
+            {
+                ImVec2 a = project(x[debugVertex], posFixed[0], VIEW, OFFSET, SCALE);
+                ImVec2 b = project(x[cross_idx[debugVertex].x], posFixed[0], VIEW, OFFSET, SCALE);
+                ImVec2 c = project(x[cross_idx[debugVertex].y], posFixed[0], VIEW, OFFSET, SCALE);
+
+                draw_list->AddCircle(a, 8, col32G);
+                draw_list->AddCircle(b, 5, col32W);
+                draw_list->AddCircle(c, 5, col32W);
+
+                ImGui::SetCursorPos(a);
+
+                ImGui::Text("w - %2.4f", w[debugVertex]);
+
+
+            }
+            */
+
             int idx = 0;
             for (auto& C : constraints)
             {
@@ -7230,14 +8751,14 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                 if (C.idx_0 == carabinerRight || C.idx_1 == carabinerRight) cR = true;
                 if (C.idx_0 == brakeRight || C.idx_1 == brakeRight) bR = true;
 
-                float w = 1.f;
-                
+                float width = 1.f;
+                /*
                 if ((cR || bR) && C.type == constraintType::smallLines)
                 {
-                    w = 5.f;
+                    width = 5.f;
                     ImVec2 a = project(x[C.idx_0], posFixed[0], VIEW, OFFSET, SCALE);
                     ImVec2 b = project(x[C.idx_1], posFixed[0], VIEW, OFFSET, SCALE);
-                    draw_list->AddLine(a, b, col32W, w);
+                    draw_list->AddLine(a, b, col32W, width);
                 }
 
 
@@ -7246,34 +8767,44 @@ void _new_gliderRuntime::renderDebug(Gui* pGui, float2 _screen)
                     ImVec2 a = project(x[C.idx_0], posFixed[0], VIEW, OFFSET, SCALE);
                     ImVec2 b = project(x[C.idx_1], posFixed[0], VIEW, OFFSET, SCALE);
                     draw_list->AddLine(a, b, col32W, 3);
+
+                    ImGui::SetCursorPos(a);
+                    ImGui::Text(".    .    .    .    .    %2.2f N,  %2.5f m, W(%2.1f %2.1f). WC(%2.2f %2.2f), t - %2.1f, c - %2.1f", C.force, C.l - C.old_L, w[C.idx_0], w[C.idx_1], C.w_rel_0, C.w_rel_1, C.tensileStiff, C.compressStiff);
                 }
+                */
 
-
-                if (C.type == constraintType::lines || C.type == constraintType::smallLines || C.type == constraintType::straps || C.type == constraintType::skin)
+                //if (C.type == constraintType::lines || C.type == constraintType::smallLines || C.type == constraintType::straps || C.type == constraintType::skin)
+                if (C.type == constraintType::straps)
                     //if (C.type == constraintType::lines)
                 {
                     ImVec2 a = project(x[C.idx_0], posFixed[0], VIEW, OFFSET, SCALE);
                     ImVec2 b = project(x[C.idx_1], posFixed[0], VIEW, OFFSET, SCALE);
 
+                    /*
                     if (C.type == constraintType::lines)
                     {
-                        //draw_list->AddLine(a, b, col32YEL, w * 2);
+                       // draw_list->AddLine(a, b, col32YEL_A, width * 2);
 
                         int3 vint = x[C.idx_1] - x[C.idx_0];
                         float3 vec = { vint.x * _inv, vint.y * _inv , vint.z * _inv };
                         float L = glm::length(vec);
                         float dl = (L - C.l) / L;   // Have to devide by L because we scale by vec which is L long
-                        if (dl > 0.01f)
+                        if (dl > 0.02f)
                         {
                             ImGui::SetCursorPos(ImVec2((a.x + b.x) / 2, (a.y + b.y) / 2));
-                            ImGui::Text("%2.2f%", dl * 100.f);
+                            ImGui::Text("%d", (int)(dl * 100.f));
                         }
+                        if (dl > 0.0f)
+                        {
+                            draw_list->AddLine(a, b, col32YEL_A, width * 2);
+                        }
+
                     }
                     else if (C.type == constraintType::smallLines)
                     {
-                        draw_list->AddLine(a, b, col32R, w * 1);
+                        draw_list->AddLine(a, b, col32R, width * 1);
                     }
-                    else if (C.idx_0 > 000 && C.idx_0 < 2000)
+                    else */ //if (C.idx_0 > 0 && C.idx_0 < 32 * 32 * 2)
                     {
                         int3 vint = x[C.idx_1] - x[C.idx_0];
                         float3 vec = { vint.x * _inv, vint.y * _inv , vint.z * _inv };
@@ -7416,7 +8947,7 @@ void _new_gliderRuntime::loadXFoil_Cp(std::string _folder, int _rib)
 
     for (int i = 0; i < cp_Flaps; i++)
     {
-        for (int j = 0; j < cp_AoA; j ++)
+        for (int j = 0; j < cp_AoA; j++)
         {
             std::string flapName = _folder + "/cp/cp_" + std::to_string(_rib) + "_AoB_" + std::to_string(i * 5) + "_AoA_" + std::to_string(j) + ".txt";
             loadXFoil_file(i, j, flapName);
@@ -7450,7 +8981,7 @@ void _new_gliderRuntime::loadXFoil_file(int _AoB, int _AoA, std::string _file)
             Cp[offset + (cp_V - i - 1)] = cp / 8.f;
             //Cp[offset + i] = cp / 4.f;
         }
-        
+
         infile.close();
     }
     else
@@ -7479,12 +9010,12 @@ void _new_gliderRuntime::toXFoil_scrip(std::string filename, int _rib, int _aob)
             for (int j = 7; j <= 20; j++)
             {
                 ofs << "a " << j << "\n";
-                ofs << "CPWR E:/terrains/_resources/xfoil/Omega/cp/cp_" << _rib << "_AoB_" << _aob << "_AoA_" << j+5 << ".txt\n";
+                ofs << "CPWR E:/terrains/_resources/xfoil/Omega/cp/cp_" << _rib << "_AoB_" << _aob << "_AoA_" << j + 5 << ".txt\n";
             }
             for (int j = 7; j >= -5; j--)
             {
                 ofs << "a " << j << "\n";
-                ofs << "CPWR E:/terrains/_resources/xfoil/Omega/cp/cp_" << _rib << "_AoB_" << _aob << "_AoA_" << j+5 << ".txt\n";
+                ofs << "CPWR E:/terrains/_resources/xfoil/Omega/cp/cp_" << _rib << "_AoB_" << _aob << "_AoA_" << j + 5 << ".txt\n";
             }
             ofs.close();
         }
@@ -7517,16 +9048,16 @@ void _new_gliderRuntime::toXFoil(std::string filename, int _rib)
         v[R.numVerts - 1].y = v[0].y + 0.001f;
         v[0].y -= 0.001f;
 
-        for (int i = 0; i < R.numVerts-1; i++)
+        for (int i = 0; i < R.numVerts - 1; i++)
         {
-            l[i] = glm::length(v[i+1] - v[i]);
+            l[i] = glm::length(v[i + 1] - v[i]);
         }
 
         t[0] = glm::normalize(v[1] - v[0]);
         t[R.numVerts - 1] = glm::normalize(v[R.numVerts - 1] - v[R.numVerts - 2]);
         for (int i = 1; i < R.numVerts - 1; i++)
         {
-            t[i] = glm::normalize(v[i+1] - v[i-1]);
+            t[i] = glm::normalize(v[i + 1] - v[i - 1]);
         }
 
         //ofs << "\n\n";
@@ -7540,7 +9071,7 @@ void _new_gliderRuntime::toXFoil(std::string filename, int _rib)
         BZ[2] = v[1] - t[1] * l[0] * 0.25f;
         BZ[3] = v[1];
 
-        
+
         while (V_cnt < 1.0f)
         {
             float dt = (V_cnt - _uv[idx]) / (_uv[idx + 1] - _uv[idx]);
@@ -7604,7 +9135,7 @@ void _new_gliderRuntime::toObj(char* filename, char* _ext, constraintType _type)
 
         pMesh->mNumVertices = x.size();
 
-        
+
         pMesh->mPrimitiveTypes = aiPrimitiveType_LINE | aiPrimitiveType_TRIANGLE;
 
         int fidx = 0;

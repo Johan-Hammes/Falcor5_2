@@ -1149,6 +1149,7 @@ private:
 public:
     pixelShader terrainShader;
     pixelShader terrainSpiteShader;
+    pixelShader triangleShader;
     _terrainSettings settings;
 
 private:
@@ -1162,7 +1163,7 @@ private:
     Buffer::SharedPtr       ribbonData[2];
     uint bufferidx = 0;
     //std::vector< Texture::SharedPtr> ribbonTextures;        // remove becomes part of the cache
-    pixelShader triangleShader;
+    
     Buffer::SharedPtr       triangleData;
     Fbo::SharedPtr		bakeFbo_plants;
     GraphicsState::Viewport     viewportVegbake;

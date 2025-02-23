@@ -687,13 +687,38 @@ public:
     void placeSingleRibVerts(_rib& R, int numR, float _scale);
     void placeRibVerts();
     void processLineAttachmentPoints();
+    void SubdivideLine(float3 a, float3 b, float mass, float area);
+    void pushLine(float3 _a, float3 _b, float _mass, float _area, constraintType _type, float _l);
+    void pushVertex(float3 _a);
+    void findBrakesCarabiners();
+    void pushLines(constraintType _type, float length);
+    void printLineTests();
+
+    int startLineIdx, endLineIdx;
+    int startCIdx, endCIdx;
+    void processLineAttachmentPoints_LineSet();
     void insertSkinTriangle(int _a, int _b, int _c);
     int findBottomTrailingEdge(int idx);
     
 
     void ExportLineShape();
     void toObj(char *filename, constraintType _type);
-    std::vector<glm::ivec3> constraints;
+    //std::vector<glm::ivec3> constraints;
+    struct _CNST
+    {
+        constraintType type = skin;
+        int v_0 = 0;
+        int v_1 = 0;
+        float mass = 1;
+        float area = 1;
+        float w0 = 1;
+        float w1 = 1;
+        float compliance = 0;    // 1/k  compliance
+
+        char name[8];
+    };
+    std::vector<_CNST> constraints;
+
     struct _VTX
     {
         float3 _x;
@@ -723,11 +748,14 @@ public:
     void halfRib_to_Full();
     void interpolateRibs();
     void exportXfoil(int r);
-    bool insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
+    bool insertEdge(float3 _a, float3 _b, bool _mirror, constraintType _type, float _mass = 0.f, float _area = 0.f, float _search = 0.02f);     // FIXME expand on edge and allow to add other criteria, stiffness comes to mind, so maybe just int3
     void fullWing_to_obj();
     void addEndCaps();
     void calculateNormals();
     void calculateMass();
+    void calculateConstraintBuckets();
+    #define BUCKET_SIZE  512
+    std::vector<std::array<int, BUCKET_SIZE>> ConstraintBuckets;
     void exportWing();
     float endcapBuldge = 0.2f;
 
@@ -884,6 +912,8 @@ public:
         uint v_1;
         int material;
         char name[8];
+        float diameter = 0.001f;    
+        float mass = 0.1f;
     };
     std::vector<_line> line_segments;
 
@@ -898,6 +928,8 @@ public:
     ImVec2 project(float3 p, float3 root, float3 right, ImVec2 _pos, float _scale);
     void renderImport_Lines(Gui* mpGui, float2 _screen);
     void cleanupLineSet();
+    int insertVertex(float3 _p);
+    void importCSV();
     void mergeLines(uint a, uint b);
     void saveLineSet();
     void loadLineSet();
@@ -935,7 +967,7 @@ public:
     
 
     bool importGui = false;
-    bool cleanLineSet = true;
+    bool cleanLineSet = false;
     _gliderImporter importer;
 
     int controllerId = -1;
@@ -1230,16 +1262,27 @@ public:
     _new_constraint() { ; }
     _new_constraint(uint _a, uint _b, float _l, float _sa, float _sb, float _dmp) :                             //_l is still in integers size but stored in a float
         idx_0(_a), idx_1(_b), l(_l), old_L(_l), tensileStiff(_sa), compressStiff(_sb), damping(_dmp) { ; }
+    _new_constraint(uint _a, uint _b, float _l, float _sa, float _sb, float _dmp, float _w0, float _w1, float alpha_dt2, uint _type) :                             //_l is still in integers size but stored in a float
+        idx_0(_a), idx_1(_b), l(_l), old_L(_l), tensileStiff(_sa), compressStiff(_sb), damping(_dmp),
+        w0(_w0), w1(_w1), type(_type)
+    {
+        wsum = _w0 + _w1 + alpha_dt2;
+        w_rel_0 = _w0 / wsum;
+        w_rel_1 = _w1 / wsum;
+    }
    
     uint    idx_0;
     uint    idx_1;
     float   l;
-    float   current_L;
+    float   force;
     float   old_L; // untill I can work out how to do matsh in int
     uint    type;       //???
 
-    float   w_0;        //w_0 / (w_0 + w_1)
-    float   w_1;
+    float   w_rel_0 = 0.5f;        //w_0 / (w_0 + w_1)
+    float   w_rel_1 = 0.5f;
+
+    float w0, w1, wsum;
+    char  name[8];
     
     float   tensileStiff = 1.0f;
     float   compressStiff = 0.f;
@@ -1270,10 +1313,27 @@ public:
     void solve_pre();
     void solveAcurateSkinNormals();
     inline void apply_constraint(_new_constraint &cnst);
+
+    void importBin_generateRope();
+    float rope_L = 5.f;
+    float3 rope_Start = {0, 2.5, 0};
+    float3 rope_End = { 5, 2.5, 0 };
+    glm::ivec3 rope_i_start, rope_i_end;
+    float rope_sub = 5.0f;
+    float rope_Stiff = 0.f; // it lod1 has some stiffness
+    float rope_lods = 4;
+    float rope_M_per_meter = 0.01f;
+    float adjustedMass;
+    float addedForceEnd = 1000.f;
+    bool grabEnd = true;
+    bool testGround = true;
+
+    void importBin_generateCube();
     void importBin();
     ImVec2 project(float3 p, _new_rib& R, ImVec2 _pos, float _scale);
     ImVec2 project(float3 p, float3 root, float3 right, ImVec2 _pos, float _scale);
     float3 projectXFoil(float3 p, _new_rib& R);
+    void renderDebug_ROPE(Gui* pGui, float2 _screen);
     void renderDebug(Gui* pGui, float2 _screen);
 
     void toObj(char* filename, char * _ext, constraintType _type);
@@ -1285,18 +1345,22 @@ public:
     std::vector<int3>   x;              // position
     std::vector<int3>   x_prev;         // previous position
     std::vector<int3>   a_dt2;
-    std::vector<uint4>  cross_idx;      // Index of cross verticies for normal calculation      {_gliderBuilder}
+    std::vector<uint4>  cross_idx;      // Index of cross verticies for normal calculation      {_gliderBuilder} maybe only 16 bit?
     std::vector<char>   type;           // what type of vertex is this
+    std::vector<char>   friction;           // what type of vertex is this
     std::vector<float>  area_x_w;       // area * w because its always used together
     std::vector<float2> uv;             // uv for skin lookup span, right to left, chord trainling bottom to top
     std::vector<float3> N;              // uv for skin lookup span, right to left, chord trainling bottom to top
-#ifdef DEBUG_GLIDER
+//#ifdef DEBUG_GLIDER
     std::vector<float>  area;
     std::vector<float>  w;
-#endif
+//#endif
 
     std::vector<_new_constraint>    constraints;
-    std::vector<_new_constraint>    line_constraints;
+    std::vector<_new_constraint>    line_constraints;   // I think this is now obolete
+    std::vector<int> ConstraintBuckets;
+    int numBuckets;
+    int bucketSize;
 
     std::vector<int3>    tris;          // FIXME, not perfect, but leave int for now, can go to shorts if we are sure about number of triangles, or have a split mechanism
     std::vector<int3>    tris_airtight;
@@ -1321,7 +1385,7 @@ public:
     float time_norms_us;
     float time_total_us;
 
-    uint _dot = 28;
+    uint _dot = 28; 
     uint _scale = 1 << _dot;
     double _inv = 1. / (double)_scale;
     double _dt = 0.00208333333 / 4;
@@ -1345,7 +1409,7 @@ public:
     float3 debug_wing_F;
     float3 debug_wing_Skin;
     int PULL_DEPTH = 0;
-    int SMALL_LINE_SMOOTH = 20;
+    int SMALL_LINE_SMOOTH = 3;
     float AoA_smooth = 1.f;
     float AoB_smooth = 1.f;
 

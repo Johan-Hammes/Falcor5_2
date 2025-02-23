@@ -483,8 +483,6 @@ namespace Falcor
         if (mVideoCapture.fixedTimeDelta) { mClock.setTime(mVideoCapture.currentTime); }
 
         {
-            FALCOR_PROFILE("onFrameRender");
-
             // The swap-chain FBO might have changed between frames, so get it
             if (!mRendererPaused)
             {
