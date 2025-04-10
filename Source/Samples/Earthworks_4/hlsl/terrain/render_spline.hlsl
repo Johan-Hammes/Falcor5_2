@@ -77,7 +77,7 @@ inline float4 cubic_Casteljau(float t, float4 P0, float4 P1, float4 P2, float4 P
 	float4 pD  = lerp(pA, pB, t);
 	float4 pE  = lerp(pB, pC, t);
 	
-	return lerp(pD, pE, t);   
+	return lerp(pD, pE, t);
 }
 
 
@@ -106,7 +106,13 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 	points[0] = cubic_Casteljau(t, s0.data[0][0], s0.data[0][1], s0.data[0][2], s0.data[0][3]);
 	points[1] = cubic_Casteljau(t, s0.data[1][0], s0.data[1][1], s0.data[1][2], s0.data[1][3]);
 
-	float3 perpendicular = normalize(points[1].xyz - points[0].xyz);
+    if (isQuad)
+    {
+        points[0] = lerp(s0.data[0][0], s0.data[0][3], t);
+        points[1] = lerp(s0.data[1][0], s0.data[1][3], t);;
+    }
+
+    float3 perpendicular = normalize(points[1].xyz - points[0].xyz);
 
 	if (vId & 0x1 ) {			// outside
         const float w1 = (indexData[iId].B & 0x3fff) * 0.002f - 16.0f;

@@ -67,8 +67,7 @@ class roadMaterialCache
 public:
     static roadMaterialCache& getInstance()
     {
-        static roadMaterialCache    instance;       // Guaranteed to be destroyed.
-                                                    // Instantiated on first use.
+        static roadMaterialCache    instance;       // Guaranteed to be destroyed. // Instantiated on first use.
         return instance;
     }
 private:

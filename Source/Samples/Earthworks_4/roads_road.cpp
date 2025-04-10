@@ -72,9 +72,9 @@ glm::vec3 del_cubic_Casteljau(float t0, float t1, bezierPoint* A, bezierPoint* B
 
 /*  roadSection
     --------------------------------------------------------------------------------------------------------------------*/
-//std::vector<cubicDouble>	roadNetwork::staticBezierData;
-//std::vector<bezierLayer>	roadNetwork::staticIndexData;
-//ODE_bezier					roadNetwork::odeBezier;
+    //std::vector<cubicDouble>	roadNetwork::staticBezierData;
+    //std::vector<bezierLayer>	roadNetwork::staticIndexData;
+    //ODE_bezier					roadNetwork::odeBezier;
 
 
 
@@ -174,6 +174,56 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
     int maxMaterial = (int)roadMaterialCache::getInstance().materialVector.size() - 1;
 
     if (points[0].isAIonly && !_stylized) return;				// Do not convert AI roads
+
+
+    if (isBasicLinearMarking)
+    {
+        // right - Inner - Thsi is the only bezier associated
+        for (uint i = 0; i < numSegments; i++)
+        {
+            float w1 = points[i].lanesRight[lane1].laneWidth * 0.5f;
+            float w2 = points[i + 1].lanesRight[lane1].laneWidth * 0.5f;
+
+            uint feedback = (uint)_bezier.size();
+
+            points[i].right_Geom_Idx[0] = (uint)_bezier.size();
+            _bezier.push_back(cubicDouble(points[i], points[i + 1]));
+        }
+
+        if (_showMaterials)
+        {
+            int material;
+
+
+            for (uint i = 0; i < numSegments; i++)
+            {
+                bool isBridge = points[i].isBridge;
+                material = __min(maxMaterial, points[i].matCenter[1]);
+
+                if (material >= 0)
+                {
+                    for (auto& layer : roadMaterialCache::getInstance().materialVector[material].layers)
+                    {
+                        _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, layer.materialIndex, points[i].right_Geom_Idx[0], true, 0, 0));
+                    }
+                }
+            }
+        }
+        else if (_stylized)
+        {
+            for (uint i = 0; i < numSegments; i++)
+            {
+                float w = points[i].lanesLeft[2].laneWidth * 0.5f;
+                _index.push_back(bezierLayer(bezier_edge::center, bezier_edge::outside, MATERIAL_EDIT_WHITEDOT, points[i].right_Geom_Idx[0], true, 0, 0));
+            }
+        }
+
+        return;
+    }
+
+
+
+
 
 
     // Right hand side beziers ########################################################################################################
@@ -499,7 +549,7 @@ void roadSection::convertToGPU_Realistic(std::vector<cubicDouble>& _bezier, std:
         for (uint i = 0; i < numSegments; i++)
         {
             bool isBridge = points[i].isBridge;
-           
+
 
             // inner shoulder 
             if (rightLaneInUse[innerShoulder])
@@ -884,8 +934,13 @@ void roadSection::optimizeSpacing(int lane)
 void roadSection::solveUV(int lane)
 {
     float L = points.back().bezier[middle].totalLength;
-    float repeats = ceil(points.back().bezier[middle].totalLength / 8.0f);		// all repeats come from the middle, so same amount left middle and right
-    repeats = __max(1.0f, repeats);
+    float repeats = points.back().bezier[middle].totalLength / uvScale;		// all repeats come from the middle, so same amount left middle and right
+    if (isIntergerUV)
+    {
+        repeats = ceil(repeats);
+        repeats = __max(1.0f, repeats);
+    }
+    
     float rDistance = points.back().bezier[lane].totalLength / repeats;
     rDistance = __max(1.0f, rDistance);
 
@@ -1249,6 +1304,16 @@ void roadSection::pushPoint(float3 p, float3 n, uint _lod)
             sP.bAutoGenerate = true;
         }
 
+        if (isBasicLinearMarking)
+        {
+            for (int i = 0; i < 9; i++) {
+                sP.lanesLeft[i].laneWidth = 0.f;
+                if (i != 2)
+                {
+                    sP.lanesRight[i].laneWidth = 0.f;
+                }
+            }
+        }
 
         sP.B = 0.5f;
         sP.setAnchor(p, n, _lod);

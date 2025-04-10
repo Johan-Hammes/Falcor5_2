@@ -24,6 +24,7 @@ enum e_constraint { none, camber, fixed };
 struct cubicDouble
 {
     cubicDouble() { ; }
+    cubicDouble(splinePoint a, splinePoint b);
     cubicDouble(splinePoint a, splinePoint b, bool bRight);
     cubicDouble(splinePoint a, splinePoint b, bool bRight, float w0, float w1);
     cubicDouble(splinePoint a, splinePoint b, bool bRight, float2 A, float2 D);

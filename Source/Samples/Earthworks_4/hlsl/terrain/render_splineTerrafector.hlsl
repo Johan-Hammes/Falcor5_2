@@ -168,7 +168,7 @@ PS_OUTPUT_Terrafector fixedMaterials(const uint material, const float2 uv, const
     case MATERIAL_CURVATURE:
     {
         output.Elevation.a = 0;
-        output.Elevation.r = 0.1 * cos((abs(uv.x)) * 1.57079632679);
+        output.Elevation.r = 0.2 * cos((abs(uv.x)) * 1.57079632679);
         return output;
     }
     break;

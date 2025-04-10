@@ -3506,6 +3506,7 @@ terrainManager::~terrainManager()
     if (os.good()) {
         cereal::XMLOutputArchive archive(os);
         lastfile.road = mRoadNetwork.lastUsedFilename.string();
+        lastfile.stamps = mRoadStampCollection.lastUsedFilename.string();
         archive(CEREAL_NVP(lastfile));
     }
 }
@@ -3524,6 +3525,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         archive(CEREAL_NVP(lastfile));
 
         mRoadNetwork.lastUsedFilename = lastfile.road;
+        mRoadStampCollection.lastUsedFilename = lastfile.stamps;
     }
     else
     {
@@ -5207,7 +5209,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         ImGui::PushFont(_gui->getFont("roboto_20"));
 
         ImGui::PushItemWidth(ImGui::GetWindowWidth() - 20);
-        if (ImGui::Combo("###modeSelector", &terrainMode, "Vegetation\0Ecotope\0Terrafector\0Bezier road network\0Glider Builder\0")) { ; }
+        if (ImGui::Combo("###modeSelector", (int*)&terrainMode, "Vegetation\0Ecotope\0Terrafector\0Bezier road network\0Glider Builder\0")) { ; }
         ImGui::PopItemWidth();
         ImGui::NewLine();
 
@@ -5216,7 +5218,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
         switch (terrainMode)
         {
-        case 0:
+        case _terrainMode::vegetation :
         {
             ImGui::Text("test");
             ImGui::DragInt("# instances", &ribbonInstanceNumber, 1, 1, 1000);
@@ -5228,7 +5230,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         }
         break;
 
-        case 1:
+        case _terrainMode::ecotope:
         {
             mEcosystem.renderGUI(_gui);
             if (ImGui::BeginPopupContextWindow(false))
@@ -5242,15 +5244,43 @@ void terrainManager::onGuiRender(Gui* _gui)
         }
         break;
 
-        case 2:
+        case _terrainMode::terrafector:
         {
             //terrafectors.renderGui(_gui);
             ImGui::NewLine();
             //roadMaterialCache::getInstance().renderGui(_gui);
+
+            ImGui::Text("Stamps");
+            ImGui::Text("%d - stamps", mRoadStampCollection.stamps.size());
+            ImGui::Text("%d - materials", mRoadStampCollection.materialMap.size());
+
+            
+            if (ImGui::Button("Load - Previous"))
+            {
+                loadStamp();
+            }
+            if (ImGui::Button("Load"))
+            {
+                FileDialogFilterVec filters = { {"stamps"} };
+                if (openFileDialog(filters, mRoadStampCollection.lastUsedFilename))
+                {
+                    loadStamp();
+                    reset(true);
+                }
+            }
+            if (ImGui::Button("Save"))
+            {
+                FileDialogFilterVec filters = { {"stamps"} };
+                if (saveFileDialog(filters, mRoadStampCollection.lastUsedFilename))
+                {
+                    saveStamp();
+                }
+            }
+
         }
         break;
 
-        case 3:
+        case _terrainMode::roads:
         {
             style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
             mRoadNetwork.renderGUI(_gui);
@@ -5260,7 +5290,8 @@ void terrainManager::onGuiRender(Gui* _gui)
             //if (ImGui::Button("bake - MAX", ImVec2(W, 0))) { bake(true); }
 
             if (ImGui::Button("bezier -> lod4")) { bezierRoadstoLOD(4); }
-
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Forces update of road GPU data");
 
             if (ImGui::Checkbox("show baked", &bSplineAsTerrafector)) { reset(true); }
             if (ImGui::IsItemHovered())
@@ -5412,7 +5443,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         }
         break;
 
-        case 4:
+        case _terrainMode::glider:
             ImGui::Text("Wing designer");
 
             if (ImGui::Button("restart"))
@@ -5438,7 +5469,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
     switch (terrainMode)
     {
-    case 0:
+    case _terrainMode::vegetation:
     {
         Gui::Window vegetationPanel(_gui, "Vegetation##tfPanel", { 900, 900 }, { 100, 100 });
         {
@@ -5472,7 +5503,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
     }
     break;
-    case 1:
+    case _terrainMode::ecotope:
     {
         Gui::Window ecotopePanel(_gui, "Ecotope##tfPanel", { 900, 900 }, { 100, 100 });
         {
@@ -5481,7 +5512,7 @@ void terrainManager::onGuiRender(Gui* _gui)
         ecotopePanel.release();
     }
     break;
-    case 2:
+    case _terrainMode::terrafector:
     {
         /*
         Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
@@ -5494,9 +5525,14 @@ void terrainManager::onGuiRender(Gui* _gui)
         }
         tfPanel.release();
         */
+        Gui::Window terrafectorMaterialPanel_2(_gui, "Terrafector materials##2", { 900, 900 }, { 100, 100 });
+        {
+            terrafectorEditorMaterial::static_materials.renderGui(_gui, terrafectorMaterialPanel_2);
+        }
+        terrafectorMaterialPanel_2.release();
     }
     break;
-    case 3:
+    case _terrainMode::roads:
 
         //ImGui::PushFont(_gui->getFont("roboto_20"));
         //_gui->setActiveFont("roboto_20");
@@ -5546,7 +5582,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             {
                 ImGui::PushFont(_gui->getFont("roboto_20"));
                 static bool fullWidth = false;
-                roadPanel.windowSize(220 + fullWidth * 730, 0);
+                roadPanel.windowSize(180 + fullWidth * 460, 0);
 
                 if (mRoadNetwork.currentIntersection) {
                     fullWidth = mRoadNetwork.renderpopupGUI(_gui, mRoadNetwork.currentIntersection);
@@ -5601,6 +5637,13 @@ void terrainManager::onGuiRender(Gui* _gui)
                 split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
                 m_tiles[idx].lod, m_tiles[idx].y, m_tiles[idx].x, glm::length(split.feedback.tum_Position - this->cameraOrigin)
             );
+
+            if (terrainMode == _terrainMode::terrafector)
+            {
+                sprintf(TTTEXT, "(%3.1f, %3.1f, %3.1f)\nheight %2.2fm\nscale %2.2f %2.2f", 
+                    split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
+                    mCurrentStamp.height, mCurrentStamp.scale.x, mCurrentStamp.scale.y);
+            }
             //sprintf(TTTEXT, "splinetest %d (%d, %d) \n", splineTest.index, splineTest.bVertex, splineTest.bSegment);
             auto& style = ImGui::GetStyle();
             style.Colors[ImGuiCol_Text] = ImVec4(0.50f, 0.5, 0.5, 1.f);
@@ -6918,7 +6961,7 @@ bool terrainManager::testForSplit(quadtree_tile* _tile)
             viewBS.w = 0;
             float distance = length(viewBS) + 0.01f;
             float fovscale = glm::length(cameraViews[i].proj[0]);
-            float m_halfAngle_to_Pixels = cameraViews[i].resolution * fovscale / 5.0f;
+            float m_halfAngle_to_Pixels = cameraViews[i].resolution * fovscale / 4.0f;
             float lod_Pix = _tile->size / distance * m_halfAngle_to_Pixels;
 
 
@@ -7208,13 +7251,13 @@ bool terrainManager::update(RenderContext* _renderContext)
 {
     bake.renderContext = _renderContext;
 
-    if (terrainMode == 0)
+    if (terrainMode == _terrainMode::vegetation)
     {
         return false;
     }
 
 
-    if (terrainMode == 4)
+    if (terrainMode == _terrainMode::glider)
     {
         //fprintf(terrafectorSystem::_logfile, "cfd\n");
         //fflush(terrafectorSystem::_logfile);
@@ -7393,6 +7436,8 @@ bool terrainManager::update(RenderContext* _renderContext)
                     markChildrenForRemove(tile);
                 }
             }
+
+            if (!dirty) fullResetDoNotRender = false;
 
             for (auto itt = m_used.begin(); itt != m_used.end();)               // do al merges
             {
@@ -7829,7 +7874,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     }
 
     {
-               splitRenderTopdown(_tile, _renderContext);
+        splitRenderTopdown(_tile, _renderContext);
         _renderContext->copySubresource(height_Array.get(), _tile->index, split.tileFbo->getColorTexture(0).get(), 0);  // for picking only
     }
 
@@ -8199,6 +8244,21 @@ void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _r
     }
 
 
+    // STAMPS #################################################################################################################
+    if (_pTile->lod >= 7)
+    {
+        gpuTileTerrafector* tile = terrafectorSystem::loadCombine_LOD7_stamps.getTile((_pTile->y >> (_pTile->lod - 7)) * 128 + (_pTile->x >> (_pTile->lod - 7)));
+        if (tile)
+        {
+            if (tile->numBlocks > 0)
+            {
+                split.shader_meshTerrafector.Vars()->setBuffer("vertexData", tile->vertex);
+                split.shader_meshTerrafector.Vars()->setBuffer("indexData", tile->index);
+                split.shader_meshTerrafector.drawInstanced(_renderContext, 128 * 3, tile->numBlocks);
+            }
+        }
+    }
+
 
 
     // TOP #################################################################################################################
@@ -8239,7 +8299,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     rmcv::mat4 view_ribbon, proj_ribbon, viewproj_ribbon;
     rmcv::mat4 view, proj, viewproj;
     {
-        if (terrainMode == 4)
+        if (terrainMode == _terrainMode::glider)
         {
             {
                 //FALCOR_PROFILE("SOLVE_glider");
@@ -8292,9 +8352,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
 
 
-     
 
-        if ((terrainMode == 4) && requestParaPack == false)
+
+        if ((terrainMode == _terrainMode::glider) && requestParaPack == false)
             //if ((terrainMode == 4) && AirSim.changed)
         {
             //FALCOR_PROFILE("setBlob");
@@ -8417,7 +8477,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         }
     }
 
-    if ((terrainMode == 0) || (terrainMode == 4))
+    if ((terrainMode == _terrainMode::vegetation) || (terrainMode == _terrainMode::glider))
     {
 
         {
@@ -8519,7 +8579,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
 
-        if (!useFreeCamWhileGliding && (terrainMode == 4) && numLoadedRibbons > 1)
+        if (!useFreeCamWhileGliding && (terrainMode == _terrainMode::glider) && numLoadedRibbons > 1)
             //if ((terrainMode == 4) && AirSim.ribbonCount > 1)
         {
             ribbonShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj_ribbon;
@@ -8603,7 +8663,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
-        
+
         FALCOR_PROFILE("buildings");
 
         rappersvilleShader.State()->setFbo(_fbo);
@@ -8611,8 +8671,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         rappersvilleShader.Vars()["PerFrameCB"]["view"] = view;
         rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
-        //rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
-        
+        rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
+
     }
 
 
@@ -8691,6 +8751,28 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     }
 
+    if (terrainMode == _terrainMode::terrafector)
+    {
+        split.shader_spline3D.State()->setFbo(_fbo);
+        split.shader_spline3D.State()->setRasterizerState(split.rasterstateSplines);
+        split.shader_spline3D.State()->setBlendState(split.blendstateSplines);
+        split.shader_spline3D.State()->setDepthStencilState(split.depthstateAll);
+        split.shader_spline3D.State()->setViewport(0, _viewport, true);
+
+        split.shader_spline3D.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        split.shader_spline3D.Vars()["gConstantBuffer"]["alpha"] = gis_overlay.splineOverlayStrength;
+
+        split.shader_spline3D.Vars()->setBuffer("materials", terrafectorEditorMaterial::static_materials.sb_Terrafector_Materials);
+
+        auto& block = split.shader_spline3D.Vars()->getParameterBlock("gmyTextures");
+        ShaderVar& var = block->findMember("T");        // FIXME pre get
+        terrafectorEditorMaterial::static_materials.setTextures(var);
+
+        split.shader_spline3D.Vars()->setBuffer("splineData", splines.dynamic_bezierData);
+        split.shader_spline3D.Vars()->setBuffer("indexData", splines.dynamic_indexData);
+        split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numDynamicStampIndex);
+    }
+
     if ((splines.numStaticSplines || splines.numDynamicSplines) && showRoadSpline && !bSplineAsTerrafector)
     {
         FALCOR_PROFILE("splines");
@@ -8724,6 +8806,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             split.shader_spline3D.Vars()->setBuffer("indexData", splines.indexData);
             split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
         }
+        /*
+        if (terrainMode == _terrainMode::terrafector)
+        {
+            // render static stamps
+            split.shader_spline3D.Vars()->setBuffer("splineData", splines.bezierData);
+            split.shader_spline3D.Vars()->setBuffer("indexData", splines.indexData);
+            split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
+        }
+        */
+        
     }
 
     {
@@ -9451,8 +9543,140 @@ void terrainManager::sceneToMax()
 }
 
 
+void terrainManager::updateDynamicStamp()
+{
+}
+
+
+void terrainManager::stamp_to_Bezier(stamp& S, cubicDouble* BEZ, bezierLayer* IDX, int _index)
+{
+    float3 A = S.pos - S.right - S.dir;
+    float3 B = S.pos + S.right - S.dir;
+    float3 C = S.pos - S.right + S.dir;
+    float3 D = S.pos + S.right + S.dir;
+
+    BEZ->data[0][0] = { A, 0 };
+    BEZ->data[0][1] = { A, 0 };
+    BEZ->data[0][2] = { C, 1 };
+    BEZ->data[0][3] = { C, 1 };
+
+    BEZ->data[1][0] = { B, 0 };
+    BEZ->data[1][1] = { B, 0 };
+    BEZ->data[1][2] = { D, 1 };
+    BEZ->data[1][3] = { D, 1 };
+
+    *IDX = bezierLayer(bezier_edge::outside, bezier_edge::center, S.material, _index, true, 0, 0);
+    IDX->B |= 0x1 << 29; // isQuad
+}
+
+
+void terrainManager::currentStamp_to_Bezier()
+{
+    splineTest.bSegment = false;
+    splineTest.bVertex = false;
+    splineTest.testDistance = 1000;
+    splineTest.bCenter = false;
+    splineTest.cornerNum = -1;
+    splineTest.pos = split.feedback.tum_Position;
+    splineTest.bStreetview = false;
+
+    mCurrentStamp.material = terrafectorEditorMaterial::static_materials.selectedMaterial;
+    int matIdx = mCurrentStamp.material;
+    if (matIdx >= 0)
+    {
+        terrafectorEditorMaterial mat = terrafectorEditorMaterial::static_materials.materialVector[matIdx];
+
+        float3 N = split.feedback.tum_Normal;
+        mCurrentStamp.right = { cos(mCurrentStamp.rotation), 0, -sin(mCurrentStamp.rotation) };
+        mCurrentStamp.dir = glm::normalize(glm::cross(mCurrentStamp.right, N)) * 0.5f * mat.stampHeight * mCurrentStamp.scale.y;
+        mCurrentStamp.right = glm::normalize(glm::cross(N, mCurrentStamp.dir)) * 0.5f * mat.stampWidth * mCurrentStamp.scale.x;
+
+        mCurrentStamp.pos = split.feedback.tum_Position + (N * mCurrentStamp.height);
+
+        // FIXME scale dir and right here
+
+        cubicDouble BEZ;
+        bezierLayer IDX;
+        stamp_to_Bezier(mCurrentStamp, &BEZ, &IDX, 0);
+
+        splines.numDynamicStampIndex = 1;
+        splines.dynamic_bezierData->setBlob(&BEZ, 0, sizeof(cubicDouble));
+        splines.dynamic_indexData->setBlob(&IDX, 0, sizeof(bezierLayer));
+    }
+    else
+    {
+        splines.numDynamicStampIndex = 0;
+    }
+
+}
+
+
+void terrainManager::allStamps_to_Bezier()
+{
+    /*
+    int size = mRoadStampCollection.stamps.size();
+    roadNetwork::staticBezierData.resize(size);
+    roadNetwork::staticIndexData.resize(size);
+
+    for (int i = 0; i < size; i++)
+    {
+        stamp_to_Bezier(mRoadStampCollection.stamps[i], &roadNetwork::staticBezierData.at(i), &roadNetwork::staticIndexData.at(i), i);
+    }
+
+    splines.numStaticSplines = size;
+    splines.numStaticSplinesIndex = size;
+    splines.bezierData->setBlob(roadNetwork::staticBezierData.data(), 0, splines.numStaticSplines * sizeof(cubicDouble));
+    splines.indexData->setBlob(roadNetwork::staticIndexData.data(), 0, splines.numStaticSplinesIndex * sizeof(bezierLayer));
+
+    allStamps_to_Terrafector();
+    */
+}
+
+void terrainManager::allStamps_to_Terrafector()
+{
+    int size = mRoadStampCollection.stamps.size();
+    terrafectorSystem::loadCombine_LOD7_stamps.create(7);   // the create clears it
+    lodTriangleMesh lodder_stamp;
+    lodder_stamp.create(7);
+
+    float3 pos[3];
+    float2 uv[2];
+    for (auto& S : mRoadStampCollection.stamps)
+    {
+        if (S.scale.x != 0)
+        {
+            pos[0] = S.pos - S.right - S.dir;
+            pos[1] = S.pos + S.right - S.dir;
+            pos[2] = S.pos + S.right + S.dir;
+            uv[0] = { 0, 0 };
+            uv[1] = { 1, 0 };
+            uv[2] = { 1, 1 };
+            lodder_stamp.insertTriangle(S.material, pos, uv);
+
+            pos[0] = S.pos - S.right - S.dir;
+            pos[1] = S.pos + S.right + S.dir;
+            pos[2] = S.pos - S.right + S.dir;
+            uv[0] = { 0, 0 };
+            uv[1] = { 1, 1 };
+            uv[2] = { 0, 1 };
+            lodder_stamp.insertTriangle(S.material, pos, uv);
+        }
+    }
+
+    terrafectorSystem::loadCombine_LOD7_stamps.addMesh("", lodder_stamp, false);
+    terrafectorSystem::loadCombine_LOD7_stamps.loadToGPU("", true);
+}
+
+
 
 void terrainManager::updateDynamicRoad(bool _bezierChanged) {
+
+    if (this->terrainMode == _terrainMode::terrafector)
+    {
+        currentStamp_to_Bezier();
+        return;
+    }
+
     // active road ----------------------------------------------------------------------------------------------------------------
     splineTest.bSegment = false;
     splineTest.bVertex = false;
@@ -9685,11 +9909,18 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 {
     bool keyPressed = (keyEvent.type == KeyboardEvent::Type::KeyPressed);
 
+    // terrain mode
+    if (keyPressed && keyEvent.key == Input::Key::Key0) terrainMode = _terrainMode::vegetation;
+    if (keyPressed && keyEvent.key == Input::Key::Key1) terrainMode = _terrainMode::ecotope;
+    if (keyPressed && keyEvent.key == Input::Key::Key2) terrainMode = _terrainMode::terrafector;
+    if (keyPressed && keyEvent.key == Input::Key::Key3) terrainMode = _terrainMode::roads;
+    //if (keyPressed && keyEvent.key == Input::Key::Key4) terrainMode = _terrainMode::glider;
+
     splineTest.bCtrl = keyEvent.hasModifier(Input::Modifier::Ctrl);
     splineTest.bShift = keyEvent.hasModifier(Input::Modifier::Shift);
     splineTest.bAlt = keyEvent.hasModifier(Input::Modifier::Alt);
 
-    if (terrainMode == 4)   // Paragliding
+    if (terrainMode == _terrainMode::glider)   // Paragliding
     {
         if (keyPressed && keyEvent.key == Input::Key::Escape) {
             renderGui_Menu = !renderGui_Menu;
@@ -9738,6 +9969,20 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
         switch (terrainMode)
         {
+        case 2:
+            // Terrafector - placinf stamps in here
+            if (keyPressed)
+            {
+                if (keyEvent.key == Input::Key::B)
+                {
+                    bSplineAsTerrafector = !bSplineAsTerrafector;
+                    reset(true);
+                    return true;
+                }
+            }
+            break;
+
+
         case 3:
 
 
@@ -9803,6 +10048,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                     case Input::Key::Q:
                         if (mRoadNetwork.currentRoad) mRoadNetwork.currentRoad->solveRoad(splineTest.index);
                         if (mRoadNetwork.currentIntersection) mRoadNetwork.solveIntersection();
+                        mRoadNetwork.updateAllRoads();
                         break;
                     }
 
@@ -9855,6 +10101,17 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                 if (keyPressed) {
                     mRoadNetwork.newRoadSpline();
                     //updateStaticRoad();
+
+                }
+                return true;
+                break;
+
+            case Input::Key::Y:
+                // road new spline
+                if (keyPressed) {
+                    mRoadNetwork.newRoadSplineBasic();
+                    //updateStaticRoad();
+
                 }
                 return true;
                 break;
@@ -9867,6 +10124,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                     mRoadNetwork.currentIntersection->updatePosition(split.feedback.tum_Position, split.feedback.tum_Normal, m_tiles[split.feedback.tum_idx].lod);
                     mRoadNetwork.currentIntersection_findRoads();
                     updateDynamicRoad(true);
+
                 }
                 return true;
                 break;
@@ -9973,7 +10231,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera)
 {
 
-    if ((terrainMode == 0) || (terrainMode == 4 && !useFreeCamWhileGliding))
+    if ((terrainMode == _terrainMode::vegetation) || (terrainMode == _terrainMode::glider && !useFreeCamWhileGliding))
     {
         glm::vec2 pos = (mouseEvent.pos * _mouseScale) + _mouseOffset;
         glm::vec2 diff;
@@ -10010,7 +10268,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         }
 
         //mouseVegYaw += 0.002f;
-        if ((terrainMode == 0))
+        if ((terrainMode == _terrainMode::vegetation))
         {
             glm::vec3 camPos;
             camPos.y = sin(mouseVegPitch);
@@ -10019,14 +10277,23 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
             _camera->setPosition(camPos * mouseVegOrbit);
             _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
         }
-        if ((terrainMode == 4))
+        if ((terrainMode == _terrainMode::glider))
         {
             //_camera->setTarget(paraRuntime.ROOT);
         }
         return true;
     }
     else {
-        bool bEdit = onMouseEvent_Roads(mouseEvent, _screenSize, _camera);
+        bool bEdit = false;
+        if ((terrainMode == _terrainMode::terrafector))
+        {
+            bEdit = onMouseEvent_Stamps(mouseEvent, _screenSize, _camera);
+        }
+        if ((terrainMode == _terrainMode::roads))
+        {
+            bEdit = onMouseEvent_Roads(mouseEvent, _screenSize, _camera);
+        }
+
 
         if (!bEdit)
         {
@@ -10131,6 +10398,109 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
     }
 }
 
+
+
+bool terrainManager::onMouseEvent_Stamps(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera)
+{
+    switch (mouseEvent.type)
+    {
+    case MouseEvent::Type::Move:
+    {
+    }
+    break;
+    case MouseEvent::Type::Wheel:
+    {
+        if (splineTest.bCtrl)
+        {
+            if (splineTest.bAlt)
+            {
+                mCurrentStamp.rotation += mouseEvent.wheelDelta.y / 30.0f;
+            }
+            else if (splineTest.bShift)
+            {
+                mCurrentStamp.height += mouseEvent.wheelDelta.y / 30.0f;
+            }
+            else
+            {
+                mCurrentStamp.rotation += mouseEvent.wheelDelta.y / 3.0f;
+            }
+
+            
+            return true;
+        }
+
+        if (splineTest.bShift)
+        {
+            if (splineTest.bAlt)
+            {
+                mCurrentStamp.scale.x *= 1.f + mouseEvent.wheelDelta.y / 30.0f;
+            }
+            else
+            {
+                mCurrentStamp.scale.y *= 1.f + mouseEvent.wheelDelta.y / 30.0f;
+            }
+            return true;
+        }
+            
+         
+    }
+    case MouseEvent::Type::ButtonDown:
+    {
+        if (mouseEvent.button == Input::MouseButton::Left)
+        {
+            if (stampEditPosisiton >= mRoadStampCollection.stamps.size())
+            {
+                mRoadStampCollection.add(mCurrentStamp);
+                stampEditPosisiton = mRoadStampCollection.stamps.size();
+            }
+            else
+            {
+                mRoadStampCollection.stamps[stampEditPosisiton] = mCurrentStamp;    // FIXME does nto add material could cause a problem
+                stampEditPosisiton = mRoadStampCollection.stamps.size();
+            }
+
+            //allStamps_to_Bezier();
+            allStamps_to_Terrafector();
+            reset(true);
+        }
+
+        if (mouseEvent.button == Input::MouseButton::Right)
+        {
+            if (splineTest.bAlt)
+            {
+                mCurrentStamp.height = 0;
+                mCurrentStamp.scale = { 1, 1 };
+            }
+            if (splineTest.bCtrl)
+            {
+                // delete closest but set current stamp to it
+                int idx = mRoadStampCollection.find(split.feedback.tum_Position);
+                if (idx >= 0)
+                {
+                    mCurrentStamp = mRoadStampCollection.stamps[idx];
+                    terrafectorEditorMaterial::static_materials.selectedMaterial = mCurrentStamp.material;
+                    mRoadStampCollection.stamps[idx].scale = { 0, 0 };  // then set scale to 0 if this is justa delte
+                    stampEditPosisiton = idx;
+                    allStamps_to_Terrafector();
+                    reset(true);
+                }
+            }
+            if (splineTest.bShift)
+            {
+                // Just copy current stamp
+                int idx = mRoadStampCollection.find(split.feedback.tum_Position);
+                if (idx >= 0)
+                {
+                    mCurrentStamp = mRoadStampCollection.stamps[idx];
+                    terrafectorEditorMaterial::static_materials.selectedMaterial = mCurrentStamp.material;
+                }
+            }
+        }
+    }
+    }
+
+    return false;
+}
 
 
 bool terrainManager::onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera)

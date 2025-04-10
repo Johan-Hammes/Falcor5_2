@@ -5,7 +5,7 @@
 
 
 
-
+#define ROADNETWORK_CEREAL_VERSION 103
 class roadNetwork {
 public:
     roadNetwork();
@@ -17,7 +17,10 @@ public:
     void renderPopupSegmentGUI(Gui* mpGui, glm::vec2  _pos, uint _idx);
     void renderGUI(Gui* _gui);
     void renderGUI_3d(Gui* _gui);
-    
+
+    void saveRoadGeometry(roadSection* _road, int _vertex);
+    void loadRoadGeometry(roadSection* _road, int _from, int _to);
+
     void saveRoadMaterials(roadSection* _road, int _vertex);
     void loadRoadMaterials(roadSection* _road, int _from, int _to);
     void loadRoadMaterialsAll(roadSection* _road, int _from, int _to);
@@ -29,6 +32,7 @@ public:
     
     bool popupVisible = false;
 
+    void newRoadSplineBasic();
     void newRoadSpline();
     void newIntersection();
 
@@ -39,9 +43,11 @@ public:
     void updateAllRoads(bool _forExport = false);
 
     std::filesystem::path lastUsedFilename;
-    void load(uint _version);
-    void load(std::filesystem::path _path, uint _version = 101);
+    void load();
+    void load(std::filesystem::path _path, uint _version = ROADNETWORK_CEREAL_VERSION);
+    void upgrade(uint _FROM);
     void save();
+    void saveDialog();
     void quickSave();
     void exportBinary();
     void exportBridges();
@@ -170,4 +176,4 @@ public:
     }
 };
 
-CEREAL_CLASS_VERSION(roadNetwork, 101);
+CEREAL_CLASS_VERSION(roadNetwork, ROADNETWORK_CEREAL_VERSION);

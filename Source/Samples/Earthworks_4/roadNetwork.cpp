@@ -87,7 +87,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, intersection* _intersection)
 
 
 
-std::array<std::string, 9> laneNames{ "shoulder in", "turn in", "lane 1", "lane 2", "lane 3", "turn", "shoulder", "side", "clearing" };
+std::array<std::string, 9> laneNames{ "shoulder in", "turn in", "lane 1", "lane 2", "lane 3", "turn", "shoulder", "sidewalk", "clearing" };
 void roadNetwork::renderPopupVertexGUI(Gui* _gui, glm::vec2 _pos, uint _vertex)
 {
     /*
@@ -157,6 +157,15 @@ void roadNetwork::renderPopupSegmentGUI(Gui* _gui, glm::vec2  _pos, uint _idx)
     */
 }
 
+void replaceAll_RD(std::string& str, const std::string& from, const std::string& to) {
+    if (from.empty())
+        return;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
 
 
 // FIXME selection
@@ -168,6 +177,7 @@ void roadNetwork::loadRoadMaterial(uint _side, uint _slot)
     if (openFileDialog(filters, path))
     {
         std::string filename = path.string();
+
         if (filename.find("jpg") != std::string::npos)
         {
             filename = filename.substr(0, filename.size() - 4);
@@ -284,16 +294,16 @@ const Texture::SharedPtr roadNetwork::getMaterialTexture(uint _side, uint _slot)
 										\
 										std::string mat_name = "... various ..."; \
 										if (same) { \
-											style.Colors[ImGuiCol_Button] = ImVec4(0.02f, 0.02f, 0.02f, 0.4f);  \
+											style.Colors[ImGuiCol_Button] = ImVec4(0.02f, 0.02f, 0.02f, 1.0f);  \
 											mat_name = getMaterialName(side, slot); \
 										} \
 										else { \
-											style.Colors[ImGuiCol_Button] = ImVec4(0.72f, 0.42f, 0.12f, 0.95f); 	\
+											style.Colors[ImGuiCol_Button] = ImVec4(0.72f, 0.42f, 0.12f, 1.0f); 	\
 										}  \
-										if (selectTo <= selectFrom) { style.Colors[ImGuiCol_Button] = ImVec4(0.3f, 0.3f, 0.3f, 0.5f); }\
+										if (selectTo <= selectFrom) { style.Colors[ImGuiCol_Button] = ImVec4(0.3f, 0.3f, 0.3f, 1.0f); }\
 										 \
 										 ImGui::PushID(9999 + side * 1000 + slot); \
-												if (ImGui::Button(mat_name.c_str(), ImVec2(190, 0))) { if (selectTo > selectFrom) loadRoadMaterial(side, slot); } \
+												if (ImGui::Button(mat_name.c_str(), ImVec2(120, 0))) { if (selectTo > selectFrom) loadRoadMaterial(side, slot); } \
                                                 DRAGDROP(side, slot) \
 												TOOLTIP( tooltip ); \
 												if (same && ImGui::IsItemHovered()) { roadNetwork::displayThumbnail = getMaterialTexture(side, slot); } \
@@ -349,23 +359,115 @@ const Texture::SharedPtr roadNetwork::getMaterialTexture(uint _side, uint _slot)
 
 
 
-// FIXME should likely be names and then lookup for future use
-void roadNetwork::saveRoadMaterials(roadSection* _road, int _vertex)
+
+
+void roadNetwork::saveRoadGeometry(roadSection* _road, int _vertex)
 {
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"roadlayout.xml"} };
+    FileDialogFilterVec filters = { {"roadwidths.xml"} };
     if (saveFileDialog(filters, path))
     {
         FILE* file = fopen(path.string().c_str(), "w");
         if (file) {
-            for (int i = 0; i < 15; i++) fprintf(file, "%d\n", _road->points[_vertex].matLeft[i]);
-            for (int i = 0; i < 2; i++) fprintf(file, "%d\n", _road->points[_vertex].matCenter[i]);
-            for (int i = 0; i < 15; i++) fprintf(file, "%d\n", _road->points[_vertex].matRight[i]);
+            for (int i = 0; i < 9; i++)
+            {
+                fprintf(file, "%f\n", _road->points[_vertex].lanesLeft[i].laneWidth);
+                fprintf(file, "%f\n", _road->points[_vertex].lanesRight[i].laneWidth);
+            }
+        }
+        fclose(file);
+    }
+}
+
+
+
+
+
+void roadNetwork::loadRoadGeometry(roadSection* _road, int _from, int _to)
+{
+    float wL[9], wR[9];
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"roadwidths.xml"} };
+    if (openFileDialog(filters, path))
+    {
+        FILE* file = fopen(path.string().c_str(), "r");
+        if (file) {
+            for (int i = 0; i < 9; i++)
+            {
+                fscanf(file, "%f\n", &wL[i]);
+                fscanf(file, "%f\n", &wR[i]);
+            }
+        }
+        fclose(file);
+    }
+
+    for (int v = _from; v <= _to; v++)
+    {
+        for (int i = 0; i < 9; i++)
+        {
+            _road->points[v].lanesLeft[i].laneWidth = wL[i];
+            _road->points[v].lanesRight[i].laneWidth = wR[i];
+        }
+    }
+
+    isDirty = true;
+}
+
+
+
+
+
+// FIXME should likely be names and then lookup for future use
+void roadNetwork::saveRoadMaterials(roadSection* _road, int _vertex)
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"roadmaterials"} };
+    if (saveFileDialog(filters, path))
+    {
+        FILE* file = fopen(path.string().c_str(), "w");
+        if (file) {
+            //for (int i = 0; i < 15; i++) fprintf(file, "%d\n", _road->points[_vertex].matLeft[i]);
+            //for (int i = 0; i < 2; i++) fprintf(file, "%d\n", _road->points[_vertex].matCenter[i]);
+            //for (int i = 0; i < 15; i++) fprintf(file, "%d\n", _road->points[_vertex].matRight[i]);
             //fwrite(&_road->points[_vertex].matLeft[0], sizeof(int), 15, file);
             //fwrite(&_road->points[_vertex].matCenter[0], sizeof(int), 2, file);
             //fwrite(&_road->points[_vertex].matRight[0], sizeof(int), 15, file);
 
-            fprintf(file, "testing\n");
+            //roadMaterialCache::getInstance().materialVector[idx].relativePath
+
+            //int m_size = (int)roadMaterialCache::getInstance().materialVector.size();
+            //fprintf(file, "%d sizeof materialVector\n");
+            
+            for (int i = 0; i < 15; i++)
+            {
+                int idx = _road->points[_vertex].matLeft[i];
+                if ( idx >= 0)
+                    fprintf(file, "%s\n", roadMaterialCache::getInstance().materialVector[idx].relativePath.c_str());
+                    //fprintf(file, "L\n");
+                else
+                    fprintf(file, "\n");
+            }
+
+            for (int i = 0; i < 2; i++)
+            {
+                int idx = _road->points[_vertex].matCenter[i];
+                if (idx >= 0)
+                    fprintf(file, "%s\n", roadMaterialCache::getInstance().materialVector[idx].relativePath.c_str());
+                else
+                    fprintf(file, "\n");
+            }
+
+            for (int i = 0; i < 15; i++)
+            {
+                int idx = _road->points[_vertex].matRight[i];
+                if (idx >= 0)
+                    fprintf(file, "%s\n", roadMaterialCache::getInstance().materialVector[idx].relativePath.c_str());
+                    //fprintf(file, "R\n");
+                else
+                    fprintf(file, "\n");
+            }
+
+            
         }
         fclose(file);
     }
@@ -379,20 +481,50 @@ int  load_right[15];
 
 void roadNetwork::loadRoadMaterials(roadSection* _road, int _from, int _to)
 {
-
+    char filename[256];
 
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"roadlayout.xml"} };
+    FileDialogFilterVec filters = { {"roadmaterials"} };
     if (openFileDialog(filters, path))
     {
         FILE* file = fopen(path.string().c_str(), "r");
         if (file) {
-            for (int i = 0; i < 15; i++) fscanf(file, "%d\n", &load_left[i]);
-            for (int i = 0; i < 2; i++) fscanf(file, "%d\n", &load_center[i]);
-            for (int i = 0; i < 15; i++) fscanf(file, "%d\n", &load_right[i]);
+            //for (int i = 0; i < 15; i++) fscanf(file, "%d\n", &load_left[i]);
+            //for (int i = 0; i < 2; i++) fscanf(file, "%d\n", &load_center[i]);
+            //for (int i = 0; i < 15; i++) fscanf(file, "%d\n", &load_right[i]);
+
+            for (int i = 0; i < 15; i++)
+            {
+                load_left[i] = -1;
+                memset(filename, 0, 256);
+                int k = fscanf(file, "%s\n", filename);
+                if (filename[1])
+                    load_left[i] = roadMaterialCache::getInstance().find_insert_material(terrafectorEditorMaterial::rootFolder + filename);
+            }
+
+            for (int i = 0; i < 2; i++)
+            {
+                load_center[i] = -1;
+                memset(filename, 0, 256);
+                int k = fscanf(file, "%s\n", filename);
+                if (filename[1])
+                    load_center[i] = roadMaterialCache::getInstance().find_insert_material(terrafectorEditorMaterial::rootFolder + filename);
+            }
+
+            for (int i = 0; i < 15; i++)
+            {
+                load_right[i] = -1;
+                memset(filename, 0, 256);
+                int k = fscanf(file, "%s\n", filename);
+                if (filename[1])
+                    load_right[i] = roadMaterialCache::getInstance().find_insert_material(terrafectorEditorMaterial::rootFolder + filename);
+            }
         }
         fclose(file);
     }
+
+    isDirty = true;
+    terrafectorEditorMaterial::static_materials.rebuildAll();
 }
 
 
@@ -480,6 +612,7 @@ void roadNetwork::loadRoadMaterialsWT(roadSection* _road, int _from, int _to)
 
 
 
+
 bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     if (!_road) return false;
@@ -506,16 +639,31 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     }
     ImGui::PopFont();
 
-    ImGui::PushItemWidth(180);
+    ImGui::PushItemWidth(160);
     ImGui::SliderInt("q", &_road->buildQuality, 0, 2);
     ImGui::PopItemWidth();
 
     ImGui::Checkbox("is closed loop", &_road->isClosedLoop);
     TOOLTIP("set for tracks\nIt will snap the last point to the first if closer than 20m appart, \nand we have more than 5 points to avoid mess at start of a road");
 
+    ImGui::Checkbox("is linear marking", &_road->isBasicLinearMarking);
+    TOOLTIP("Is this a basic single spline linear feature");
+
+    ImGui::NewLine();
+    ImGui::Checkbox("is fixed UV", &_road->isIntergerUV);
+    TOOLTIP("Does teh U value repeat so we can tile in intersections or use absolute diatance/nuse TRUE for roads with intersection\nuse FALSE for road markings");
+    if (ImGui::DragFloat("U repeat distance", &_road->uvScale, 0.1f, 1.f, 16.f, "%.2f m"))
+    {
+        _road->solveRoad();
+    }
+    TOOLTIP("Distance where U repeats\nThis does get scaled by the material U scale as well so not absolute\nleave on 8.0 for most roads as materials are set up that way");
+    
     if (_road->points.size() == 0) return false;
 
+    if (_road->isBasicLinearMarking)
+    {
 
+    }
 
 
     // Selection #$###########################################################################
@@ -568,26 +716,24 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 
     ImGui::NewLine();
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.7f);
-    ImGui::BeginChildFrame(199, ImVec2(220, 100), 0);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.0f, 0.0f, 1.0f);
+    ImGui::BeginChildFrame(199, ImVec2(180, 50), 0);
     {
-        ImGui::Text("Selection");
-
-        ImGui::PushItemWidth(60);
+        ImGui::PushItemWidth(50);
         if (selectionType == 0)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
-        if (ImGui::Button("None", ImVec2(60, 0))) { selectionType = 0; }
+        if (ImGui::Button("None", ImVec2(50, 0))) { selectionType = 0; }
         TOOLTIP("select None\nDisplay and actions apply to the last vertex under the mouse\nctrl-d");
         style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
 
         if (selectionType == 1)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
         ImGui::SameLine();
-        if (ImGui::Button("Range", ImVec2(60, 0))) { selectionType = 1; }
+        if (ImGui::Button("Range", ImVec2(50, 0))) { selectionType = 1; }
         TOOLTIP("select Range\nClick and shift Click for start and end of range");
         style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
 
         if (selectionType == 2)	style.Colors[ImGuiCol_Button] = ImVec4(0.6f, 0.4f, 0.0f, 1.0f);
         ImGui::SameLine();
-        if (ImGui::Button("All", ImVec2(60, 0))) { selectionType = 2; }
+        if (ImGui::Button("All", ImVec2(50, 0))) { selectionType = 2; }
         TOOLTIP("select All\nctrl-a");
         style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
 
@@ -597,10 +743,10 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         ImGui::PushFont(_gui->getFont("roboto_26"));
         {
 
-            ImGui::PushItemWidth(90);
+            ImGui::PushItemWidth(70);
             if (ImGui::DragInt("##start", &selectFrom, 1, 0, (int)_road->points.size())) { ; }
             ImGui::SameLine();
-            ImGui::Text("-");
+            ImGui::Text(":");
             ImGui::SameLine();
             if (ImGui::DragInt("##end", &selectTo, 1, selectFrom, (int)_road->points.size())) { ; }
             ImGui::PopItemWidth();
@@ -612,7 +758,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 
 
-
+    ImGui::NewLine();
     ImGui::Checkbox("show materials", &showMaterials);
     TOOLTIP("space - toggle");
 
@@ -626,10 +772,10 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         ImGui::Text("geometry");
 
         ImGui::SameLine();
-        ImGui::SetCursorPosX(270);
+        ImGui::SetCursorPosX(230);  // 200 + 150
         ImGui::Text("base");
         ImGui::SameLine();
-        ImGui::SetCursorPosX(500 - 60);
+        ImGui::SetCursorPosX(350 - 60);
         if (ImGui::Button("X##base")) {
             clearRoadMaterial(0, splinePoint::matName::verge);
             clearRoadMaterial(0, splinePoint::matName::sidewalk);
@@ -643,10 +789,10 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         }
 
         ImGui::SameLine();
-        ImGui::SetCursorPosX(510);
+        ImGui::SetCursorPosX(380);
         ImGui::Text("lines");
         ImGui::SameLine();
-        ImGui::SetCursorPosX(740 - 60);
+        ImGui::SetCursorPosX(500 - 60);
         if (ImGui::Button("X##lines")) {
             clearRoadMaterial(0, splinePoint::matName::shoulder);
             clearRoadMaterial(0, splinePoint::matName::outerTurn);
@@ -667,10 +813,10 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         }
 
         ImGui::SameLine();
-        ImGui::SetCursorPosX(750);
+        ImGui::SetCursorPosX(500);
         ImGui::Text("wear&tear");
         ImGui::SameLine();
-        ImGui::SetCursorPosX(980 - 60);
+        ImGui::SetCursorPosX(650 - 40);
         if (ImGui::Button("X##wt")) {
             clearRoadMaterial(0, splinePoint::matName::rubberOuter);
             clearRoadMaterial(0, splinePoint::matName::rubberLane3);
@@ -693,8 +839,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 
 
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.2f, 0.0f, 1.0f);
-    ImGui::BeginChildFrame(100, ImVec2(970, 280), 0);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.07f, 0.0f, 1.0f);
+    ImGui::BeginChildFrame(100, ImVec2(660, 280), 0);
     {
         for (int i = 8; i >= 0; i--) {
             style.Colors[ImGuiCol_Button] = ImVec4(0.22f, 0.02f, 0.02f, 0.05f);
@@ -702,7 +848,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
             if (ImGui::Button(laneNames[i].c_str(), ImVec2(110, 0))) { editLaneIndex = i; editRight = false; }
 
             ImGui::SameLine();
-            ImGui::SetCursorPosX(120);
+            ImGui::SetCursorPosX(90);
             ImGui::PushID(3333 + i);
             ImGui::PushItemWidth(90);
             {
@@ -721,8 +867,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.05f, 0.08f, 0.9f);
 
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.0f);
-    ImGui::SetCursorPos(ImVec2(240, tempY));
-    ImGui::BeginChildFrame(101, ImVec2(220, 260), 0);
+    ImGui::SetCursorPos(ImVec2(200, tempY));
+    ImGui::BeginChildFrame(101, ImVec2(150, 260), 0);
     {
         DISPLAY_MATERIAL(0, splinePoint::verge, "VERGE \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
         DISPLAY_MATERIAL(0, splinePoint::sidewalk, "SIDEWALK \nLine between the outermost lane and the shoulder.\n make sure something is selected before loading");
@@ -732,8 +878,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     }
     ImGui::EndChildFrame();
 
-    ImGui::SetCursorPos(ImVec2(480, tempY));
-    ImGui::BeginChildFrame(102, ImVec2(220, 280), 0);
+    ImGui::SetCursorPos(ImVec2(350, tempY));
+    ImGui::BeginChildFrame(102, ImVec2(150, 280), 0);
     {
         ImGui::SetCursorPosY(lineY * 2);
 
@@ -748,8 +894,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     }
     ImGui::EndChildFrame();
 
-    ImGui::SetCursorPos(ImVec2(720, tempY));
-    ImGui::BeginChildFrame(103, ImVec2(220, 280), 0);
+    ImGui::SetCursorPos(ImVec2(500, tempY));
+    ImGui::BeginChildFrame(103, ImVec2(150, 280), 0);
     {
         ImGui::SetCursorPosY(lineY * 3);
         DISPLAY_MATERIAL(0, splinePoint::rubberOuter, "OUTER TURN 2 \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
@@ -763,25 +909,25 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20);
     {
-        ImGui::SetCursorPosX(480);
+        ImGui::SetCursorPosX(350);
         DISPLAY_MATERIAL(1, 0, "CENTERLINE");
         ImGui::SameLine();
-        ImGui::SetCursorPosX(720);
+        ImGui::SetCursorPosX(500);
         DISPLAY_MATERIAL(1, 1, "CENTER CRACKS");
     }
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20);
 
 
     tempY = ImGui::GetCursorPosY();
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.02f, 0.7f, 0.3f);
-    ImGui::BeginChildFrame(200, ImVec2(970, 280), 0);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.02f, 0.07f, 1.f);
+    ImGui::BeginChildFrame(200, ImVec2(660, 280), 0);
     for (int i = 0; i < 9; i++) {
         style.Colors[ImGuiCol_Button] = ImVec4(0.22f, 0.02f, 0.02f, 0.05f);
         if (editRight && editLaneIndex == i) { style.Colors[ImGuiCol_Button] = ImVec4(0.22f, 0.02f, 0.02f, 0.95f); }
         if (ImGui::Button(laneNames[i].c_str(), ImVec2(110, 0))) { editLaneIndex = i; editRight = true; }
 
         ImGui::SameLine();
-        ImGui::SetCursorPosX(120);
+        ImGui::SetCursorPosX(90);
         ImGui::PushItemWidth(90);
         ImGui::PushID(999 + i);
         {
@@ -802,8 +948,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.05f, 0.08f, 0.9f);
     style.Colors[ImGuiCol_FrameBg] = ImVec4(0.02f, 0.02f, 0.02f, 0.0f);
-    ImGui::SetCursorPos(ImVec2(240, tempY));
-    ImGui::BeginChildFrame(201, ImVec2(220, 260), 0);
+    ImGui::SetCursorPos(ImVec2(200, tempY));
+    ImGui::BeginChildFrame(201, ImVec2(150, 260), 0);
     {
 
         ImGui::SetCursorPosY(lineY * 3);
@@ -815,8 +961,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     }
     ImGui::EndChildFrame();
 
-    ImGui::SetCursorPos(ImVec2(480, tempY));
-    ImGui::BeginChildFrame(202, ImVec2(220, 280), 0);
+    ImGui::SetCursorPos(ImVec2(350, tempY));
+    ImGui::BeginChildFrame(202, ImVec2(150, 280), 0);
     {
         DISPLAY_MATERIAL(2, splinePoint::innerShoulder, "INNER SHOULDER \nLine between a traffic island and the first lane.\n make sure something is selected before loading");
         DISPLAY_MATERIAL(2, splinePoint::innerTurn, "INNER TURN LANE \nUsually dotted line to get into a turn lane \nApplied to the inside of the lane next to it.\n make sure something is selected before loading");
@@ -828,8 +974,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     }
     ImGui::EndChildFrame();
 
-    ImGui::SetCursorPos(ImVec2(720, tempY));
-    ImGui::BeginChildFrame(203, ImVec2(220, 280), 0);
+    ImGui::SetCursorPos(ImVec2(500, tempY));
+    ImGui::BeginChildFrame(203, ImVec2(150, 280), 0);
     {
         ImGui::SetCursorPosY(lineY * 1);
         DISPLAY_MATERIAL(2, splinePoint::rubberInner, "INNER TURN \nRubbering, tyre wear, oil and dirt \nApplied to only this lane\n make sure something is selected before loading");
@@ -851,54 +997,54 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
     tempY = 150;
 
 
-
-
-    ImGui::SetCursorPos(ImVec2(340, tempY));
-    if (ImGui::Button("Save all", ImVec2(100, 0)))
-    {
-        saveRoadMaterials(_road, selectFrom);
-    }
-
-    ImGui::SetCursorPos(ImVec2(240, tempY));
+    ImGui::SetCursorPos(ImVec2(200, tempY));
     if (ImGui::Button("Load all", ImVec2(100, 0)))
     {
         loadRoadMaterialsAll(_road, selectFrom, selectTo);
     }
 
-    ImGui::SetCursorPos(ImVec2(240, tempY + 50));
-    if (ImGui::Button("Load tarmac", ImVec2(200, 0))) {
+    ImGui::SetCursorPos(ImVec2(300, tempY));
+    if (ImGui::Button("Save all", ImVec2(100, 0)))
+    {
+        saveRoadMaterials(_road, selectFrom);
+    }
+
+
+    ImGui::SetCursorPos(ImVec2(200, tempY + 50));
+    if (ImGui::Button("Load tarmac", ImVec2(140, 0))) {
         loadRoadMaterialsAsphalt(_road, selectFrom, selectTo);
     }
 
-    ImGui::SetCursorPos(ImVec2(240, tempY + 80));
-    if (ImGui::Button("Load verges", ImVec2(200, 0))) {
+    ImGui::SetCursorPos(ImVec2(200, tempY + 80));
+    if (ImGui::Button("Load verges", ImVec2(140, 0))) {
         loadRoadMaterialsVerge(_road, selectFrom, selectTo);
     }
 
 
 
 
-    ImGui::SetCursorPos(ImVec2(480, tempY + 80));
-    if (ImGui::Button("Load lines", ImVec2(200, 0))) {
+    ImGui::SetCursorPos(ImVec2(350, tempY + 80));
+    if (ImGui::Button("Load lines", ImVec2(140, 0))) {
         loadRoadMaterialsLines(_road, selectFrom, selectTo);
     }
     //	ImGui::SetCursorPos(ImVec2(580, tempY));
     //	if (ImGui::Button("Save lines", ImVec2(100, 0))) { ; }
 
-    ImGui::SetCursorPos(ImVec2(720, tempY + 80));
-    if (ImGui::Button("Load w&t", ImVec2(200, 0))) {
+    ImGui::SetCursorPos(ImVec2(500, tempY + 80));
+    if (ImGui::Button("Load w&t", ImVec2(140, 0))) {
         loadRoadMaterialsWT(_road, selectFrom, selectTo);
     }
     //	ImGui::SetCursorPos(ImVec2(820, tempY));
     //	if (ImGui::Button("Save w&t", ImVec2(100, 0))) { ; }
 
 
-    ImGui::SetCursorPos(ImVec2(20, cursorBelow));
-    if (ImGui::Button("Load geometry", ImVec2(100, 0))) { ; }
-    ImGui::SetCursorPos(ImVec2(120, cursorBelow));
-    if (ImGui::Button("Save geometry", ImVec2(100, 0))) { ; }
+    ImGui::SetCursorPos(ImVec2(0, cursorBelow));
+    if (ImGui::Button("Load geom", ImVec2(50, 0))) { loadRoadGeometry(_road, selectFrom, selectTo); }
+    ImGui::SetCursorPos(ImVec2(50, cursorBelow));
+    if (ImGui::Button("Save geom", ImVec2(50, 0))) { saveRoadGeometry(_road, selectFrom); }
 
 
+    ImGui::NewLine();
     ImGui::Text("Sampler offsets");
     if (ImGui::DragFloat("Height", &_road->points[_vertex].height_AboveAnchor, 0.1f, -10.0f, 10.0f, "%2.2f m")) {
         _road->points[_vertex].solveMiddlePos();
@@ -907,6 +1053,8 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
         _road->points[_vertex].solveMiddlePos();
     }
 
+
+    ImGui::NewLine();
 
     ImGui::Checkbox("is bridge", &_road->points[_vertex].isBridge);
     if (_road->points[_vertex].isBridge)
@@ -922,7 +1070,7 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
     ImGui::Checkbox("isAIonly", &_road->points[_vertex].isAIonly);
     ImGui::NewLine();
-    ImGui::NewLine();
+    
 
 
     style = oldStyle;
@@ -934,9 +1082,20 @@ bool roadNetwork::renderpopupGUI(Gui* _gui, roadSection* _road, int _vertex) {
 
 void roadNetwork::renderGUI(Gui* _gui)
 {
-    ImGui::PushFont(_gui->getFont("roboto_32"));
+    ImGui::PushFont(_gui->getFont("roboto_26"));
     {
-        ImGui::Text("%d rd, %d int", (int)roadSectionsList.size(), (int)intersectionList.size());
+        int numRoads = roadSectionsList.size();
+        int numOverlay = 0;
+        for (auto& R : roadSectionsList)
+        {
+            if (R.isBasicLinearMarking) {
+                numOverlay++;
+                numRoads--;
+            }
+        }
+        ImGui::Text("%d roads", numRoads);
+        ImGui::Text("%d overlay", numOverlay);
+        ImGui::Text("%d intersections", (int)intersectionList.size());
         ImGui::Text("%4.2f km   (%d%%)", getDistance() / 1000.0f, getDone());
     }
     ImGui::PopFont();
@@ -948,27 +1107,40 @@ void roadNetwork::renderGUI(Gui* _gui)
     ImGui::Text(txt);
     sprintf(txt, "#ODE - %d (%d Kb)", (int)odeBezier.bezierBounding.size(), ((int)odeBezier.bezierBounding.size() * (int)sizeof(physicsBezier)) / 1024);
     ImGui::Text(txt);
+    TOOLTIP("Data allocated to Open Dynamics Engine physics representations ???\nNot sure if this should stay");
 
     ImGui::NewLine();
 
-    float W = ImGui::GetWindowWidth() / 2 - 15;
+    float W = 100;// ImGui::GetWindowWidth() / 2 - 15;
     auto& style = ImGui::GetStyle();
     style.ButtonTextAlign = ImVec2(0.0, 0.5);
     style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
     style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
     style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
+    if (ImGui::Button("Load last file")) {
+        load(lastUsedFilename);
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip(lastUsedFilename.string().c_str());
+
     if (ImGui::Button("Load", ImVec2(W, 0))) {
-        load(101);
+        load();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Save", ImVec2(W, 0))) { save(); }
+    if (ImGui::Button("Save", ImVec2(W, 0))) { saveDialog(); }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("'ctrl - s' for quick save");
 
-    W = ImGui::GetWindowWidth() - 30;
-    //if (ImGui::Button("roads to EVO", ImVec2(W, 0))) { exportBinary(); }
-    //if (ImGui::Button("bridges to MAX", ImVec2(W, 0))) { exportBridges(); }
-    //if (ImGui::Button("roads to MAX", ImVec2(W, 0))) { exportRoads(); }
+    static int upgradeFrom = ROADNETWORK_CEREAL_VERSION - 1;
+    ImGui::SetNextItemWidth(W);
+    ImGui::DragInt("##upgrade", &upgradeFrom, 1, 100, ROADNETWORK_CEREAL_VERSION - 1);
+    ImGui::SameLine();
+    if (ImGui::Button("Upgrade", ImVec2(W, 0))) { upgrade(upgradeFrom); }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Use this ONLY when the data format has changed and you HAVE to upgrade\n It will reset data in your file otherwise to their default value");
+
+    ImGui::Separator();
+    ImGui::NewLine();
 }
 
 
@@ -998,6 +1170,21 @@ void roadNetwork::newRoadSpline()
 }
 
 
+void roadNetwork::newRoadSplineBasic()
+{
+    roadSectionsList.emplace_back();
+    std::vector<roadSection>::iterator it = roadSectionsList.end();
+    it--;
+    currentRoad = &(*it);
+    currentRoad->GUID = (int)roadSectionsList.size() - 1;
+    currentIntersection = nullptr;
+
+    // now make it basic
+    currentRoad->isBasicLinearMarking = true;
+}
+
+
+
 
 void roadNetwork::newIntersection()
 {
@@ -1014,7 +1201,9 @@ float roadNetwork::getDistance() {
     uint numRoads = (uint)roadSectionsList.size();
     for (uint i = 0; i < numRoads; i++) {
         roadSection* pRoad = &roadSectionsList[i];
-        total += pRoad->getDistance();
+        if (!pRoad->isBasicLinearMarking) {
+            total += pRoad->getDistance();
+        }
     }
 
     return total;
@@ -1041,13 +1230,13 @@ int roadNetwork::getDone()
 
 
 
-void roadNetwork::load(uint _version)
+void roadNetwork::load()
 {
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"roadnetwork"} };
     if (openFileDialog(filters, lastUsedFilename))
     {
-        load(lastUsedFilename, _version);
+        load(lastUsedFilename, ROADNETWORK_CEREAL_VERSION);
     }
     updateAllRoads();
 }
@@ -1085,16 +1274,35 @@ void roadNetwork::load(std::filesystem::path _path, uint _version)
 }
 
 
+void roadNetwork::upgrade(uint _FROM)
+{
+    std::filesystem::path path;
+    FileDialogFilterVec filters = { {"roadnetwork"} };
+    if (openFileDialog(filters, lastUsedFilename))
+    {
+        load(lastUsedFilename, _FROM);
+    }
+
+    char _upgrade[256];
+    sprintf(_upgrade, "%s.%d.roadnetwork", lastUsedFilename.string().c_str(), ROADNETWORK_CEREAL_VERSION);
+    lastUsedFilename = _upgrade;
+    save();
+}
 
 void roadNetwork::save()
+{
+    std::ofstream os(lastUsedFilename, std::ios::binary);
+    cereal::BinaryOutputArchive archive(os);
+    serialize(archive, ROADNETWORK_CEREAL_VERSION);
+}
+
+void roadNetwork::saveDialog()
 {
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"roadnetwork"} };
     if (saveFileDialog(filters, lastUsedFilename))
     {
-        std::ofstream os(lastUsedFilename, std::ios::binary);
-        cereal::BinaryOutputArchive archive(os);
-        serialize(archive, 101);
+        save();
     }
 }
 

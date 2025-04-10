@@ -25,6 +25,7 @@ lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD6;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_top;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD6_top;
+lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD7_stamps;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeLow;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeHigh;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_overlay;
@@ -133,6 +134,30 @@ void tileTriangleBlock::remapMaterials(uint* _map)
 }
 
 
+void tileTriangleBlock::insertTriangle(const uint _material, const float3 pos[3], const float2 uv[3])
+{
+    for (int i = 0; i < 3; i++)
+    {
+        triVertex V;
+        V.pos.x = pos[i].x;
+        V.pos.y = pos[i].y;
+        V.pos.z = pos[i].z;
+
+        V.uv.x = uv[i].x;
+        V.uv.y = uv[i].y;
+
+        V.material = _material;
+
+        V.alpha = 1;
+
+        // FIXME for now I do not reuse verts, not great, but also noit thAT BAD, COULD BE BETETR
+        tempIndexBuffer.push_back(verts.size());
+
+        verts.push_back(V);
+
+        
+    }
+}
 
 void tileTriangleBlock::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh, bool _yup)
 {
@@ -236,6 +261,48 @@ void lodTriangleMesh::prepForMesh(aiAABB _aabb, uint _size, std::string _name, b
 }
 
 
+int lodTriangleMesh::insertTriangle(const uint _material, const float3 pos[3], const float2 uv[3])
+{
+    float halfsize = ecotopeSystem::terrainSize / 2.f;
+
+    float left, right, top, bottom;
+    int count = 0;
+
+    for (int y = 0; y < grid; y++)
+    {
+        bottom = -halfsize + (y * tileSize);
+        top = bottom + tileSize;
+        bottom -= bufferSize;
+        top += bufferSize;
+
+        for (int x = 0; x < grid; x++)
+        {
+            left = -halfsize + (x * tileSize);
+            right = left + tileSize;
+
+            left -= bufferSize;
+            right += bufferSize;
+            bool flags[4] = { true, true, true, true };
+
+            for (int j = 0; j < 3; j++)     // vertex
+            {
+                flags[0] &= (pos[j].x < left);
+                flags[1] &= (pos[j].x > right);
+                flags[2] &= (pos[j].z < bottom);
+                flags[3] &= (pos[j].z > top);
+            }
+
+            if (!(flags[0] || flags[1] || flags[2] || flags[3]))
+            {
+                tiles[y * grid + x].insertTriangle(_material, pos, uv);
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+
 
 int lodTriangleMesh::insertTriangle(const uint _material, const uint _F[3], const aiMesh* _mesh)
 {
@@ -321,18 +388,22 @@ bool lodTriangleMesh::load(const std::string _path)
 
 
 
-void lodTriangleMesh_LoadCombiner::addMesh(std::string _path, lodTriangleMesh& _mesh)
-{
-    // load materials and generate mapping
-    uint materialRemap[4096];
-    uint i = 0;
-    for (auto& material : _mesh.materialNames) {
-        materialRemap[i] = terrafectorEditorMaterial::static_materials.find_insert_material(_path, material);
-        i++;
-    }
 
-    // Fix material in place
-    _mesh.remapMaterials(materialRemap);
+void lodTriangleMesh_LoadCombiner::addMesh(std::string _path, lodTriangleMesh& _mesh, bool _remapMat)
+{
+    if (_remapMat)
+    {
+        // load materials and generate mapping
+        uint materialRemap[4096];
+        uint i = 0;
+        for (auto& material : _mesh.materialNames) {
+            materialRemap[i] = terrafectorEditorMaterial::static_materials.find_insert_material(_path, material);
+            i++;
+        }
+
+        // Fix material in place
+        _mesh.remapMaterials(materialRemap);
+    }
 
     float3 V[3];
     // Append
@@ -379,10 +450,6 @@ void lodTriangleMesh_LoadCombiner::create(uint _lod)
 
 void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path, bool _log)
 {
-
-
-    
-
     gpuTiles.clear();
     gpuTileTerrafector tfTile;
     int mostTri = 0;
@@ -482,7 +549,7 @@ materialCache::materialCache()
 }
 
 
-
+// only called from lodTriangleMesh_LoadCombiner, for materials in fbx files
 uint materialCache::find_insert_material(const std::string _path, const std::string _name)
 {
     logTab++;
@@ -501,6 +568,7 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
         {
             std::string newPath = entry.path().string();
             replaceAll(newPath, "\\", "/");
+            replaceAll(newPath, "//", "/"); // remove double slashes
             if (newPath.find(fullName) != std::string::npos)
             {
                 logTab--;
@@ -522,6 +590,9 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
 
 uint materialCache::find_insert_material(const std::filesystem::path _path)
 {
+
+    
+
     logTab++;
     for (uint i = 0; i < materialVector.size(); i++)
     {
@@ -709,6 +780,19 @@ void materialCache::reFindMaterial(std::filesystem::path currentPath)
     */
 }
 
+std::string materialCache::getRelative(std::string _path)
+{
+
+    fprintf(terrafectorSystem::_logfile, "getRelative()  ROOT %s\n", terrafectorEditorMaterial::rootFolder.c_str());
+    int test = _path.find(terrafectorEditorMaterial::rootFolder);
+    if (_path.find(terrafectorEditorMaterial::rootFolder) == 0)
+    {
+        fprintf(terrafectorSystem::_logfile, "getRelative() found %s\n", _path.c_str());
+        _path = _path.substr(terrafectorEditorMaterial::rootFolder.length());
+    }
+    return _path;
+}
+
 
 void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
 {
@@ -800,16 +884,50 @@ void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
 
 void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
 {
+    static float ICON_SIZE = 64.f;
+    static int GRID_SIZE = 70;
+    float width = ImGui::GetWindowWidth();
+    int numColumns = __max(2, (int)floor(width / GRID_SIZE));
+
+    if (ImGui::Button("small")) { ICON_SIZE = 64.f; GRID_SIZE = 70; }
+    ImGui::SameLine();
+    if (ImGui::Button("medium")) { ICON_SIZE = 128.f; GRID_SIZE = 135; }
+    ImGui::SameLine();
+    if (ImGui::Button("large")) { ICON_SIZE = 200.f; GRID_SIZE = 210; }
+    ImGui::SameLine();
+
+    
+
+
     auto& style = ImGui::GetStyle();
     ImGuiStyle oldStyle = style;
-    float width = ImGui::GetWindowWidth();
-    int numColumns = __max(2, (int)floor(width / 140));
+    //float width = ImGui::GetWindowWidth();
+    //int numColumns = __max(2, (int)floor(width / 140));
 
-    ImGui::PushItemWidth(128);
+    //ImGui::PushItemWidth(128);
 
     if (ImGui::Button("rebuild")) {
         rebuildAll();
     }
+
+    if (ImGui::Button("load new material"))
+    {
+        std::filesystem::path path;
+        FileDialogFilterVec filters = { {"terrafectorMaterial.jpg"} };
+        if (openFileDialog(filters, path))
+        {
+            std::string filename = path.string();
+
+            if (filename.find("jpg") != std::string::npos)
+            {
+                filename = filename.substr(0, filename.size() - 4);
+            }
+
+            terrafectorEditorMaterial::static_materials.find_insert_material(filename);
+            terrafectorEditorMaterial::static_materials.rebuildAll();
+        }
+    }
+
 
     ImVec2 rootPos = ImGui::GetCursorPos();
 
@@ -851,7 +969,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                 thisPath = displaySortMap[cnt].name.substr(21, displaySortMap[cnt].name.find_last_of("\\/") - 21);
             }
             if (thisPath != path) {
-                ImGui::PushFont(mpGui->getFont("roboto_32"));
+                ImGui::PushFont(mpGui->getFont("roboto_20"));
                 ImGui::NewLine();
                 ImGui::Text(thisPath.c_str());
                 ImGui::PopFont();
@@ -865,7 +983,8 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
             {
                 uint x = subCount % numColumns;
                 uint y = (int)floor(subCount / numColumns);
-                ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
+                /*ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
+                
 
                 int size = material.displayName.size() - 19;
                 if (size >= 0)
@@ -875,11 +994,12 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                 else
                 {
                     ImGui::Text(material.displayName.c_str());
-                }
+                } */
 
-                ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
+                //ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
+                ImGui::SetCursorPos(ImVec2(x* GRID_SIZE + rootPos.x, y* GRID_SIZE + rootPos.y));
                 if (material.thumbnail) {
-                    if (_window.imageButton("testImage", material.thumbnail, float2(128, 128)))
+                    if (_window.imageButton("testImage", material.thumbnail, float2(ICON_SIZE, ICON_SIZE)))
                     {
                         selectedMaterial = displaySortMap[cnt].index;
                     }
@@ -887,7 +1007,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                 else
                 {
                     style.Colors[ImGuiCol_Button] = ImVec4(material._constData.albedoScale.x, material._constData.albedoScale.y, material._constData.albedoScale.z, 1.f);
-                    if (ImGui::Button("##test", ImVec2(128, 128)))
+                    if (ImGui::Button("##test", ImVec2(ICON_SIZE, ICON_SIZE)))
                     {
                         selectedMaterial = displaySortMap[cnt].index;
                     }
@@ -931,13 +1051,6 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
 
 
 
-void materialCache::doEvoTextureImportTest()
-{
-    for (uint i = 0; i < textureVector.size(); i++)
-    {
-
-    }
-}
 
 
 
@@ -952,9 +1065,7 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
     char text[1024];
     ImGui::PushFont(mpGui->getFont("roboto_26"));
     ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
-    if (ImGui::Button("Text EVO status")) {
-        doEvoTextureImportTest();
-    }
+   
     ImGui::PopFont();
 
 
@@ -1385,7 +1496,9 @@ void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _repla
     else
     {
         cereal::JSONInputArchive archive(is);
-        serialize(archive);
+        serialize(archive, TFMATERIAL_VERSION_LOAD);
+        //archive(*this);
+        
 
         if (_replacePath) fullPath = _path;
         reloadTextures();
@@ -1396,7 +1509,8 @@ void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _repla
 void terrafectorEditorMaterial::import(bool _replacePath) {
     std::filesystem::path path;
     FileDialogFilterVec filters = { {"terrafectorMaterial"} };
-    if (openFileDialog(filters, path))
+    //if (openFileDialog(filters, path))
+    if (openFileDialog({ {"terrafectorMaterial"} }, path))
     {
         import(path, _replacePath);
     }
@@ -1408,7 +1522,7 @@ void terrafectorEditorMaterial::save()
 {
     std::ofstream os(fullPath);
     cereal::JSONOutputArchive archive(os);
-    serialize(archive);
+    serialize(archive, TFMATERIAL_VERSION);
 }
 
 
@@ -1431,7 +1545,7 @@ void terrafectorEditorMaterial::eXport(std::filesystem::path _path) {
     {
         std::ofstream os(_path);
         cereal::JSONOutputArchive archive(os);
-        serialize(archive);
+        serialize(archive, TFMATERIAL_VERSION);
         isModified = false;
     }
 }
@@ -1581,7 +1695,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
     ImGui::Columns(3);
     {
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.1f, 0.5f);
-        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 260));
+        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 180));
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
         {
             HEADER("uv");
@@ -1625,10 +1739,29 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
 
 
+
         ImGui::NewLine();
         style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f);
-        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 390));
+        ImGui::BeginChildFrame(177756, ImVec2(columnWidth, 90));
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+        {
+            HEADER("stamp");
+            //if (isStamp)
+            {
+                changed |= ImGui::Checkbox("##isStamp", &isStamp);
+                changed |= ImGui::SliderFloat("width", &stampWidth, 0.1f, 10.f, "%.2f m");
+                changed |= ImGui::SliderFloat("height", &stampHeight, 0.1f, 10.f, "%.2f m");
+            }
+        }
+        ImGui::EndChildFrame();
+
+
+
+        ImGui::NewLine();
+        style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f);
+        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 340));
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
         {
             HEADER_BOOL("alpha", "##useAlpha", _constData.useAlpha);
@@ -2017,6 +2150,7 @@ void terrafectorSystem::loadPath(std::string _path, std::string _exportPath, boo
     terrafectorSystem::loadCombine_LOD6.create(6);
     terrafectorSystem::loadCombine_LOD4_top.create(4);
     terrafectorSystem::loadCombine_LOD6_top.create(6);
+    terrafectorSystem::loadCombine_LOD7_stamps.create(7);
     terrafectorSystem::loadCombine_LOD4_bakeLow.create(4);
     terrafectorSystem::loadCombine_LOD4_bakeHigh.create(4);
     terrafectorSystem::loadCombine_LOD4_overlay.create(4);

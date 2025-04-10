@@ -72,6 +72,7 @@ public:
     void clearRemapping(uint _size);
     void remapMaterials(uint* _map);
     void insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh, bool _yup);
+    void insertTriangle(const uint material, const float3 pos[3], const float2 uv[3]);
 private:
 public:
     std::vector<triVertex> verts;
@@ -98,6 +99,7 @@ public:
     void remapMaterials(uint* _map);
     void prepForMesh(aiAABB _aabb, uint _size, std::string _name, bool _yup);
     int insertTriangle(const uint material, const uint F[3], const aiMesh* _mesh);
+    int insertTriangle(const uint material, const float3 pos[3], const float2 uv[3]);
     void logStats();
     void save(const std::string _path);
     bool load(const std::string _path);
@@ -141,7 +143,7 @@ struct gpuTileTerrafector
 class lodTriangleMesh_LoadCombiner {
 public:
     void create(uint _lod);
-    void addMesh(std::string _path, lodTriangleMesh &mesh);
+    void addMesh(std::string _path, lodTriangleMesh &mesh, bool _remapMat = true);
     void loadToGPU(std::string _path, bool _log);
     gpuTileTerrafector* getTile(uint _index) {
         if (_index < gpuTiles.size()) {
@@ -164,36 +166,35 @@ public:
     materialCache();
 	virtual ~materialCache() { ; }
 
-	uint find_insert_material(const std::string _path, const std::string _name);
+    static std::string getRelative(std::string _path);
+
+	uint find_insert_material(const std::string _path, const std::string _name);        // only called from lodTriangleMesh_LoadCombiner
     uint find_insert_material(const std::filesystem::path _path);
 	int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
 
 	void setTextures(ShaderVar& var);
-
 	void rebuildStructuredBuffer();
 	void rebuildAll();
-    //void resolveSubMaterials();
+    void reFindMaterial(std::filesystem::path currentPath);
+    void renameMoveMaterial(terrafectorEditorMaterial& _material);
+
+    void renderGui(Gui* mpGui, Gui::Window& _window);
+    void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
+    bool renderGuiSelect(Gui* mpGui);
+    Texture::SharedPtr getDisplayTexture();
 
 	std::vector<terrafectorEditorMaterial>	materialVector;
 	int selectedMaterial = -1;
 	std::vector<Texture::SharedPtr>			textureVector;
 	float texMb = 0;
-
-	void renderGui(Gui *mpGui, Gui::Window& _window);
-    void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
-	bool renderGuiSelect(Gui *mpGui);
-    void reFindMaterial(std::filesystem::path currentPath);
-    void renameMoveMaterial(terrafectorEditorMaterial& _material);
-    void materialCache::doEvoTextureImportTest();
-
 	int dispTexIndex = -1;
-	Texture::SharedPtr getDisplayTexture();
-
     Buffer::SharedPtr sb_Terrafector_Materials = nullptr;
 };
 
 
 
+#define TFMATERIAL_VERSION 101
+#define TFMATERIAL_VERSION_LOAD 101
 class terrafectorEditorMaterial {
 public:
 	terrafectorEditorMaterial();
@@ -219,7 +220,7 @@ public:
 	static std::string rootFolder;
 
 	template<class Archive>
-	void serialize(Archive & archive)
+	void serialize(Archive & archive, std::uint32_t const version)
 	{
 		archive(CEREAL_NVP(displayName));
 
@@ -230,13 +231,18 @@ public:
 
         archive(CEREAL_NVP(submaterialPaths));
 
+        if (version > 100)
+        {
+            archive(CEREAL_NVP(isStamp));
+            archive(CEREAL_NVP(stampWidth));
+            archive(CEREAL_NVP(stampHeight));
+        }
+
 		// structured buffer data - although texture pointers are incomplete
 		archive(CEREAL_NVP(_constData));
 		_constData.useAbsoluteElevation = useAbsoluteElevation;
 
-		//reloadTextures();		// argues for seperate load and save
-		//rebuildBlendstate();
-		//rebuildConstantbuffer();
+        
 	}
 
 	// should maybe be done with friend
@@ -256,6 +262,9 @@ public:
 	std::array<std::string, 9>	texturePaths;
 	std::array<std::string, 9>	textureNames;
 
+    bool isStamp = false;
+    float stampWidth = 1.f;
+    float stampHeight = 1.f;
 	//int overlayTextureIndex = -1;
 
 
@@ -387,7 +396,8 @@ public:
 	BlendState::SharedPtr		blendstate;
 	//Buffer::SharedPtr	constantBuffer;  FIXME ADD BACK
 };
-CEREAL_CLASS_VERSION(terrafectorEditorMaterial, 101);
+CEREAL_CLASS_VERSION(terrafectorEditorMaterial, TFMATERIAL_VERSION);
+
 
 
 
@@ -458,6 +468,8 @@ public:
 
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4_top;       // 10m pixel 2.5km tile
     static lodTriangleMesh_LoadCombiner loadCombine_LOD6_top;       // 2.5m pixel 600m tile
+
+    static lodTriangleMesh_LoadCombiner loadCombine_LOD7_stamps;       // 1.26m pixel 312m tile
 
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4_bakeLow;       // all baking will happen at lod4 level
     static lodTriangleMesh_LoadCombiner loadCombine_LOD4_bakeHigh;

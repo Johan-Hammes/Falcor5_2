@@ -6,6 +6,7 @@
 
 #pragma optimize( "", off )
 
+#define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
 /*  roadMaterialGroup
     --------------------------------------------------------------------------------------------------------------------*/
@@ -44,44 +45,41 @@ void roadMaterialGroup::save()
 uint roadMaterialCache::find_insert_material(std::string _path)
 {
     replaceAllrm(_path, "\\", "/");
+    replaceAllrm(_path, "//", "/");     // remove double
 
     if (_path.find(terrafectorEditorMaterial::rootFolder) == 0)
     {
         std::string relative = _path.substr(terrafectorEditorMaterial::rootFolder.length());
+
         for (uint i = 0; i < materialVector.size(); i++)
         {
             if (materialVector[i].relativePath.compare(relative) == 0)
             {
-                //fprintf(terrafectorSystem::_logfile, "	ROAD MATERIAL CACHE - found %s \n", _path.substr(_path.find_last_of("\\/") + 1, _path.size()).c_str());
-                //fprintf(terrafectorSystem::_logfile, "		%d layers\n", (int)materialVector[i].layers.size());
-                //fflush(terrafectorSystem::_logfile);
-
                 // try to load the thumbnail
                 if (!materialVector[i].thumbnail) {
                     materialVector[i].thumbnail = Texture::createFromFile(_path + ".jpg", false, true);
+                    if (!materialVector[i].thumbnail) fprintf(terrafectorSystem::_logfile, "		Road material - failed to load %s.jpg\n", _path.c_str());
                 }
                 return i;
             }
         }
 
-        // else add new
-        fprintf(terrafectorSystem::_logfile, "	ROAD MATERIAL CACHE - add %s\n", _path.c_str());
-        fflush(terrafectorSystem::_logfile);
-
+        // not found - add new
+        fprintf(terrafectorSystem::_logfile, "	roadMaterialCache - add %s\n", _path.c_str());
         materialVector.emplace_back();
         materialVector.back().import(relative);
         materialVector.back().thumbnail = Texture::createFromFile(_path + ".jpg", false, true);
 
         // load all the terrafector Materials and set
         roadMaterialGroup& current = materialVector.back();
-        //current.import(relative);
-        //current.thumbnail = Texture::createFromFile(_path + ".jpg", false, true);
 
         fprintf(terrafectorSystem::_logfile, "		  roadMaterialCache (%s)  %d layers\n", _path.c_str(), (int)current.layers.size());
         fflush(terrafectorSystem::_logfile);
         for (uint i = 0; i < current.layers.size(); i++)
         {
-            current.layers[i].materialIndex = terrafectorEditorMaterial::static_materials.find_insert_material(terrafectorEditorMaterial::rootFolder + current.layers[i].material);
+            std::string file = terrafectorEditorMaterial::rootFolder + current.layers[i].material;
+            replaceAllrm(file, "//", "/");     // remove double
+            current.layers[i].materialIndex = terrafectorEditorMaterial::static_materials.find_insert_material(file);
         }
 
         return (uint)(materialVector.size() - 1);
@@ -146,7 +144,9 @@ void roadMaterialCache::reloadMaterials()
         roadMaterialCache::getInstance().find_insert_material(terrafectorEditorMaterial::rootFolder + mat.relativePath);
         for (auto& layer : mat.layers)
         {
-            layer.materialIndex = terrafectorEditorMaterial::static_materials.find_insert_material(terrafectorEditorMaterial::rootFolder + layer.material);
+            std::string file = terrafectorEditorMaterial::rootFolder + layer.material;
+            replaceAllrm(file, "//", "/");
+            layer.materialIndex = terrafectorEditorMaterial::static_materials.find_insert_material(file);
         }
     }
 }
@@ -200,10 +200,17 @@ void roadMaterialCache::renameMoveMaterial(roadMaterialGroup& _material)
 
 void roadMaterialCache::renderGui(Gui* _gui, Gui::Window& _window)
 {
-    
+    static float ICON_SIZE = 64.f;
+    static int GRID_SIZE = 70;
     float width = ImGui::GetWindowWidth();
-    int numColumns = __max(2, (int)floor(width / 140));
+    int numColumns = __max(2, (int)floor(width / GRID_SIZE));
 
+    if (ImGui::Button("small")) { ICON_SIZE = 64.f; GRID_SIZE = 70; }
+    ImGui::SameLine();
+    if (ImGui::Button("medium")) { ICON_SIZE = 128.f; GRID_SIZE = 135; }
+    ImGui::SameLine();
+    if (ImGui::Button("large")) { ICON_SIZE = 200.f; GRID_SIZE = 210; }
+    ImGui::SameLine();
 
 
     int cnt = 0;
@@ -240,7 +247,7 @@ void roadMaterialCache::renderGui(Gui* _gui, Gui::Window& _window)
     {
         std::string  thisPath = displaySortMap[cnt].name.substr(14, displaySortMap[cnt].name.find_last_of("\\/") - 14);
         if (thisPath != path) {
-            ImGui::PushFont(_gui->getFont("roboto_32"));
+            ImGui::PushFont(_gui->getFont("roboto_20"));
             ImGui::NewLine();
             ImGui::Text(thisPath.c_str());
             ImGui::PopFont();
@@ -253,33 +260,15 @@ void roadMaterialCache::renderGui(Gui* _gui, Gui::Window& _window)
 
         uint x = subCount % numColumns;
         uint y = (int)floor(subCount / numColumns);
-        ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
-
-
-        int size = material.displayName.size() - 19;
-        if (size >= 0)
-        {
-            ImGui::Text((material.displayName.substr(0, 19) + "..").c_str());
-        }
-        else
-        {
-            ImGui::Text(material.displayName.c_str());
-        }
-
-        ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
+        ImGui::SetCursorPos(ImVec2(x * GRID_SIZE + rootPos.x, y * GRID_SIZE + rootPos.y));
         if (material.thumbnail) {
-            if (_window.imageButton("testImage", material.thumbnail, float2(128, 128)))
-            {
-
-            }
+            if (_window.imageButton("testImage", material.thumbnail, float2(ICON_SIZE, ICON_SIZE))) {}
         }
         else
         {
-            if (ImGui::Button("##test", ImVec2(128, 128)))
-            {
-                //selectedMaterial = cnt;
-            }
+            if (ImGui::Button("##test", ImVec2(ICON_SIZE, ICON_SIZE))) {}
         }
+        TOOLTIP(material.displayName.c_str());
 
         if (ImGui::BeginPopupContextItem())
         {

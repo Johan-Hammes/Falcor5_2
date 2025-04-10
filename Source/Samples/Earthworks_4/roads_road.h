@@ -8,7 +8,7 @@
 enum typeOfCorner { automatic, radius, artistic };
 class roadSection;
 class intersection;
-
+class stampPad;
 
 
 class intersectionRoadLink
@@ -161,6 +161,12 @@ public:
 
     bool isClosedLoop = false;
 
+    bool isBasicLinearMarking = false;
+
+
+    bool isIntergerUV = true;  // so will this tile when we reach intersections, clasically true
+    float uvScale = 8.f;    // one repeat every 8 meters
+
 
 
     template<class Archive>
@@ -175,11 +181,160 @@ public:
         if (version >= 101) {
             archive(CEREAL_NVP(isClosedLoop));
         }
+        if (version >= 102) {
+            archive(CEREAL_NVP(isBasicLinearMarking));
+        }
+        if (version >= 103) {
+            archive(CEREAL_NVP(isIntergerUV));
+            archive(CEREAL_NVP(uvScale));
+        }
     }
 };
-CEREAL_CLASS_VERSION(roadSection, 101);
+CEREAL_CLASS_VERSION(roadSection, 103);
 
 
+
+
+class stampPad
+{
+public:
+    stampPad() { ; }
+    virtual ~stampPad() { ; }
+
+    void renderGUI(Gui* _gui) { ; }
+
+    std::string materialName;
+    int material;
+    float width = 1.f;
+    float height = 1.f;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const version)
+    {
+        archive(CEREAL_NVP(materialName));
+        archive(CEREAL_NVP(width));
+        archive(CEREAL_NVP(height));
+
+        material = roadMaterialCache::getInstance().find_insert_material(materialName);
+        terrafectorEditorMaterial::static_materials.rebuildAll();
+    }
+};
+CEREAL_CLASS_VERSION(stampPad, 100);
+
+
+class stamp
+{
+public:
+    stamp() { ; }
+    virtual ~stamp() { ; }
+
+    int material = 1;
+    float rotation;
+    float3 pos;
+    float3 right;
+    float3 dir;
+
+    float height = 0.f;
+    float2 scale = { 1, 1 };
+
+    // width , height maybe as % from material
+    /// ??? guids
+
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const version)
+    {
+        archive(CEREAL_NVP(material));
+        archive(CEREAL_NVP(rotation));
+        archive_float3(pos);
+        archive_float3(right);
+        archive_float3(dir);
+        archive(CEREAL_NVP(height));
+        archive_float2(scale);
+    }
+};
+CEREAL_CLASS_VERSION(stamp, 100);
+
+
+
+
+class stampCollection
+{
+public:
+    stampCollection() { ; }
+    virtual ~stampCollection() { ; }
+
+    void replaceAllSTAMP(std::string& str, const std::string& from, const std::string& to) {
+        if (from.empty())
+            return;
+        size_t start_pos = 0;
+        while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+            str.replace(start_pos, from.length(), to);
+            start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+        }
+    }
+
+    void reloadMaterials()
+    {
+        std::map<int, std::string>  newMap;
+        for (auto& mat : materialMap)
+        {
+            fprintf(terrafectorSystem::_logfile, "reloadMaterials() %s\n", mat.second.c_str());
+            std::string relative = materialCache::getRelative(mat.second.c_str());
+            
+            fprintf(terrafectorSystem::_logfile, "       relative   %s\n", relative.c_str());
+            std::string cleanPath = terrafectorEditorMaterial::rootFolder + relative;
+            replaceAllSTAMP(cleanPath, "//", "/");
+            int idx = terrafectorEditorMaterial::static_materials.find_insert_material(cleanPath);
+            newMap[idx] = relative;
+        }
+        materialMap.clear();
+        materialMap = newMap;
+    }
+
+
+    void add(stamp &S)
+    {
+        if (materialMap.find(S.material) == materialMap.end())
+        {
+            std::string name = terrafectorEditorMaterial::static_materials.materialVector[S.material].fullPath.string();
+            name = materialCache::getRelative(name);
+            materialMap[S.material] = name;
+        }
+        stamps.push_back(S);
+    }
+
+    int find(float3 _pos)
+    {
+        int idx = -1;
+        float  minL = 3.f;
+        for (int i=0; i<stamps.size(); i++)
+        {
+            float L = glm::length(stamps[i].pos - _pos);
+            if (L < minL)
+            {
+                minL = L;
+                idx = i;
+            }
+        }
+        return idx;
+    }
+
+    std::filesystem::path lastUsedFilename;
+
+    std::map<int, std::string>  materialMap;
+    std::vector<stamp> stamps;
+
+
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const version)
+    {
+        archive(materialMap);
+        archive(stamps);
+    }
+};
+CEREAL_CLASS_VERSION(stampCollection, 100);
 
 
 

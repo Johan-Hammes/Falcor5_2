@@ -809,6 +809,7 @@ struct _lastFile
     //std::string terrain = "X:/resources/terrains/eifel/eifel.terrain";
     std::string terrain = "F:/terrains/sonoma/sonoma.terrain";
     std::string road = "X:/resources/terrains/eifel/roads/day6.roadnetwork";
+    std::string stamps = "";
     std::string roadMaterial = "X:/resources/terrafectors_and_road_materials/roads/sidewalk_Asphalt.roadMaterial";
     std::string terrafectorMaterial = "";
     std::string texture = "";
@@ -840,9 +841,13 @@ struct _lastFile
             _archive(CEREAL_NVP(trees));
             _archive(CEREAL_NVP(vegMaterial));
         }
+        if (_version > 101)
+        {
+            _archive(CEREAL_NVP(stamps));
+        }
     }
 };
-CEREAL_CLASS_VERSION(_lastFile, 101);
+CEREAL_CLASS_VERSION(_lastFile, 102);
 
 
 struct _terrainSettings
@@ -1053,6 +1058,8 @@ struct jp2Dir
 
 #include "atmosphere.h"
 
+enum _terrainMode { vegetation, ecotope, terrafector, roads, glider };
+
 class terrainManager
 {
 public:
@@ -1073,6 +1080,7 @@ public:
     bool onKeyEvent(const KeyboardEvent& keyEvent);
     bool onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _screenSize, glm::vec2 _mouseScale, glm::vec2 _mouseOffset, Camera::SharedPtr _camera);
     bool onMouseEvent_Roads(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
+    bool onMouseEvent_Stamps(const MouseEvent& mouseEvent, glm::vec2 _screenSize, Camera::SharedPtr _camera);
     void onHotReload(HotReloadFlags reloaded);
 
     void init_TopdownRender();
@@ -1124,6 +1132,7 @@ private:
     int exportLodMax = 10;
 
     void updateDynamicRoad(bool _bezierChanged);
+    void updateDynamicStamp();
 
     void bezierRoadstoLOD(uint _lod);
 
@@ -1132,7 +1141,9 @@ private:
     std::list<quadtree_tile*>	m_free;
     std::list<quadtree_tile*>	m_used;
     unsigned int frustumFlags[2048];
+public:
     bool fullResetDoNotRender = false;
+private:
 #ifdef COMPUTE_DEBUG_OUTPUT
     bool debug = true;
 #else
@@ -1195,10 +1206,10 @@ private:
     bool useFreeCamWhileGliding = false;
     bool GliderDebugVisuals = false;
 
+    
+    
+    _terrainMode terrainMode = _terrainMode::terrafector;
     private:
-    
-    int terrainMode = 4;
-    
     bool hasChanged = false;
 
     bool requestPopupSettings = false;
@@ -1228,8 +1239,39 @@ private:
     terrafectorSystem		terrafectors;
     ecotopeSystem			mEcosystem;
     roadNetwork			    mRoadNetwork;
-    splineTest			splineTest;
-    spriteRender				mSpriteRenderer;
+    splineTest			    splineTest;
+    spriteRender			mSpriteRenderer;
+
+    
+    stampCollection         mRoadStampCollection;   // all of teh terrafector stamps going over roads
+    stamp                   mCurrentStamp;
+    int                     stampEditPosisiton = 0;
+    void loadStamp()
+    {
+        std::ifstream is(mRoadStampCollection.lastUsedFilename, std::ios::binary);
+        if (!is.fail()) {
+            cereal::BinaryInputArchive archive(is);
+            archive(mRoadStampCollection);
+            
+
+            mRoadStampCollection.reloadMaterials();
+            terrafectorEditorMaterial::static_materials.rebuildAll();
+            allStamps_to_Terrafector();
+        }
+    }
+    void saveStamp()
+    {
+        std::ofstream os(mRoadStampCollection.lastUsedFilename, std::ios::binary);
+        if (!os.fail()) {
+            cereal::BinaryOutputArchive archive(os);
+            archive(mRoadStampCollection);
+        }
+    }
+    void stamp_to_Bezier(stamp& S, cubicDouble* BEZ, bezierLayer* IDX, int _index);
+    void currentStamp_to_Bezier();
+    void allStamps_to_Bezier();
+    void allStamps_to_Terrafector();
+    
 
     bool bSplineAsTerrafector = false;
     bool showRoadOverlay = true;
@@ -1358,6 +1400,7 @@ private:
         uint32_t maxDynamicIndex = 16384;             // *4 seems enough, 2022 at *1.7 for Nurburg
         uint32_t numDynamicSplines = 0;
         uint32_t numDynamicSplinesIndex = 0;
+        uint32_t numDynamicStampIndex = 0;
         Buffer::SharedPtr dynamic_bezierData;
         Buffer::SharedPtr dynamic_indexData;
         uint numIndex = 0;

@@ -3,6 +3,22 @@
 #include"roads_bezier.h"
 
 
+
+cubicDouble::cubicDouble(splinePoint a, splinePoint b)
+{
+    data[0][0] = a.bezier[left].pos_uv();
+    data[0][1] = a.bezier[left].forward_uv();
+    data[0][2] = b.bezier[left].backward_uv();
+    data[0][3] = b.bezier[left].pos_uv();
+
+    data[1][0] = a.bezier[right].pos_uv();
+    data[1][1] = a.bezier[right].forward_uv();
+    data[1][2] = b.bezier[right].backward_uv();
+    data[1][3] = b.bezier[right].pos_uv();
+}
+
+
+
 cubicDouble::cubicDouble(splinePoint a, splinePoint b, bool bRight)
 {
 
