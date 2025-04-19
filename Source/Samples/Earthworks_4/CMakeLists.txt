@@ -71,6 +71,8 @@ target_sources(Earthworks_4 PRIVATE
 
     hlsl/terrain/render_meshTerrafector.hlsl
     hlsl/terrain/render_ribbons.hlsl
+    hlsl/terrain/vegetation_defines.hlsli
+    hlsl/terrain/render_vegetation_ribbons.hlsl
     hlsl/terrain/render_thermalRibbons.hlsl
     hlsl/terrain/render_cfdSlice.hlsl
     hlsl/terrain/render_splineTerrafector.hlsl

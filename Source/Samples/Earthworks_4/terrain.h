@@ -58,10 +58,13 @@
 #include "../../external/openJPH/include/openjph/ojph_message.h"
 
 
+#include"hlsl/terrain/vegetation_defines.hlsli"
+
+
 #include "glider.h"
 #include "cfd.h"
 using namespace Falcor;
-
+/*
 struct rvPacked
 {
     unsigned int a;
@@ -71,10 +74,10 @@ struct rvPacked
     unsigned int e;
     unsigned int f;
 };
-
+*/
 struct rvB
 {
-    rvPacked pack();
+    ribbonVertex8 pack();
     int     type = 0;
     bool    startBit = false;
     float3  position;
@@ -389,7 +392,7 @@ struct _twig
 
     rvB     ribbon[16384];
     uint    ribbonLength;
-    float3  extents;
+    float2  extents;        // cylinder
 
     int lod = 3;
 
@@ -509,7 +512,7 @@ struct _weed
 
     rvB     ribbon[16384]; 
     uint    ribbonLength;
-    float3  extents;
+    float2  extents;        // cylinder
     int     lod = 3;
     int visibleTwig = -1;
 
@@ -683,8 +686,8 @@ struct _GroveTree
 
 
     rvB branchRibbons[1024*1024*10];
-    float3 extents;
-    rvPacked packedRibbons[1024 * 1024 * 10];
+    float2  extents;        // cylinder
+    ribbonVertex8 packedRibbons[1024 * 1024 * 10];
     int numBranchRibbons;
     bool bChanged = false;
     bool includeBranchLeaves = false;
@@ -696,6 +699,16 @@ struct _GroveTree
     float stepFactor = 15.0f;
     float bendFactor = 0.95f;
 
+    float getScale() {    return objectSize / 16384.0f;    }
+    float3 getOffset() {  return objectOffset * objectSize;  }
+    float objectSize = 32.0f;  //0.002 for trees  // 32meter block 2mm presision * 16384 to get actual size in meters
+    float radiusScale = 1.0f;//  so biggest radius now objectScale / 2.0f;
+    float3 objectOffset = float3(0.5, 0.1f, 0.5f);
+
+    //float Ao_depthScale = 0.3f;
+    //float sunTilt = -0.2f;
+    //float bDepth = 20.0f;
+    //float bScale = 0.5f;
 
     _twig branchTwigs;
     _twig tipTwigs;
@@ -741,7 +754,18 @@ struct _GroveTree
         _archive(CEREAL_NVP(tipTwigsAge));
         _archive(CEREAL_NVP(branchTwigsAge));
         _archive(CEREAL_NVP(twigSkip));
-        
+
+        if (_version >= 101)
+        {
+            _archive(CEREAL_NVP(gpuPlant.Ao_depthScale));
+            _archive(CEREAL_NVP(gpuPlant.sunTilt));
+            _archive(CEREAL_NVP(gpuPlant.bDepth));
+            _archive(CEREAL_NVP(gpuPlant.bScale));
+
+            _archive(CEREAL_NVP(objectSize));
+            _archive(CEREAL_NVP(radiusScale));
+            archive_float3(objectOffset);            
+        }
 
         reloadMaterials();
     }
@@ -750,8 +774,12 @@ struct _GroveTree
     void loadStemMaterial();
     void reloadMaterials();
     void load();
+
+    // GPU data
+    plant gpuPlant;
+    void toPlant();
 };
-CEREAL_CLASS_VERSION(_GroveTree, 100);
+CEREAL_CLASS_VERSION(_GroveTree, 101);
 
 
 
@@ -1168,10 +1196,13 @@ private:
     Texture::SharedPtr	  spriteTexture = nullptr;
     Texture::SharedPtr	  spriteNormalsTexture = nullptr;
 
-    pixelShader ribbonShader;
-    uint numLoadedRibbons;
+    pixelShader vegetationShader;
     pixelShader ribbonShader_Bake;
-    Buffer::SharedPtr       ribbonData[2];
+    Buffer::SharedPtr       ribbonDataVegBuilder;
+
+    pixelShader ribbonShader;
+    uint numLoadedRibbons;  // paraglider only
+    Buffer::SharedPtr       ribbonData[2];  // also paraglider  - split these into seperate block at least, not true groveTree.bChanged writes to this, so duplicate maybe
     uint bufferidx = 0;
     //std::vector< Texture::SharedPtr> ribbonTextures;        // remove becomes part of the cache
     
@@ -1461,6 +1492,16 @@ private:
 
         //_GroveTree groveTree;
         int numSegments = 2000;
+
+        Buffer::SharedPtr blockData;
+        Buffer::SharedPtr instanceData;
+        Buffer::SharedPtr plantData;
+        Buffer::SharedPtr vertexData;
+        std::array<plant, 256> plantBuf;
+        std::array<plant_instance, 16384> instanceBuf;
+        std::array<block_data, 16384> blockBuf;
+        std::array<ribbonVertex8, 128 * 256> vertexBuf;
+
 
     }vegetation;
 

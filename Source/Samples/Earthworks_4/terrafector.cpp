@@ -543,10 +543,35 @@ void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path, bool _log)
 
 
 
-materialCache::materialCache()
+// ############################################################################################################################
+std::string materialCache::getRelative(std::string _path)
 {
-    //   sb_Terrafector_Materials = Buffer::createStructured(sizeof(TF_material), 1024);
+    cleanPath(_path);
+    if (_path.find(terrafectorEditorMaterial::rootFolder) == 0)
+    {
+        _path = _path.substr(terrafectorEditorMaterial::rootFolder.length());
+    }
+    return _path;
 }
+
+
+void materialCache::cleanPath(std::string& _path)
+{
+    // to forward slash \ -> /
+    size_t start_pos = 0;
+    while ((start_pos = _path.find("\\", start_pos)) != std::string::npos) {
+        _path.replace(start_pos, 1, "/");
+        start_pos += 1;
+    }
+
+    // remove double slashes // -> /
+    start_pos = 0;
+    while ((start_pos = _path.find("//", start_pos)) != std::string::npos) {
+        _path.replace(start_pos, 1, "/");
+        start_pos += 1;
+    }
+}
+
 
 
 // only called from lodTriangleMesh_LoadCombiner, for materials in fbx files
@@ -567,8 +592,9 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
         for (const auto& entry : std::filesystem::recursive_directory_iterator(fullPath))
         {
             std::string newPath = entry.path().string();
-            replaceAll(newPath, "\\", "/");
-            replaceAll(newPath, "//", "/"); // remove double slashes
+            cleanPath(newPath);
+            //replaceAll(newPath, "\\", "/");
+            //replaceAll(newPath, "//", "/"); // remove double slashes
             if (newPath.find(fullName) != std::string::npos)
             {
                 logTab--;
@@ -580,9 +606,8 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
     // we got here, not good
     for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
     fprintf(terrafectorSystem::_logfile, "error : material - %s does not exist\n", _name.c_str());
-    fflush(terrafectorSystem::_logfile);
-
     logTab--;
+
     return 0;
 }
 
@@ -640,12 +665,6 @@ int materialCache::find_insert_texture(const std::filesystem::path _path, bool i
         }
     }
 
-    /*
-    * std::string cmdExp = "explorer " + terrafectorEditorMaterial::rootFolder + material.relativePath;
-                cmdExp = cmdExp.substr(0, cmdExp.find_last_of("\\/") + 1);
-                replaceAllrm(cmdExp, "/", "\\");
-                system(cmdExp.c_str());
-    */
     std::string ddsFilename = _path.string();
     if (_path.string().find(".dds") == std::string::npos)
     {
@@ -679,7 +698,7 @@ int materialCache::find_insert_texture(const std::filesystem::path _path, bool i
         float compression = 4.0f;
         if (isSRGB) compression = 4.0f;
 
-        texMb += (float)(tex->getWidth() * tex->getHeight() * 4.0f * 1.333f) / 1024.0f / 1024.0f / compression;	// for 4:1 compression + MIPS
+        texture_memory_in_Mb += (float)(tex->getWidth() * tex->getHeight() * 4.0f * 1.333f) / 1024.0f / 1024.0f / compression;	// for 4:1 compression + MIPS
 
         for (uint i = 0; i < logTab; i++)   fprintf(terrafectorSystem::_logfile, "  ");
         fprintf(terrafectorSystem::_logfile, "%s\n", tex->getName().c_str());
@@ -780,25 +799,15 @@ void materialCache::reFindMaterial(std::filesystem::path currentPath)
     */
 }
 
-std::string materialCache::getRelative(std::string _path)
-{
 
-    fprintf(terrafectorSystem::_logfile, "getRelative()  ROOT %s\n", terrafectorEditorMaterial::rootFolder.c_str());
-    int test = _path.find(terrafectorEditorMaterial::rootFolder);
-    if (_path.find(terrafectorEditorMaterial::rootFolder) == 0)
-    {
-        fprintf(terrafectorSystem::_logfile, "getRelative() found %s\n", _path.c_str());
-        _path = _path.substr(terrafectorEditorMaterial::rootFolder.length());
-    }
-    return _path;
-}
 
 
 void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
 {
     std::string windowspath = _material.fullPath.string();     // to open in that directory
-    replaceAll(windowspath, "//", "/");
-    replaceAll(windowspath, "/", "\\");
+    cleanPath(windowspath);
+    //replaceAll(windowspath, "//", "/");
+    //replaceAll(windowspath, "/", "\\");
     std::filesystem::path path = windowspath;   // feels unnesesary
 
 
@@ -806,7 +815,8 @@ void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
     if (saveFileDialog(filters, path))
     {
         std::string filepath = path.string();
-        replaceAll(filepath, "\\", "/");
+        cleanPath(filepath);
+        //replaceAll(filepath, "\\", "/");
 
         if (filepath.find(terrafectorEditorMaterial::rootFolder) == 0)
         {
@@ -840,7 +850,7 @@ void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
 
 
             std::string relativeOld = _material.fullPath.string().substr(terrafectorEditorMaterial::rootFolder.length());
-            //replaceAll(relativeOld, "/", "//");
+            replaceAll(relativeOld, "/", "//");
             for (auto& roadMat : roadMaterialCache::getInstance().materialVector)
             {
                 bool changed = false;
@@ -859,25 +869,10 @@ void materialCache::renameMoveMaterial(terrafectorEditorMaterial& _material)
                 }
             }
 
-
             std::filesystem::rename(_material.fullPath.string(), filepath);
             std::filesystem::rename(_material.fullPath.string() + ".jpg", filepath + ".jpg");
             _material.fullPath = filepath;
         }
-
-        // now seach and replace everything
-
-        // now search and replace this name in everyhtign
-        //_material.serialize()
-        /*
-        if (filepath.find(terrafectorEditorMaterial::rootFolder) == 0)
-        {
-            std::filesystem::rename(terrafectorEditorMaterial::rootFolder + _material.relativePath, filepath);
-            std::filesystem::rename(terrafectorEditorMaterial::rootFolder + _material.relativePath + ".jpg", filepath + ".jpg");
-
-            _material.relativePath = filepath.substr(terrafectorEditorMaterial::rootFolder.length());
-            _material.save();
-        }*/
     }
 }
 
@@ -1064,7 +1059,7 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
 
     char text[1024];
     ImGui::PushFont(mpGui->getFont("roboto_26"));
-    ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
+    ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texture_memory_in_Mb);
    
     ImGui::PopFont();
 

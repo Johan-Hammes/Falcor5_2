@@ -159,16 +159,19 @@ private:
 };
 
 
+
+
 class terrafectorEditorMaterial;
 
 class materialCache {
 public:
-    materialCache();
+    materialCache() { ; }
 	virtual ~materialCache() { ; }
 
     static std::string getRelative(std::string _path);
+    static void cleanPath(std::string& _path);
 
-	uint find_insert_material(const std::string _path, const std::string _name);        // only called from lodTriangleMesh_LoadCombiner
+	uint find_insert_material(const std::string _path, const std::string _name);        // only called from lodTriangleMesh_LoadCombiner for fbx files
     uint find_insert_material(const std::filesystem::path _path);
 	int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
 
@@ -186,8 +189,8 @@ public:
 	std::vector<terrafectorEditorMaterial>	materialVector;
 	int selectedMaterial = -1;
 	std::vector<Texture::SharedPtr>			textureVector;
-	float texMb = 0;
 	int dispTexIndex = -1;
+    float texture_memory_in_Mb = 0;
     Buffer::SharedPtr sb_Terrafector_Materials = nullptr;
 };
 
@@ -386,15 +389,10 @@ public:
 	} _constData;		// 464 bytes for now
 
 
-	// the runtime section
-	// it makes no sense splitting this for an editor, just confuses the code - write with cereal - have a converter to protobuffers, and redo this code in EVO
-	// that way at least there is a path for the editing to migrate to EVO
 	void rebuildConstantbuffer();
 	void rebuildConstantbufferData();
-	//Texture::SharedPtr			pTexture[9];			// FIXME - these happen on a higer terrafector level - the just set an index here
 	int textureIndex[9] = {-1, -1, -1, -1, -1, -1, -1, -1, -1};
 	BlendState::SharedPtr		blendstate;
-	//Buffer::SharedPtr	constantBuffer;  FIXME ADD BACK
 };
 CEREAL_CLASS_VERSION(terrafectorEditorMaterial, TFMATERIAL_VERSION);
 

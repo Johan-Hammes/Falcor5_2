@@ -264,27 +264,15 @@ public:
     stampCollection() { ; }
     virtual ~stampCollection() { ; }
 
-    void replaceAllSTAMP(std::string& str, const std::string& from, const std::string& to) {
-        if (from.empty())
-            return;
-        size_t start_pos = 0;
-        while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-            str.replace(start_pos, from.length(), to);
-            start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
-        }
-    }
-
     void reloadMaterials()
     {
         std::map<int, std::string>  newMap;
         for (auto& mat : materialMap)
         {
-            fprintf(terrafectorSystem::_logfile, "reloadMaterials() %s\n", mat.second.c_str());
             std::string relative = materialCache::getRelative(mat.second.c_str());
             
             fprintf(terrafectorSystem::_logfile, "       relative   %s\n", relative.c_str());
             std::string cleanPath = terrafectorEditorMaterial::rootFolder + relative;
-            replaceAllSTAMP(cleanPath, "//", "/");
             int idx = terrafectorEditorMaterial::static_materials.find_insert_material(cleanPath);
             newMap[idx] = relative;
         }
