@@ -44,10 +44,10 @@ using namespace std::chrono;
 
 _lastFile terrainManager::lastfile;
 //materialCache_plants    terrainManager::vegetationMaterialCache;
-materialCache_plants _plantMaterial::static_materials_veg;
+//materialCache_plants _plantMaterial::static_materials_veg;
 
 
-void setupVert(rvB* r, int start, float3 pos, float radius, int _mat = 0)
+void setupVert(ribbonVertex* r, int start, float3 pos, float radius, int _mat = 0)
 {
     r->type = false;
     r->startBit = start;
@@ -62,7 +62,7 @@ void setupVert(rvB* r, int start, float3 pos, float radius, int _mat = 0)
 
     if (start == 1)
     {
-        rvB* rprev = r--;
+        ribbonVertex* rprev = r--;
         float3 tangent = glm::normalize(r->position - rprev->position);
         r->bitangent = tangent;
         rprev->bitangent = tangent;
@@ -298,14 +298,14 @@ void _shadowEdges::load(std::string filename, float _angle)
 }
 
 
+/*
 
 
 
-
-float objectScale = 0.002f;  //0.002 for trees  // 32meter block 2mm presision
-float radiusScale = 0.20f;//  so biggest radius now objectScale / 2.0f;
-float O = 16384.0f * objectScale * 0.5f;
-float3 objectOffset = float3(O, O * 0.5f, O);
+float ribbonVertex::objectScale = 0.002f;  //0.002 for trees  // 32meter block 2mm presision
+float ribbonVertex::radiusScale = 0.20f;//  so biggest radius now objectScale / 2.0f;
+float ribbonVertex::O = 16384.0f * ribbonVertex::objectScale * 0.5f;
+float3 ribbonVertex::objectOffset = float3(O, O * 0.5f, O);
 
 //float static_Ao_depthScale = 0.3f;
 //float static_sunTilt = -0.2f;
@@ -316,7 +316,14 @@ float3 objectOffset = float3(O, O * 0.5f, O);
 
 
 
-ribbonVertex8 rvB::pack()
+void ribbonVertex::setup(float scale, float radius, float3 offset)
+{
+    objectScale = scale;
+    radiusScale = radius;
+    objectOffset = offset;
+}
+
+ribbonVertex8 ribbonVertex::pack()
 {
     int x14 = ((int)((position.x + objectOffset.x) / objectScale)) & 0x3fff;
     int y16 = ((int)((position.y + objectOffset.y) / objectScale)) & 0xffff;
@@ -647,7 +654,7 @@ void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
                     ImGui::LabelText("m1", "MULTI");
                 }
 
-                */
+                ///* /
             }
             ImGui::PopID();
             subCount++;
@@ -725,7 +732,7 @@ void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
                     }
                     matCnt++;
                 }
-                */
+                * /
                 ImGui::EndPopup();
             }
 
@@ -937,7 +944,7 @@ void _plantMaterial::loadTexture(int idx)
 }
 
 
-
+*/
 
 
 
@@ -1155,6 +1162,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
 {
     std::mt19937 generator(_seed);
     std::uniform_real_distribution<> distribution(-1.f, 1.f);
+    std::uniform_int_distribution<> distributionAlbedo(-50, 50);
 
     maxDistanceFromStem = 0;
     float3 stemPos = _pos;
@@ -1266,6 +1274,8 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
     float l_L = (leaf_length.x * (1.f + distribution(generator) * leaf_length.y)) * leafStep * 0.001f * _age;
     float l_W = (leaf_width.x * (1.f + distribution(generator) * leaf_width.y)) * 0.001f * _age;
 
+    int albRnd = distributionAlbedo(generator);
+
     //float du[5] = { 0.1f, 0.8f, 1.f, 0.7f, 0.1f };
     float l_curve = leaf_curve.x * leafStep;
     float l_twist = leaf_twist.x * leafStep;
@@ -1284,7 +1294,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
         ribbon[ribbonLength].bitangent = vertex[2];
         ribbon[ribbonLength].tangent = vertex[0];
         ribbon[ribbonLength].material = leaf_Material.index;
-        ribbon[ribbonLength].albedoScale = (unsigned char)(glm::lerp(albedoScaleNew, albedoScale, _age) * 127.f);
+        ribbon[ribbonLength].albedoScale = (unsigned char)(glm::lerp(albedoScaleNew, albedoScale, _age) * 127.f) + albRnd;
         ribbon[ribbonLength].translucencyScale = (unsigned char)(glm::lerp(translucencyScaleNew, translucencyScale, _age) * 127.f);
         ribbon[ribbonLength].uv = float2(du, 1.f + t);
 
@@ -3252,6 +3262,8 @@ void _GroveTree::rebuildRibbons()
     }
 
 
+    toPlant();
+    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
     for (int i = 0; i < numBranchRibbons; i++)
     {
         packedRibbons[i] = branchRibbons[i].pack();
@@ -3262,6 +3274,9 @@ void _GroveTree::rebuildRibbons()
 
 void _GroveTree::rebuildRibbons_Leaf()
 {
+    toPlant();
+    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
+
     for (int i = 0; i < leafBuilder.ribbonLength; i++)
     {
         packedRibbons[i] = leafBuilder.ribbon[i].pack();
@@ -3272,7 +3287,10 @@ void _GroveTree::rebuildRibbons_Leaf()
 
 void _GroveTree::rebuildRibbons_Twig()
 {
+
     extents = twigBuilder.extents;
+    toPlant();
+    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
 
     // Doen myy multi plant lighting hier
     for (int i = 0; i < twigBuilder.ribbonLength; i++)
@@ -3290,6 +3308,8 @@ void _GroveTree::rebuildRibbons_Twig()
 void _GroveTree::rebuildRibbons_Weed()
 {
     extents = weedBuilder.extents;
+    toPlant();
+    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
 
     // Doen myy multi plant lighting hier
     for (int i = 0; i < weedBuilder.ribbonLength; i++)
@@ -3343,6 +3363,10 @@ glm::int3 _GroveTree::cubeLookup(glm::vec3 Vin)
     return R;
 }
 */
+
+
+
+
 
 void _GroveTree::calcLight()
 {
@@ -3858,9 +3882,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         vegetation.blockData = Buffer::createStructured(sizeof(block_data), 16384);
         vegetation.vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 256 * 128);
 
-        vegetation.plantBuf[0].radiusScale = radiusScale;
-        vegetation.plantBuf[0].scale = objectScale;
-        vegetation.plantBuf[0].offset = objectOffset;
+        vegetation.plantBuf[0].radiusScale = ribbonVertex::radiusScale;
+        vegetation.plantBuf[0].scale = ribbonVertex::objectScale;
+        vegetation.plantBuf[0].offset = ribbonVertex::objectOffset;
         vegetation.plantBuf[0].Ao_depthScale = 10;
         vegetation.plantBuf[0].bDepth = 1;
         vegetation.plantBuf[0].bScale = 1;
@@ -3877,6 +3901,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             vegetation.instanceBuf[i].rotation = RND(generator) * 3.14f;
             vegetation.instanceBuf[i].time_offset = RND(generator) * 100;
         }
+        vegetation.instanceBuf[0].position = { 0, 0, 0 };
+        vegetation.instanceBuf[0].scale = 1.f;
+        vegetation.instanceBuf[0].rotation = 0;
 
         for (int i = 0; i < 16384; i++)
         {
@@ -3884,9 +3911,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             vegetation.blockBuf[i].instance_idx = i;
             vegetation.blockBuf[i].section_idx = 0;
         }
-        
+
         //std::array<ribbonVertex8, 128 * 256> vertexBuf;
-        
+
         vegetationShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         vegetationShader.Vars()->setBuffer("plant_buffer", vegetation.plantData);
         vegetationShader.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
@@ -3898,16 +3925,16 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         vegetationShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
         vegetationShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
 
-        ribbonShader_Bake.add("_BAKE", "");
-        ribbonShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
-        vegetationShader.Vars()->setBuffer("plant_buffer", vegetation.plantData);
-        vegetationShader.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
-        vegetationShader.Vars()->setBuffer("block_buffer", vegetation.blockData);
-        vegetationShader.Vars()->setBuffer("vertex_buffer", vegetation.vertexData);
-        ribbonShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
-        ribbonShader_Bake.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
-        ribbonShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
-        ribbonShader_Bake.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
+        vegetationShader_Bake.add("_BAKE", "");
+        vegetationShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+        vegetationShader_Bake.Vars()->setBuffer("plant_buffer", vegetation.plantData);
+        vegetationShader_Bake.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
+        vegetationShader_Bake.Vars()->setBuffer("block_buffer", vegetation.blockData);
+        vegetationShader_Bake.Vars()->setBuffer("vertex_buffer", vegetation.vertexData);
+        vegetationShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
+        vegetationShader_Bake.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
+        vegetationShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
+        vegetationShader_Bake.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
 
 
 
@@ -3920,7 +3947,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         ribbonShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
 
 
-        
+
 
         compute_bakeFloodfill.load("Samples/Earthworks_4/hlsl/terrain/compute_bakeFloodfill.hlsl");
 
@@ -3994,7 +4021,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         triangleShader.Vars()->setTexture("gSky", vegetation.skyTexture);
         ribbonShader.Vars()->setTexture("gEnv", vegetation.envTexture);
         vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
-        ribbonShader_Bake.Vars()->setTexture("gEnv", vegetation.envTexture);
+        vegetationShader_Bake.Vars()->setTexture("gEnv", vegetation.envTexture);
 
         // Grass from disk ###########################################################################################################
 
@@ -5311,6 +5338,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
             ImGui::Text("%d inst x %d x 2 = %3.1f M tris", ribbonInstanceNumber * ribbonInstanceNumber, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber * groveTree.numBranchRibbons * 2.0f / 1000000.0f);
             groveTree.renderGui(_gui);
+            if (ImGui::Button("Bake Billboard")) { bakeVegetation(); }
         }
         break;
 
@@ -5338,7 +5366,7 @@ void terrainManager::onGuiRender(Gui* _gui)
             ImGui::Text("%d - stamps", mRoadStampCollection.stamps.size());
             ImGui::Text("%d - materials", mRoadStampCollection.materialMap.size());
 
-            
+
             if (ImGui::Button("Load - Previous"))
             {
                 loadStamp();
@@ -5718,7 +5746,7 @@ void terrainManager::onGuiRender(Gui* _gui)
 
             if (terrainMode == _terrainMode::terrafector)
             {
-                sprintf(TTTEXT, "(%3.1f, %3.1f, %3.1f)\nheight %2.2fm\nscale %2.2f %2.2f", 
+                sprintf(TTTEXT, "(%3.1f, %3.1f, %3.1f)\nheight %2.2fm\nscale %2.2f %2.2f",
                     split.feedback.tum_Position.x, split.feedback.tum_Position.y, split.feedback.tum_Position.z,
                     mCurrentStamp.height, mCurrentStamp.scale.x, mCurrentStamp.scale.y);
             }
@@ -7168,14 +7196,21 @@ void terrainManager::setCamera(unsigned int _index, glm::mat4 viewMatrix, glm::m
 
 
 
-void terrainManager::bakeVegetation()
+void replaceAll_TM(std::string& str, const std::string& from, const std::string& to) {
+    if (from.empty())
+        return;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
+
+void terrainManager::bakeVegetation(int baseSize, float clipCenter, std::string _ext)
 {
     int superSample = 8;
-    int baseSize = 64;
-    int numBuffer = 32;
 
-    // do width and height
-    float W = groveTree.extents.x;      // this is half width
+    float W = groveTree.extents.x * clipCenter;      // this is half width
     float H = groveTree.extents.y;
     int iW = 4 * (int)(baseSize * W * 2.f / H / 4) * superSample;
     int iH = baseSize * superSample;
@@ -7185,41 +7220,9 @@ void terrainManager::bakeVegetation()
     desc.setColorTarget(0u, ResourceFormat::RGBA8Unorm, true);		// albedo
     desc.setColorTarget(1u, ResourceFormat::RGBA16Float, true);	    // normal_16
     desc.setColorTarget(2u, ResourceFormat::RGBA8Unorm, true);		// normal_8
-    desc.setColorTarget(3u, ResourceFormat::RGBA8Unorm, true);	// pbr
-    desc.setColorTarget(4u, ResourceFormat::RGBA8Unorm, true);	// extra
+    desc.setColorTarget(3u, ResourceFormat::RGBA8Unorm, true);	    // pbr
+    desc.setColorTarget(4u, ResourceFormat::RGBA8Unorm, true);	    // extra
     Fbo::SharedPtr fbo = Fbo::create2D(iW, iH, desc, 1, 4);
-
-    ribbonShader_Bake.State()->setFbo(fbo);
-    viewportVegbake.originX = 0;
-    viewportVegbake.originY = 0;
-    viewportVegbake.minDepth = 0;
-    viewportVegbake.maxDepth = 1;
-    viewportVegbake.width = (float)iW;
-    viewportVegbake.height = (float)iH;
-    ribbonShader_Bake.State()->setViewport(0, viewportVegbake, true);
-
-
-    glm::mat4 V, P, VP;
-    V[0] = glm::vec4(1, 0, 0, 0);
-    V[1] = glm::vec4(0, 1, 0, 0);
-    V[2] = glm::vec4(0, 0, 1, 0);
-    V[3] = glm::vec4(0, 0, 100, 1);
-
-    float s = 0.2f;
-    P = glm::orthoLH(-W, W, 0.f, H, -1000.0f, 1000.0f);
-
-    VP = P * V;    //??? order
-
-    rmcv::mat4 view, proj, viewproj;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            view[j][i] = V[j][i];
-            proj[j][i] = P[j][i];
-            viewproj[j][i] = VP[j][i];
-        }
-    }
-
-
     const glm::vec4 clearColor(0.5, 0.5f, 1.0f, 0.0f);
     bake.renderContext->clearFbo(fbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
     bake.renderContext->clearRtv(fbo->getRenderTargetView(0).get(), glm::vec4(0.0, 0.0f, 0.0f, 0.0f));
@@ -7228,14 +7231,32 @@ void terrainManager::bakeVegetation()
     bake.renderContext->clearRtv(fbo->getRenderTargetView(3).get(), glm::vec4(0.0, 0.0f, 0.0f, 0.0f));
     bake.renderContext->clearRtv(fbo->getRenderTargetView(4).get(), glm::vec4(1.0, 1.0f, 1.0f, 1.0f));
 
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["eyePos"] = float3(0, 0, -100000);  // just very far sort of parallel
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["offset"] = float3(0, 0, 0);
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["repeatScale"] = 1.0f;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["numSide"] = 1;
+    vegetationShader_Bake.State()->setFbo(fbo);
+    vegetationShader_Bake.State()->setViewport(0, GraphicsState::Viewport(0, 0, (float)iW, (float)iH, 0, 1), true);
+    vegetationShader_Bake.State()->setRasterizerState(split.rasterstateSplines);
+    vegetationShader_Bake.State()->setBlendState(blendstateVegBake);//blendstateSplines
+
+    glm::mat4 V, VP;
+    V = { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, W, 1} };
+    VP = glm::orthoLH(-W, W, 0.f, H, -1000.0f, 1000.0f) * V;
+    rmcv::mat4 viewproj;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            viewproj[j][i] = VP[j][i];
+        }
+    }
 
 
-    auto& block = ribbonShader_Bake.Vars()->getParameterBlock("textures");
+    
+
+    vegetationShader_Bake.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+    vegetationShader_Bake.Vars()["gConstantBuffer"]["eyePos"] = float3(0, 0, -100000);  // just very far sort of parallel
+    vegetationShader_Bake.Vars()["gConstantBuffer"]["offset"] = float3(0, 0, 0);
+    vegetationShader_Bake.Vars()["gConstantBuffer"]["repeatScale"] = 1.0f;
+    vegetationShader_Bake.Vars()["gConstantBuffer"]["numSide"] = 1;
+
+
+    auto& block = vegetationShader_Bake.Vars()->getParameterBlock("textures");
     ShaderVar& var = block->findMember("T");        // FIXME pre get
     _plantMaterial::static_materials_veg.setTextures(var);
 
@@ -7244,22 +7265,12 @@ void terrainManager::bakeVegetation()
     ribbonDataVegBuilder->setBlob(groveTree.packedRibbons, 0, groveTree.numBranchRibbons * sizeof(unsigned int) * 6);
     groveTree.bChanged = false;
 
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
-
-    // lighting
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["Ao_depthScale"] = groveTree.gpuPlant.Ao_depthScale;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["sunTilt"] = groveTree.gpuPlant.sunTilt;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["bDepth"] = groveTree.gpuPlant.bDepth;
-    ribbonShader_Bake.Vars()["gConstantBuffer"]["bScale"] = groveTree.gpuPlant.bScale;
-
-    ribbonShader_Bake.State()->setRasterizerState(split.rasterstateSplines);
-    ribbonShader_Bake.State()->setBlendState(blendstateVegBake);//blendstateSplines
 
 
-    ribbonShader_Bake.drawInstanced(bake.renderContext, groveTree.numBranchRibbons, 10000);
+    
+
+
+    vegetationShader_Bake.drawInstanced(bake.renderContext, groveTree.numBranchRibbons, 1);
 
     bake.renderContext->flush(true);
 
@@ -7269,6 +7280,7 @@ void terrainManager::bakeVegetation()
     compute_bakeFloodfill.Vars()->setTexture("gTranslucency", fbo->getColorTexture(4));
     compute_bakeFloodfill.Vars()->setTexture("gpbr", fbo->getColorTexture(3));
 
+    int numBuffer = 32;
     for (int i = 0; i < numBuffer; i++)
     {
         compute_bakeFloodfill.dispatch(bake.renderContext, iW / 4, iH / 4);
@@ -7276,53 +7288,63 @@ void terrainManager::bakeVegetation()
 
 
 
-
-
-    std::filesystem::path path = terrainManager::lastfile.vegMaterial;
-    FileDialogFilterVec filters = { {"vegetationMaterial"} };
-    if (saveFileDialog(filters, path))
+    // FIXME remove weedbuolde dependency
+    std::filesystem::path full_path = groveTree.weedBuilder.filepath;// +".billboard.vegMaterial";
+    std::string name = full_path.stem().string() + _ext;
+    std::string newPath = full_path.parent_path().string() + "\\" + name;
+    std::string resource = terrafectorEditorMaterial::rootFolder;
+    replaceAll_TM(resource, "/", "\\");
     {
-        std::ofstream os(path.string());
-        cereal::JSONOutputArchive archive(os);
-
         _plantMaterial Mat;
         Mat._constData.translucency = 1;
+        Mat.albedoPath = newPath + "_albedo.dds";
+        Mat.albedoName = name + "_albedo.dds";
+        Mat.normalPath = newPath + "_normal.dds";
+        Mat.normalName = name + "_normal.dds";
+        Mat.translucencyPath = newPath + "_translucency.dds";
+        Mat.translucencyName = name + "_translucency.dds";
 
-        std::string shortPath = path.parent_path().string() + "\\";
-        std::string shortNameExt = path.filename().string();
-        std::string shortName = shortNameExt.substr(0, shortNameExt.length() - 19);
-
-        char outName[512];
-        sprintf(outName, "%s%s_albedo.png", shortPath.c_str(), shortName.c_str());
         fbo->getColorTexture(0).get()->generateMips(bake.renderContext);
-        fbo->getColorTexture(0).get()->captureToFile(3, 0, outName, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
-        Mat.albedoPath = shortPath + shortName + "_albedo.dds";
-        Mat.albedoName = shortName + "_albedo.dds";
-
-        //sprintf(outName, "%s%s_normal_16.exr", shortPath.c_str(), shortName.c_str());
-        //fbo->getColorTexture(1).get()->captureToFile(0, 0, outName, Bitmap::FileFormat::ExrFile, Bitmap::ExportFlags::None);
-        //Mat.normalPath = shortPath + shortName + "_normal_16.dds";
-        //Mat.normalName = shortName + "_normal_16.dds";
-
-        sprintf(outName, "%s%s_normal.png", shortPath.c_str(), shortName.c_str());
+        fbo->getColorTexture(1).get()->generateMips(bake.renderContext);
         fbo->getColorTexture(2).get()->generateMips(bake.renderContext);
-        fbo->getColorTexture(2).get()->captureToFile(3, 0, outName, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        Mat.normalPath = shortPath + shortName + "_normal.dds";
-        Mat.normalName = shortName + "_normal.dds";
-
-
-        sprintf(outName, "%s%s_translucency.png", shortPath.c_str(), shortName.c_str());
+        fbo->getColorTexture(3).get()->generateMips(bake.renderContext);
         fbo->getColorTexture(4).get()->generateMips(bake.renderContext);
-        fbo->getColorTexture(4).get()->captureToFile(3, 0, outName, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        Mat.translucencyPath = shortPath + shortName + "_translucency.dds";
-        Mat.translucencyName = shortName + "_translucency.dds";
+
+        fbo->getColorTexture(0).get()->captureToFile(3, 0, newPath + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(3, 0, newPath + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(4).get()->captureToFile(3, 0, newPath + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+
+        {
+            std::string png = newPath + "_albedo.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + Mat.albedoPath + "\"";
+            system(cmdExp2.c_str());
+            //??? Shall I not rather use my compute compressor here?
+        }
+
+        {
+            std::string png = newPath + "_normal.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC6H " + resource+ "Compressonator\\temp_mip.dds \"" + Mat.normalPath + "\"";
+            system(cmdExp2.c_str());
+            //??? Shall I not rather use my compute compressor here?
+        }
+
+        {
+            std::string png = newPath + "_translucency.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + Mat.translucencyPath + "\"";
+            system(cmdExp2.c_str());
+            //??? Shall I not rather use my compute compressor here?
+        }
 
 
-
-
+        std::ofstream os(name + "_billboard.vegMaterial");
+        cereal::JSONOutputArchive archive(os);
         Mat.serialize(archive, _PLANTMATERIALVERSION);
-
-        terrainManager::lastfile.vegMaterial = path.string();
     }
 }
 
@@ -8527,9 +8549,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.State()->setViewport(0, _viewport, true);
 
             ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
-            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(ribbonVertex::objectScale, ribbonVertex::objectScale, ribbonVertex::objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = ribbonVertex::objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = ribbonVertex::radiusScale;
 
             ribbonShader.State()->setRasterizerState(split.rasterstateSplines);
             ribbonShader.State()->setBlendState(split.blendstateSplines);
@@ -8597,6 +8619,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
+            vegetation.plantBuf[0] = groveTree.gpuPlant;
             vegetation.plantData->setBlob(vegetation.plantBuf.data(), 0, 256 * sizeof(plant));
             vegetation.instanceData->setBlob(vegetation.instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
             vegetation.blockData->setBlob(vegetation.blockBuf.data(), 0, 16384 * sizeof(block_data));
@@ -8608,10 +8631,6 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             vegetationShader.State()->setFbo(_fbo);
             vegetationShader.State()->setViewport(0, _viewport, true);
 
-            vegetationShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
-            vegetationShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-            vegetationShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-            vegetationShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
 
             vegetationShader.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
 
@@ -8642,15 +8661,15 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             vegetationShader.Vars()["gConstantBuffer"]["repeatScale"] = spacing;
             vegetationShader.Vars()["gConstantBuffer"]["numSide"] = ribbonInstanceNumber;
 
-            vegetationShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-            vegetationShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-            vegetationShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+            //vegetationShader.Vars()["gConstantBuffer"]["objectScale"] = float3(ribbonVertex::objectScale, ribbonVertex::objectScale, ribbonVertex::objectScale);
+            //vegetationShader.Vars()["gConstantBuffer"]["objectOffset"] = ribbonVertex::objectOffset;
+            //vegetationShader.Vars()["gConstantBuffer"]["radiusScale"] = ribbonVertex::radiusScale;
 
             // lighting
-            vegetationShader.Vars()["gConstantBuffer"]["Ao_depthScale"] = groveTree.gpuPlant.Ao_depthScale;
-            vegetationShader.Vars()["gConstantBuffer"]["sunTilt"] = groveTree.gpuPlant.sunTilt;
-            vegetationShader.Vars()["gConstantBuffer"]["bDepth"] = groveTree.gpuPlant.bDepth;
-            vegetationShader.Vars()["gConstantBuffer"]["bScale"] = groveTree.gpuPlant.bScale;
+            //vegetationShader.Vars()["gConstantBuffer"]["Ao_depthScale"] = groveTree.gpuPlant.Ao_depthScale;
+            //vegetationShader.Vars()["gConstantBuffer"]["sunTilt"] = groveTree.gpuPlant.sunTilt;
+            //vegetationShader.Vars()["gConstantBuffer"]["bDepth"] = groveTree.gpuPlant.bDepth;
+            //vegetationShader.Vars()["gConstantBuffer"]["bScale"] = groveTree.gpuPlant.bScale;
 
             static float time = 0.0f;
             time += 0.01f;  // FIXME I NEED A Timer
@@ -8717,9 +8736,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.State()->setViewport(0, _viewport, true);
 
             ribbonShader.Vars()["gConstantBuffer"]["fakeShadow"] = 4;
-            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+            //ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(ribbonVertex::objectScale, ribbonVertex::objectScale, ribbonVertex::objectScale);
+            //ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = ribbonVertex::objectOffset;
+            //ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = ribbonVertex::radiusScale;
 
 
 
@@ -8746,9 +8765,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["repeatScale"] = spacing;
             ribbonShader.Vars()["gConstantBuffer"]["numSide"] = ribbonInstanceNumber;
 
-            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(ribbonVertex::objectScale, ribbonVertex::objectScale, ribbonVertex::objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = ribbonVertex::objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = ribbonVertex::radiusScale;
 
 
             static float time = 0.0f;
@@ -8775,9 +8794,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["repeatScale"] = spacing;
             ribbonShader.Vars()["gConstantBuffer"]["numSide"] = 1;
 
-            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(objectScale, objectScale, objectScale);
-            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = objectOffset;
-            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = radiusScale;
+            ribbonShader.Vars()["gConstantBuffer"]["objectScale"] = float3(ribbonVertex::objectScale, ribbonVertex::objectScale, ribbonVertex::objectScale);
+            ribbonShader.Vars()["gConstantBuffer"]["objectOffset"] = ribbonVertex::objectOffset;
+            ribbonShader.Vars()["gConstantBuffer"]["radiusScale"] = ribbonVertex::radiusScale;
 
 
             ribbonShader.Vars()["gConstantBuffer"]["ROOT"] = float3(0, 0, 0);// paraRuntime.ROOT;
@@ -8787,7 +8806,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ribbonShader.Vars()["gConstantBuffer"]["time"] = time;
 
             ribbonShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
-            
+
 
 
             // ribbonShader.drawInstanced(_renderContext, paraRuntime.ribbonCount, 1);
@@ -8993,7 +9012,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             split.shader_spline3D.drawIndexedInstanced(_renderContext, 64 * 6, splines.numStaticSplinesIndex);
         }
         */
-        
+
     }
 
     {
@@ -10603,7 +10622,7 @@ bool terrainManager::onMouseEvent_Stamps(const MouseEvent& mouseEvent, glm::vec2
                 mCurrentStamp.rotation += mouseEvent.wheelDelta.y / 3.0f;
             }
 
-            
+
             return true;
         }
 
@@ -10619,8 +10638,8 @@ bool terrainManager::onMouseEvent_Stamps(const MouseEvent& mouseEvent, glm::vec2
             }
             return true;
         }
-            
-         
+
+
     }
     case MouseEvent::Type::ButtonDown:
     {

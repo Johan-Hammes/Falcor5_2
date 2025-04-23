@@ -57,8 +57,8 @@
 #include "../../external/openJPH/include/openjph/ojph_params.h"
 #include "../../external/openJPH/include/openjph/ojph_message.h"
 
-
-#include"hlsl/terrain/vegetation_defines.hlsli"
+#include "vegetationBuilder.h"
+//#include"hlsl/terrain/vegetation_defines.hlsli"
 
 
 #include "glider.h"
@@ -75,8 +75,16 @@ struct rvPacked
     unsigned int f;
 };
 */
-struct rvB
+
+/*
+struct ribbonVertex
 {
+    static float objectScale;  //0.002 for trees  // 32meter block 2mm presision
+    static float radiusScale;//  so biggest radius now objectScale / 2.0f;
+    static float O;
+    static float3 objectOffset;
+
+    static void setup(float scale, float radius, float3 offset);
     ribbonVertex8 pack();
     int     type = 0;
     bool    startBit = false;
@@ -95,7 +103,7 @@ struct rvB
     unsigned char albedoScale = 255;
     unsigned char translucencyScale = 255;
 };
-
+*/
 
 
 
@@ -127,7 +135,7 @@ struct _shadowEdges
 
 
 
-
+/*
 class _plantMaterial;
 
 class materialCache_plants {
@@ -230,13 +238,116 @@ struct _vegetationMaterial {
         archive(CEREAL_NVP(displayname));
     }
 };
+*/
 
+//#########################################################################################################################################
+/*
+template <class T> class randomArray {
+public:
+    std::vector<T> data;
+
+    class T& get(float _age);
+};*/
+
+
+/*
+class _plantBuilder
+{
+    void renderGui(Gui* _gui);
+    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
+    void loadMaterials();
+    void reloadMaterials();
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        //archive( cereal::base_class<Base>( this ), y ); 
+        reloadMaterials();
+    }
+};
+CEREAL_CLASS_VERSION(_plantBuilder, 100);
+
+struct buildSetting
+{
+    glm::mat4 root;
+    float   age;
+    float   pixelSize;
+    int     seed;
+
+    float objectSize = 4.0f;
+    float radiusScale = 1.0f;                   //  so biggest radius
+    float3 objectOffset = float3(0.5, 0.1f, 0.5f);
+    float getScale() { return objectSize / 16384.0f; }
+    float3 getOffset() { return objectOffset * objectSize; }
+};
+
+struct rndPart
+{
+    _plantBuilder part;
+    float scaleOld = 0.5f;
+    float scaleNew = 0.5f;
+};
+
+class randomPlant
+{
+public:
+    std::vector<_plantBuilder> parts;
+
+    void clear() { parts.clear(); }
+    _plantBuilder& get(float _age);
+};
+
+
+class _leafBuilder : public _plantBuilder
+{
+    void renderGui(Gui* _gui);
+    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
+    void loadMaterials();
+    void reloadMaterials();
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        //archive( cereal::base_class<_plantBuilder>( this ), y );
+        reloadMaterials();
+    }
+};
+CEREAL_CLASS_VERSION(_leafBuilder, 100);
+
+
+
+class _rootPlant
+{
+    void renderGui(Gui* _gui);
+    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
+    void loadMaterials();
+    void reloadMaterials();
+
+    void remapMaterials();
+    void import();
+    void export();
+
+    //??? lodding info, so it needs all the runtime data
+
+    _plantBuilder root;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        //archive( cereal::base_class<_plantBuilder>( this ), y );
+        reloadMaterials();
+    }
+};
+CEREAL_CLASS_VERSION(_rootPlant, 100);
+*/
+//#########################################################################################################################################
 
 
 struct _leaf
 {
     void renderGui(Gui* _gui);
     void buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vertex, glm::vec3 _pos, glm::vec3 _twigAxis, int overrideLod = -1);
+    void buildLeaf(glm::mat4 root, float _age, float _lodPixelsize, int _seed); //glm::vec3 _twigAxis ??? used to avoid intersection, but maybe a more genralized intersection test
     void loadLeafMaterial();
     void load();
     void save();
@@ -277,7 +388,7 @@ struct _leaf
     //std::string textureName;
     //uint material;
 
-    rvB    ribbon[16384];
+    ribbonVertex    ribbon[16384];
     uint   ribbonLength;
 
     // stalk offset  pos
@@ -390,7 +501,7 @@ struct _twig
     bool changedForSaving = false;
     bool showLeaves;
 
-    rvB     ribbon[16384];
+    ribbonVertex     ribbon[16384];
     uint    ribbonLength;
     float2  extents;        // cylinder
 
@@ -510,7 +621,7 @@ struct _weed
     bool changed = false;
     bool changedForSaving = false;
 
-    rvB     ribbon[16384]; 
+    ribbonVertex     ribbon[16384]; 
     uint    ribbonLength;
     float2  extents;        // cylinder
     int     lod = 3;
@@ -677,6 +788,7 @@ struct _GroveTree
     // Visibility
     void rebuildVisibility();
     treeVis vis;        // expand for lods so we can save it
+
     
 
     _weedLight L;
@@ -685,7 +797,7 @@ struct _GroveTree
     float treeHeight = 0.f;
 
 
-    rvB branchRibbons[1024*1024*10];
+    ribbonVertex branchRibbons[1024*1024*10];
     float2  extents;        // cylinder
     ribbonVertex8 packedRibbons[1024 * 1024 * 10];
     int numBranchRibbons;
@@ -725,7 +837,7 @@ struct _GroveTree
     _mode rootMode = mode_twig;
 
     // twigs
-    rvB twig[1024];
+    ribbonVertex twig[1024];
     uint twiglength = 0;
     float twigScale = 1.0f;
 
@@ -1197,7 +1309,7 @@ private:
     Texture::SharedPtr	  spriteNormalsTexture = nullptr;
 
     pixelShader vegetationShader;
-    pixelShader ribbonShader_Bake;
+    pixelShader vegetationShader_Bake;
     Buffer::SharedPtr       ribbonDataVegBuilder;
 
     pixelShader ribbonShader;
@@ -1211,7 +1323,8 @@ private:
     GraphicsState::Viewport     viewportVegbake;
     //bool bakeOneVeg = false;
     BlendState::SharedPtr           blendstateVegBake;
-    void bakeVegetation();
+    //void bakeVegetation(int baseSize = 64, float clipCenter = 1.f, std::string _ext = "_BB");
+    void bakeVegetation(int baseSize = 64, float clipCenter = 1.f, std::string _ext = "_billboard");
     computeShader		compute_bakeFloodfill;
     int ribbonInstanceNumber = 1;
     float ribbonSpacing = 3.0f;             // the size fo the extents

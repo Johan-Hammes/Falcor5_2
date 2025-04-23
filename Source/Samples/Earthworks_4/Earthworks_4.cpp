@@ -719,6 +719,7 @@ void Earthworks_4::guiStyle()
 
 
 int main(int argc, char** argv)
+//int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
     logFile = fopen("log.txt", "w");
     fprintf(logFile, "main()\n");

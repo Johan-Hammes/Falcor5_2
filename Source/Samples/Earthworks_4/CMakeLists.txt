@@ -43,7 +43,10 @@ target_sources(Earthworks_4 PRIVATE
     glider.h
     cfd.h
     cfd.cpp
-	
+	vegetationBuilder.h
+    vegetationBuilder.cpp
+
+
 	hlsl/terrain/compute_tileVertices.hlsl
 	hlsl/terrain/compute_bc6h_functions.hlsli
 	hlsl/terrain/gpuLights_defines.hlsli

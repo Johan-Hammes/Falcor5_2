@@ -94,21 +94,9 @@ ParameterBlock<ribbonTextures>
 textures;
 
 
-struct RV
-{
-    int4 v;
-};
-struct RV6
-{
-    int a;
-    int b;
-    int c;
-    int d;
-    int e;
-    int f;
-};
+
 StructuredBuffer<sprite_material> materials;
-StructuredBuffer<RV6> instanceBuffer;
+StructuredBuffer<ribbonVertex8> instanceBuffer;     // THIS HAS TO GO
 StructuredBuffer<xformed_PLANT> instances;
 
 StructuredBuffer<plant>             plant_buffer;
@@ -121,29 +109,14 @@ cbuffer gConstantBuffer
     float4x4 viewproj;
     float3 eyePos;
 
-    // Meshlet related ----------------------------------------------------------
-    uint fakeShadow;
-    float3 objectScale;
-    float3 objectOffset;
-
-
-    float radiusScale;
 
     float3 offset;
     float repeatScale;
-
     int numSide;
 
-    // lighting
-    float Ao_depthScale;
-    float sunTilt;
-    float bDepth;
-    float bScale;
+
 
     float time;
-
-    float3 ROOT;
-    
 };
 
 
@@ -215,44 +188,44 @@ inline float3 yawPitch_9_8bit(int yaw, int pitch, const float r) // 9, 8 bits 8 
     return float3(plane * x, y, plane * z);
 }
 
-
-inline void extractPosition(inout PSIn o, const RV6 v, const float scale, const float rotation, const float3 root)
+/*
+inline void extractPosition(inout PSIn o, const ribbonVertex8 v, const float scale, const float rotation, const float3 root)
 {
     float3 p = float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * objectScale - objectOffset;
     o.pos.xyz = root + rot_xz(p, rotation) * scale;
     o.pos.w = 1;
     o.eye = normalize(o.pos.xyz - eyePos);
-}
+}*/
 
 // These two can optimize, its only tangent that differs
-inline void extractTangent(inout PSIn o, const RV6 v, const float rotation)
+inline void extractTangent(inout PSIn o, const ribbonVertex8 v, const float rotation)
 {
     o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, rotation); // remember to add rotation to yaw
     o.tangent = normalize(cross(o.binormal, o.eye));
     o.normal = cross(o.binormal, o.tangent);
 }
 
-inline void extractTangentFlat(inout PSIn o, const RV6 v, const float rotation)
+inline void extractTangentFlat(inout PSIn o, const ribbonVertex8 v, const float rotation)
 {
     o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, rotation); // remember to add rotation to yaw
     o.tangent = yawPitch_9_8bit(v.d >> 23, (v.d >> 15) & 0xff, rotation); // remember to add rotation to yaw
     o.normal = cross(o.binormal, o.tangent);
 }
 
-inline void extractUVRibbon(inout PSIn o, const RV6 v)
+inline void extractUVRibbon(inout PSIn o, const ribbonVertex8 v)
 {
     o.uv = float2(((v.d >> 8) & 0x7f) * 0.00390625, ((v.c) & 0x7fff) * 0.00390625); // allows 16 V repeats scales are wrong decide
     o.uv.y = 1 - o.uv.y;
 }
 
-inline void extractFlags(inout PSIn o, const RV6 v)
+inline void extractFlags(inout PSIn o, const ribbonVertex8 v)
 {
     o.flags.x = (v.b >> 8) & 0x2ff; //  material
     o.flags.y = (v.a >> 30) & 0x1; //  start bool
     o.flags.z = (v.d & 0xff); //  int radius
 }
-
-inline void extractColor(inout PSIn o, const RV6 v)
+/*
+inline void extractColor(inout PSIn o, const ribbonVertex8 v)
 {
     o.colour.r = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
     o.colour.g = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
@@ -261,9 +234,9 @@ inline void extractColor(inout PSIn o, const RV6 v)
     o.colour.b = saturate((v.d & 0xff) * radiusScale / length(o.pos.xyz - eyePos) * 200);
     o.colour.b = saturate((o.colour.b - 0.5) * 50);
     
-}
-
-inline void light(inout PSIn o, const RV6 v, const float rotation)
+}*/
+/*
+inline void light(inout PSIn o, const ribbonVertex8 v, const float rotation)
 {
     const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
     float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, rotation);
@@ -277,7 +250,7 @@ inline void light(inout PSIn o, const RV6 v, const float rotation)
 #if defined(_BAKE)
     o.lighting.rgb = lightCone;
 #endif
-}
+}*/
 
 float rand_1_05(in float2 uv)
 {
@@ -371,12 +344,15 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const block_data BLOCK = block_buffer[iId];
     const plant_instance INSTANCE = instance_buffer[BLOCK.instance_idx];
     const plant PLANT = plant_buffer[INSTANCE.plant_idx];
-    const RV6 v = instanceBuffer[vId];
+    const ribbonVertex8 v = instanceBuffer[vId];
 
 #if defined(_BAKE)
     //rootPosition = float3(0, 0, 0);
     //scale = 1;
     //rotation = 0;
+    //INSTANCE.position = float3(0, 0, 0);
+    //INSTANCE.rotation = 0;
+    //INSTANCE.scale = 1;
 #endif
 
     // position
@@ -399,8 +375,30 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     
     extractUVRibbon(output, v);
     extractFlags(output, v);
-    extractColor(output, v);
-    light(output, v, INSTANCE.rotation);
+    //extractColor(output, v);
+    {
+        output.colour.r = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
+        output.colour.g = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
+        output.colour.b = saturate((v.d & 0xff) * PLANT.radiusScale / length(output.pos.xyz - eyePos) * 200);
+        output.colour.b = saturate((output.colour.b - 0.5) * 50);
+    }
+
+    
+    //light(output, v, INSTANCE.rotation);
+    {
+        const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
+        float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, INSTANCE.rotation);
+        float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
+        float d = (v.e & 0xff) * 0.00784; //depth8
+        float a = saturate(dot(normalize(lightCone + sunDir * PLANT.sunTilt), sunDir)); //cone * 0
+        float b = a * (PLANT.bDepth - d) + d;
+        float ao = 1 - saturate(d * PLANT.Ao_depthScale);
+        output.lighting = float4(0, 0, saturate(1 - (b * PLANT.bScale)), ao);
+
+#if defined(_BAKE)
+    output.lighting.rgb = lightCone;
+#endif
+    }
 
     /*
     float3 Rpos = output.pos.xyz;
@@ -583,7 +581,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 1.0;
+    const float3 sunColor = float3(1.2, 1.0, 0.7) * 0.3;
     //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(-sunDir + vOut.eye)));
     float ndots = dot(N, -sunDir); // * vOut.lighting.z;
@@ -604,7 +602,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     
     // specular sun
-    color += pow(ndoth, 9) * 0.51 * vOut.lighting.z;
+    color += pow(ndoth, 9) * 0.31 * vOut.lighting.z;
    
 
     //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * float3(2, 3, 1) * MAT.translucency * vOut.lighting.z;
@@ -615,7 +613,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= pow(textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r, 1);
         }
     }
-    color += trans * albedo.rgb * 7  * vOut.colour.x;
+    color += trans * albedo.rgb * albedo.rgb * 5 * vOut.colour.x;
     
 
     float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
