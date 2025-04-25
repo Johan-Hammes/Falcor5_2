@@ -64,46 +64,6 @@
 #include "glider.h"
 #include "cfd.h"
 using namespace Falcor;
-/*
-struct rvPacked
-{
-    unsigned int a;
-    unsigned int b;
-    unsigned int c;
-    unsigned int d;
-    unsigned int e;
-    unsigned int f;
-};
-*/
-
-/*
-struct ribbonVertex
-{
-    static float objectScale;  //0.002 for trees  // 32meter block 2mm presision
-    static float radiusScale;//  so biggest radius now objectScale / 2.0f;
-    static float O;
-    static float3 objectOffset;
-
-    static void setup(float scale, float radius, float3 offset);
-    ribbonVertex8 pack();
-    int     type = 0;
-    bool    startBit = false;
-    float3  position;
-    int     material;
-    float   anim_blend;
-    float2  uv;
-    float3  bitangent;
-    float3  tangent;
-    float   radius;
-
-    float4  lightCone;
-    float   lightDepth;
-    unsigned char ao = 255;
-    unsigned char shadow = 255;
-    unsigned char albedoScale = 255;
-    unsigned char translucencyScale = 255;
-};
-*/
 
 
 
@@ -135,219 +95,11 @@ struct _shadowEdges
 
 
 
-/*
-class _plantMaterial;
-
-class materialCache_plants {
-public:
-
-    int find_insert_material(const std::string _path, const std::string _name);
-    int find_insert_material(const std::filesystem::path _path);
-    int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
-    std::string clean(const std::string _s);
-
-    void setTextures(ShaderVar& var);
-
-    void rebuildStructuredBuffer();
-    
-    std::vector<_plantMaterial>	materialVector;
-    int selectedMaterial = -1;
-    std::vector<Texture::SharedPtr>			textureVector;
-    float texMb = 0;
-
-    void renderGui(Gui* mpGui, Gui::Window& _window);
-    void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
-    bool renderGuiSelect(Gui* mpGui);
-    
-public:
-    int dispTexIndex = -1;
-    Texture::SharedPtr getDisplayTexture();
-
-    Buffer::SharedPtr sb_vegetation_Materials = nullptr;
-
-    bool modified = false;
-    bool modifiedData = false;
-};
-
-
-
-class _plantMaterial
-{
-public:
-    void renderGui(Gui* _gui);
-
-    static materialCache_plants static_materials_veg;
-
-    std::filesystem::path 			  fullPath;
-    std::string			  displayName = "Not set!";
-    bool				isModified = false;
-
-    std::string         albedoName;
-    std::string         normalName;
-    std::string         translucencyName;
-    std::string         alphaName;
-
-    std::string         albedoPath;
-    std::string         normalPath;
-    std::string         translucencyPath;
-    std::string         alphaPath;
-
-    void import(std::filesystem::path _path, bool _replacePath = true);
-    void import(bool _replacePath = true);
-    void save();
-    void eXport(std::filesystem::path _path);
-    void eXport();
-    void reloadTextures();
-    void loadTexture(int idx);
-
-    template<class Archive>
-    void serialize(Archive& _archive, std::uint32_t const _version)
-    {
-        _archive(CEREAL_NVP(albedoName));
-        _archive(CEREAL_NVP(alphaName));
-        _archive(CEREAL_NVP(normalName));
-        _archive(CEREAL_NVP(translucencyName));
-
-        _archive(CEREAL_NVP(albedoPath));
-        _archive(CEREAL_NVP(alphaPath));
-        _archive(CEREAL_NVP(normalPath));
-        _archive(CEREAL_NVP(translucencyPath));
-
-        _archive(CEREAL_NVP(_constData.translucency));
-        _archive(CEREAL_NVP(_constData.alphaPow));
-    }
-
-
-    sprite_material _constData;
-};
-#define _PLANTMATERIALVERSION 100
-CEREAL_CLASS_VERSION(_plantMaterial, _PLANTMATERIALVERSION);
-
-
-
-
-struct _vegetationMaterial {
-    std::string name;
-    std::string displayname;
-    int index = -1;              // needs to expand for lods
-
-    template<class Archive>
-    void serialize(Archive& archive)
-    {
-        archive(CEREAL_NVP(name));
-        archive(CEREAL_NVP(displayname));
-    }
-};
-*/
-
-//#########################################################################################################################################
-/*
-template <class T> class randomArray {
-public:
-    std::vector<T> data;
-
-    class T& get(float _age);
-};*/
-
-
-/*
-class _plantBuilder
-{
-    void renderGui(Gui* _gui);
-    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
-    void loadMaterials();
-    void reloadMaterials();
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const _version)
-    {
-        //archive( cereal::base_class<Base>( this ), y ); 
-        reloadMaterials();
-    }
-};
-CEREAL_CLASS_VERSION(_plantBuilder, 100);
-
-struct buildSetting
-{
-    glm::mat4 root;
-    float   age;
-    float   pixelSize;
-    int     seed;
-
-    float objectSize = 4.0f;
-    float radiusScale = 1.0f;                   //  so biggest radius
-    float3 objectOffset = float3(0.5, 0.1f, 0.5f);
-    float getScale() { return objectSize / 16384.0f; }
-    float3 getOffset() { return objectOffset * objectSize; }
-};
-
-struct rndPart
-{
-    _plantBuilder part;
-    float scaleOld = 0.5f;
-    float scaleNew = 0.5f;
-};
-
-class randomPlant
-{
-public:
-    std::vector<_plantBuilder> parts;
-
-    void clear() { parts.clear(); }
-    _plantBuilder& get(float _age);
-};
-
-
-class _leafBuilder : public _plantBuilder
-{
-    void renderGui(Gui* _gui);
-    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
-    void loadMaterials();
-    void reloadMaterials();
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const _version)
-    {
-        //archive( cereal::base_class<_plantBuilder>( this ), y );
-        reloadMaterials();
-    }
-};
-CEREAL_CLASS_VERSION(_leafBuilder, 100);
-
-
-
-class _rootPlant
-{
-    void renderGui(Gui* _gui);
-    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
-    void loadMaterials();
-    void reloadMaterials();
-
-    void remapMaterials();
-    void import();
-    void export();
-
-    //??? lodding info, so it needs all the runtime data
-
-    _plantBuilder root;
-
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const _version)
-    {
-        //archive( cereal::base_class<_plantBuilder>( this ), y );
-        reloadMaterials();
-    }
-};
-CEREAL_CLASS_VERSION(_rootPlant, 100);
-*/
-//#########################################################################################################################################
-
 
 struct _leaf
 {
     void renderGui(Gui* _gui);
     void buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vertex, glm::vec3 _pos, glm::vec3 _twigAxis, int overrideLod = -1);
-    void buildLeaf(glm::mat4 root, float _age, float _lodPixelsize, int _seed); //glm::vec3 _twigAxis ??? used to avoid intersection, but maybe a more genralized intersection test
     void loadLeafMaterial();
     void load();
     void save();
@@ -1615,6 +1367,9 @@ private:
         std::array<block_data, 16384> blockBuf;
         std::array<ribbonVertex8, 128 * 256> vertexBuf;
 
+
+
+        _rootPlant ROOT;
 
     }vegetation;
 

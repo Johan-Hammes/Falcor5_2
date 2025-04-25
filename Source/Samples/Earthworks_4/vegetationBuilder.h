@@ -6,14 +6,13 @@
 #include "cereal/cereal.hpp"
 #include "cereal/archives/binary.hpp"
 #include "cereal/archives/json.hpp"
-#include "cereal/archives/xml.hpp"
 #include "cereal/types/map.hpp"
 #include "cereal/types/vector.hpp"
 #include "cereal/types/list.hpp"
 #include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
 
-#include <fstream>
+//#include <fstream>
 
 #include <random>
 
@@ -23,33 +22,6 @@
 
 
 using namespace Falcor;
-
-struct ribbonVertex
-{
-    static float objectScale;   //0.002 for trees  // 32meter block 2mm presision
-    static float radiusScale;   //  so biggest radius now objectScale / 2.0f;
-    static float O;
-    static float3 objectOffset;
-
-    static void setup(float scale, float radius, float3 offset);
-    ribbonVertex8 pack();
-    int     type = 0;
-    bool    startBit = false;
-    float3  position;
-    int     material;
-    float   anim_blend;
-    float2  uv;
-    float3  bitangent;
-    float3  tangent;
-    float   radius;
-
-    float4  lightCone;
-    float   lightDepth;
-    unsigned char ao = 255;
-    unsigned char shadow = 255;
-    unsigned char albedoScale = 255;
-    unsigned char translucencyScale = 255;
-};
 
 
 
@@ -98,7 +70,10 @@ public:
 
     static materialCache_plants static_materials_veg;
 
-    std::filesystem::path 			  fullPath;
+    std::filesystem::path 			  fullPath;     // FIXME remove ebentuall
+    std::string        relativePath;
+    void makeRelative(std::filesystem::path _path); // FIXME move to terrafector where we keep the path
+
     std::string			  displayName = "Not set!";
     bool				isModified = false;
 
@@ -149,7 +124,7 @@ CEREAL_CLASS_VERSION(_plantMaterial, _PLANTMATERIALVERSION);
 struct _vegetationMaterial {
     std::string name;
     std::string displayname;
-    int index = -1;              // needs to expand for lods
+    int index = -1;
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -160,18 +135,23 @@ struct _vegetationMaterial {
 };
 
 
-//#########################################################################################################################################
+
+
+
 
 
 
 
 struct buildSetting
 {
-    glm::mat4 root;
-    float   age;
-    float   pixelSize;
-    int     seed;
+    glm::mat4   root;
+    float       age;
+    float       pixelSize;
+    int         seed;
+};
 
+struct bakeSettings
+{
     float objectSize = 4.0f;
     float radiusScale = 1.0f;                   //  so biggest radius
     float3 objectOffset = float3(0.5, 0.1f, 0.5f);
@@ -180,58 +160,178 @@ struct buildSetting
 };
 
 
-class _plantBuilder
+
+struct ribbonVertex
 {
-    virtual void renderGui(Gui* _gui) { ; }
-    virtual void build(buildSetting &_settings) { ; }
-    virtual void loadMaterials() { ; }
-    virtual void reloadMaterials() { ; }
+    static float objectScale;   //0.002 for trees  // 32meter block 2mm presision
+    static float radiusScale;   //  so biggest radius now objectScale / 2.0f;
+    static float O;
+    static float3 objectOffset;
 
-    template<class Archive>
-    void serialize(Archive& archive, std::uint32_t const _version)
-    {
-        //archive( cereal::base_class<Base>( this ), y ); 
-        reloadMaterials();
-    }
+    static void setup(float scale, float radius, float3 offset);
+    ribbonVertex8 pack();
+
+    int     type = 0;
+    bool    startBit = false;
+    float3  position;
+    int     material;
+    float   anim_blend;
+    float2  uv;
+    float3  bitangent;
+    float3  tangent;
+    float   radius;
+
+    float4  lightCone;
+    float   lightDepth;
+    unsigned char ao = 255;
+    unsigned char shadow = 255;
+    unsigned char albedoScale = 255;
+    unsigned char translucencyScale = 255;
 };
-CEREAL_CLASS_VERSION(_plantBuilder, 100);
 
-struct rndPart
-{
-    _plantBuilder part;
-    float scaleOld = 0.5f;
-    float scaleNew = 0.5f;
-};
 
-class randomPlant       // ??? look at templates
+
+
+
+class _vegMaterial
 {
 public:
-    std::vector<_plantBuilder> parts;
+    std::string name;
+    std::string path;   // relative
+    int index = -1;
 
-    void clear() { parts.clear(); }
-    _plantBuilder& get(float _age);
+    float2 albedoScale = { 1, 1 };
+    float2 translucencyScale = { 1, 1 };
+
+    void loadFromFile();
+    void reload();
+    bool renderGui();
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(name);
+        archive(path);
+        archive_float2(albedoScale);
+        archive_float2(translucencyScale);
+    }
 };
+
+
+
+class _plantBuilder
+{
+public:
+    virtual void renderGui(Gui* _gui) { ; }
+    virtual void treeView() { ; }
+    virtual void build(buildSetting& _settings) { ; }
+    virtual std::string ext() { return "PLEASE_SET_THIS"; }
+
+    std::string name = "not set";
+    std::string path = "no path either";   // relative
+    bool changed = false;
+};
+
+
+
+
+
+
+// would be nice if we have more controll over distribution including with age
+template <class T> class randomVector 
+{
+public:
+    randomVector() { data.resize(1); }      // minimum size has to be one, otherwise get() is dangerous
+    std::vector<T> data;
+    
+    void renderGui(char *name);
+    void clear() { data.clear(); }
+    T get();
+};
+
 
 
 
 
 class _leafBuilder : public _plantBuilder
 {
+public:
     void renderGui(Gui* _gui);
+    void treeView();
     void build(buildSetting& _settings);
-    void loadMaterials();
-    void reloadMaterials();
+    std::string ext() { return "leaf"; }
 
+private:
+    // going to do all this in mm
+    float2  stem_length = { 0.f, 0.3f };
+    float2  stem_width = { 4.f, 0.f };
+    float2  stem_curve = { 0.0f, 0.3f };      // radian bend over lenth
+    float2  stem_to_leaf = { 0.0f, 0.2f };      // radian bend over lenth
+    int2    stemVerts = { 2, 4 };
+
+    bool    cameraFacing = false;
+    float2  leaf_length = { 100.f, 0.2f };
+    float2  leaf_width = { 60.f, 0.2f };
+    float2  leaf_curve = { 0.0f, 0.2f };      // radian bend over lenth
+    float2  leaf_twist = { 0.0f, 0.2f };      // radian bend over lenth
+    float2  width_offset = { 1.0f, 0.1f };
+    float2  gravitrophy = { 0, 0 };
+    int2    numVerts = { 3, 12 };
+
+    _vegMaterial stem_Material;
+    randomVector<_vegMaterial> materials;
+    
+public:
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
     {
-        //archive( cereal::base_class<_plantBuilder>( this ), y );
-        reloadMaterials();
+        archive_float2(stem_length);
+        archive_float2(stem_width);
+        archive_float2(stem_curve);
+        archive_float2(stem_to_leaf);
+        archive_float2(stemVerts);
+
+        archive(cameraFacing);
+        archive_float2(leaf_length);
+        archive_float2(leaf_width);
+        archive_float2(leaf_curve);
+        archive_float2(leaf_twist);
+        archive_float2(width_offset);
+        archive_float2(gravitrophy);
+        archive_float2(numVerts);  // teh define works for ints as well
+
+        archive(stem_Material);
+        archive(materials.data); //??? moce to randomVector, keep up to date there? more contained
+
+        stem_Material.reload();
+        for (auto& M : materials.data) M.reload();
     }
 };
 CEREAL_CLASS_VERSION(_leafBuilder, 100);
 
 
+
+
+class _twigBuilder : public _plantBuilder
+{
+public:
+    void renderGui(Gui* _gui);
+    void treeView();
+    void build(buildSetting& _settings);
+    std::string ext() { return "twig"; }
+
+    _plantMaterial stemMaterial;
+    randomVector<_plantBuilder> leaves;
+    randomVector<_plantBuilder> tip;
+    randomVector<_plantMaterial> materials;
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        //archive( cereal::base_class<_plantBuilder>( this ), y );
+    }
+};
+CEREAL_CLASS_VERSION(_twigBuilder, 100);
 
 
 
@@ -240,6 +340,7 @@ CEREAL_CLASS_VERSION(_leafBuilder, 100);
 
 class _rootPlant
 {
+public:
     void renderGui(Gui* _gui);
     void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
     void loadMaterials();
@@ -253,12 +354,16 @@ class _rootPlant
 
     //??? lodding info, so it needs all the runtime data
 
-    _plantBuilder root;
+    _plantBuilder *root = nullptr;
+
+    static _plantBuilder *selectedPart;
+    static _plantMaterial *selectedMaterial;
 
     // randomizer
-    //static std::mt19937 generator;
-    //static std::uniform_real_distribution<> rand_1;
-    //static std::uniform_real_distribution<> rand_01(0.f, 1.f);
+    static std::mt19937 generator;
+    static std::uniform_real_distribution<> rand_1;
+    static std::uniform_real_distribution<> rand_01;
+    static std::uniform_int_distribution<> rand_int;
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
@@ -270,4 +375,3 @@ class _rootPlant
 };
 CEREAL_CLASS_VERSION(_rootPlant, 100);
 
-//#########################################################################################################################################
