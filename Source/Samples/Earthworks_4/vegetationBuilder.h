@@ -222,10 +222,14 @@ public:
 class _plantBuilder
 {
 public:
+    void loadPath() { ; }
+    void savePath() { ; }
+    virtual void load() { ; }
+    virtual void save() { ; }
+    virtual void saveas() { ; }
     virtual void renderGui(Gui* _gui) { ; }
     virtual void treeView() { ; }
     virtual void build(buildSetting& _settings) { ; }
-    virtual std::string ext() { return "PLEASE_SET_THIS"; }
 
     std::string name = "not set";
     std::string path = "no path either";   // relative
@@ -256,10 +260,16 @@ public:
 class _leafBuilder : public _plantBuilder
 {
 public:
+    void loadPath();
+    void savePath();
+    void load();
+    void save();
+    void saveas();
     void renderGui(Gui* _gui);
     void treeView();
     void build(buildSetting& _settings);
-    std::string ext() { return "leaf"; }
+
+    FileDialogFilterVec filters = { {"leaf"} };
 
 private:
     // going to do all this in mm
@@ -315,10 +325,16 @@ CEREAL_CLASS_VERSION(_leafBuilder, 100);
 class _twigBuilder : public _plantBuilder
 {
 public:
+    void loadPath();
+    void savePath();
+    void load();
+    void save();
+    void saveas();
     void renderGui(Gui* _gui);
     void treeView();
     void build(buildSetting& _settings);
-    std::string ext() { return "twig"; }
+
+    FileDialogFilterVec filters = { {"twig"} };
 
     _plantMaterial stemMaterial;
     randomVector<_plantBuilder> leaves;
@@ -328,7 +344,6 @@ public:
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
     {
-        //archive( cereal::base_class<_plantBuilder>( this ), y );
     }
 };
 CEREAL_CLASS_VERSION(_twigBuilder, 100);

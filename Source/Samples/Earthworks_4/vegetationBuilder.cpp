@@ -774,11 +774,87 @@ ImVec4 mat_color = ImVec4(0.0f, 0.03f, 0.09f, 1);
 
 
 
+
 // _leafBuilder
 // -----------------------------------------------------------------------------------------------------------------------------------
 
+
+void _leafBuilder::loadPath()
+{
+    std::ifstream is(terrafectorEditorMaterial::rootFolder + path);
+    cereal::JSONInputArchive archive(is);
+    archive(*this);
+    changed = false;
+}
+
+void _leafBuilder::savePath()
+{
+    std::ofstream os(terrafectorEditorMaterial::rootFolder + path);
+    cereal::JSONOutputArchive archive(os);
+    archive(*this);
+    changed = false;
+}
+
+void _leafBuilder::load()
+{
+    if (ImGui::Button("Load", ImVec2(60, 0)))
+    {
+        std::filesystem::path filepath;
+        if (openFileDialog(filters, filepath))
+        {
+            path = materialCache::getRelative(filepath.string());
+            name = filepath.filename().string();
+            loadPath();
+        }
+    }
+}
+
+
+void _leafBuilder::save()
+{
+    if (changed) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
+        if (ImGui::Button("Save", ImVec2(60,0)))
+        {
+            savePath();
+        }
+        ImGui::PopStyleColor();
+    }
+}
+
+
+void _leafBuilder::saveas()
+{
+    if (ImGui::Button("Save as", ImVec2(60, 0)))
+    {
+        std::filesystem::path filepath;
+        if (saveFileDialog(filters, filepath))
+        {
+            path = materialCache::getRelative(filepath.string());
+            name = filepath.filename().string();
+            savePath();
+        }
+    }
+}
+
+
 void _leafBuilder::renderGui(Gui* _gui)
 {
+    ImGui::Text(name.c_str());  // move to root lcass
+    TOOLTIP(path.c_str());
+
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    {
+        load();
+        ImGui::SameLine(70, 0);
+        save();
+        ImGui::SameLine(140, 0);
+        saveas();
+    }
+    ImGui::PopFont();
+
+    
+
     ImGui::NewLine();
     ImGui::Text("stem");
     unsigned int gui_id = 1001;
@@ -895,10 +971,78 @@ void _leafBuilder::build(buildSetting& _settings)
 // _twigBuilder
 // -----------------------------------------------------------------------------------------------------------------------------------
 
+void _twigBuilder::loadPath()
+{
+    std::ifstream is(terrafectorEditorMaterial::rootFolder + path);
+    cereal::JSONInputArchive archive(is);
+    archive(*this);
+    changed = false;
+}
+
+void _twigBuilder::savePath()
+{
+    std::ofstream os(terrafectorEditorMaterial::rootFolder + path);
+    cereal::JSONOutputArchive archive(os);
+    archive(*this);
+    changed = false;
+}
+
+void _twigBuilder::load()
+{
+    if (ImGui::Button("Load", ImVec2(60, 0)))
+    {
+        std::filesystem::path filepath;
+        if (openFileDialog(filters, filepath))
+        {
+            path = materialCache::getRelative(filepath.string());
+            name = filepath.filename().string();
+            loadPath();
+        }
+    }
+}
+
+
+void _twigBuilder::save()
+{
+    if (changed) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
+        if (ImGui::Button("Save", ImVec2(60, 0)))
+        {
+            savePath();
+        }
+        ImGui::PopStyleColor();
+    }
+}
+
+
+void _twigBuilder::saveas()
+{
+    if (ImGui::Button("Save as", ImVec2(60, 0)))
+    {
+        std::filesystem::path filepath;
+        if (saveFileDialog(filters, filepath))
+        {
+            path = materialCache::getRelative(filepath.string());
+            name = filepath.filename().string();
+            savePath();
+        }
+    }
+}
 
 void _twigBuilder::renderGui(Gui* _gui)
 {
-    ImGui::Text("_twigBuilder");
+    ImGui::Text(name.c_str());
+    TOOLTIP(path.c_str());
+
+    ImGui::PushFont(_gui->getFont("roboto_20"));
+    {
+        load();
+        ImGui::SameLine(70, 0);
+        save();
+        ImGui::SameLine(140, 0);
+        saveas();
+    }
+    ImGui::PopFont();
 
 }
 
@@ -955,74 +1099,28 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::SameLine();
         if (ImGui::Button("new Twig")) { if (root) delete root; root = new _twigBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
 
+        if (ImGui::Button("Load")) {
+            std::filesystem::path filepath;
+            FileDialogFilterVec filters = { {"leaf", "twig"}};
+            if (openFileDialog(filters, filepath))
+            {
+                _rootPlant::selectedMaterial = nullptr;
+                if (root) delete root;
+                if (filepath.string().find("leaf") != std::string::npos) { root = new _leafBuilder;  _rootPlant::selectedPart = root; }
+                if (filepath.string().find("twig") != std::string::npos) { root = new _twigBuilder;  _rootPlant::selectedPart = root; }
+
+                root->path = materialCache::getRelative(filepath.string());
+                root->name = filepath.filename().string();
+                root->loadPath();
+            }
+        } 
+
         ImGui::NewLine();
         if (root) root->treeView();
 
         ImGui::NextColumn();
         // now render the selected item.
-        if (selectedPart)
-        {
-            ImGui::PushFont(_gui->getFont("roboto_20"));
-            {
-                ImGui::Text(selectedPart->name.c_str());  // move to root lcass
-                TOOLTIP(selectedPart->path.c_str());
-                if (ImGui::Button("Load ..."))
-                {
-                    std::filesystem::path filepath;
-                    FileDialogFilterVec filters = {{selectedPart->ext()}};
-                    if (openFileDialog(filters, filepath))
-                    {
-                        std::ifstream is(filepath.string());
-                        cereal::JSONInputArchive archive(is);
-                        _leafBuilder* leaf = dynamic_cast<_leafBuilder*>(selectedPart);
-                        if (leaf) archive(*leaf);
-                        _twigBuilder* twig = dynamic_cast<_twigBuilder*>(selectedPart);
-                        if (twig) archive(*twig);
-
-                        selectedPart->path = materialCache::getRelative(filepath.string());
-                        selectedPart->name = filepath.filename().string();
-                    }
-                }
-                ImGui::SameLine();
-                if (selectedPart->changed) {
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.3f, 0.0f, 0.5f));
-                    ImGui::SameLine(0, 20);
-                    if (ImGui::Button("Save ..."))
-                    {
-                        std::ofstream os(terrafectorEditorMaterial::rootFolder + selectedPart->path);
-                        cereal::JSONOutputArchive archive(os);
-                        _leafBuilder* leaf = dynamic_cast<_leafBuilder*>(selectedPart);
-                        if (leaf) archive(*leaf);
-                        _twigBuilder* twig = dynamic_cast<_twigBuilder*>(selectedPart);
-                        if (twig) archive(*twig);
-                        selectedPart->changed = false;
-                    }
-                    ImGui::PopStyleColor();
-                }
-                
-                ImGui::SameLine(0, 20);
-                if (ImGui::Button("Save as"))
-                {
-                    std::filesystem::path filepath;
-                    FileDialogFilterVec filters = { {selectedPart->ext()} };
-                    if (saveFileDialog(filters, filepath))
-                    {
-                        std::ofstream os(filepath.string());
-                        cereal::JSONOutputArchive archive(os);
-                        _leafBuilder* leaf = dynamic_cast<_leafBuilder*>(selectedPart);
-                        if (leaf) archive(*leaf);
-                        _twigBuilder* twig = dynamic_cast<_twigBuilder*>(selectedPart);
-                        if (twig) archive(*twig);
-
-                        selectedPart->path = materialCache::getRelative(filepath.string());
-                        selectedPart->name = filepath.filename().string();
-                        selectedPart->changed = false;
-                    }
-                }
-                ImGui::PopFont();
-            }
-            selectedPart->renderGui(_gui);
-        }
+        if (selectedPart)       selectedPart->renderGui(_gui);
         if (selectedMaterial)
         {
         }
@@ -1030,7 +1128,6 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::PopFont();
     }
     builderPanel.release();
-
 }
 
 
