@@ -171,6 +171,29 @@ struct ribbonVertex
     static void setup(float scale, float radius, float3 offset);
     ribbonVertex8 pack();
 
+    void    startRibbon(bool _cameraFacing)
+    {
+        startBit = false;   // prepare for a new ribbon to start
+        type = !_cameraFacing;
+    }
+
+    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, unsigned char _albedo, unsigned char _translucency)
+    {
+        position = _node[3];
+        radius = _radius;
+        bitangent = _node[2];
+        tangent = _node[0];
+        material = _material;
+        uv = _uv;
+        albedoScale = _albedo;
+        translucencyScale = _translucency;
+        
+
+        startBit = true;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
+    }
+
+    // FIXME void light(lightCone light Depth ao shadow)
+
     int     type = 0;
     bool    startBit = false;
     float3  position;
@@ -222,22 +245,55 @@ public:
 class _plantBuilder
 {
 public:
-    void loadPath() { ; }
-    void savePath() { ; }
+    virtual void loadPath() { ; }
+    virtual void savePath() { ; }
     virtual void load() { ; }
     virtual void save() { ; }
     virtual void saveas() { ; }
-    virtual void renderGui(Gui* _gui) { ; }
+    virtual void renderGui() { ; }
     virtual void treeView() { ; }
     virtual void build(buildSetting& _settings) { ; }
 
     std::string name = "not set";
     std::string path = "no path either";   // relative
     bool changed = false;
+    static Gui* _gui;
 };
 
+enum plantType {P_LEAF, P_TWIG, PLANT_END};
+//std::vector plantExt = {"leaf", "twig"};
 
+// planmaterial repackadged for dandom_arrays
+class _plantRND
+{
+public:
+    //std::string name;
+    //std::string path;   // relative
+    plantType  type = PLANT_END;
+    std::unique_ptr<_plantBuilder> plantPtr;
 
+    void loadFromFile();
+    void reload();
+    void renderGui();
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        if (plantPtr)
+        {
+            archive(plantPtr->name);
+            archive(plantPtr->path);
+            archive(type);
+        }
+        else
+        {
+            std::string tmp_name, tmp_path;
+            archive(tmp_name);
+            archive(tmp_path);
+            archive(type);
+        }
+    }
+};
 
 
 
@@ -265,7 +321,7 @@ public:
     void load();
     void save();
     void saveas();
-    void renderGui(Gui* _gui);
+    void renderGui();
     void treeView();
     void build(buildSetting& _settings);
 
@@ -284,7 +340,7 @@ private:
     float2  leaf_width = { 60.f, 0.2f };
     float2  leaf_curve = { 0.0f, 0.2f };      // radian bend over lenth
     float2  leaf_twist = { 0.0f, 0.2f };      // radian bend over lenth
-    float2  width_offset = { 1.0f, 0.1f };
+    float2  width_offset = { 1.0f, 0.1f };      // Y value pushes teh leaf edges outwards makign it fatter
     float2  gravitrophy = { 0, 0 };
     int2    numVerts = { 3, 12 };
 
@@ -330,20 +386,59 @@ public:
     void load();
     void save();
     void saveas();
-    void renderGui(Gui* _gui);
+    void renderGui();
     void treeView();
     void build(buildSetting& _settings);
 
     FileDialogFilterVec filters = { {"twig"} };
 
-    _plantMaterial stemMaterial;
-    randomVector<_plantBuilder> leaves;
-    randomVector<_plantBuilder> tip;
-    randomVector<_plantMaterial> materials;
+    // stem
+    float2  age = { 5.3f, 0.3f };
+    int     startSegment = 1;       // first segment with leaves
+    float2  stem_length = { 50.f, 0.2f };   // in mm
+    float2  stem_width = { 5.f, 0.2f };
+    float2  stem_curve = { 0.2f, 0.3f };      // radian bend over lenth
+    float2  stem_phototropism = { 0.0f, 0.3f };
+    float2  node_angle = float2(0.2f, 0.2f);    // andgle that the stem bends at the node ??? always away fromt he leaf angle if there is such a thing
+    _vegMaterial stem_Material;
+
+    // leaves
+    float2  numLeaves = {3.f, 0.f};  // per segment
+    float2  leafRotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
+    float2  leaf_angle = float2(0.5f, 0.3f);   // angle that the leaves come out of
+    float2  leaf_rnd = float2(0.3f, 0.3f);
+    float   leaf_age_power = 2.f;
+    bool    twistAway = false;      // if single leaf, activelt twist stem to the other side
+    randomVector<_plantRND> leaves;
+
+    // tip
+    bool unique_tip;
+    randomVector<_plantRND> tip;
+
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
     {
+        archive_float2(age);
+        archive(startSegment);
+        archive_float2(stem_length);
+        archive_float2(stem_width);
+        archive_float2(stem_curve);
+        archive_float2(stem_phototropism);
+        archive_float2(node_angle);
+        archive(stem_Material);
+        stem_Material.reload();
+
+        archive_float2(numLeaves);
+        archive_float2(leafRotation);   // around the axis
+        archive_float2(leaf_angle);
+        archive_float2(leaf_rnd);
+        archive(leaf_age_power);
+        archive(twistAway);
+        archive(leaves.data);
+
+        archive(unique_tip);
+        archive(tip.data);
     }
 };
 CEREAL_CLASS_VERSION(_twigBuilder, 100);

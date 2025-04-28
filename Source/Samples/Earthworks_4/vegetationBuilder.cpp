@@ -1,7 +1,7 @@
 #include "vegetationBuilder.h"
 #include "imgui.h"
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -10,8 +10,8 @@ materialCache_plants _plantMaterial::static_materials_veg;
 std::string materialCache_plants::lastFile;
 
 
-_plantBuilder *_rootPlant::selectedPart = nullptr;
-_plantMaterial *_rootPlant::selectedMaterial = nullptr;
+_plantBuilder* _rootPlant::selectedPart = nullptr;
+_plantMaterial* _rootPlant::selectedMaterial = nullptr;
 
 std::mt19937 _rootPlant::generator(100);
 std::uniform_real_distribution<> _rootPlant::rand_1(-1.f, 1.f);
@@ -692,20 +692,64 @@ bool _vegMaterial::renderGui()
         if (ImGui::IsItemClicked())  loadFromFile();
         ImGui::PushID(ID);
         {
-            static float2 TST;
-            ImGui::DragFloat2("albedo", &TST.x, 0.1f, 0.1f, 2.0f);
+            ImGui::DragFloat2("albedo", &albedoScale.x, 0.1f, 0.1f, 2.0f);
             ImGui::DragFloat2("translucency", &translucencyScale.x, 0.1f, 0.1f, 2.0f);
             ImGui::PopID();
             ID++;
-        }        
+        }
         ImGui::TreePop();
     }
-    
+
 
     return false;
 }
 
 
+// FXME can I amstarct this away mnore, and combine it with the load at the bottom of the file that is amlmost identical
+void _plantRND::loadFromFile()
+{
+    std::filesystem::path filepath;
+    FileDialogFilterVec filters = { {"leaf"}, {"twig"} };
+    if (openFileDialog(filters, filepath))
+    {
+        if (filepath.string().find("leaf") != std::string::npos) { plantPtr.reset(new _leafBuilder); type = P_LEAF; }
+        if (filepath.string().find("twig") != std::string::npos) { plantPtr.reset(new _twigBuilder);  type = P_TWIG;   }
+
+        plantPtr->path = materialCache::getRelative(filepath.string());
+        plantPtr->name = filepath.filename().string();
+        //plantPtr->path = path;
+        //plantPtr->name = name;
+        plantPtr->loadPath();
+    }
+}
+
+
+void _plantRND::reload()
+{
+    switch (type)
+    {
+    case P_LEAF:   plantPtr.reset(new _leafBuilder);   break;
+    case P_TWIG:   plantPtr.reset(new _twigBuilder);   break;
+    }
+
+    plantPtr->path = path;
+    plantPtr->name = name;
+    plantPtr->loadPath();
+}
+
+
+void _plantRND::renderGui()
+{
+    if (ImGui::TreeNodeEx(plantPtr->name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
+    {
+        TOOLTIP(path.c_str());
+        if (ImGui::IsItemClicked())  loadFromFile();
+        ImGui::TreePop();
+    }
+}
+
+
+Gui* _plantBuilder::_gui;
 
 
 
@@ -724,10 +768,10 @@ template <class T>     void randomVector<T>::renderGui(char* name)
     {
         if (ImGui::Button(".  +  .")) { data.emplace_back(); }
         ImGui::SameLine(0, 50);
-        if (ImGui::Button(".  -  .")) { if(data.size() > 1) data.pop_back(); }
+        if (ImGui::Button(".  -  .")) { if (data.size() > 1) data.pop_back(); }
 
         for (auto& D : data) D.renderGui();
-        
+
         ImGui::TreePop();
     }
 }
@@ -735,18 +779,22 @@ template <class T>     void randomVector<T>::renderGui(char* name)
 
 
 
-ImVec4 select_color = ImVec4(0.2f, 0.2f, 0.0f, 1);
-ImVec4 twig_color = ImVec4(0.1f, 0.07f, 0.0f, 1);
-ImVec4 leaf_color = ImVec4(0.0f, 0.1f, 0.01f, 1);
-ImVec4 mat_color = ImVec4(0.0f, 0.03f, 0.09f, 1);
+
+ImVec4 twig_color = ImVec4(0.07f, 0.03f, 0.0f, 1);
+ImVec4 leaf_color = ImVec4(0.02f, 0.07f, 0.01f, 1);
+ImVec4 mat_color = ImVec4(0.0f, 0.01f, 0.07f, 1);
 
 #define CLICK_PART if (ImGui::IsItemClicked()) { _rootPlant::selectedPart = this; _rootPlant::selectedMaterial = nullptr; }
 #define CLICK_MATERIAL if (ImGui::IsItemClicked()) { _rootPlant::selectedPart = nullptr; _rootPlant::selectedMaterial = &mat; }
 #define TOOLTIP_PART(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 #define TOOLTIP_MATERIAL(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
-#define TREE_MAT(x)  style.Colors[ImGuiCol_HeaderActive] = mat_color; ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed);
-#define TREE_LEAF(x)  style.Colors[ImGuiCol_HeaderActive] = leaf_color; if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed)) 
-#define TREE_TWIG(x)  style.Colors[ImGuiCol_HeaderActive] = twig_color; if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
+//#define TREE_MAT(x)  style.Colors[ImGuiCol_HeaderActive] = mat_color; ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed);
+//#define TREE_LEAF(x)  style.Colors[ImGuiCol_HeaderActive] = leaf_color; if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed)) 
+//#define TREE_TWIG(x)  style.Colors[ImGuiCol_HeaderActive] = twig_color; if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
+
+#define TREE_LINE(x,t)  if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) 
+//                        TOOLTIP(t);
+
 
 #define R_LENGTH(name,data,t1,t2)    ImGui::PushID(gui_id); \
                     ImGui::Text(name);    \
@@ -769,6 +817,24 @@ ImVec4 mat_color = ImVec4(0.0f, 0.03f, 0.09f, 1);
                     ImGui::SameLine(0, 10); \
                     ImGui::SetNextItemWidth(80);    \
                     if (ImGui::DragInt("##Y", &data.y, 0.1f, 3, 32)) changed = true; \
+                    ImGui::PopID(); \
+                    gui_id ++;
+
+#define R_INT(name,data,min,max,tooltip)    ImGui::PushID(gui_id); \
+                    ImGui::Text(name);    \
+                    ImGui::SameLine(80, 0); \
+                    ImGui::SetNextItemWidth(80);    \
+                    if (ImGui::DragInt("##X", &data, 0.1f, min, max)) changed = true; \
+                    TOOLTIP(tooltip); \
+                    ImGui::PopID(); \
+                    gui_id ++;
+
+#define R_FLOAT(name,data,min,max,tooltip)    ImGui::PushID(gui_id); \
+                    ImGui::Text(name);    \
+                    ImGui::SameLine(80, 0); \
+                    ImGui::SetNextItemWidth(80);    \
+                    if (ImGui::DragFloat("##X", &data, 0.1f, min, max)) changed = true; \
+                    TOOLTIP(tooltip); \
                     ImGui::PopID(); \
                     gui_id ++;
 
@@ -797,7 +863,7 @@ void _leafBuilder::savePath()
 
 void _leafBuilder::load()
 {
-    if (ImGui::Button("Load", ImVec2(60, 0)))
+    if (ImGui::Button("Load##_leafBuilder", ImVec2(60, 0)))
     {
         std::filesystem::path filepath;
         if (openFileDialog(filters, filepath))
@@ -814,7 +880,7 @@ void _leafBuilder::save()
 {
     if (changed) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
-        if (ImGui::Button("Save", ImVec2(60,0)))
+        if (ImGui::Button("Save##_leafBuilder", ImVec2(60, 0)))
         {
             savePath();
         }
@@ -825,7 +891,7 @@ void _leafBuilder::save()
 
 void _leafBuilder::saveas()
 {
-    if (ImGui::Button("Save as", ImVec2(60, 0)))
+    if (ImGui::Button("Save as##_leafBuilder", ImVec2(60, 0)))
     {
         std::filesystem::path filepath;
         if (saveFileDialog(filters, filepath))
@@ -838,7 +904,7 @@ void _leafBuilder::saveas()
 }
 
 
-void _leafBuilder::renderGui(Gui* _gui)
+void _leafBuilder::renderGui()
 {
     ImGui::Text(name.c_str());  // move to root lcass
     TOOLTIP(path.c_str());
@@ -853,7 +919,7 @@ void _leafBuilder::renderGui(Gui* _gui)
     }
     ImGui::PopFont();
 
-    
+
 
     ImGui::NewLine();
     ImGui::Text("stem");
@@ -879,6 +945,7 @@ void _leafBuilder::renderGui(Gui* _gui)
     R_LENGTH("gavity", gravitrophy, "rotate towards the ground or sky", "random");
     R_VERTS("num verts", numVerts);
     ImGui::NewLine();
+    ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
     materials.renderGui("materials");
 }
 
@@ -886,45 +953,81 @@ void _leafBuilder::renderGui(Gui* _gui)
 void _leafBuilder::treeView()
 {
     auto& style = ImGui::GetStyle();
-
-    TREE_LEAF("leaf")
+    style.Colors[ImGuiCol_Header] = leaf_color;
+    if (_rootPlant::selectedPart == this)   style.FrameBorderSize = 2;
+    
+    TREE_LINE(name.c_str(), path.c_str())
     {
         CLICK_PART;
-        std::string tool = name + "\n" + path;
-        TOOLTIP(tool.c_str());
         ImGui::TreePop();
     }
 }
 
+#define RND_B(data) data.x * (1.f + data.y * (float)dist(gen))
 
 void _leafBuilder::build(buildSetting& _settings)
 {
     std::mt19937 gen(_settings.seed);
     std::uniform_real_distribution<> dist(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
-    glm::mat4 temp[200];   // always build all 200
     glm::mat4 node = _settings.root;
     ribbonVertex R;
 
+    
+    // stem
     if (stem_length.x > 0 && stem_width.x > 0)
     {
-        float length = stem_length.x * (1.f + stem_length.y * dist(gen)) / 100.f * 0.001f;   // to meters and age
+        float length = RND_B(stem_length) / 100.f * 0.001f;   // to meters and age
         float width = stem_width.x * 0.001f;
-        float curve = stem_curve.x * (1.f + stem_curve.y * dist(gen)) / 100.f;
+        float curve = RND_B(stem_curve) / 100.f;
+
+        // Lodding stem............................................................
+        float sW = stem_width.x * 0.001f;
+        bool showStem = sW > _settings.pixelSize;
+        float dStem = glm::clamp(pow(sW / _settings.pixelSize, 0.5f), 0.f, 1.f);
+        int stem_V = stemVerts.x + (int)((stemVerts.y - stemVerts.x) * dStem);
+        float step = 99.f / (stem_V - 1);
+        float cnt = 0.f;
+        R.startRibbon(true);
+        R.set(node, sW * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
+
         for (int i = 0; i < 100; i++)
         {
             node = glm::rotate(node, curve, (glm::vec3)node[0]);
             node = glm::translate(node, (glm::vec3)node[2] * length);
-            temp[i] = node;
+
+            cnt++;
+            if (cnt >= step)
+            {
+                R.set(node, sW * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
+                // now also push it to some vector
+                cnt -= step;
+            }
         }
+    }
 
-        // rotation from stem to leaf
-        node = glm::rotate(node, curve, (glm::vec3)node[0]);
+    // rotation from stem to leaf
+    node = glm::rotate(node, RND_B(stem_to_leaf), (glm::vec3)node[0]);
 
-        bool firstVertex = true;
+
+    {
         _vegMaterial mat = materials.get();
         unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - _settings.age) * 127.f);// +distAlbedo(gen);
         unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - _settings.age) * 127.f);
+
+        // Lodding leaf............................................................
+        float sW = stem_width.x * 0.001f;
+        bool showStem = sW > _settings.pixelSize;
+        float dStem = glm::clamp(pow(sW / _settings.pixelSize, 0.5f), 0.f, 1.f);
+        int stem_V = stemVerts.x + (int)((stemVerts.y - stemVerts.x) * dStem);
+        float step = 99.f / (stem_V - 1);
+        float cnt = 0.f;
+        // Fixme search for first and last vertex on size 
+        R.startRibbon(cameraFacing);
+        float du = __min(1.f, width_offset.y);
+        if (stem_V == 2) du = 1.f;
+        R.set(node, sW * 0.5f, mat.index, float2(du, 0.f), albedoScale, translucentScale);
+        
         {
             float length = leaf_length.x * (1.f + leaf_length.y * dist(gen)) / 100.f * 0.001f;   // to meters and age
             float width = leaf_width.x * (1.f + leaf_width.y * dist(gen)) / 100.f * 0.001f;
@@ -935,29 +1038,21 @@ void _leafBuilder::build(buildSetting& _settings)
             {
                 float t = (float)i / 100.f;
                 float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
-                // NUMVERTS so if 2 just make it big, this can happen especialyl petals if (leafCNT < 3) du = 1;
+                if (stem_V == 2) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
 
                 curve += (leaf_curve.y * dist(gen)) / 100.f;
                 twist += (leaf_twist.y * dist(gen)) / 100.f;
                 node = glm::rotate(node, curve, (glm::vec3)node[0]);
                 node = glm::rotate(node, twist, (glm::vec3)node[2]);
                 node = glm::translate(node, (glm::vec3)node[2] * length);
-                temp[100 + i] = node;
 
-                //R.startSet(, cameraFacing)  // for first vertex
-                // R.set(node, radius, material, uv, A_scale, T_scale);
-                R.type = !cameraFacing;
-                R.startBit = !firstVertex;
-                R.position = node[3];
-                R.radius = width * 0.5f * du;
-                R.bitangent = node[2];
-                R.tangent = node[0];
-                R.material = mat.index;
-                R.albedoScale = albedoScale;
-                R.translucencyScale = translucentScale;
-                R.uv = float2(du, 1.f + t);
-
-                firstVertex = false;
+                cnt++;
+                if (cnt >= step)
+                {
+                    R.set(node, width * 0.5f * du, mat.index, float2(du, 1.f + t), albedoScale, translucentScale);
+                    // now also push it to some vector
+                    cnt -= step;
+                }
             }
         }
     }
@@ -989,7 +1084,7 @@ void _twigBuilder::savePath()
 
 void _twigBuilder::load()
 {
-    if (ImGui::Button("Load", ImVec2(60, 0)))
+    if (ImGui::Button("Load##_twigBuilder", ImVec2(60, 0)))
     {
         std::filesystem::path filepath;
         if (openFileDialog(filters, filepath))
@@ -1006,7 +1101,7 @@ void _twigBuilder::save()
 {
     if (changed) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
-        if (ImGui::Button("Save", ImVec2(60, 0)))
+        if (ImGui::Button("Save##_twigBuilder", ImVec2(60, 0)))
         {
             savePath();
         }
@@ -1017,7 +1112,7 @@ void _twigBuilder::save()
 
 void _twigBuilder::saveas()
 {
-    if (ImGui::Button("Save as", ImVec2(60, 0)))
+    if (ImGui::Button("Save as##_twigBuilder", ImVec2(60, 0)))
     {
         std::filesystem::path filepath;
         if (saveFileDialog(filters, filepath))
@@ -1029,7 +1124,7 @@ void _twigBuilder::saveas()
     }
 }
 
-void _twigBuilder::renderGui(Gui* _gui)
+void _twigBuilder::renderGui()
 {
     ImGui::Text(name.c_str());
     TOOLTIP(path.c_str());
@@ -1044,38 +1139,62 @@ void _twigBuilder::renderGui(Gui* _gui)
     }
     ImGui::PopFont();
 
+
+    ImGui::NewLine();
+    ImGui::Text("stem");
+    unsigned int gui_id = 1001;
+    R_LENGTH("age", age, "total number of nodes", "random is used for automatic variations");
+    R_INT("start", startSegment, 1, 20, "first segment with leaves\nbelow this is bare stalk");
+    R_LENGTH("length", stem_length, "stem length in mm", "random");
+    R_LENGTH("width", stem_width, "stem width in mm", "random");
+    R_LENGTH("curve", stem_curve, "curve in a single segment", "random");
+    R_LENGTH("phototropism", stem_phototropism, "", "random");
+    R_LENGTH("node angle", node_angle, "stem bend at a node", "random");
+    ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
+    stem_Material.renderGui();
+
+    // leaves
+    ImGui::NewLine();
+    ImGui::Text("stem");
+    R_LENGTH("numLeaves", numLeaves, "stem length in mm", "random");
+    R_LENGTH("rotation", leafRotation, "rotation around teh stalk", "random");
+    R_LENGTH("angle", leaf_angle, "angle of teh stalk t the ", "change of angle as it ages, usually drooping");
+    R_LENGTH("random", leaf_rnd, "randomness in the angles", "random");
+    R_FLOAT("age_power", leaf_age_power, 1.f, 5.f, "");
+    if (ImGui::Checkbox("twistAway", &twistAway)) changed = true; TOOLTIP("does trh stalk try t0 twis awat from a single leaf");
+    ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
+    leaves.renderGui("leaves");
+
+    // tip
+    ImGui::NewLine();
+    ImGui::Text("stem");
+    if (ImGui::Checkbox("unique_tip", &unique_tip)) changed = true;
+    if (unique_tip)
+    {
+        ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
+        tip.renderGui("tip");
+    }    
 }
 
 void _twigBuilder::treeView()
 {
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, twig_color);
+    auto& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_Header] = twig_color;
+    if (_rootPlant::selectedPart == this)   style.FrameBorderSize = 2;
 
-    ImGui::PushStyleColor(ImGuiCol_Header, twig_color);
-    if (ImGui::TreeNodeEx("twig", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
+    TREE_LINE(name.c_str(), path.c_str())
     {
-        if (ImGui::IsItemClicked()) { _rootPlant::selectedPart = this; _rootPlant::selectedMaterial = nullptr; }
-        TOOLTIP("twig tipe - NAME here\nmaybe full path vegetation/bushes/grass/grass_03");
-
-        ImGui::PushStyleColor(ImGuiCol_Header, mat_color);
-        ImGui::TreeNodeEx("mat-stem", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed);
-        if (ImGui::IsItemClicked()) { ; }
-        TOOLTIP("material tipe");
-
-
-        ImGui::PopStyleColor();
-
-        for (_plantBuilder& l : leaves.data)
+        style.FrameBorderSize = 0;
+        CLICK_PART;
+        ImGui::Text("leaves");
+        for (auto& L : leaves.data) { if (L.plantPtr) L.plantPtr->treeView(); }
+        if (unique_tip)
         {
-            l.treeView();
+            ImGui::Text("tip");
+            for (auto& L : tip.data) { if (L.plantPtr) L.plantPtr->treeView(); }
         }
-        for (_plantBuilder& l : tip.data)
-        {
-            l.treeView();
-        }
-
         ImGui::TreePop();
     }
-    ImGui::PopStyleColor();
 }
 
 void _twigBuilder::build(buildSetting& _settings)
@@ -1093,6 +1212,7 @@ void _rootPlant::renderGui(Gui* _gui)
     Gui::Window builderPanel(_gui, "vegetation builder", { 900, 900 }, { 100, 100 });
     {
         ImGui::PushFont(_gui->getFont("roboto_18"));
+        _plantBuilder::_gui = _gui;
 
         ImGui::Columns(2);
         if (ImGui::Button("new Leaf")) { if (root) delete root; root = new _leafBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
@@ -1101,26 +1221,29 @@ void _rootPlant::renderGui(Gui* _gui)
 
         if (ImGui::Button("Load")) {
             std::filesystem::path filepath;
-            FileDialogFilterVec filters = { {"leaf", "twig"}};
+            FileDialogFilterVec filters = { {"leaf"}, {"twig"} };
             if (openFileDialog(filters, filepath))
             {
                 _rootPlant::selectedMaterial = nullptr;
                 if (root) delete root;
-                if (filepath.string().find("leaf") != std::string::npos) { root = new _leafBuilder;  _rootPlant::selectedPart = root; }
-                if (filepath.string().find("twig") != std::string::npos) { root = new _twigBuilder;  _rootPlant::selectedPart = root; }
+                if (filepath.string().find(".leaf") != std::string::npos) { root = new _leafBuilder;  _rootPlant::selectedPart = root; }
+                if (filepath.string().find(".twig") != std::string::npos) { root = new _twigBuilder;  _rootPlant::selectedPart = root; }
 
-                root->path = materialCache::getRelative(filepath.string());
-                root->name = filepath.filename().string();
-                root->loadPath();
+                if (root)
+                {
+                    root->path = materialCache::getRelative(filepath.string());
+                    root->name = filepath.filename().string();
+                    root->loadPath();
+                }
             }
-        } 
+        }
 
         ImGui::NewLine();
         if (root) root->treeView();
 
         ImGui::NextColumn();
         // now render the selected item.
-        if (selectedPart)       selectedPart->renderGui(_gui);
+        if (selectedPart)       selectedPart->renderGui();
         if (selectedMaterial)
         {
         }
