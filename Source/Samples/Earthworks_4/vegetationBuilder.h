@@ -144,10 +144,11 @@ struct _vegetationMaterial {
 
 struct buildSetting
 {
-    glm::mat4   root;
-    float       age;
-    float       pixelSize;
-    int         seed;
+    float3      parentStemDir = { 0, 1, 0 };
+    glm::mat4   root; // expand for the root stem direction as well to avoid growing through
+    float       numSegments;
+    float       pixelSize = 0.001f;  //1 cm
+    int         seed = 101;
 };
 
 struct bakeSettings
@@ -168,12 +169,16 @@ struct ribbonVertex
     static float O;
     static float3 objectOffset;
 
+    static std::vector<ribbonVertex>    ribbons;
+    static std::vector<ribbonVertex8>    packed;
+    static bool pushStart;
+
     static void setup(float scale, float radius, float3 offset);
     ribbonVertex8 pack();
 
     void    startRibbon(bool _cameraFacing)
     {
-        startBit = false;   // prepare for a new ribbon to start
+        pushStart = false;   // prepare for a new ribbon to start
         type = !_cameraFacing;
     }
 
@@ -181,15 +186,15 @@ struct ribbonVertex
     {
         position = _node[3];
         radius = _radius;
-        bitangent = _node[2];
+        bitangent = _node[1];  // right handed matrix : up
         tangent = _node[0];
         material = _material;
         uv = _uv;
         albedoScale = _albedo;
         translucencyScale = _translucency;
-        
 
-        startBit = true;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
+        startBit = pushStart;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
+        pushStart = true;
     }
 
     // FIXME void light(lightCone light Depth ao shadow)
@@ -267,10 +272,10 @@ enum plantType {P_LEAF, P_TWIG, PLANT_END};
 class _plantRND
 {
 public:
-    //std::string name;
-    //std::string path;   // relative
+    std::string name;
+    std::string path;   // relative
     plantType  type = PLANT_END;
-    std::unique_ptr<_plantBuilder> plantPtr;
+    std::shared_ptr<_plantBuilder> plantPtr;
 
     void loadFromFile();
     void reload();
@@ -279,25 +284,24 @@ public:
     template<class Archive>
     void serialize(Archive& archive)
     {
-        if (plantPtr)
+/*        if (plantPtr)
         {
             archive(plantPtr->name);
             archive(plantPtr->path);
             archive(type);
         }
         else
-        {
-            std::string tmp_name, tmp_path;
-            archive(tmp_name);
-            archive(tmp_path);
+        {*/
+            archive(name);
+            archive(path);
             archive(type);
-        }
+        //}
     }
 };
 
 
 
-// would be nice if we have more controll over distribution including with age
+// would be nice if we have more controll over distribution including with numSegments
 template <class T> class randomVector 
 {
 public:
@@ -393,18 +397,18 @@ public:
     FileDialogFilterVec filters = { {"twig"} };
 
     // stem
-    float2  age = { 5.3f, 0.3f };
+    float2  numSegments = { 5.3f, 0.3f };
     int     startSegment = 1;       // first segment with leaves
     float2  stem_length = { 50.f, 0.2f };   // in mm
     float2  stem_width = { 5.f, 0.2f };
     float2  stem_curve = { 0.2f, 0.3f };      // radian bend over lenth
     float2  stem_phototropism = { 0.0f, 0.3f };
+    float2  node_rotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
     float2  node_angle = float2(0.2f, 0.2f);    // andgle that the stem bends at the node ??? always away fromt he leaf angle if there is such a thing
     _vegMaterial stem_Material;
 
     // leaves
     float2  numLeaves = {3.f, 0.f};  // per segment
-    float2  leafRotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
     float2  leaf_angle = float2(0.5f, 0.3f);   // angle that the leaves come out of
     float2  leaf_rnd = float2(0.3f, 0.3f);
     float   leaf_age_power = 2.f;
@@ -419,26 +423,29 @@ public:
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
     {
-        archive_float2(age);
+        archive_float2(numSegments);
         archive(startSegment);
         archive_float2(stem_length);
         archive_float2(stem_width);
         archive_float2(stem_curve);
         archive_float2(stem_phototropism);
+        archive_float2(node_rotation);   // around the axis
         archive_float2(node_angle);
         archive(stem_Material);
         stem_Material.reload();
 
         archive_float2(numLeaves);
-        archive_float2(leafRotation);   // around the axis
+       
         archive_float2(leaf_angle);
         archive_float2(leaf_rnd);
         archive(leaf_age_power);
         archive(twistAway);
         archive(leaves.data);
+        for (auto& M : leaves.data) M.reload();
 
         archive(unique_tip);
         archive(tip.data);
+        for (auto& M : tip.data) M.reload();
     }
 };
 CEREAL_CLASS_VERSION(_twigBuilder, 100);
@@ -451,8 +458,9 @@ CEREAL_CLASS_VERSION(_twigBuilder, 100);
 class _rootPlant
 {
 public:
+    void onLoad();
     void renderGui(Gui* _gui);
-    void build(glm::mat4 root, float _age, float _lodPixelsize, int _seed);
+    void build();
     void loadMaterials();
     void reloadMaterials();
 
@@ -461,10 +469,36 @@ public:
     void eXport();
 
     void bake(RenderContext* _renderContext);
+    void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos);
+    
 
     //??? lodding info, so it needs all the runtime data
 
     _plantBuilder *root = nullptr;
+    buildSetting settings;
+    bakeSettings bakeSettings;
+
+    // render and bake
+    Sampler::SharedPtr			sampler_ClampAnisotropic;
+    Sampler::SharedPtr			sampler_Ribbons;
+    RasterizerState::SharedPtr      rasterstate;
+    BlendState::SharedPtr           blendstate;
+    pixelShader vegetationShader;
+    pixelShader bakeShader;
+    ShaderVar varVegTextures;
+    ShaderVar varBakeTextures;
+
+    Buffer::SharedPtr blockData;
+    Buffer::SharedPtr instanceData;
+    Buffer::SharedPtr plantData;
+    Buffer::SharedPtr vertexData;
+    std::array<plant, 256> plantBuf;
+    std::array<plant_instance, 16384> instanceBuf;
+    std::array<block_data, 16384> blockBuf;
+    std::array<ribbonVertex8, 128 * 256> vertexBuf;
+
+
+
 
     static _plantBuilder *selectedPart;
     static _plantMaterial *selectedMaterial;
@@ -478,9 +512,6 @@ public:
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
     {
-        //archive( cereal::base_class<_plantBuilder>( this ), y );
-        reloadMaterials();
-        rand_1.
     }
 };
 CEREAL_CLASS_VERSION(_rootPlant, 100);

@@ -231,7 +231,7 @@ struct _twig
 
     bool    has_stem = true;
     float2  stem_length = float2(50.f, 0.2f);
-    float   age = 5.3f;
+    float   numSegments = 5.3f;
     int     startSegment = 1;
     float   stem_width = 5.f;
     float2  stem_curve = { 0.2f, 0.3f };      // radian bend over lenth
@@ -240,7 +240,7 @@ struct _twig
     float2  stem_stalk = float2(0.f, 1.f);
 
     int     numLeaves = 4;  // per segment
-    float   leafRotation = 0.7f;   // like 2 leaves 90 degrees
+    float   stemRotation = 0.7f;   // like 2 leaves 90 degrees
     float   leaf_age_power = 2.f;
     bool    twistAway = false;      // if single leaf, activelt twist to the other side
     _leaf   leaves;
@@ -263,7 +263,7 @@ struct _twig
     void serialize(Archive& archive, std::uint32_t const _version)
     {
         archive(CEREAL_NVP(has_stem));
-        archive(CEREAL_NVP(age));
+        archive(CEREAL_NVP(numSegments));
         archive(CEREAL_NVP(startSegment));
         
         archive_float2(stem_length);
@@ -273,7 +273,7 @@ struct _twig
         archive(CEREAL_NVP(stem_Material));
 
         archive(CEREAL_NVP(numLeaves));
-        archive(CEREAL_NVP(leafRotation));
+        archive(CEREAL_NVP(stemRotation));
         archive(CEREAL_NVP(twistAway));
         archive(CEREAL_NVP(leaves));
 
@@ -366,7 +366,7 @@ struct _weed
     std::string filepath = "";
 
     int     rndSeed = 0;
-    float   age = 5.3f;
+    float   numSegments = 5.3f;
     //_leaf   leaves;
     std::vector<_twigCollection> twigs;
 
@@ -385,7 +385,7 @@ struct _weed
     void serialize(Archive& archive, std::uint32_t const _version)
     {
         archive(CEREAL_NVP(rndSeed));
-        archive(CEREAL_NVP(age));
+        archive(CEREAL_NVP(numSegments));
 
         archive(CEREAL_NVP(twigs));
     }

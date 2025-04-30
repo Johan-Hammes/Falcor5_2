@@ -874,8 +874,8 @@ void _twig::renderGui(Gui* _gui)
 
         ImGui::SetNextItemWidth(80);
         ImGui::SameLine(0, 10);
-        if (ImGui::DragFloat("##age", &age, 0.1f, 1.2f, 20, "%2.1f")) changed = true;
-        startSegment = __min(startSegment, (int)floor(age));
+        if (ImGui::DragFloat("##age", &numSegments, 0.1f, 1.2f, 20, "%2.1f")) changed = true;
+        startSegment = __min(startSegment, (int)floor(numSegments));
 
         ImGui::Text("length");
         ImGui::SameLine(80, 0);
@@ -939,7 +939,7 @@ void _twig::renderGui(Gui* _gui)
         ImGui::Text("rotation");
         ImGui::SameLine(80, 0);
         ImGui::SetNextItemWidth(80);
-        if (ImGui::DragFloat("##leafRotation", &leafRotation, 0.01f, 0, 2, "%3.2f")) changed = true;
+        if (ImGui::DragFloat("##leafRotation", &stemRotation, 0.01f, 0, 2, "%3.2f")) changed = true;
         TOOLTIP("spin around the axis from one leaf cluster to the next");
 
         ImGui::Text("age factor");
@@ -1035,7 +1035,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
     glm::mat4 UPstalk = glm::rotate(glm::mat4(1.0), uprotTheta, (glm::vec3)_start[2]);
     stalk = UPstalk * _start;
 
-    if (_age == 0) _age = this->age;
+    if (_age == 0) _age = this->numSegments;
     int     stemCNT = (int)ceil(_age);
     float   stemStep = 1.0f / ((float)stemCNT - 1.f);
     int     leafOffset = 0;
@@ -1074,7 +1074,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
                 for (int l = 0; l < numLeaves; l++)
                 {
 
-                    float rot = l * 6.14f / numLeaves + (i * leafRotation) + distribution(generator) * 0.05f;// +randStartLeafRotation;
+                    float rot = l * 6.14f / numLeaves + (i * stemRotation) + distribution(generator) * 0.05f;// +randStartLeafRotation;
                     glm::mat4 R = glm::rotate(glm::mat4(1.0), rot, (glm::vec3)stalk[2]);
                     glm::mat4 leaf = R * stalk;
                     float branch = stem_stalk.x + stem_stalk.y * leafAge + distribution(generator) * 0.4f;
@@ -1325,7 +1325,7 @@ void _weed::renderGui(Gui* _gui)
     ImGui::Text("age");
     ImGui::SameLine(80, 0);
     ImGui::SetNextItemWidth(80);
-    if (ImGui::DragFloat("##age", &age, 0.1f, 1.2f, 20, "%2.1f")) changed = true;
+    if (ImGui::DragFloat("##age", &numSegments, 0.1f, 1.2f, 20, "%2.1f")) changed = true;
     TOOLTIP("age");
 
     if (ImGui::Button("new twig"))
@@ -1456,7 +1456,7 @@ void _weed::build(float _age, float _lodPixelsize)
             S = R * S;
 
             float ageRange = 0.5f + 0.5f * ((1 - outside) * T.radiusAgeScale);
-            float A = age;// *(1.0f + T.rnd * (distribution(generator)))* ageRange;
+            float A = numSegments;// *(1.0f + T.rnd * (distribution(generator)))* ageRange;
 
             S[3] = glm::vec4(startPos, 0);
 
@@ -3271,9 +3271,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         vegetationShader.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
         vegetationShader.Vars()->setBuffer("block_buffer", vegetation.blockData);
         vegetationShader.Vars()->setBuffer("vertex_buffer", vegetation.vertexData);
-        vegetationShader.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
+        //vegetationShader.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
         vegetationShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
-        vegetationShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
+        //vegetationShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         vegetationShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
         vegetationShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
 
@@ -3283,9 +3283,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         vegetationShader_Bake.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
         vegetationShader_Bake.Vars()->setBuffer("block_buffer", vegetation.blockData);
         vegetationShader_Bake.Vars()->setBuffer("vertex_buffer", vegetation.vertexData);
-        vegetationShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
+        //vegetationShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
         vegetationShader_Bake.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
-        vegetationShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
+        //vegetationShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
         vegetationShader_Bake.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
 
 
@@ -3568,7 +3568,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     elevationCache.resize(45);
     loadElevationHash(pRenderContext);
 
-    imageCache.resize(35);
+    imageCache.resize(45);
     loadImageHash(pRenderContext);
 
     init_TopdownRender();
@@ -3582,7 +3582,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 
 
-
+    vegetation.ROOT.onLoad();
 
 
 
@@ -6708,6 +6708,7 @@ bool terrainManager::update(RenderContext* _renderContext)
 
     if (terrainMode == _terrainMode::vegetation)
     {
+        fullResetDoNotRender = false;
         return false;
     }
 
@@ -7104,6 +7105,7 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
                 }
                 else
                 {
+
                     bool bCM = true;
                     fprintf(terrafectorSystem::_logfile, "FIX imageCache.resize(55);  its still too small\n");
                     fprintf(terrafectorSystem::_logfile, "offset %d, lod %d, %s\n", mapTile.fileOffset, mapTile.lod, file.filename.c_str());
@@ -7946,7 +7948,10 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             triangleShader.State()->setBlendState(split.blendstateSplines);
             triangleShader.drawInstanced(_renderContext, 36, 1);
         }
+        vegetation.ROOT.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition());
 
+
+        /*
         if (_plantMaterial::static_materials_veg.modified)
         {
             auto& block = vegetationShader.Vars()->getParameterBlock("textures");
@@ -8032,7 +8037,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             vegetationShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber);
         }
-
+        */
         return;
     }
 

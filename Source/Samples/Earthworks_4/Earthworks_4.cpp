@@ -71,6 +71,14 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
                 camera->setPosition(float3(0, 500, 0));
             }
             //camera->renderUI()
+            /*
+            * camera = Camera::create();
+    camera->setDepthRange(0.1f, 40000.0f);
+    camera->setAspectRatio(1920.0f / 1080.0f);
+    camera->setFocalLength(15.0f);
+    camera->setPosition(float3(0, 900, 0));
+    camera->setTarget(float3(0, 900, 100));
+            */
 
             ImGui::Separator();
             ImGui::Checkbox("vsync", &refresh.vsync);

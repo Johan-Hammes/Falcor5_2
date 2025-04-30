@@ -24,6 +24,10 @@ float ribbonVertex::radiusScale = 0.20f;//  so biggest radius now objectScale / 
 float ribbonVertex::O = 16384.0f * ribbonVertex::objectScale * 0.5f;
 float3 ribbonVertex::objectOffset = float3(O, O * 0.5f, O);
 
+std::vector<ribbonVertex>    ribbonVertex::ribbons;
+std::vector<ribbonVertex8>    ribbonVertex::packed;
+bool ribbonVertex::pushStart = false;
+
 
 
 
@@ -715,10 +719,10 @@ void _plantRND::loadFromFile()
         if (filepath.string().find("leaf") != std::string::npos) { plantPtr.reset(new _leafBuilder); type = P_LEAF; }
         if (filepath.string().find("twig") != std::string::npos) { plantPtr.reset(new _twigBuilder);  type = P_TWIG;   }
 
-        plantPtr->path = materialCache::getRelative(filepath.string());
-        plantPtr->name = filepath.filename().string();
-        //plantPtr->path = path;
-        //plantPtr->name = name;
+        path = materialCache::getRelative(filepath.string());
+        name = filepath.filename().string();
+        plantPtr->path = path;
+        plantPtr->name = name;
         plantPtr->loadPath();
     }
 }
@@ -735,12 +739,12 @@ void _plantRND::reload()
     plantPtr->path = path;
     plantPtr->name = name;
     plantPtr->loadPath();
-}
+} 
 
 
 void _plantRND::renderGui()
 {
-    if (ImGui::TreeNodeEx(plantPtr->name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
+    if (ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
     {
         TOOLTIP(path.c_str());
         if (ImGui::IsItemClicked())  loadFromFile();
@@ -800,14 +804,28 @@ ImVec4 mat_color = ImVec4(0.0f, 0.01f, 0.07f, 1);
                     ImGui::Text(name);    \
                     ImGui::SameLine(80, 0); \
                     ImGui::SetNextItemWidth(80);    \
-                    if (ImGui::DragFloat("##X", &data.x, 1.f, 0, 300, "%2.f")) changed = true; \
+                    if (ImGui::DragFloat("##X", &data.x, 1.f, 0, 300, "%2.2fmm")) changed = true; \
                     TOOLTIP(t1); \
                     ImGui::SameLine(0, 10); \
                     ImGui::SetNextItemWidth(80);    \
-                    if (ImGui::DragFloat("##Y", &data.y, 0.1f, 0, 1, "%1.3f")) changed = true; \
+                    if (ImGui::DragFloat("##Y", &data.y, 0.01f, 0, 1, "%1.3f")) changed = true; \
                     TOOLTIP(t2); \
                     ImGui::PopID(); \
                     gui_id ++;
+
+#define R_CURVE(name,data,t1,t2)    ImGui::PushID(gui_id); \
+                    ImGui::Text(name);    \
+                    ImGui::SameLine(80, 0); \
+                    ImGui::SetNextItemWidth(80);    \
+                    if (ImGui::DragFloat("##X", &data.x, 0.01f, -5, 5, "%1.2f rad")) changed = true; \
+                    TOOLTIP(t1); \
+                    ImGui::SameLine(0, 10); \
+                    ImGui::SetNextItemWidth(80);    \
+                    if (ImGui::DragFloat("##Y", &data.y, 0.01f, 0, 5, "%1.3f rad")) changed = true; \
+                    TOOLTIP(t2); \
+                    ImGui::PopID(); \
+                    gui_id ++;
+
 
 #define R_VERTS(name,data)    ImGui::PushID(gui_id); \
                     ImGui::Text(name);    \
@@ -928,8 +946,8 @@ void _leafBuilder::renderGui()
     R_LENGTH("width", stem_width, "stem width in mm", "random");
     if (stem_length.x > 0 && stem_width.x > 0)
     {
-        R_LENGTH("curve", stem_curve, "stem curvature", "random");
-        R_LENGTH("angle", stem_to_leaf, "stem to leaf angle in radians", "random");
+        R_CURVE("curve", stem_curve, "stem curvature", "random");
+        R_CURVE("angle", stem_to_leaf, "stem to leaf angle in radians", "random");
         R_VERTS("num verts", stemVerts);
         stem_Material.renderGui();
     }
@@ -940,9 +958,9 @@ void _leafBuilder::renderGui()
     R_LENGTH("length", leaf_length, "mm", "random");
     R_LENGTH("width", leaf_width, "mm", "random");
     R_LENGTH("offset", width_offset, "", "random");
-    R_LENGTH("curve", leaf_curve, "radians", "random");
-    R_LENGTH("twist", leaf_twist, "radians", "random");
-    R_LENGTH("gavity", gravitrophy, "rotate towards the ground or sky", "random");
+    R_CURVE("curve", leaf_curve, "radians", "random");
+    R_CURVE("twist", leaf_twist, "radians", "random");
+    R_CURVE("gavity", gravitrophy, "rotate towards the ground or sky", "random");
     R_VERTS("num verts", numVerts);
     ImGui::NewLine();
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
@@ -963,23 +981,35 @@ void _leafBuilder::treeView()
     }
 }
 
-#define RND_B(data) data.x * (1.f + data.y * (float)dist(gen))
+#define RND_B(data) (data.x * (1.f + data.y * (float)dist(_rootPlant::generator)))
+#define RND_CRV(data) (data.x + (data.y * (float)dist(_rootPlant::generator)))
+
+#define CURVE(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[0])     // pitch
+#define TWIST(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[1])     // roll
+#define CURVE_Z(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[2])   // yaw
+
+#define GROW(_mat,_length)   _mat[3] += _mat[1] * _length
+
+#define ROLL(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 1, 0))
+#define PITCH(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(1, 0, 0))
+#define YAW(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 0, 1))
+#define RPY(_mat,_r,_p,_y)  TWIST(_mat,_r) * CURVE(_mat,_p) * CURVE_Z(_mat,_y)
 
 void _leafBuilder::build(buildSetting& _settings)
 {
-    std::mt19937 gen(_settings.seed);
+    //std::mt19937 gen(_settings.seed);
     std::uniform_real_distribution<> dist(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     glm::mat4 node = _settings.root;
-    ribbonVertex R;
+    ribbonVertex R_verts;
 
     
     // stem
     if (stem_length.x > 0 && stem_width.x > 0)
     {
-        float length = RND_B(stem_length) / 100.f * 0.001f;   // to meters and age
+        float length = RND_B(stem_length) / 100.f * 0.001f;   // to meters and numSegments
         float width = stem_width.x * 0.001f;
-        float curve = RND_B(stem_curve) / 100.f;
+        float curve = RND_CRV(stem_curve) / 100.f;
 
         // Lodding stem............................................................
         float sW = stem_width.x * 0.001f;
@@ -988,18 +1018,23 @@ void _leafBuilder::build(buildSetting& _settings)
         int stem_V = stemVerts.x + (int)((stemVerts.y - stemVerts.x) * dStem);
         float step = 99.f / (stem_V - 1);
         float cnt = 0.f;
-        R.startRibbon(true);
-        R.set(node, sW * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
+        R_verts.startRibbon(true);
+        R_verts.set(node, sW * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
+        if (showStem) ribbonVertex::ribbons.push_back(R_verts);
 
         for (int i = 0; i < 100; i++)
         {
-            node = glm::rotate(node, curve, (glm::vec3)node[0]);
-            node = glm::translate(node, (glm::vec3)node[2] * length);
+            //node = glm::rotate(node, curve, (glm::vec3)node[0]);
+            node = node * CURVE(node, curve);
+            //node = glm::translate(node, (glm::vec3)node[2] * length);
+            //node[3] += node[1] * length;
+            GROW(node, length);
 
             cnt++;
-            if (cnt >= step)
+            if (showStem  && cnt >= step)
             {
-                R.set(node, sW * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
+                R_verts.set(node, sW * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
+                ribbonVertex::ribbons.push_back(R_verts);
                 // now also push it to some vector
                 cnt -= step;
             }
@@ -1007,50 +1042,58 @@ void _leafBuilder::build(buildSetting& _settings)
     }
 
     // rotation from stem to leaf
-    node = glm::rotate(node, RND_B(stem_to_leaf), (glm::vec3)node[0]);
-
+    //node = glm::rotate(node, RND_CRV(stem_to_leaf), (glm::vec3)node[0]);
+    node = node * CURVE(node, RND_CRV(stem_to_leaf));
 
     {
         _vegMaterial mat = materials.get();
-        unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - _settings.age) * 127.f);// +distAlbedo(gen);
-        unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - _settings.age) * 127.f);
+        unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - _settings.numSegments) * 127.f);// +distAlbedo(gen);
+        unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - _settings.numSegments) * 127.f);
 
         // Lodding leaf............................................................
-        float sW = stem_width.x * 0.001f;
+        float sW = leaf_width.x * 0.001f;
         bool showStem = sW > _settings.pixelSize;
         float dStem = glm::clamp(pow(sW / _settings.pixelSize, 0.5f), 0.f, 1.f);
-        int stem_V = stemVerts.x + (int)((stemVerts.y - stemVerts.x) * dStem);
+        int stem_V = numVerts.x + (int)((numVerts.y - numVerts.x) * dStem);
         float step = 99.f / (stem_V - 1);
         float cnt = 0.f;
         // Fixme search for first and last vertex on size 
-        R.startRibbon(cameraFacing);
+        R_verts.startRibbon(cameraFacing);
         float du = __min(1.f, width_offset.y);
         if (stem_V == 2) du = 1.f;
-        R.set(node, sW * 0.5f, mat.index, float2(du, 0.f), albedoScale, translucentScale);
+        R_verts.set(node, sW * 0.5f, mat.index, float2(du, 0.f), albedoScale, translucentScale);
+        ribbonVertex::ribbons.push_back(R_verts);
         
         {
-            float length = leaf_length.x * (1.f + leaf_length.y * dist(gen)) / 100.f * 0.001f;   // to meters and age
-            float width = leaf_width.x * (1.f + leaf_width.y * dist(gen)) / 100.f * 0.001f;
-            float gravi = gravitrophy.x * (1.f + gravitrophy.y * dist(gen)) / 100.f;
-            float curve = leaf_curve.x / 100.f;
-            float twist = leaf_twist.x / 100.f;
+            float length = RND_B(leaf_length) / 100.f * 0.001f;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
+            float width = RND_B(leaf_width) * 0.001f;
+            float gravi = RND_CRV(gravitrophy) / 100.f;
+            float curve = RND_CRV(leaf_curve) / 100.f;
+            float twist = RND_CRV(leaf_twist) / 100.f;
             for (int i = 0; i < 100; i++)
             {
                 float t = (float)i / 100.f;
                 float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
                 if (stem_V == 2) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
 
-                curve += (leaf_curve.y * dist(gen)) / 100.f;
-                twist += (leaf_twist.y * dist(gen)) / 100.f;
-                node = glm::rotate(node, curve, (glm::vec3)node[0]);
-                node = glm::rotate(node, twist, (glm::vec3)node[2]);
-                node = glm::translate(node, (glm::vec3)node[2] * length);
+                //curve += (leaf_curve.y * dist(_rootPlant::generator)) / 100.f;
+                //twist += (leaf_twist.y * dist(_rootPlant::generator)) / 100.f;
+                //node = glm::rotate(node, curve, (glm::vec3)node[0]);
+                //node = glm::rotate(node, curve, glm::vec3(1,0,0));
+                //node = glm::rotate(node, twist, (glm::vec3)node[1]);
+                //node = glm::translate(node, (glm::vec3)node[2] * length);
+                //node[3] += node[1] * length;
+                //node = node * TWIST(node, twist) * CURVE(node, curve);
+                //node = CURVE(node, curve);
+                ROLL(node, twist);
+                PITCH(node, curve);
+                GROW(node, length);
 
                 cnt++;
                 if (cnt >= step)
                 {
-                    R.set(node, width * 0.5f * du, mat.index, float2(du, 1.f + t), albedoScale, translucentScale);
-                    // now also push it to some vector
+                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 1.f + t), albedoScale, translucentScale);
+                    ribbonVertex::ribbons.push_back(R_verts);
                     cnt -= step;
                 }
             }
@@ -1143,13 +1186,14 @@ void _twigBuilder::renderGui()
     ImGui::NewLine();
     ImGui::Text("stem");
     unsigned int gui_id = 1001;
-    R_LENGTH("age", age, "total number of nodes", "random is used for automatic variations");
-    R_INT("start", startSegment, 1, 20, "first segment with leaves\nbelow this is bare stalk");
+    R_LENGTH("age", numSegments, "total number of nodes", "random is used for automatic variations");
+    R_INT("start", startSegment, 0, 20, "first segment with leaves\nbelow this is bare stalk");
     R_LENGTH("length", stem_length, "stem length in mm", "random");
     R_LENGTH("width", stem_width, "stem width in mm", "random");
-    R_LENGTH("curve", stem_curve, "curve in a single segment", "random");
-    R_LENGTH("phototropism", stem_phototropism, "", "random");
-    R_LENGTH("node angle", node_angle, "stem bend at a node", "random");
+    R_CURVE("curve", stem_curve, "curve in a single segment", "random");
+    R_CURVE("phototropism", stem_phototropism, "", "random");
+    R_CURVE("twist", node_rotation, "twist of the stalk", "random");
+    R_CURVE("node angle", node_angle, "stem bend at a node", "random");
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
     stem_Material.renderGui();
 
@@ -1157,9 +1201,8 @@ void _twigBuilder::renderGui()
     ImGui::NewLine();
     ImGui::Text("stem");
     R_LENGTH("numLeaves", numLeaves, "stem length in mm", "random");
-    R_LENGTH("rotation", leafRotation, "rotation around teh stalk", "random");
-    R_LENGTH("angle", leaf_angle, "angle of teh stalk t the ", "change of angle as it ages, usually drooping");
-    R_LENGTH("random", leaf_rnd, "randomness in the angles", "random");
+    R_CURVE("angle", leaf_angle, "angle of teh stalk t the ", "change of angle as it ages, usually drooping");
+    R_CURVE("random", leaf_rnd, "randomness in the angles", "random");
     R_FLOAT("age_power", leaf_age_power, 1.f, 5.f, "");
     if (ImGui::Checkbox("twistAway", &twistAway)) changed = true; TOOLTIP("does trh stalk try t0 twis awat from a single leaf");
     ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
@@ -1197,14 +1240,184 @@ void _twigBuilder::treeView()
     }
 }
 
+
 void _twigBuilder::build(buildSetting& _settings)
 {
+    //std::mt19937 gen(_settings.seed);
+    std::uniform_real_distribution<> dist(-1.f, 1.f);
+    std::uniform_int_distribution<> distAlbedo(-50, 50);
+    glm::mat4 node = _settings.root;
+    std::vector<glm::mat4> NODES;
+    ribbonVertex R_verts;
+
+
+    // stem
+    // build the whole stem as one, writing to NODES
+    float nodePixels = (stem_length.x * 0.001f) / _settings.pixelSize;
+    int nodeNumSegments = __max(1, (int)pow(nodePixels / 4.f, 0.5f));
+    float segStep = 99.f / (float)nodeNumSegments;
+
+    R_verts.startRibbon(true);
+    float age = RND_B(numSegments);
+    int iAge = __max(1, (int)age);
+    for (int i = 0; i < iAge; i++)
+    {
+        float leafAge = 1.f -pow((float)i / age, leaf_age_power);
+        float L = RND_B(stem_length) * 0.001f / 100.f;
+        float W = RND_B(stem_width) * 0.001f * pow(leafAge, 0.4f);
+        float C = RND_CRV(stem_curve) / 100.f;
+        float P = RND_CRV(stem_phototropism) / 100.f;
+        
+        bool visible = W > _settings.pixelSize;
+        if (visible && i == 0) {
+            R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);   // set very first one
+            ribbonVertex::ribbons.push_back(R_verts);
+        }
+        float cnt = 0;
+        for (int j = 0; j < 100; j++)
+        {
+            //node = glm::rotate(node, C, (glm::vec3)node[0]);
+            PITCH(node, C);
+            // Gravitrophy ---------------------------------------------------------------
+            //glm::vec3 graviR = glm::normalize(glm::cross((glm::vec3)node[2], glm::vec3(0, 1, 0)));
+            //node = glm::rotate(node, P, graviR);
+            //node = glm::translate(node, (glm::vec3)node[2] * L);
+            //node[3] += node[1] * L;
+            GROW(node, L);
+            cnt++;
+            if (visible && cnt >= segStep)
+            {
+                R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 127, 127);
+                ribbonVertex::ribbons.push_back(R_verts);
+                // now also push it to some vector
+                cnt -= segStep;
+            }
+        }
+
+        NODES.push_back(node);
+
+        // now rotate for teh next segment
+        ////bool    twistAway = false;      // if single leaf, activelt twist stem to the other side
+        //float Nx = RND_CRV(node_angle);
+        //float Ny = RND_CRV(node_angle);
+        //float Rot = RND_CRV(node_rotation);
+        ROLL(node, RND_CRV(node_angle));
+        PITCH(node, RND_CRV(node_angle));
+        YAW(node, RND_CRV(node_rotation));
+
+        //node = glm::rotate(node, Nx, (glm::vec3)node[0]);
+        //node = glm::rotate(node, Ny, (glm::vec3)node[2]);
+        //node = glm::rotate(node, Rot, (glm::vec3)node[1]);
+        
+    }
+
+    // side nodes
+    int end = NODES.size();
+    if (unique_tip) end--;
+    for (int i = startSegment; i < end; i++)
+    {
+        float leafAge = 1.f - pow(i / age, leaf_age_power);
+        int numL = (int)RND_B(numLeaves);
+
+        
+        for (int j = 0; j < numL; j++)
+        {
+            node = NODES[i];
+            float A = leaf_angle.x;
+            float nodeTwist = 6.283185307f / (float)numL * (float)j;
+            buildSetting S_leaf = _settings;
+
+            ROLL(node, nodeTwist);
+            PITCH(node, A);
+            _settings.root = node;// ROLL(node, nodeTwist)* PITCH(node, A);// NODES[i] * TWIST(NODES[i], nodeTwist)* CURVE(NODES[i], A);
+            _plantRND LEAF = leaves.get();
+            if (LEAF.plantPtr) LEAF.plantPtr->build(_settings);
+        }
+    }
+
+
+    if (unique_tip)
+    {
+        _settings.root = NODES[end];
+        tip.get().plantPtr->build(_settings);
+    }
 }
 
 
 
 
 
+
+
+void _rootPlant::onLoad()
+{
+    plantData = Buffer::createStructured(sizeof(plant), 256);
+    instanceData = Buffer::createStructured(sizeof(plant_instance), 16384);
+    blockData = Buffer::createStructured(sizeof(block_data), 16384);
+    vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 256 * 128);
+
+    std::uniform_real_distribution<> RND(-1.f, 1.f);
+
+    for (int i = 0; i < 16384; i++)
+    {
+        instanceBuf[i].plant_idx = 0;
+        instanceBuf[i].position = { RND(generator) * 5, 0, RND(generator) * 5 };
+        instanceBuf[i].scale = 1.f + RND(generator) * 0.5f;
+        instanceBuf[i].rotation = RND(generator) * 3.14f;
+        instanceBuf[i].time_offset = RND(generator) * 100;
+    }
+    instanceBuf[0].position = { 0, 0, 0 };
+    instanceBuf[0].scale = 1.f;
+    instanceBuf[0].rotation = 0;
+    instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
+
+    for (int i = 0; i < 16384; i++)
+    {
+        blockBuf[i].block_idx = 0;
+        blockBuf[i].instance_idx = i;
+        blockBuf[i].section_idx = 0;
+    }
+
+    Sampler::Desc samplerDesc;
+    samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(4);
+    sampler_ClampAnisotropic = Sampler::create(samplerDesc);
+
+    samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(1);
+    sampler_Ribbons = Sampler::create(samplerDesc);
+
+
+    vegetationShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+    vegetationShader.Vars()->setBuffer("plant_buffer", plantData);
+    vegetationShader.Vars()->setBuffer("instance_buffer", instanceData);
+    vegetationShader.Vars()->setBuffer("block_buffer", blockData);
+    vegetationShader.Vars()->setBuffer("vertex_buffer", vertexData);
+    vegetationShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
+    vegetationShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
+    vegetationShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
+    auto& block = vegetationShader.Vars()->getParameterBlock("textures");
+    varVegTextures = block->findMember("T"); 
+
+    bakeShader.add("_BAKE", "");
+    bakeShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
+    bakeShader.Vars()->setBuffer("plant_buffer", plantData);
+    bakeShader.Vars()->setBuffer("instance_buffer", instanceData);
+    bakeShader.Vars()->setBuffer("block_buffer", blockData);
+    bakeShader.Vars()->setBuffer("vertex_buffer", vertexData);
+    bakeShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
+    bakeShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
+    block = bakeShader.Vars()->getParameterBlock("textures");
+    varBakeTextures = block->findMember("T");
+
+
+    RasterizerState::Desc rsDesc;
+    rsDesc.setFillMode(RasterizerState::FillMode::Solid).setCullMode(RasterizerState::CullMode::None);
+    rasterstate = RasterizerState::create(rsDesc);
+
+    BlendState::Desc blendDesc;
+    blendDesc.setRtBlend(0, true);
+    blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::Zero, BlendState::BlendFunc::Zero);
+    blendstate = BlendState::create(blendDesc);
+}
 
 
 void _rootPlant::renderGui(Gui* _gui)
@@ -1239,6 +1452,18 @@ void _rootPlant::renderGui(Gui* _gui)
         }
 
         ImGui::NewLine();
+        static float numPix = 100;
+        numPix = bakeSettings.objectSize / settings.pixelSize;
+        ImGui::DragFloat("size", &bakeSettings.objectSize, 0.1f, 1.f, 64.f, "%3.2fm");
+        ImGui::DragFloat("radius", &bakeSettings.radiusScale, 0.1f, 0.1f, 8.f, "%3.2fm");
+        if (ImGui::DragFloat("pixel", &numPix, 1.f, 1.f, 1000.f, "%3.2fm")) { settings.pixelSize = bakeSettings.objectSize / numPix;  }
+        ImGui::DragInt("seed", &settings.seed, 0, 1000);
+        ImGui::Text("%d verts", (int)ribbonVertex::packed.size());
+        if (ImGui::Button("BUILD")) build();
+
+        build();
+
+        ImGui::NewLine();
         if (root) root->treeView();
 
         ImGui::NextColumn();
@@ -1255,8 +1480,31 @@ void _rootPlant::renderGui(Gui* _gui)
 
 
 
-void _rootPlant::build(glm::mat4 root, float _age, float _lodPixelsize, int _seed)
+void _rootPlant::build()
 {
+    ribbonVertex::objectScale = bakeSettings.getScale();
+    ribbonVertex::radiusScale = bakeSettings.radiusScale;
+    ribbonVertex::objectOffset = bakeSettings.getOffset();
+
+    settings.parentStemDir = { 0, 1, 0 };
+    settings.root = glm::mat4(1.0);
+
+    ribbonVertex::ribbons.clear();
+    ribbonVertex::ribbons.reserve(2000);
+
+    generator.seed(settings.seed);
+    if (root) root->build(settings);
+
+    // Now light the plant
+
+    // now pack it
+    ribbonVertex::packed.clear();
+    ribbonVertex::packed.reserve(ribbonVertex::ribbons.size());
+    for (auto& R : ribbonVertex::ribbons)
+    {
+        ribbonVertex8 P = R.pack();
+        ribbonVertex::packed.push_back(P);
+    }
 }
 
 
@@ -1288,4 +1536,50 @@ void _rootPlant::eXport()
 
 void _rootPlant::bake(RenderContext* _renderContext)
 {
+}
+
+
+void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos )
+{
+    //if (_plantMaterial::static_materials_veg.modified || _plantMaterial::static_materials_veg.modifiedData)
+    if (ribbonVertex::packed.size() > 1)
+    {
+        _plantMaterial::static_materials_veg.modified = false;
+        _plantMaterial::static_materials_veg.modifiedData = false;
+        _plantMaterial::static_materials_veg.setTextures(varVegTextures);
+        _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
+
+        plantBuf[0].radiusScale = ribbonVertex::radiusScale;
+        plantBuf[0].scale = ribbonVertex::objectScale;
+        plantBuf[0].offset = ribbonVertex::objectOffset;
+        plantBuf[0].Ao_depthScale = 10;
+        plantBuf[0].bDepth = 1;
+        plantBuf[0].bScale = 1;
+        plantBuf[0].sunTilt = -0.2f;
+        plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+        //instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
+        //blockData->setBlob(blockBuf.data(), 0, 16384 * sizeof(block_data));
+        vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+
+        vegetationShader.State()->setFbo(_fbo);
+        vegetationShader.State()->setViewport(0, _viewport, true);
+        vegetationShader.State()->setRasterizerState(rasterstate);
+        vegetationShader.State()->setBlendState(blendstate);
+
+        vegetationShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
+    }
+
+
+
+    if (ribbonVertex::packed.size() > 1)
+    {
+        FALCOR_PROFILE("ribbonShader");
+        vegetationShader.Vars()["gConstantBuffer"]["viewproj"] = _viewproj;
+        vegetationShader.Vars()["gConstantBuffer"]["eyePos"] = camPos;
+        static float time = 0.0f;
+        time += 0.01f;  // FIXME I NEED A Timer
+        vegetationShader.Vars()["gConstantBuffer"]["time"] = time;
+
+        vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
+    }
 }

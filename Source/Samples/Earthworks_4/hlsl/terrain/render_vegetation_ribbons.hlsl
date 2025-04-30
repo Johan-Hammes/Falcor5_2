@@ -5,83 +5,9 @@
 
 
 
-/*
-struct ribbonVertex
-{
-    (1, 1, 14, 16)bit position        // start EMPTY x y
-    (14, 10, 8)                     // z, material, v
-    (9, 8, 8, 7) yaw pitch, radius mm up to 1m dws 2m width, 7 bits free (32 ? u)            // up
-    (9, 8, 7, 8) yaw pitch, cone, depth         // lighting    0.7 degree 7 bit cone 8 bit depth
-        lerp(0, 1, (dot + cone)*.5 + .5  )
-};
-
-struct ribbonVertex_6
-{
-    (1, 1, 14, 16)  type, start, x, y        // type (ribbon, flat ribbon)
-    (14, 10, 8)     z, material, animation-blend
-    (9, 8, 15)      bitangent yaw pitch, v
-    (9, 8, 7, 8)    tangent yaw pitch, u, radius
-    (9, 8, 7, 8)    yaw pitch, cone, depth         // lighting    0.7 degree 7 bit cone 8 bit depth
-    (8, 8, 8, 8)    ao, shadow, albedoScale, trandslucencyScale,
-// FUCK bend down middle of the leaf data V, amount, how many triangles to spit out etc
-};
-
-struct triVertex_6
-{
-    (2, 14, 16)     position        // type (ribbon, flat ribbon, trimesh) x y
-    (14, 10, 8)     z, material, anmation-blend
-    (9, 8, 15)   bitangent yaw pitch, v
-    (9, 8, 15)    tangent yaw pitch, u
-    (9, 8, 7, 8)    yaw pitch, cone, depth         // lighting    0.7 degree 7 bit cone 8 bit depth  ??????? NOT THIS maybe fancy AO
-    (8, 8, 8, 8)        ao, shadow, color, trandslucency, can I pack this
-};
-
-{
-    int type;
-    bool ribbonstartBit;
-    float3 position;
-    int material;
-    float anim_blend;
-    float2 uv;
-    float3 bitangent;
-    float3 tangent;
-    float radius;
-    float3 lightDir;
-    float lightCone;
-    float lightDepth;
-    uchar ao, sahdow, albedoeascale, translucencysacle;
-}
-
-
-//??? mix ribbons and orientated ribbons in one, or split -
-mixing them might be best for animation
-{
-    2           type            {ribbon, aligned ribbon, triangle list}
-    1           start bit
-    14,16,14    position        {maybe larger to work for buildings as well 16, 16, 16 - 2mm 128m big ?}
-    10          material        {more if we have space}
-    12, 12      u, v            {8 bits to 1, plus 4 bits over, ot smaller with UV scale value}
-    9, 8        bitangent/up (yaw, pitch)
-    8           radius
-    9, 8, 7, 8  lighting (yaw, pitch, cone, depth)      {can be used }
-
-    9, 8        tangent (yaw, pitch)
-    8, 8, 8, 8  colour with translucency
-
-    8           ao
-    8           shadow  ?? per vertex or per object maybe
-    8           anim_blend
-}
-
-To world space - needed for atmosphere lookup
-World to Sun -> for lighting, so can we push cone directly to sun space, i.e. do all lighting in VS
-Tangent space -> texture normal mapping ??? can we do somethign to simplify this part, we do not need acurate normals here
-*/
-
-
 
 SamplerState gSampler;
-SamplerState gSamplerClamp;
+SamplerState gSamplerClamp;             // for blending with hald-buffer
 Texture2D gAlbedo : register(t0);
 TextureCube gEnv : register(t1);
 Texture2D gHalfBuffer : register(t2);
@@ -96,8 +22,8 @@ textures;
 
 
 StructuredBuffer<sprite_material> materials;
-StructuredBuffer<ribbonVertex8> instanceBuffer;     // THIS HAS TO GO
-StructuredBuffer<xformed_PLANT> instances;
+//StructuredBuffer<ribbonVertex8> instanceBuffer;     // THIS HAS TO GO
+//StructuredBuffer<xformed_PLANT> instances;
 
 StructuredBuffer<plant>             plant_buffer;
 StructuredBuffer<plant_instance> instance_buffer;
@@ -108,14 +34,7 @@ cbuffer gConstantBuffer
 {
     float4x4 viewproj;
     float3 eyePos;
-
-
-    float3 offset;
-    float repeatScale;
-    int numSide;
-
-
-
+    
     float time;
 };
 
@@ -201,7 +120,7 @@ inline void extractPosition(inout PSIn o, const ribbonVertex8 v, const float sca
 inline void extractTangent(inout PSIn o, const ribbonVertex8 v, const float rotation)
 {
     o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, rotation); // remember to add rotation to yaw
-    o.tangent = normalize(cross(o.binormal, o.eye));
+    o.tangent = normalize(cross(o.binormal, -o.eye));
     o.normal = cross(o.binormal, o.tangent);
 }
 
@@ -344,7 +263,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const block_data BLOCK = block_buffer[iId];
     const plant_instance INSTANCE = instance_buffer[BLOCK.instance_idx];
     const plant PLANT = plant_buffer[INSTANCE.plant_idx];
-    const ribbonVertex8 v = instanceBuffer[vId];
+    const ribbonVertex8 v = vertex_buffer[vId];
 
 #if defined(_BAKE)
     //rootPosition = float3(0, 0, 0);
@@ -372,7 +291,13 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     {
         extractTangent(output, v, INSTANCE.rotation); // Likely only after abnimate, do only once
     }
-    
+    /*
+    output.binormal = float3(0, 1, 0);
+    output.tangent = float3(1, 0, 0);
+    output.normal = float3(0, 0, 1);
+    output.tangent = normalize(cross(output.binormal, -output.eye));
+    output.normal = cross(output.binormal, output.tangent);
+    */
     extractUVRibbon(output, v);
     extractFlags(output, v);
     //extractColor(output, v);
@@ -560,6 +485,11 @@ NAdjusted.b = 1 - NAdjusted.b;
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    if (isFrontFace)
+        return float4(0, 1, frac(vOut.uv.y), 1);
+    else
+        return float4(1, 0, vOut.uv.y, 1);
+    
     sprite_material MAT = materials[vOut.flags.x];
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
     float alpha = albedo.a;
