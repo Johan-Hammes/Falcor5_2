@@ -485,11 +485,12 @@ NAdjusted.b = 1 - NAdjusted.b;
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    /*
     if (isFrontFace)
         return float4(0, 1, frac(vOut.uv.y), 1);
     else
         return float4(1, 0, vOut.uv.y, 1);
-    
+    */
     sprite_material MAT = materials[vOut.flags.x];
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
     float alpha = albedo.a;
@@ -521,22 +522,24 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     
 
-    float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
-
+    float3 color = sunColor * (saturate(ndots)) * albedo.rgb * vOut.colour.x * vOut.lighting.z;
     
-    //diffuse env
-    color *= albedo.rgb * vOut.colour.x * vOut.lighting.z;
 
     color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 1 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
+    // temporary ENV till we seyt gEnv again
+    color += float3(0.01, 0.03, 0.1) * albedo.rgb * vOut.colour.x * vOut.lighting.w;
 
     
     
     // specular sun
-    color += pow(ndoth, 9) * 0.31 * vOut.lighting.z;
+    color += pow(ndoth, 39) * 0.31 * vOut.lighting.z;
    
 
+    float3 TN = vOut.normal;
+    if (!isFrontFace)        TN *= -1;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * float3(2, 3, 1) * MAT.translucency * vOut.lighting.z;
-    float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * float3(1, 1, 1) * MAT.translucency * vOut.lighting.z;
+    float3 trans = (saturate(-ndots)) *     saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * 0.3 * MAT.translucency * vOut.lighting.z;
+    //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.colour.y * float3(1, 1, 1) * MAT.translucency * vOut.lighting.z; 
     {
         if (MAT.translucencyTexture >= 0)
         {

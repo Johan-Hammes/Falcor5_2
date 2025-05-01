@@ -45,6 +45,7 @@ target_sources(Earthworks_4 PRIVATE
     cfd.cpp
 	vegetationBuilder.h
     vegetationBuilder.cpp
+    PerlinNoise.hpp
 
 
 	hlsl/terrain/compute_tileVertices.hlsl

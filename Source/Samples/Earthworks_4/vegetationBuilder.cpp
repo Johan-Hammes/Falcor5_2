@@ -1,5 +1,6 @@
 #include "vegetationBuilder.h"
 #include "imgui.h"
+#include "PerlinNoise.hpp"      //https://github.com/Reputeless/PerlinNoise/blob/master/PerlinNoise.hpp
 
 #pragma optimize("", off)
 
@@ -30,7 +31,15 @@ bool ribbonVertex::pushStart = false;
 
 
 
-
+void replaceAllVEG(std::string & str, const std::string & from, const std::string & to) {
+    if (from.empty())
+        return;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
 
 
 void ribbonVertex::setup(float scale, float radius, float3 offset)
@@ -178,8 +187,39 @@ int materialCache_plants::find_insert_texture(const std::filesystem::path _path,
             return i;
         }
     }
+    /*
+    * std::string png = newPath + "_albedo.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + Mat.albedoPath + "\"";
+            system(cmdExp2.c_str());
+    */
+    std::string resource = terrafectorEditorMaterial::rootFolder;
+    replaceAllVEG(resource, "/", "\\");
 
-    Texture::SharedPtr tex = Texture::createFromFile(_path.string(), true, isSRGB);
+    std::string ddsFilename = _path.string();
+    if (_path.string().find(".dds") == std::string::npos)
+    {
+        ddsFilename = _path.string() + ".earthworks.dds";
+    }
+    if (!std::filesystem::exists(ddsFilename))
+    {
+        std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
+        std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + resource + "Compressonator\\temp_mip.dds";
+        system(cmdExp.c_str());
+        if (isSRGB)
+        {
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC6H " + resource + "Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            system(cmdExp2.c_str());
+        }
+        else
+        {
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 " + resource + "Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            system(cmdExp2.c_str());
+        }
+    }
+    Texture::SharedPtr tex = Texture::createFromFile(ddsFilename, true, isSRGB);
+    //Texture::SharedPtr tex = Texture::createFromFile(_path.string(), true, isSRGB);
     if (tex)
     {
         tex->setSourcePath(_path);
@@ -616,15 +656,7 @@ void _plantMaterial::reloadTextures()
 
 
 
-void replaceAllVEG(std::string& str, const std::string& from, const std::string& to) {
-    if (from.empty())
-        return;
-    size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
-    }
-}
+
 
 void _plantMaterial::loadTexture(int idx)
 {
@@ -959,7 +991,9 @@ void _leafBuilder::renderGui()
     R_LENGTH("width", leaf_width, "mm", "random");
     R_LENGTH("offset", width_offset, "", "random");
     R_CURVE("curve", leaf_curve, "radians", "random");
+    R_CURVE("perlin C", perlinCurve, "amount", "repeats");
     R_CURVE("twist", leaf_twist, "radians", "random");
+    R_CURVE("perlin T", perlinTwist, "amount", "repeats");
     R_CURVE("gavity", gravitrophy, "rotate towards the ground or sky", "random");
     R_VERTS("num verts", numVerts);
     ImGui::NewLine();
@@ -984,31 +1018,41 @@ void _leafBuilder::treeView()
 #define RND_B(data) (data.x * (1.f + data.y * (float)dist(_rootPlant::generator)))
 #define RND_CRV(data) (data.x + (data.y * (float)dist(_rootPlant::generator)))
 
-#define CURVE(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[0])     // pitch
-#define TWIST(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[1])     // roll
-#define CURVE_Z(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[2])   // yaw
+//#define CURVE(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[0])     // pitch
+//#define TWIST(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[1])     // roll
+//#define CURVE_Z(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[2])   // yaw
 
 #define GROW(_mat,_length)   _mat[3] += _mat[1] * _length
 
 #define ROLL(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 1, 0))
 #define PITCH(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(1, 0, 0))
 #define YAW(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 0, 1))
-#define RPY(_mat,_r,_p,_y)  TWIST(_mat,_r) * CURVE(_mat,_p) * CURVE_Z(_mat,_y)
+//#define RPY(_mat,_r,_p,_y)  TWIST(_mat,_r) * CURVE(_mat,_p) * CURVE_Z(_mat,_y)
+
+
 
 void _leafBuilder::build(buildSetting& _settings)
 {
     //std::mt19937 gen(_settings.seed);
     std::uniform_real_distribution<> dist(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
+    std::uniform_int_distribution<> distPerlin(1, 50000);
     glm::mat4 node = _settings.root;
     ribbonVertex R_verts;
 
-    
+
+    const siv::PerlinNoise::seed_type seed = distPerlin(_rootPlant::generator);
+    const siv::PerlinNoise perlin{ seed };
+    const siv::PerlinNoise::seed_type seedT = distPerlin(_rootPlant::generator);
+    const siv::PerlinNoise perlinTWST{ seedT };
+
+    float age = pow(_settings.age, 0.5f);
+
     // stem
     if (stem_length.x > 0 && stem_width.x > 0)
     {
-        float length = RND_B(stem_length) / 100.f * 0.001f;   // to meters and numSegments
-        float width = stem_width.x * 0.001f;
+        float length = RND_B(stem_length) / 100.f * 0.001f * age;   // to meters and numSegments
+        float width = stem_width.x * 0.001f * age;
         float curve = RND_CRV(stem_curve) / 100.f;
 
         // Lodding stem............................................................
@@ -1024,10 +1068,8 @@ void _leafBuilder::build(buildSetting& _settings)
 
         for (int i = 0; i < 100; i++)
         {
-            //node = glm::rotate(node, curve, (glm::vec3)node[0]);
-            node = node * CURVE(node, curve);
-            //node = glm::translate(node, (glm::vec3)node[2] * length);
-            //node[3] += node[1] * length;
+            //node = node * CURVE(node, curve);
+            PITCH(node, curve);
             GROW(node, length);
 
             cnt++;
@@ -1039,19 +1081,26 @@ void _leafBuilder::build(buildSetting& _settings)
                 cnt -= step;
             }
         }
+
+        // Now move ever so slghtly backwars for betetr penetration of stem to leaf
+        GROW(node, -width);
     }
+
+    
 
     // rotation from stem to leaf
     //node = glm::rotate(node, RND_CRV(stem_to_leaf), (glm::vec3)node[0]);
-    node = node * CURVE(node, RND_CRV(stem_to_leaf));
+    //node = node * CURVE(node, RND_CRV(stem_to_leaf));
+    PITCH(node, RND_CRV(stem_to_leaf));
+
 
     {
         _vegMaterial mat = materials.get();
-        unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - _settings.numSegments) * 127.f);// +distAlbedo(gen);
-        unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - _settings.numSegments) * 127.f);
+        unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - age) * 127.f);// +distAlbedo(gen);
+        unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - age) * 127.f);
 
         // Lodding leaf............................................................
-        float sW = leaf_width.x * 0.001f;
+        float sW = leaf_width.x * 0.001f * age;
         bool showStem = sW > _settings.pixelSize;
         float dStem = glm::clamp(pow(sW / _settings.pixelSize, 0.5f), 0.f, 1.f);
         int stem_V = numVerts.x + (int)((numVerts.y - numVerts.x) * dStem);
@@ -1059,14 +1108,13 @@ void _leafBuilder::build(buildSetting& _settings)
         float cnt = 0.f;
         // Fixme search for first and last vertex on size 
         R_verts.startRibbon(cameraFacing);
-        float du = __min(1.f, width_offset.y);
+        float du = width_offset.y;
         if (stem_V == 2) du = 1.f;
-        R_verts.set(node, sW * 0.5f, mat.index, float2(du, 0.f), albedoScale, translucentScale);
+        R_verts.set(node, sW * 0.5f * du, mat.index, float2(du, 0.f), albedoScale, translucentScale);
         ribbonVertex::ribbons.push_back(R_verts);
-        
         {
-            float length = RND_B(leaf_length) / 100.f * 0.001f;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
-            float width = RND_B(leaf_width) * 0.001f;
+            float length = RND_B(leaf_length) / 100.f * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
+            float width = RND_B(leaf_width) * 0.001f * age;
             float gravi = RND_CRV(gravitrophy) / 100.f;
             float curve = RND_CRV(leaf_curve) / 100.f;
             float twist = RND_CRV(leaf_twist) / 100.f;
@@ -1076,23 +1124,23 @@ void _leafBuilder::build(buildSetting& _settings)
                 float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
                 if (stem_V == 2) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
 
-                //curve += (leaf_curve.y * dist(_rootPlant::generator)) / 100.f;
-                //twist += (leaf_twist.y * dist(_rootPlant::generator)) / 100.f;
-                //node = glm::rotate(node, curve, (glm::vec3)node[0]);
-                //node = glm::rotate(node, curve, glm::vec3(1,0,0));
-                //node = glm::rotate(node, twist, (glm::vec3)node[1]);
-                //node = glm::translate(node, (glm::vec3)node[2] * length);
-                //node[3] += node[1] * length;
-                //node = node * TWIST(node, twist) * CURVE(node, curve);
-                //node = CURVE(node, curve);
+                float perlinScale = glm::smoothstep(0.f, 0.3f, t);
+                float noise = (float)perlin.normalizedOctave1D(perlinCurve.y * t, 4);
+                PITCH(node, noise * perlinCurve.x * perlinScale);
+
+                noise = (float)perlinTWST.normalizedOctave1D(perlinTwist.y * t, 4);
+                ROLL(node, noise * perlinTwist.x * perlinScale);
+
                 ROLL(node, twist);
                 PITCH(node, curve);
                 GROW(node, length);
 
+                
+
                 cnt++;
                 if (cnt >= step)
                 {
-                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 1.f + t), albedoScale, translucentScale);
+                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale);
                     ribbonVertex::ribbons.push_back(R_verts);
                     cnt -= step;
                 }
@@ -1192,8 +1240,8 @@ void _twigBuilder::renderGui()
     R_LENGTH("width", stem_width, "stem width in mm", "random");
     R_CURVE("curve", stem_curve, "curve in a single segment", "random");
     R_CURVE("phototropism", stem_phototropism, "", "random");
-    R_CURVE("twist", node_rotation, "twist of the stalk", "random");
-    R_CURVE("node angle", node_angle, "stem bend at a node", "random");
+    R_CURVE("node twist", node_rotation, "twist of the stalk", "random");
+    R_CURVE("node bend", node_angle, "stem bend at a node", "random");
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
     stem_Material.renderGui();
 
@@ -1276,39 +1324,28 @@ void _twigBuilder::build(buildSetting& _settings)
         float cnt = 0;
         for (int j = 0; j < 100; j++)
         {
-            //node = glm::rotate(node, C, (glm::vec3)node[0]);
             PITCH(node, C);
-            // Gravitrophy ---------------------------------------------------------------
-            //glm::vec3 graviR = glm::normalize(glm::cross((glm::vec3)node[2], glm::vec3(0, 1, 0)));
-            //node = glm::rotate(node, P, graviR);
-            //node = glm::translate(node, (glm::vec3)node[2] * L);
-            //node[3] += node[1] * L;
+            // Phototropy
+            float cos_dX = glm::dot((glm::vec3)node[1], glm::vec3(1, 0, 0));
+            float cos_dZ = glm::dot((glm::vec3)node[1], glm::vec3(0, 0, 1));
+            PITCH(node, -P * asin(cos_dZ));
+            YAW(node, P * asin(cos_dX));
+
             GROW(node, L);
             cnt++;
             if (visible && cnt >= segStep)
             {
                 R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 127, 127);
                 ribbonVertex::ribbons.push_back(R_verts);
-                // now also push it to some vector
                 cnt -= segStep;
             }
         }
-
         NODES.push_back(node);
 
         // now rotate for teh next segment
-        ////bool    twistAway = false;      // if single leaf, activelt twist stem to the other side
-        //float Nx = RND_CRV(node_angle);
-        //float Ny = RND_CRV(node_angle);
-        //float Rot = RND_CRV(node_rotation);
-        ROLL(node, RND_CRV(node_angle));
+        ROLL(node, RND_CRV(node_rotation));
         PITCH(node, RND_CRV(node_angle));
-        YAW(node, RND_CRV(node_rotation));
-
-        //node = glm::rotate(node, Nx, (glm::vec3)node[0]);
-        //node = glm::rotate(node, Ny, (glm::vec3)node[2]);
-        //node = glm::rotate(node, Rot, (glm::vec3)node[1]);
-        
+        YAW(node, RND_CRV(node_angle));
     }
 
     // side nodes
@@ -1323,13 +1360,13 @@ void _twigBuilder::build(buildSetting& _settings)
         for (int j = 0; j < numL; j++)
         {
             node = NODES[i];
-            float A = leaf_angle.x;
+            float A = leaf_angle.x + leaf_angle.y * leafAge + dist(_rootPlant::generator) * 0.3f;
             float nodeTwist = 6.283185307f / (float)numL * (float)j;
-            buildSetting S_leaf = _settings;
 
             ROLL(node, nodeTwist);
             PITCH(node, A);
-            _settings.root = node;// ROLL(node, nodeTwist)* PITCH(node, A);// NODES[i] * TWIST(NODES[i], nodeTwist)* CURVE(NODES[i], A);
+            _settings.root = node;
+            _settings.age = leafAge;
             _plantRND LEAF = leaves.get();
             if (LEAF.plantPtr) LEAF.plantPtr->build(_settings);
         }
@@ -1339,6 +1376,7 @@ void _twigBuilder::build(buildSetting& _settings)
     if (unique_tip)
     {
         _settings.root = NODES[end];
+        _settings.age = 1.f;
         tip.get().plantPtr->build(_settings);
     }
 }

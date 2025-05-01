@@ -149,6 +149,8 @@ struct buildSetting
     float       numSegments;
     float       pixelSize = 0.001f;  //1 cm
     int         seed = 101;
+    float       age = 1.f;
+    bool        forcePhototropy = false;    // for billboard baking
 };
 
 struct bakeSettings
@@ -347,6 +349,8 @@ private:
     float2  width_offset = { 1.0f, 0.1f };      // Y value pushes teh leaf edges outwards makign it fatter
     float2  gravitrophy = { 0, 0 };
     int2    numVerts = { 3, 12 };
+    float2  perlinCurve = { 0.1f, 4.0f };
+    float2  perlinTwist = { 0.1f, 4.0f };
 
     _vegMaterial stem_Material;
     randomVector<_vegMaterial> materials;
@@ -373,11 +377,17 @@ public:
         archive(stem_Material);
         archive(materials.data); //??? moce to randomVector, keep up to date there? more contained
 
+        if (_version >= 101)
+        {
+            archive_float2(perlinCurve);
+            archive_float2(perlinTwist);
+        }
+
         stem_Material.reload();
         for (auto& M : materials.data) M.reload();
     }
 };
-CEREAL_CLASS_VERSION(_leafBuilder, 100);
+CEREAL_CLASS_VERSION(_leafBuilder, 101);
 
 
 
