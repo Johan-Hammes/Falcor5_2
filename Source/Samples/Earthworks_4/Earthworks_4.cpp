@@ -494,7 +494,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         }
 
 
-
+        if (terrain.terrainMode != _terrainMode::vegetation)
         {
             atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
             atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);

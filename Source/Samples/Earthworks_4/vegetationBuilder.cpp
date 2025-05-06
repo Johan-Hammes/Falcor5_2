@@ -31,7 +31,7 @@ bool ribbonVertex::pushStart = false;
 
 
 
-void replaceAllVEG(std::string & str, const std::string & from, const std::string & to) {
+void replaceAllVEG(std::string& str, const std::string& from, const std::string& to) {
     if (from.empty())
         return;
     size_t start_pos = 0;
@@ -161,7 +161,7 @@ int materialCache_plants::find_insert_material(const std::filesystem::path _path
     }
 
     // else add new
-    if (std::filesystem::exists(_path))
+    if (_path.string().length() > 5 && std::filesystem::exists(_path))
     {
         uint materialIndex = (uint)materialVector.size();
         _plantMaterial& material = materialVector.emplace_back();
@@ -194,8 +194,7 @@ int materialCache_plants::find_insert_texture(const std::filesystem::path _path,
             std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + Mat.albedoPath + "\"";
             system(cmdExp2.c_str());
     */
-    std::string resource = terrafectorEditorMaterial::rootFolder;
-    replaceAllVEG(resource, "/", "\\");
+
 
     std::string ddsFilename = _path.string();
     if (_path.string().find(".dds") == std::string::npos)
@@ -204,18 +203,30 @@ int materialCache_plants::find_insert_texture(const std::filesystem::path _path,
     }
     if (!std::filesystem::exists(ddsFilename))
     {
+        std::string resource = terrafectorEditorMaterial::rootFolder;
+        replaceAllVEG(resource, "/", "\\");
+        std::string temp = resource + "Compressonator\\temp_mip.dds ";
+        std::string comprs = resource + "Compressonator\\CompressonatorCLI  ";
         std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
-        std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + _path.string() + "\" " + resource + "Compressonator\\temp_mip.dds";
+
+        std::string cmdExp = comprs + " -miplevels 6  \"" + _path.string() + "\"  " + temp;
+        replaceAllVEG(cmdExp, "/", "\\");
+        fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp.c_str());
         system(cmdExp.c_str());
         if (isSRGB)
         {
-            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC6H " + resource + "Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            std::string cmdExp2 = comprs + " -fd BC7 -Quality 0.01 " + temp + ddsFilename;
+            replaceAllVEG(cmdExp2, "/", "\\");
+            fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp2.c_str());
             system(cmdExp2.c_str());
         }
         else
         {
-            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 -Quality 0.01 " + resource + "Compressonator\\temp_mip.dds \"" + ddsFilename + "\"";
+            std::string cmdExp2 = comprs + " -fd BC6H " + temp + ddsFilename;
+            replaceAllVEG(cmdExp2, "/", "\\");
+            fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp2.c_str());
             system(cmdExp2.c_str());
+
         }
     }
     Texture::SharedPtr tex = Texture::createFromFile(ddsFilename, true, isSRGB);
@@ -718,24 +729,16 @@ void _vegMaterial::reload()
     index = _plantMaterial::static_materials_veg.find_insert_material(terrafectorEditorMaterial::rootFolder + path);
 }
 
-bool _vegMaterial::renderGui()
+bool _vegMaterial::renderGui(uint& gui_id)
 {
-    static int ID = 139999;
-    if (ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
-    {
-        std::string tool = path + "\n{" + std::to_string(index) + "}";
-        TOOLTIP(tool.c_str());
-        if (ImGui::IsItemClicked())  loadFromFile();
-        ImGui::PushID(ID);
-        {
-            ImGui::DragFloat2("albedo", &albedoScale.x, 0.1f, 0.1f, 2.0f);
-            ImGui::DragFloat2("translucency", &translucencyScale.x, 0.1f, 0.1f, 2.0f);
-            ImGui::PopID();
-            ID++;
-        }
-        ImGui::TreePop();
-    }
-
+    ImGui::PushID(gui_id);
+    if (ImGui::Selectable(name.c_str())) loadFromFile();
+    std::string tool = path + "\n{" + std::to_string(index) + "}";
+    TOOLTIP(tool.c_str());
+    ImGui::DragFloat2("albedo", &albedoScale.x, 0.01f, 0.1f, 2.0f);
+    ImGui::DragFloat2("translucency", &translucencyScale.x, 0.01f, 0.1f, 2.0f);
+    ImGui::PopID();
+    gui_id++;
 
     return false;
 }
@@ -749,7 +752,7 @@ void _plantRND::loadFromFile()
     if (openFileDialog(filters, filepath))
     {
         if (filepath.string().find("leaf") != std::string::npos) { plantPtr.reset(new _leafBuilder); type = P_LEAF; }
-        if (filepath.string().find("twig") != std::string::npos) { plantPtr.reset(new _twigBuilder);  type = P_TWIG;   }
+        if (filepath.string().find("twig") != std::string::npos) { plantPtr.reset(new _twigBuilder);  type = P_TWIG; }
 
         path = materialCache::getRelative(filepath.string());
         name = filepath.filename().string();
@@ -771,10 +774,10 @@ void _plantRND::reload()
     plantPtr->path = path;
     plantPtr->name = name;
     plantPtr->loadPath();
-} 
+}
 
 
-void _plantRND::renderGui()
+void _plantRND::renderGui(uint& gui_id)
 {
     if (ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
     {
@@ -797,7 +800,7 @@ template <class T>     T randomVector<T>::get()
     return data[rnd_idx];
 }
 
-template <class T>     void randomVector<T>::renderGui(char* name)
+template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
 {
     bool first = true;
     if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed))
@@ -806,7 +809,7 @@ template <class T>     void randomVector<T>::renderGui(char* name)
         ImGui::SameLine(0, 50);
         if (ImGui::Button(".  -  .")) { if (data.size() > 1) data.pop_back(); }
 
-        for (auto& D : data) D.renderGui();
+        for (auto& D : data) D.renderGui(gui_id);
 
         ImGui::TreePop();
     }
@@ -815,6 +818,7 @@ template <class T>     void randomVector<T>::renderGui(char* name)
 
 
 
+bool anyChange = true;
 
 ImVec4 twig_color = ImVec4(0.07f, 0.03f, 0.0f, 1);
 ImVec4 leaf_color = ImVec4(0.02f, 0.07f, 0.01f, 1);
@@ -928,7 +932,7 @@ void _leafBuilder::load()
 
 void _leafBuilder::save()
 {
-    if (changed) {
+    if (changedForSave) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
         if (ImGui::Button("Save##_leafBuilder", ImVec2(60, 0)))
         {
@@ -981,7 +985,7 @@ void _leafBuilder::renderGui()
         R_CURVE("curve", stem_curve, "stem curvature", "random");
         R_CURVE("angle", stem_to_leaf, "stem to leaf angle in radians", "random");
         R_VERTS("num verts", stemVerts);
-        stem_Material.renderGui();
+        stem_Material.renderGui(gui_id);
     }
 
     ImGui::NewLine();
@@ -998,7 +1002,11 @@ void _leafBuilder::renderGui()
     R_VERTS("num verts", numVerts);
     ImGui::NewLine();
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
-    materials.renderGui("materials");
+    materials.renderGui("materials", gui_id);
+
+    changedForSave |= changed;
+    anyChange |= changed;
+    changed = false;
 }
 
 
@@ -1007,7 +1015,7 @@ void _leafBuilder::treeView()
     auto& style = ImGui::GetStyle();
     style.Colors[ImGuiCol_Header] = leaf_color;
     if (_rootPlant::selectedPart == this)   style.FrameBorderSize = 2;
-    
+
     TREE_LINE(name.c_str(), path.c_str())
     {
         CLICK_PART;
@@ -1031,122 +1039,126 @@ void _leafBuilder::treeView()
 
 
 
-void _leafBuilder::build(buildSetting& _settings)
+glm::mat4 _leafBuilder::build(buildSetting& _settings)
 {
-    //std::mt19937 gen(_settings.seed);
     std::uniform_real_distribution<> dist(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     std::uniform_int_distribution<> distPerlin(1, 50000);
-    glm::mat4 node = _settings.root;
-    ribbonVertex R_verts;
-
 
     const siv::PerlinNoise::seed_type seed = distPerlin(_rootPlant::generator);
     const siv::PerlinNoise perlin{ seed };
     const siv::PerlinNoise::seed_type seedT = distPerlin(_rootPlant::generator);
     const siv::PerlinNoise perlinTWST{ seedT };
 
-    float age = pow(_settings.age, 0.5f);
+    glm::mat4 node = _settings.root;
+    ribbonVertex R_verts;
+    float age = pow(_settings.age, 1.f);
+    //age = saturate(_settings.age);
 
     // stem
     if (stem_length.x > 0 && stem_width.x > 0)
     {
         float length = RND_B(stem_length) / 100.f * 0.001f * age;   // to meters and numSegments
         float width = stem_width.x * 0.001f * age;
-        float curve = RND_CRV(stem_curve) / 100.f;
+        float curve = RND_CRV(stem_curve) / 100.f * age;
 
-        // Lodding stem............................................................
-        float sW = stem_width.x * 0.001f;
-        bool showStem = sW > _settings.pixelSize;
-        float dStem = glm::clamp(pow(sW / _settings.pixelSize, 0.5f), 0.f, 1.f);
-        int stem_V = stemVerts.x + (int)((stemVerts.y - stemVerts.x) * dStem);
-        float step = 99.f / (stem_V - 1);
+        // Lodding stem, but use length instead............................................................
+        bool showStem = width > _settings.pixelSize;
+        int numStem = glm::clamp((int)((length / _settings.pixelSize) / 8.f * 100.f), 1, stemVerts.y);     // 1 for every 8 pixels, clampped
+        float step = 99.f / (numStem);
         float cnt = 0.f;
-        R_verts.startRibbon(true);
-        R_verts.set(node, sW * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
-        if (showStem) ribbonVertex::ribbons.push_back(R_verts);
+
+        if (showStem)
+        {
+            R_verts.startRibbon(true);
+            R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
+            ribbonVertex::ribbons.push_back(R_verts);
+        }
 
         for (int i = 0; i < 100; i++)
         {
-            //node = node * CURVE(node, curve);
             PITCH(node, curve);
             GROW(node, length);
 
             cnt++;
-            if (showStem  && cnt >= step)
+            if (showStem && cnt >= step)
             {
-                R_verts.set(node, sW * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
+                R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
                 ribbonVertex::ribbons.push_back(R_verts);
-                // now also push it to some vector
                 cnt -= step;
             }
         }
 
-        // Now move ever so slghtly backwars for betetr penetration of stem to leaf
-        GROW(node, -width);
+        GROW(node, -width * 0.5f);  // Now move ever so slghtly backwards for better penetration of stem to leaf
     }
 
-    
+
 
     // rotation from stem to leaf
-    //node = glm::rotate(node, RND_CRV(stem_to_leaf), (glm::vec3)node[0]);
-    //node = node * CURVE(node, RND_CRV(stem_to_leaf));
     PITCH(node, RND_CRV(stem_to_leaf));
 
 
+    // build the leaf
+    // WILL BE significantly better if we calc start and end positions
     {
         _vegMaterial mat = materials.get();
         unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - age) * 127.f);// +distAlbedo(gen);
         unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - age) * 127.f);
 
+        float length = RND_B(leaf_length) / 100.f * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
+        float width = RND_B(leaf_width) * 0.001f * age;
+        float gravi = RND_CRV(gravitrophy) / 100.f * age;
+        float curve = RND_CRV(leaf_curve) / 100.f * age;
+        float twist = RND_CRV(leaf_twist) / 100.f * age;
+
         // Lodding leaf............................................................
-        float sW = leaf_width.x * 0.001f * age;
-        bool showStem = sW > _settings.pixelSize;
-        float dStem = glm::clamp(pow(sW / _settings.pixelSize, 0.5f), 0.f, 1.f);
-        int stem_V = numVerts.x + (int)((numVerts.y - numVerts.x) * dStem);
-        float step = 99.f / (stem_V - 1);
+        bool showLeaf = width > _settings.pixelSize;
+        int numLeaf = glm::clamp((int)((length / _settings.pixelSize) / 8.f * 100.f), 1, numVerts.y);     // 1 for every 8 pixels, clampped
+        bool forceFacing = numLeaf == 1;
+        float step = 99.f / numLeaf;
         float cnt = 0.f;
-        // Fixme search for first and last vertex on size 
-        R_verts.startRibbon(cameraFacing);
-        float du = width_offset.y;
-        if (stem_V == 2) du = 1.f;
-        R_verts.set(node, sW * 0.5f * du, mat.index, float2(du, 0.f), albedoScale, translucentScale);
-        ribbonVertex::ribbons.push_back(R_verts);
+
+        // Fixme search for first and last vertex on size
+        if (showLeaf)
         {
-            float length = RND_B(leaf_length) / 100.f * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
-            float width = RND_B(leaf_width) * 0.001f * age;
-            float gravi = RND_CRV(gravitrophy) / 100.f;
-            float curve = RND_CRV(leaf_curve) / 100.f;
-            float twist = RND_CRV(leaf_twist) / 100.f;
-            for (int i = 0; i < 100; i++)
+            R_verts.startRibbon(cameraFacing || forceFacing);
+            float du = width_offset.y;
+            if (numLeaf == 1) du = 1.f;
+            R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 0.f), albedoScale, translucentScale);
+            ribbonVertex::ribbons.push_back(R_verts);
+        }
+
+        for (int i = 0; i < 100; i++)
+        {
+            float t = (float)i / 100.f;
+            float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
+            if (numLeaf == 1) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
+
+            float perlinScale = glm::smoothstep(0.f, 0.3f, t) * age;
+            float noise = (float)perlin.normalizedOctave1D(perlinCurve.y * t, 4);
+            PITCH(node, noise * perlinCurve.x * perlinScale);
+
+            noise = (float)perlinTWST.normalizedOctave1D(perlinTwist.y * t, 4) * age;
+            ROLL(node, noise * perlinTwist.x * perlinScale);
+
+            ROLL(node, twist);
+            PITCH(node, curve);
+            GROW(node, length);
+
+
+            cnt++;
+            if (showLeaf && cnt >= step)
             {
-                float t = (float)i / 100.f;
-                float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
-                if (stem_V == 2) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
-
-                float perlinScale = glm::smoothstep(0.f, 0.3f, t);
-                float noise = (float)perlin.normalizedOctave1D(perlinCurve.y * t, 4);
-                PITCH(node, noise * perlinCurve.x * perlinScale);
-
-                noise = (float)perlinTWST.normalizedOctave1D(perlinTwist.y * t, 4);
-                ROLL(node, noise * perlinTwist.x * perlinScale);
-
-                ROLL(node, twist);
-                PITCH(node, curve);
-                GROW(node, length);
-
-                
-
-                cnt++;
-                if (cnt >= step)
-                {
-                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale);
-                    ribbonVertex::ribbons.push_back(R_verts);
-                    cnt -= step;
-                }
+                R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale);
+                ribbonVertex::ribbons.push_back(R_verts);
+                cnt -= step;
             }
         }
+
     }
+
+    changedForSave |= changed;
+    return node;
 }
 
 
@@ -1190,7 +1202,7 @@ void _twigBuilder::load()
 
 void _twigBuilder::save()
 {
-    if (changed) {
+    if (changedForSave) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
         if (ImGui::Button("Save##_twigBuilder", ImVec2(60, 0)))
         {
@@ -1235,6 +1247,7 @@ void _twigBuilder::renderGui()
     ImGui::Text("stem");
     unsigned int gui_id = 1001;
     R_LENGTH("age", numSegments, "total number of nodes", "random is used for automatic variations");
+    if (numSegments.x < 0.5f) numSegments.x = 0.5f;
     R_INT("start", startSegment, 0, 20, "first segment with leaves\nbelow this is bare stalk");
     R_LENGTH("length", stem_length, "stem length in mm", "random");
     R_LENGTH("width", stem_width, "stem width in mm", "random");
@@ -1243,7 +1256,7 @@ void _twigBuilder::renderGui()
     R_CURVE("node twist", node_rotation, "twist of the stalk", "random");
     R_CURVE("node bend", node_angle, "stem bend at a node", "random");
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
-    stem_Material.renderGui();
+    stem_Material.renderGui(gui_id);
 
     // leaves
     ImGui::NewLine();
@@ -1254,7 +1267,7 @@ void _twigBuilder::renderGui()
     R_FLOAT("age_power", leaf_age_power, 1.f, 5.f, "");
     if (ImGui::Checkbox("twistAway", &twistAway)) changed = true; TOOLTIP("does trh stalk try t0 twis awat from a single leaf");
     ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
-    leaves.renderGui("leaves");
+    leaves.renderGui("leaves", gui_id);
 
     // tip
     ImGui::NewLine();
@@ -1263,8 +1276,8 @@ void _twigBuilder::renderGui()
     if (unique_tip)
     {
         ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
-        tip.renderGui("tip");
-    }    
+        tip.renderGui("tip", gui_id);
+    }
 }
 
 void _twigBuilder::treeView()
@@ -1286,17 +1299,135 @@ void _twigBuilder::treeView()
         }
         ImGui::TreePop();
     }
+
+    changedForSave |= changed;
+    anyChange |= changed;
 }
 
 
-void _twigBuilder::build(buildSetting& _settings)
+lodBake* _twigBuilder::getBakeInfo(uint i)
+{
+    if (i < lod_bakeInfo.size()) return &lod_bakeInfo[i];
+
+    return nullptr;
+}
+
+void _twigBuilder::build_lod_0(buildSetting& _settings)
+{
+    if (NODES_PREV.size() < 2) return;
+
+    glm::mat4 node = NODES_PREV[0];
+    glm::vec4 step = (NODES_PREV.back()[3] - node[3]) / 3.f;
+    node[1] = glm::normalize(step); // and tilt it
+    ribbonVertex R_verts;
+
+    float w = lod_bakeInfo[0].extents.x;
+    uint mat = lod_bakeInfo[0].material.index;
+    R_verts.startRibbon(true);
+
+    // 2 vers quad version
+    R_verts.set(node, w, mat, float2(1, 0.f), 127, 127);
+    ribbonVertex::ribbons.push_back(R_verts);
+    node[3] = NODES_PREV.back()[3];
+    R_verts.set(node, w, mat, float2(1, 1.f), 127, 127);
+    ribbonVertex::ribbons.push_back(R_verts);
+
+    // 4 Verts version
+    /*
+    for (int i = 0; i < 4; i++)
+    {
+        R_verts.set(node, w * lod_bakeInfo[0].dU[i], mat, float2(lod_bakeInfo[0].dU[i], 0.f + (0.3333333f * i)), 127, 127);
+        ribbonVertex::ribbons.push_back(R_verts);
+        node[3] += step;
+    }
+    */
+}
+
+
+void _twigBuilder::build_lod_1(buildSetting& _settings)
+{
+    if (NODES_PREV.size() < 2) return;
+
+    glm::mat4 node = NODES_PREV[0];
+    glm::vec4 step = (NODES_PREV.back()[3] - node[3]) / 3.f;
+    node[1] = glm::normalize(step); // and tilt it
+    ribbonVertex R_verts;
+
+    float w = lod_bakeInfo[1].extents.x * lod_bakeInfo[1].bakeWidth;
+    uint mat = lod_bakeInfo[1].material.index;
+    R_verts.startRibbon(true);
+    for (int i = 0; i < 4; i++)
+    {
+        R_verts.set(node, w, mat, float2(1.f, 0.f + (0.3333333f * i)), 127, 127);
+        ribbonVertex::ribbons.push_back(R_verts);
+        node[3] += step;
+    }
+
+    uint numSides = (32 - 4) / 2;
+    // tip is in teh core
+    _settings.pixelSize = 0.1f;
+    build_leaves(_settings, numSides);
+}
+
+
+void _twigBuilder::build_lod_2(buildSetting& _settings)
+{
+    if (NODES_PREV.size() < 2) return;
+
+}
+
+
+void _twigBuilder::build_leaves(buildSetting& _settings, uint _max)
+{
+    std::uniform_real_distribution<> dist(-1.f, 1.f);
+    // reset teh seed so all lods build teh same here
+    _rootPlant::generator.seed(_settings.seed + 999);
+
+    // side nodes
+    uint end = NODES_PREV.size();
+    if (unique_tip) end--;
+    for (int i = 0; i < end; i++)
+    {
+        if (i >= startSegment)
+        {
+            float leafAge = 1.f - pow(i / age, leaf_age_power);
+            int numL = (int)RND_B(numLeaves);
+
+
+            for (int j = 0; j < numL; j++)
+            {
+                glm::mat4 node = NODES_PREV[i];
+                float A = leaf_angle.x + leaf_angle.y * leafAge + dist(_rootPlant::generator) * 0.3f;
+                float nodeTwist = 6.283185307f / (float)numL * (float)j;
+
+                ROLL(node, nodeTwist);
+                PITCH(node, -A);
+                _settings.root = node;
+                _settings.age = leafAge;
+                _plantRND LEAF = leaves.get();
+                if (LEAF.plantPtr) LEAF.plantPtr->build(_settings);
+            }
+        }
+    }
+}
+
+
+glm::mat4 _twigBuilder::build(buildSetting& _settings)
 {
     //std::mt19937 gen(_settings.seed);
     std::uniform_real_distribution<> dist(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     glm::mat4 node = _settings.root;
-    std::vector<glm::mat4> NODES;
     ribbonVertex R_verts;
+
+    glm::mat4 lastNode;
+    NODES.clear();
+    NODES.push_back(node);
+
+    if (_settings.pixelSize >= 10.f) { build_lod_0(_settings); return NODES_PREV.back(); }
+    else if (_settings.pixelSize >= 5.f) { build_lod_1(_settings); return NODES_PREV.back(); }
+    else if (_settings.pixelSize >= 1.f) { build_lod_2(_settings); return NODES_PREV.back(); }
+
 
 
     // stem
@@ -1304,18 +1435,20 @@ void _twigBuilder::build(buildSetting& _settings)
     float nodePixels = (stem_length.x * 0.001f) / _settings.pixelSize;
     int nodeNumSegments = __max(1, (int)pow(nodePixels / 4.f, 0.5f));
     float segStep = 99.f / (float)nodeNumSegments;
+    float tipWidth = 0;
 
     R_verts.startRibbon(true);
-    float age = RND_B(numSegments);
+    age = RND_B(numSegments);
     int iAge = __max(1, (int)age);
     for (int i = 0; i < iAge; i++)
     {
-        float leafAge = 1.f -pow((float)i / age, leaf_age_power);
+        float leafAge = 1.f - pow((float)i / age, leaf_age_power);
         float L = RND_B(stem_length) * 0.001f / 100.f;
         float W = RND_B(stem_width) * 0.001f * pow(leafAge, 0.4f);
+        tipWidth = W;
         float C = RND_CRV(stem_curve) / 100.f;
         float P = RND_CRV(stem_phototropism) / 100.f;
-        
+
         bool visible = W > _settings.pixelSize;
         if (visible && i == 0) {
             R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);   // set very first one
@@ -1348,37 +1481,99 @@ void _twigBuilder::build(buildSetting& _settings)
         YAW(node, RND_CRV(node_angle));
     }
 
-    // side nodes
-    int end = NODES.size();
-    if (unique_tip) end--;
-    for (int i = startSegment; i < end; i++)
-    {
-        float leafAge = 1.f - pow(i / age, leaf_age_power);
-        int numL = (int)RND_B(numLeaves);
-
-        
-        for (int j = 0; j < numL; j++)
-        {
-            node = NODES[i];
-            float A = leaf_angle.x + leaf_angle.y * leafAge + dist(_rootPlant::generator) * 0.3f;
-            float nodeTwist = 6.283185307f / (float)numL * (float)j;
-
-            ROLL(node, nodeTwist);
-            PITCH(node, A);
-            _settings.root = node;
-            _settings.age = leafAge;
-            _plantRND LEAF = leaves.get();
-            if (LEAF.plantPtr) LEAF.plantPtr->build(_settings);
-        }
-    }
 
 
+
+
+
+    // save NODES for loddign later
+    NODES_PREV.resize(NODES.size());
+    NODES_PREV = NODES;
+    lastNode = NODES.back();
+
+    build_leaves(_settings, 100000);
+
+
+    // reset teh seed so all lods build teh same here
+    _rootPlant::generator.seed(_settings.seed + 1999);
     if (unique_tip)
     {
-        _settings.root = NODES[end];
+        // walk the tip back ever so slightly
+        node = NODES.back();
+        GROW(node, -tipWidth * 0.5f);
+        _settings.root = node;
         _settings.age = 1.f;
-        tip.get().plantPtr->build(_settings);
+        lastNode = tip.get().plantPtr->build(_settings);
+        NODES_PREV.push_back(lastNode);
     }
+
+    changedForSave |= changed;
+    changed = false;
+
+
+
+
+    // Now set all the lodding info
+    float2 extents = float2(0, 0);
+    for (auto& R : ribbonVertex::ribbons)
+    {
+        float2 XZ = R.position.xz;
+        float r = glm::length(XZ);
+        extents.x = __max(extents.x, r + R.radius);
+        extents.y = __max(extents.y, abs(R.position.y) + R.radius);
+    }
+
+    // du
+    float du6[6] = { 0, 0, 0, 0, 0, 0 };
+    float step = extents.y / 6.f;
+    for (auto& R : ribbonVertex::ribbons)
+    {
+        float2 XZ = R.position.xz;
+        float r = glm::length(XZ);
+        float y = __max(0, R.position.y);   // only positive
+        uint bucket = (int)(y / step);
+        du6[bucket] = __max(r, du6[bucket]);
+    }
+    std::array<float, 4> du;
+    du[0] = du6[0];
+    du[1] = __max(du6[1], du6[2]);
+    du[2] = __max(du6[3], du6[4]);
+    du[3] = du6[5];
+
+    std::filesystem::path full_path = path;
+
+    // lod 0
+    lod_bakeInfo[0].extents = extents;
+    lod_bakeInfo[0].dU[0] = du[0] / extents.x;
+    lod_bakeInfo[0].dU[1] = du[1] / extents.x;
+    lod_bakeInfo[0].dU[2] = du[2] / extents.x;
+    lod_bakeInfo[0].dU[3] = du[3] / extents.x;
+    lod_bakeInfo[0].material.name = full_path.stem().string() + "_billboard_lod0";
+    lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[0].material.name + ".vegMaterial";
+
+    // lod 1
+    lod_bakeInfo[1].extents = extents;
+    float dw = extents.x * lod_bakeInfo[1].bakeWidth;
+    lod_bakeInfo[1].dU[0] = __min(1.f, du[0] / dw);
+    lod_bakeInfo[1].dU[1] = __min(1.f, du[1] / dw);
+    lod_bakeInfo[1].dU[2] = __min(1.f, du[2] / dw);
+    lod_bakeInfo[1].dU[3] = __min(1.f, du[3] / dw);
+    lod_bakeInfo[1].material.name = full_path.stem().string() + "_billboard_lod1";
+    lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[1].material.name + ".vegMaterial";
+
+    // lod 2
+    extents.y = NODES.back()[3].y;   // last lod use NDOE end
+    lod_bakeInfo[2].extents = extents;
+    float dw2 = extents.x * lod_bakeInfo[2].bakeWidth;
+    lod_bakeInfo[2].dU[0] = __min(1.f, du[0] / dw2);
+    lod_bakeInfo[2].dU[1] = __min(1.f, du[1] / dw2);
+    lod_bakeInfo[2].dU[2] = __min(1.f, du[2] / dw2);
+    lod_bakeInfo[2].dU[3] = __min(1.f, du[3] / dw2);
+    lod_bakeInfo[2].material.name = full_path.stem().string() + "_billboard_lod2";
+    lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[2].material.name + ".vegMaterial";
+
+
+    return lastNode;
 }
 
 
@@ -1433,7 +1628,7 @@ void _rootPlant::onLoad()
     vegetationShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
     vegetationShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
     auto& block = vegetationShader.Vars()->getParameterBlock("textures");
-    varVegTextures = block->findMember("T"); 
+    varVegTextures = block->findMember("T");
 
     bakeShader.add("_BAKE", "");
     bakeShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
@@ -1443,8 +1638,8 @@ void _rootPlant::onLoad()
     bakeShader.Vars()->setBuffer("vertex_buffer", vertexData);
     bakeShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
     bakeShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
-    block = bakeShader.Vars()->getParameterBlock("textures");
-    varBakeTextures = block->findMember("T");
+    auto& blockB = bakeShader.Vars()->getParameterBlock("textures");
+    varBakeTextures = blockB->findMember("T");
 
 
     RasterizerState::Desc rsDesc;
@@ -1455,6 +1650,19 @@ void _rootPlant::onLoad()
     blendDesc.setRtBlend(0, true);
     blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::Zero, BlendState::BlendFunc::Zero);
     blendstate = BlendState::create(blendDesc);
+
+    blendDesc.setIndependentBlend(true);
+    for (int i = 0; i < 8; i++)
+    {
+        // clear all
+        blendDesc.setRenderTargetWriteMask(i, true, true, true, true);
+        blendDesc.setRtBlend(i, true);
+        blendDesc.setRtParams(i, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlphaSaturate, BlendState::BlendFunc::One);
+    }
+    blendDesc.setRtParams(3, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlphaSaturate, BlendState::BlendFunc::One);
+    blendstateBake = BlendState::create(blendDesc);
+
+    compute_bakeFloodfill.load("Samples/Earthworks_4/hlsl/terrain/compute_bakeFloodfill.hlsl");
 }
 
 
@@ -1492,14 +1700,54 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::NewLine();
         static float numPix = 100;
         numPix = bakeSettings.objectSize / settings.pixelSize;
-        ImGui::DragFloat("size", &bakeSettings.objectSize, 0.1f, 1.f, 64.f, "%3.2fm");
-        ImGui::DragFloat("radius", &bakeSettings.radiusScale, 0.1f, 0.1f, 8.f, "%3.2fm");
-        if (ImGui::DragFloat("pixel", &numPix, 1.f, 1.f, 1000.f, "%3.2fm")) { settings.pixelSize = bakeSettings.objectSize / numPix;  }
-        ImGui::DragInt("seed", &settings.seed, 0, 1000);
+        if(ImGui::DragFloat("size", &bakeSettings.objectSize, 0.01f, 1.f, 64.f, "%3.2fm")) build();
+        if(ImGui::DragFloat("radius", &bakeSettings.radiusScale, 0.001f, 0.1f, 8.f, "%3.2fm")) build();
+        if (ImGui::DragFloat("num pix", &numPix, 1.f, 1.f, 1000.f, "%3.4f")) { settings.pixelSize = bakeSettings.objectSize / numPix; build();}
+        ImGui::Text("pixel is %2.1f mm", settings.pixelSize * 1000.f);
+        if (ImGui::DragFloat("pix SZ", &settings.pixelSize, 0.001f, 0.001f, 1.f, "%3.2fm")) { numPix = bakeSettings.objectSize / settings.pixelSize; build();}
+
+        if (ImGui::DragInt("seed", &settings.seed, 1, 0, 1000)) { build(); }
         ImGui::Text("%d verts", (int)ribbonVertex::packed.size());
         if (ImGui::Button("BUILD")) build();
 
-        build();
+        if (ImGui::Button("BUILD lod 0"))   //???
+        {
+            settings.pixelSize = 10.f;
+            build();
+        }
+        if (ImGui::Button("BUILD lod 1"))
+        {
+            settings.pixelSize = 5.f;
+            build();
+        }
+        if (ImGui::Button("BUILD lod 2"))
+        {
+            settings.pixelSize = 2.f;
+            build();
+        }
+
+        if (root && anyChange)  build();
+
+        if (ImGui::Button("BAKE 0, 1, 2"))
+        {
+            if (root)
+            {
+                // FIXME this has to chnage the settings
+                // straiten it
+                // and detail settings - quite high for bakogn at least 16x the highest ixel settibng - just high for now
+                // build must set all teh extents and du
+                build();
+
+                for (int i = 0; i < 10; i++)
+                {
+                    if (root->getBakeInfo(i))
+                    {
+                        bake(root->getBakeInfo(i));
+                        root->getBakeInfo(i)->material.reload();
+                    }
+                }
+            }
+        }
 
         ImGui::NewLine();
         if (root) root->treeView();
@@ -1520,28 +1768,39 @@ void _rootPlant::renderGui(Gui* _gui)
 
 void _rootPlant::build()
 {
-    ribbonVertex::objectScale = bakeSettings.getScale();
-    ribbonVertex::radiusScale = bakeSettings.radiusScale;
-    ribbonVertex::objectOffset = bakeSettings.getOffset();
-
-    settings.parentStemDir = { 0, 1, 0 };
-    settings.root = glm::mat4(1.0);
-
-    ribbonVertex::ribbons.clear();
-    ribbonVertex::ribbons.reserve(2000);
-
-    generator.seed(settings.seed);
-    if (root) root->build(settings);
-
-    // Now light the plant
-
-    // now pack it
-    ribbonVertex::packed.clear();
-    ribbonVertex::packed.reserve(ribbonVertex::ribbons.size());
-    for (auto& R : ribbonVertex::ribbons)
+    if (root)
     {
-        ribbonVertex8 P = R.pack();
-        ribbonVertex::packed.push_back(P);
+        ribbonVertex::objectScale = bakeSettings.getScale();
+        ribbonVertex::radiusScale = bakeSettings.radiusScale;
+        ribbonVertex::objectOffset = bakeSettings.getOffset();
+
+        settings.parentStemDir = { 0, 1, 0 };
+        settings.root = glm::mat4(1.0);
+
+        ribbonVertex::ribbons.clear();
+        ribbonVertex::ribbons.reserve(2000);
+
+        generator.seed(settings.seed);
+        root->build(settings);
+
+        // Now light the plant
+
+        // now pack it
+        extents = float2(0, 0);
+        ribbonVertex::packed.clear();
+        ribbonVertex::packed.reserve(ribbonVertex::ribbons.size());
+        for (auto& R : ribbonVertex::ribbons)
+        {
+            ribbonVertex8 P = R.pack();
+            ribbonVertex::packed.push_back(P);
+
+            float2 XZ = R.position.xz;
+            float r = glm::length(XZ);
+            extents.x = __max(extents.x, r + R.radius);
+            extents.y = __max(extents.y, abs(R.position.y) + R.radius);
+        }
+
+        anyChange = false;
     }
 }
 
@@ -1572,13 +1831,152 @@ void _rootPlant::eXport()
 
 
 
-void _rootPlant::bake(RenderContext* _renderContext)
+void _rootPlant::bake(lodBake* _info)
 {
+    if (!root) return;
+
+
+
+    int superSample = 8;
+    float W = _info->extents.x * _info->bakeWidth;      // this is half width
+    float H = _info->extents.y;
+    int iW = 4 * (int)(_info->pixHeight * W * 2.f / H / 4) * superSample;
+    int iH = _info->pixHeight * superSample;
+
+    Fbo::Desc desc;
+    desc.setDepthStencilTarget(ResourceFormat::D24UnormS8);			// keep for now, not sure why, but maybe usefult for cuts
+    desc.setColorTarget(0u, ResourceFormat::RGBA8Unorm, true);		// albedo
+    desc.setColorTarget(1u, ResourceFormat::RGBA16Float, true);	    // normal_16
+    desc.setColorTarget(2u, ResourceFormat::RGBA8Unorm, true);		// normal_8
+    desc.setColorTarget(3u, ResourceFormat::RGBA8Unorm, true);	    // pbr
+    desc.setColorTarget(4u, ResourceFormat::RGBA8Unorm, true);	    // extra
+    Fbo::SharedPtr fbo = Fbo::create2D(iW, iH, desc, 1, 4);
+    const glm::vec4 clearColor(0.5, 0.5f, 1.0f, 0.0f);
+    renderContext->clearFbo(fbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
+    renderContext->clearRtv(fbo->getRenderTargetView(0).get(), glm::vec4(0.0, 0.0f, 0.0f, 0.0f));
+    renderContext->clearRtv(fbo->getRenderTargetView(1).get(), glm::vec4(0.5, 0.5f, 1.0f, 0.0f));
+    renderContext->clearRtv(fbo->getRenderTargetView(2).get(), glm::vec4(0.5, 0.5f, 1.0f, 0.0f));
+    renderContext->clearRtv(fbo->getRenderTargetView(3).get(), glm::vec4(0.0, 0.0f, 0.0f, 0.0f));
+    renderContext->clearRtv(fbo->getRenderTargetView(4).get(), glm::vec4(1.0, 1.0f, 1.0f, 1.0f));
+
+    bakeShader.State()->setFbo(fbo);
+    bakeShader.State()->setViewport(0, GraphicsState::Viewport(0, 0, (float)iW, (float)iH, 0, 1), true);
+    bakeShader.State()->setRasterizerState(rasterstate);
+    bakeShader.State()->setBlendState(blendstateBake);
+
+    glm::mat4 V, VP;
+    V = { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, W, 1} };
+    VP = glm::orthoLH(-W, W, 0.f, H, -1000.0f, 1000.0f) * V;
+    rmcv::mat4 viewproj;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            viewproj[j][i] = VP[j][i];
+        }
+    }
+
+    bakeShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+    bakeShader.Vars()["gConstantBuffer"]["eyePos"] = float3(0, 0, -100000);  // just very far sort of parallel
+    bakeShader.Vars()["gConstantBuffer"]["bake_radius_alpha"] = W;  // just very far sort of parallel
+    
+
+    _plantMaterial::static_materials_veg.setTextures(varBakeTextures);
+    _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
+
+    plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+    vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+
+    bakeShader.drawInstanced(renderContext, ribbonVertex::packed.size(), 1);
+
+    renderContext->flush(true);
+
+
+    compute_bakeFloodfill.Vars()->setTexture("gAlbedo", fbo->getColorTexture(0));
+    compute_bakeFloodfill.Vars()->setTexture("gNormal", fbo->getColorTexture(2));
+    compute_bakeFloodfill.Vars()->setTexture("gTranslucency", fbo->getColorTexture(4));
+    compute_bakeFloodfill.Vars()->setTexture("gpbr", fbo->getColorTexture(3));
+
+    int numBuffer = 32;
+    for (int i = 0; i < numBuffer; i++)
+    {
+        compute_bakeFloodfill.dispatch(renderContext, iW / 4, iH / 4);
+    }
+
+
+
+    //std::filesystem::path full_path = root->path;
+    //std::string name = full_path.stem().string() + "_billboard";
+    //std::string newPath = full_path.parent_path().string() + "\\" + name;
+    std::string resource = terrafectorEditorMaterial::rootFolder;
+    replaceAllVEG(resource, "/", "\\");
+    {
+        _plantMaterial Mat;
+        Mat._constData.translucency = 1;
+        Mat.albedoPath = _info->material.path + "_albedo.dds";
+        Mat.albedoName = _info->material.name + "_albedo.dds";
+        Mat.normalPath = _info->material.path + "_normal.dds";
+        Mat.normalName = _info->material.name + "_normal.dds";
+        Mat.translucencyPath = _info->material.path + "_translucency.dds";
+        Mat.translucencyName = _info->material.name + "_translucency.dds";
+
+        fbo->getColorTexture(0).get()->generateMips(renderContext);
+        fbo->getColorTexture(1).get()->generateMips(renderContext);
+        fbo->getColorTexture(2).get()->generateMips(renderContext);
+        fbo->getColorTexture(3).get()->generateMips(renderContext);
+        fbo->getColorTexture(4).get()->generateMips(renderContext);
+
+        fbo->getColorTexture(0).get()->captureToFile(3, 0, resource + _info->material.path + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(3, 0, resource + _info->material.path + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(4).get()->captureToFile(3, 0, resource + _info->material.path + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+
+        {
+            std::string png = resource + _info->material.path + "_albedo.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            replaceAllVEG(cmdExp, "/", "\\");
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + resource + Mat.albedoPath + "\"";
+            replaceAllVEG(cmdExp2, "/", "\\");
+            system(cmdExp2.c_str());
+            //??? Shall I not rather use my compute compressor here?
+        }
+
+        {
+            std::string png = resource + _info->material.path + "_normal.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            replaceAllVEG(cmdExp, "/", "\\");
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC6H " + resource + "Compressonator\\temp_mip.dds \"" + resource + Mat.normalPath + "\"";
+            replaceAllVEG(cmdExp2, "/", "\\");
+            system(cmdExp2.c_str());
+            //??? Shall I not rather use my compute compressor here?
+        }
+
+        {
+            std::string png = resource + _info->material.path + "_translucency.png";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            replaceAllVEG(cmdExp, "/", "\\");
+            system(cmdExp.c_str());
+            std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + resource + Mat.translucencyPath + "\"";
+            replaceAllVEG(cmdExp2, "/", "\\");
+            system(cmdExp2.c_str());
+            //??? Shall I not rather use my compute compressor here?
+        }
+
+        Mat._constData.translucency = 1.f;
+        Mat._constData.alphaPow = 0.8f;
+
+        std::ofstream os(resource + _info->material.path);
+        cereal::JSONOutputArchive archive(os);
+        Mat.serialize(archive, _PLANTMATERIALVERSION);
+
+        //_info->material.reload();
+    }
 }
 
 
-void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos )
+void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos)
 {
+    renderContext = _renderContext;
+
     //if (_plantMaterial::static_materials_veg.modified || _plantMaterial::static_materials_veg.modifiedData)
     if (ribbonVertex::packed.size() > 1)
     {

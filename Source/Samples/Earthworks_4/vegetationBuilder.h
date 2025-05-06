@@ -164,6 +164,7 @@ struct bakeSettings
 
 
 
+
 struct ribbonVertex
 {
     static float objectScale;   //0.002 for trees  // 32meter block 2mm presision
@@ -211,8 +212,8 @@ struct ribbonVertex
     float3  tangent;
     float   radius;
 
-    float4  lightCone;
-    float   lightDepth;
+    float4  lightCone = {0, 1, 0, 1};
+    float   lightDepth = 0.2f;
     unsigned char ao = 255;
     unsigned char shadow = 255;
     unsigned char albedoScale = 255;
@@ -235,7 +236,7 @@ public:
 
     void loadFromFile();
     void reload();
-    bool renderGui();
+    bool renderGui(uint &gui_id);
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -248,6 +249,30 @@ public:
 };
 
 
+class lodBake
+{
+public:
+    lodBake(uint _h, float _w) { pixHeight = _h; bakeWidth = _w; }
+    _vegMaterial material;
+    float2 extents = {0, 0};
+    uint pixHeight = 64;
+    float bakeWidth = 1.f;      // really a percentage
+    std::array<float, 4> dU = {1, 1, 1, 1};
+
+    //bool renderGui(uint& gui_id);
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(material);
+        archive_float2(extents);
+        archive(pixHeight);
+        archive(bakeWidth);
+        archive(dU);
+        
+    }
+};
+
 
 class _plantBuilder
 {
@@ -259,11 +284,13 @@ public:
     virtual void saveas() { ; }
     virtual void renderGui() { ; }
     virtual void treeView() { ; }
-    virtual void build(buildSetting& _settings) { ; }
+    virtual glm::mat4 build(buildSetting& _settings) { return glm::mat4(1.f); }
+    virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
 
     std::string name = "not set";
     std::string path = "no path either";   // relative
-    bool changed = false;
+    bool changed = true;
+    bool changedForSave = false;
     static Gui* _gui;
 };
 
@@ -281,7 +308,7 @@ public:
 
     void loadFromFile();
     void reload();
-    void renderGui();
+    void renderGui(uint& gui_id);
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -310,7 +337,7 @@ public:
     randomVector() { data.resize(1); }      // minimum size has to be one, otherwise get() is dangerous
     std::vector<T> data;
     
-    void renderGui(char *name);
+    void renderGui(char *name, uint& gui_id);
     void clear() { data.clear(); }
     T get();
 };
@@ -329,7 +356,7 @@ public:
     void saveas();
     void renderGui();
     void treeView();
-    void build(buildSetting& _settings);
+    glm::mat4 build(buildSetting& _settings);
 
     FileDialogFilterVec filters = { {"leaf"} };
 
@@ -354,6 +381,7 @@ private:
 
     _vegMaterial stem_Material;
     randomVector<_vegMaterial> materials;
+
     
 public:
     template<class Archive>
@@ -402,9 +430,24 @@ public:
     void saveas();
     void renderGui();
     void treeView();
-    void build(buildSetting& _settings);
+    lodBake* getBakeInfo(uint i);//bakeInfo
+    void build_lod_0(buildSetting& _settings);
+    void build_lod_1(buildSetting& _settings);
+    void build_lod_2(buildSetting& _settings);
+    void build_leaves(buildSetting& _settings, uint _max);
+    glm::mat4 build(buildSetting& _settings);
+    
+
+    //void build_Nodes(buildSetting& _settings);
+    std::vector<glm::mat4> NODES;
+    std::vector<glm::mat4> NODES_PREV;
+    float age;  // number of segments floatign pouint, after randomize, needed for leaves build
 
     FileDialogFilterVec filters = { {"twig"} };
+
+    
+
+    std::array<lodBake, 3> lod_bakeInfo = { lodBake(64, 1.f), lodBake(128, 0.3f), lodBake(256, 0.15f) };
 
     // stem
     float2  numSegments = { 5.3f, 0.3f };
@@ -456,9 +499,15 @@ public:
         archive(unique_tip);
         archive(tip.data);
         for (auto& M : tip.data) M.reload();
+
+        if (_version >= 101)
+        {
+            archive(lod_bakeInfo);
+            for (auto& M : lod_bakeInfo) M.material.reload();
+        }
     }
 };
-CEREAL_CLASS_VERSION(_twigBuilder, 100);
+CEREAL_CLASS_VERSION(_twigBuilder, 101);
 
 
 
@@ -478,25 +527,30 @@ public:
     void import();
     void eXport();
 
-    void bake(RenderContext* _renderContext);
+    void bake(lodBake *_info);
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos);
-    
+
+    RenderContext* renderContext;
 
     //??? lodding info, so it needs all the runtime data
 
     _plantBuilder *root = nullptr;
     buildSetting settings;
     bakeSettings bakeSettings;
+    float2 extents;
 
     // render and bake
     Sampler::SharedPtr			sampler_ClampAnisotropic;
     Sampler::SharedPtr			sampler_Ribbons;
     RasterizerState::SharedPtr      rasterstate;
     BlendState::SharedPtr           blendstate;
+    BlendState::SharedPtr           blendstateBake;
     pixelShader vegetationShader;
     pixelShader bakeShader;
     ShaderVar varVegTextures;
     ShaderVar varBakeTextures;
+
+    computeShader		compute_bakeFloodfill;
 
     Buffer::SharedPtr blockData;
     Buffer::SharedPtr instanceData;
