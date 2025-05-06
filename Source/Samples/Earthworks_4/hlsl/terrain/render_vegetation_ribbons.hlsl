@@ -36,6 +36,7 @@ cbuffer gConstantBuffer
     float3 eyePos;
     
     float time;
+    float bake_radius_alpha;
 };
 
 
@@ -53,7 +54,7 @@ struct PSIn
     float4 lighting : TEXCOORD1; // uv, sunlight, ao
     nointerpolation uint4 flags : TEXCOORD2; // material
     float3 eye : TEXCOORD3;                 // can this become SVPR  or per plant somehow, feels overkill here per vertex
-    float3 colour : TEXCOORD4;
+    float4 colour : TEXCOORD4;
     float lineScale : TEXCOORD5; 
 };
 
@@ -280,6 +281,15 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.pos.xyz = INSTANCE.position + rot_xz(p, INSTANCE.rotation) * INSTANCE.scale;
         output.pos.w = 1;
         output.eye = normalize(output.pos.xyz - eyePos);
+
+        output.colour.a = 1; // new alpha component but just for bake
+#if defined(_BAKE)
+        p.y = 0;
+        float R = length(p);
+        if (R > 0.3f)      output.colour.a = 0;
+        output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.5f, bake_radius_alpha, R);
+        
+#endif
     }
     
     
@@ -308,6 +318,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.colour.b = saturate((output.colour.b - 0.5) * 50);
     }
 
+
+    
     
     //light(output, v, INSTANCE.rotation);
     {
@@ -320,6 +332,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float ao = 1 - saturate(d * PLANT.Ao_depthScale);
         output.lighting = float4(0, 0, saturate(1 - (b * PLANT.bScale)), ao);
 
+        
 #if defined(_BAKE)
     output.lighting.rgb = lightCone;
 #endif
@@ -430,12 +443,15 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float alpha = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).a;
     if (MAT.alphaTexture >= 0)
     {
-        alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
+        //alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
         //
     }
-    clip(alpha - 0.5);
+    alpha *= vOut.colour.a;
 
-    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb * vOut.colour.x * pow(vOut.lighting.w, 2);
+    float rnd = 0.25 + 0.5 * rand_1_05(vOut.pos.xy);
+    clip(alpha - rnd);
+
+    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.colour.x * pow(vOut.lighting.w, 2);
 
     output.albedo = float4(pow(color, 1.0 / 2.2), 1);   // previous alpha, doesnt work form bake
     
@@ -456,8 +472,8 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     NAdjusted.g = N.g * 0.5 + 0.5;
     NAdjusted.b = -N.b * 0.5 + 0.5;
 
-NAdjusted = vOut.lighting.xyz * 0.5 + 0.5;
-NAdjusted.b = 1 - NAdjusted.b;
+//NAdjusted = vOut.lighting.xyz * 0.5 + 0.5;
+//NAdjusted.b = 1 - NAdjusted.b;
 
 
 //float instance_PLANT = saturate(dot(vOut.lighting.xyz, normalize(float3(0.8, 0.4, 0.4))));
@@ -496,7 +512,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float alpha = albedo.a;
     if (MAT.alphaTexture >= 0)
     {
-        alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
+        //alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
     }
     alpha =     pow(alpha, MAT.alphaPow);
     clip(alpha - 0.2);
