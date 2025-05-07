@@ -249,6 +249,30 @@ public:
 };
 
 
+#define VEG_BLOCK_SIZE 32
+
+class levelOfDetail
+{
+public:
+    levelOfDetail(uint _numPix) { numPixels = _numPix; }
+
+    int numPixels = 100;   // this is the number of height pixels to use for this lod. Used to calculate pixel size
+    float pixelSize = 0.f;  //auto calculated
+
+    // feedback
+    uint numVerts = 0;
+    uint numBlocks = 0;
+    uint unused = 0;
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(numPixels);
+    }
+};
+
+
+
 class lodBake
 {
 public:
@@ -286,6 +310,7 @@ public:
     virtual void treeView() { ; }
     virtual glm::mat4 build(buildSetting& _settings) { return glm::mat4(1.f); }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
+    virtual levelOfDetail* getLodInfo(uint i) { return nullptr; }    // so does nothing if not implimented
 
     std::string name = "not set";
     std::string path = "no path either";   // relative
@@ -431,10 +456,12 @@ public:
     void renderGui();
     void treeView();
     lodBake* getBakeInfo(uint i);//bakeInfo
+    levelOfDetail* getLodInfo(uint i);
     void build_lod_0(buildSetting& _settings);
     void build_lod_1(buildSetting& _settings);
     void build_lod_2(buildSetting& _settings);
     void build_leaves(buildSetting& _settings, uint _max);
+    void build_tip(buildSetting& _settings);
     glm::mat4 build(buildSetting& _settings);
     
 
@@ -442,12 +469,13 @@ public:
     std::vector<glm::mat4> NODES;
     std::vector<glm::mat4> NODES_PREV;
     float age;  // number of segments floatign pouint, after randomize, needed for leaves build
+    float tipWidth = 0;
 
     FileDialogFilterVec filters = { {"twig"} };
 
-    
-
-    std::array<lodBake, 3> lod_bakeInfo = { lodBake(64, 1.f), lodBake(128, 0.3f), lodBake(256, 0.15f) };
+    //Twig has to maintain a minimum of 3 of these or will crash
+    std::vector<levelOfDetail> lodInfo = { levelOfDetail(16), levelOfDetail(40), levelOfDetail(80), levelOfDetail(170), levelOfDetail(300), levelOfDetail(500), levelOfDetail(800) };
+    std::array<lodBake, 3> lod_bakeInfo = { lodBake(64, 1.f), lodBake(128, 0.6f), lodBake(256, 0.3f) };
 
     // stem
     float2  numSegments = { 5.3f, 0.3f };

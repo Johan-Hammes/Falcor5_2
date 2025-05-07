@@ -1312,6 +1312,12 @@ lodBake* _twigBuilder::getBakeInfo(uint i)
     return nullptr;
 }
 
+levelOfDetail* _twigBuilder::getLodInfo(uint i)
+{
+    if (i < lodInfo.size()) return &lodInfo[i];
+    return nullptr;
+}
+
 void _twigBuilder::build_lod_0(buildSetting& _settings)
 {
     if (NODES_PREV.size() < 2) return;
@@ -1365,7 +1371,7 @@ void _twigBuilder::build_lod_1(buildSetting& _settings)
 
     uint numSides = (32 - 4) / 2;
     // tip is in teh core
-    _settings.pixelSize = 0.1f;
+    //_settings.pixelSize = 0.1f;
     build_leaves(_settings, numSides);
 }
 
@@ -1374,6 +1380,42 @@ void _twigBuilder::build_lod_2(buildSetting& _settings)
 {
     if (NODES_PREV.size() < 2) return;
 
+    ribbonVertex R_verts;
+    float w = lod_bakeInfo[2].extents.x * lod_bakeInfo[2].bakeWidth;
+    uint mat = lod_bakeInfo[2].material.index;
+
+    R_verts.startRibbon(true);
+    float vScale = 1.f / (NODES_PREV.size() - 2);
+    for (int i = 0; i < NODES_PREV.size() - 1; i++)
+    {
+        R_verts.set(NODES_PREV[i], w, mat, float2(1.f, i  * vScale), 127, 127);
+        ribbonVertex::ribbons.push_back(R_verts);
+    }
+
+
+    build_leaves(_settings, 100000);
+
+    NODES_PREV.pop_back();
+
+    build_tip(_settings);
+
+}
+
+
+void _twigBuilder::build_tip(buildSetting& _settings)
+{
+    // reset teh seed so all lods build teh same here
+    _rootPlant::generator.seed(_settings.seed + 1999);
+    if (unique_tip)
+    {
+        // walk the tip back ever so slightly
+        glm::mat4 node = NODES_PREV.back();
+        GROW(node, -tipWidth * 0.5f);
+        _settings.root = node;
+        _settings.age = 1.f;
+        glm::mat4 lastNode = tip.get().plantPtr->build(_settings);
+        NODES_PREV.push_back(lastNode);
+    }
 }
 
 
@@ -1424,9 +1466,9 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     NODES.clear();
     NODES.push_back(node);
 
-    if (_settings.pixelSize >= 10.f) { build_lod_0(_settings); return NODES_PREV.back(); }
-    else if (_settings.pixelSize >= 5.f) { build_lod_1(_settings); return NODES_PREV.back(); }
-    else if (_settings.pixelSize >= 1.f) { build_lod_2(_settings); return NODES_PREV.back(); }
+    if (_settings.pixelSize == lodInfo[0].pixelSize) { build_lod_0(_settings); return NODES_PREV.back(); }
+    if (_settings.pixelSize == lodInfo[1].pixelSize) { build_lod_1(_settings); return NODES_PREV.back(); }
+    if (_settings.pixelSize == lodInfo[2].pixelSize) { build_lod_2(_settings); return NODES_PREV.back(); }
 
 
 
@@ -1435,7 +1477,7 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     float nodePixels = (stem_length.x * 0.001f) / _settings.pixelSize;
     int nodeNumSegments = __max(1, (int)pow(nodePixels / 4.f, 0.5f));
     float segStep = 99.f / (float)nodeNumSegments;
-    float tipWidth = 0;
+    
 
     R_verts.startRibbon(true);
     age = RND_B(numSegments);
@@ -1492,20 +1534,8 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     lastNode = NODES.back();
 
     build_leaves(_settings, 100000);
-
-
-    // reset teh seed so all lods build teh same here
-    _rootPlant::generator.seed(_settings.seed + 1999);
-    if (unique_tip)
-    {
-        // walk the tip back ever so slightly
-        node = NODES.back();
-        GROW(node, -tipWidth * 0.5f);
-        _settings.root = node;
-        _settings.age = 1.f;
-        lastNode = tip.get().plantPtr->build(_settings);
-        NODES_PREV.push_back(lastNode);
-    }
+    build_tip(_settings);
+    
 
     changedForSave |= changed;
     changed = false;
@@ -1710,24 +1740,45 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::Text("%d verts", (int)ribbonVertex::packed.size());
         if (ImGui::Button("BUILD")) build();
 
-        if (ImGui::Button("BUILD lod 0"))   //???
+        ImGui::NewLine();
+
+        if (root)
         {
-            settings.pixelSize = 10.f;
-            build();
+            for (uint lod = 0; lod < 100; lod++)
+            {
+                levelOfDetail* lodInfo = root->getLodInfo(lod);
+                if (lodInfo)
+                {
+                    ImGui::PushID(5678 + lod);
+                    {
+                        ImGui::Text("%d", lod);
+                        ImGui::SameLine(0, 10);
+                        ImGui::SetNextItemWidth(60);
+                        if (ImGui::DragInt("##numPix", &(lodInfo->numPixels), 1, 8, 2000))
+                        {
+                            lodInfo->pixelSize = extents.y / lodInfo->numPixels;
+                            settings.pixelSize = lodInfo->pixelSize;
+                            build();
+                            lodInfo->numVerts = (int)ribbonVertex::packed.size();
+                            lodInfo->numBlocks = lodInfo->numVerts / VEG_BLOCK_SIZE + 1;
+                            lodInfo->unused = lodInfo->numBlocks * VEG_BLOCK_SIZE - lodInfo->numVerts;
+                        }
+                        ImGui::SetTooltip("[v %d, b %d, u %d]", lodInfo->numVerts, lodInfo->numBlocks, lodInfo->unused);
+
+                        ImGui::SameLine(0, 10);
+                        ImGui::Text("px, %2.1f mm", lodInfo->pixelSize * 1000.f);
+                        //ImGui::SameLine(0, 10);
+                        //ImGui::Text("[v %d, b %d, u %d]", lodInfo->numVerts , lodInfo->numBlocks , lodInfo->unused );
+                    }
+                    ImGui::PopID();
+                }
+            }
         }
-        if (ImGui::Button("BUILD lod 1"))
-        {
-            settings.pixelSize = 5.f;
-            build();
-        }
-        if (ImGui::Button("BUILD lod 2"))
-        {
-            settings.pixelSize = 2.f;
-            build();
-        }
+
 
         if (root && anyChange)  build();
 
+        ImGui::NewLine();
         if (ImGui::Button("BAKE 0, 1, 2"))
         {
             if (root)

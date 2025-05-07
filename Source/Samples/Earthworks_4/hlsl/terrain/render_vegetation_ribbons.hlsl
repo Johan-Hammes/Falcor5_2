@@ -541,9 +541,9 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 color = sunColor * (saturate(ndots)) * albedo.rgb * vOut.colour.x * vOut.lighting.z;
     
 
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 1 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 10 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
     // temporary ENV till we seyt gEnv again
-    color += float3(0.01, 0.03, 0.1) * albedo.rgb * vOut.colour.x * vOut.lighting.w;
+    color += float3(0.01, 0.03, 0.05) * albedo.rgb * 2;// * vOut.colour.x * vOut.lighting.w;
 
     
     
