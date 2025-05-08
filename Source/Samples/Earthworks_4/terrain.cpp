@@ -3231,7 +3231,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         vegetation.plantData = Buffer::createStructured(sizeof(plant), 256);
         vegetation.instanceData = Buffer::createStructured(sizeof(plant_instance), 16384);
-        vegetation.blockData = Buffer::createStructured(sizeof(block_data), 16384);
+        vegetation.blockData = Buffer::createStructured(sizeof(block_data), 16384);        // big enough to house inatnces * blocks per instance   8 Mb for now
         vegetation.vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 256 * 128);
 
         vegetation.plantBuf[0].radiusScale = ribbonVertex::radiusScale;
@@ -3259,7 +3259,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         for (int i = 0; i < 16384; i++)
         {
-            vegetation.blockBuf[i].block_idx = 0;
+            vegetation.blockBuf[i].vertex_offset = 0;
             vegetation.blockBuf[i].instance_idx = i;
             vegetation.blockBuf[i].section_idx = 0;
         }

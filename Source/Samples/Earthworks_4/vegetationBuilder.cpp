@@ -1072,7 +1072,6 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
         {
             R_verts.startRibbon(true);
             R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
-            ribbonVertex::ribbons.push_back(R_verts);
         }
 
         for (int i = 0; i < 100; i++)
@@ -1084,7 +1083,6 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
             if (showStem && cnt >= step)
             {
                 R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
-                ribbonVertex::ribbons.push_back(R_verts);
                 cnt -= step;
             }
         }
@@ -1125,7 +1123,6 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
             float du = width_offset.y;
             if (numLeaf == 1) du = 1.f;
             R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 0.f), albedoScale, translucentScale);
-            ribbonVertex::ribbons.push_back(R_verts);
         }
 
         for (int i = 0; i < 100; i++)
@@ -1150,7 +1147,6 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
             if (showLeaf && cnt >= step)
             {
                 R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale);
-                ribbonVertex::ribbons.push_back(R_verts);
                 cnt -= step;
             }
         }
@@ -1333,17 +1329,14 @@ void _twigBuilder::build_lod_0(buildSetting& _settings)
 
     // 2 vers quad version
     R_verts.set(node, w, mat, float2(1, 0.f), 127, 127);
-    ribbonVertex::ribbons.push_back(R_verts);
     node[3] = NODES_PREV.back()[3];
     R_verts.set(node, w, mat, float2(1, 1.f), 127, 127);
-    ribbonVertex::ribbons.push_back(R_verts);
 
     // 4 Verts version
     /*
     for (int i = 0; i < 4; i++)
     {
         R_verts.set(node, w * lod_bakeInfo[0].dU[i], mat, float2(lod_bakeInfo[0].dU[i], 0.f + (0.3333333f * i)), 127, 127);
-        ribbonVertex::ribbons.push_back(R_verts);
         node[3] += step;
     }
     */
@@ -1365,7 +1358,6 @@ void _twigBuilder::build_lod_1(buildSetting& _settings)
     for (int i = 0; i < 4; i++)
     {
         R_verts.set(node, w, mat, float2(1.f, 0.f + (0.3333333f * i)), 127, 127);
-        ribbonVertex::ribbons.push_back(R_verts);
         node[3] += step;
     }
 
@@ -1389,7 +1381,6 @@ void _twigBuilder::build_lod_2(buildSetting& _settings)
     for (int i = 0; i < NODES_PREV.size() - 1; i++)
     {
         R_verts.set(NODES_PREV[i], w, mat, float2(1.f, i  * vScale), 127, 127);
-        ribbonVertex::ribbons.push_back(R_verts);
     }
 
 
@@ -1494,7 +1485,6 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
         bool visible = W > _settings.pixelSize;
         if (visible && i == 0) {
             R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);   // set very first one
-            ribbonVertex::ribbons.push_back(R_verts);
         }
         float cnt = 0;
         for (int j = 0; j < 100; j++)
@@ -1511,7 +1501,6 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
             if (visible && cnt >= segStep)
             {
                 R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 127, 127);
-                ribbonVertex::ribbons.push_back(R_verts);
                 cnt -= segStep;
             }
         }
@@ -1616,7 +1605,7 @@ void _rootPlant::onLoad()
 {
     plantData = Buffer::createStructured(sizeof(plant), 256);
     instanceData = Buffer::createStructured(sizeof(plant_instance), 16384);
-    blockData = Buffer::createStructured(sizeof(block_data), 16384);
+    blockData = Buffer::createStructured(sizeof(block_data), 16384 * 32);        // big enough to house inatnces * blocks per instance   8 Mb for now
     vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 256 * 128);
 
     std::uniform_real_distribution<> RND(-1.f, 1.f);
@@ -1624,7 +1613,7 @@ void _rootPlant::onLoad()
     for (int i = 0; i < 16384; i++)
     {
         instanceBuf[i].plant_idx = 0;
-        instanceBuf[i].position = { RND(generator) * 5, 0, RND(generator) * 5 };
+        instanceBuf[i].position = { RND(generator) * 35, 0, RND(generator) * 35 };
         instanceBuf[i].scale = 1.f + RND(generator) * 0.5f;
         instanceBuf[i].rotation = RND(generator) * 3.14f;
         instanceBuf[i].time_offset = RND(generator) * 100;
@@ -1636,9 +1625,10 @@ void _rootPlant::onLoad()
 
     for (int i = 0; i < 16384; i++)
     {
-        blockBuf[i].block_idx = 0;
+        blockBuf[i].vertex_offset = 0;
         blockBuf[i].instance_idx = i;
         blockBuf[i].section_idx = 0;
+        blockBuf[i].plant_idx = 0;
     }
 
     Sampler::Desc samplerDesc;
@@ -1738,12 +1728,73 @@ void _rootPlant::renderGui(Gui* _gui)
 
         if (ImGui::DragInt("seed", &settings.seed, 1, 0, 1000)) { build(); }
         ImGui::Text("%d verts", (int)ribbonVertex::packed.size());
-        if (ImGui::Button("BUILD")) build();
+        //if (ImGui::Button("BUILD")) build();
 
         ImGui::NewLine();
 
+
         if (root)
         {
+            if (ImGui::Button("BuildAllLODS"))
+            {
+                tempUpdateRender = true;
+
+                ribbonVertex::packed.clear();
+                ribbonVertex::packed.reserve(4096); // just fairly large
+                uint start = 0;
+                settings.pixelSize = 0.001f;    // 1mm just tiny
+                build();
+                float Y = extents.y;
+
+                ribbonVertex::packed.clear();
+
+                for (uint lod = 1; lod < 100; lod++)
+                {
+                    levelOfDetail* lodInfo = root->getLodInfo(lod);
+                    if (lodInfo)
+                    {
+                        lodInfo->pixelSize = Y / lodInfo->numPixels;
+                        settings.pixelSize = lodInfo->pixelSize;
+                        build();
+                        lodInfo->numVerts = (int)ribbonVertex::ribbons.size();
+                        lodInfo->numBlocks = ribbonVertex::packed.size() / VEG_BLOCK_SIZE - start;
+                        lodInfo->unused = ribbonVertex::packed.size() - ribbonVertex::ribbons.size();
+                        lodInfo->startBlock = start;
+
+                        start += lodInfo->numBlocks;
+                    }
+                }
+
+
+                levelOfDetail* display_lodInfo = root->getLodInfo(4);
+                uint numB = display_lodInfo->numBlocks;
+                for (int i = 0; i < 16384; i++)
+                {
+                    for (int j = 0; j < numB; j++)
+                    {
+                        blockBuf[i * numB + j].vertex_offset = VEG_BLOCK_SIZE * (display_lodInfo->startBlock + j);
+                        blockBuf[i * numB + j].instance_idx = i;
+                        blockBuf[i * numB + j].section_idx = 0;
+                        blockBuf[i * numB + j].plant_idx = 0;
+                    }
+                }
+                totalBlocksToRender = numB * 16384;
+                blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
+
+                plantBuf[0].radiusScale = ribbonVertex::radiusScale;
+                plantBuf[0].scale = ribbonVertex::objectScale;
+                plantBuf[0].offset = ribbonVertex::objectOffset;
+                plantBuf[0].Ao_depthScale = 10;
+                plantBuf[0].bDepth = 1;
+                plantBuf[0].bScale = 1;
+                plantBuf[0].sunTilt = -0.2f;
+                plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+                //instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
+                //blockData->setBlob(blockBuf.data(), 0, 16384 * sizeof(block_data));
+                vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+
+            }
+
             for (uint lod = 0; lod < 100; lod++)
             {
                 levelOfDetail* lodInfo = root->getLodInfo(lod);
@@ -1768,15 +1819,23 @@ void _rootPlant::renderGui(Gui* _gui)
                         ImGui::SameLine(0, 10);
                         ImGui::Text("px, %2.1f mm", lodInfo->pixelSize * 1000.f);
                         //ImGui::SameLine(0, 10);
-                        //ImGui::Text("[v %d, b %d, u %d]", lodInfo->numVerts , lodInfo->numBlocks , lodInfo->unused );
+                        ImGui::Text("[v %d, b %d, u %d, startB %d]", lodInfo->numVerts , lodInfo->numBlocks , lodInfo->unused, lodInfo->startBlock);
                     }
                     ImGui::PopID();
                 }
             }
         }
 
+        ImGui::NewLine();
+        ImGui::Text("render information");
+        ImGui::Text("blocks %d   {%d}", totalBlocksToRender, totalBlocksToRender / 16384);
 
-        if (root && anyChange)  build();
+        if (root && anyChange)
+        {
+            //ribbonVertex::packed.clear();
+            //ribbonVertex::packed.reserve(4096); // just fairly large
+            //build();
+        }
 
         ImGui::NewLine();
         if (ImGui::Button("BAKE 0, 1, 2"))
@@ -1838,8 +1897,12 @@ void _rootPlant::build()
 
         // now pack it
         extents = float2(0, 0);
-        ribbonVertex::packed.clear();
-        ribbonVertex::packed.reserve(ribbonVertex::ribbons.size());
+        int verts = ribbonVertex::ribbons.size();
+        int last = verts % VEG_BLOCK_SIZE;
+        int unused = 0;
+        if (last > 0) unused = VEG_BLOCK_SIZE - last;
+        //ribbonVertex::packed.clear();
+        //ribbonVertex::packed.reserve(verts + unused);
         for (auto& R : ribbonVertex::ribbons)
         {
             ribbonVertex8 P = R.pack();
@@ -1849,6 +1912,12 @@ void _rootPlant::build()
             float r = glm::length(XZ);
             extents.x = __max(extents.x, r + R.radius);
             extents.y = __max(extents.y, abs(R.position.y) + R.radius);
+        }
+
+        // fill up the rest with th efirst vertex
+        for (int i = 0; i < unused; i++)
+        {
+            ribbonVertex::packed.push_back(ribbonVertex::packed.front());
         }
 
         anyChange = false;
@@ -2029,27 +2098,16 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
     renderContext = _renderContext;
 
     //if (_plantMaterial::static_materials_veg.modified || _plantMaterial::static_materials_veg.modifiedData)
-    if (ribbonVertex::packed.size() > 1)
+    //if (ribbonVertex::packed.size() > 1)
+    if(tempUpdateRender)
     {
+        tempUpdateRender = false;
         _plantMaterial::static_materials_veg.modified = false;
         _plantMaterial::static_materials_veg.modifiedData = false;
         _plantMaterial::static_materials_veg.setTextures(varVegTextures);
         _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
-        plantBuf[0].radiusScale = ribbonVertex::radiusScale;
-        plantBuf[0].scale = ribbonVertex::objectScale;
-        plantBuf[0].offset = ribbonVertex::objectOffset;
-        plantBuf[0].Ao_depthScale = 10;
-        plantBuf[0].bDepth = 1;
-        plantBuf[0].bScale = 1;
-        plantBuf[0].sunTilt = -0.2f;
-        plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
-        //instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
-        //blockData->setBlob(blockBuf.data(), 0, 16384 * sizeof(block_data));
-        vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
-
-        vegetationShader.State()->setFbo(_fbo);
-        vegetationShader.State()->setViewport(0, _viewport, true);
+        
         vegetationShader.State()->setRasterizerState(rasterstate);
         vegetationShader.State()->setBlendState(blendstate);
 
@@ -2061,12 +2119,17 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
     if (ribbonVertex::packed.size() > 1)
     {
         FALCOR_PROFILE("ribbonShader");
+
+        vegetationShader.State()->setFbo(_fbo);
+        vegetationShader.State()->setViewport(0, _viewport, true);
+
         vegetationShader.Vars()["gConstantBuffer"]["viewproj"] = _viewproj;
         vegetationShader.Vars()["gConstantBuffer"]["eyePos"] = camPos;
         static float time = 0.0f;
         time += 0.01f;  // FIXME I NEED A Timer
         vegetationShader.Vars()["gConstantBuffer"]["time"] = time;
 
-        vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
+        //vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
+        vegetationShader.drawInstanced(_renderContext, 32, totalBlocksToRender);
     }
 }

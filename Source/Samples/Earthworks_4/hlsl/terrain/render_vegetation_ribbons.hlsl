@@ -264,7 +264,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const block_data BLOCK = block_buffer[iId];
     const plant_instance INSTANCE = instance_buffer[BLOCK.instance_idx];
     const plant PLANT = plant_buffer[INSTANCE.plant_idx];
-    const ribbonVertex8 v = vertex_buffer[vId];
+    const ribbonVertex8 v = vertex_buffer[vId + BLOCK.vertex_offset];
 
 #if defined(_BAKE)
     //rootPosition = float3(0, 0, 0);
@@ -501,6 +501,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    
     /*
     if (isFrontFace)
         return float4(0, 1, frac(vOut.uv.y), 1);
@@ -516,6 +517,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     alpha =     pow(alpha, MAT.alphaPow);
     clip(alpha - 0.2);
+
     
     
     float3 N = vOut.normal;
@@ -554,7 +556,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 TN = vOut.normal;
     if (!isFrontFace)        TN *= -1;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * float3(2, 3, 1) * MAT.translucency * vOut.lighting.z;
-    float3 trans = (saturate(-ndots)) *     saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * 0.3 * MAT.translucency * vOut.lighting.z;
+    float3 trans = (saturate(-ndots)) *     saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * 0.5 * MAT.translucency * vOut.lighting.z;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.colour.y * float3(1, 1, 1) * MAT.translucency * vOut.lighting.z; 
     {
         if (MAT.translucencyTexture >= 0)
@@ -568,7 +570,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
     alpha = smoothstep(0.2, 1, alpha);
     alpha = min(alpha, alphaV);
-
+    
     if (alpha < 0.99)
     {
         float2 uv = vOut.pos.xy / float2(2560, 1440);

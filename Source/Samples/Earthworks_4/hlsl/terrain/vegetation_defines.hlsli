@@ -4,9 +4,10 @@
 // We have a large linear array of this, that gets filled from compute
 struct block_data
 {
-    uint instance_idx;          // -> plant
+    uint instance_idx;          // -> plant     20 bits at least
     uint section_idx;           // -> plant_section - xpbd sim
-    uint block_idx;             // -> ribbonVertex8 data in 128 vertex blocks
+    uint vertex_offset;             // -> ribbonVertex8 data in 32 vertex blocks for now
+    uint plant_idx;             // can find this via instance but likely faster and keeps us aligned    16 bits enough
 };
 
 

@@ -148,7 +148,7 @@ struct buildSetting
     glm::mat4   root; // expand for the root stem direction as well to avoid growing through
     float       numSegments;
     float       pixelSize = 0.001f;  //1 cm
-    int         seed = 101;
+    int         seed = 1000;
     float       age = 1.f;
     bool        forcePhototropy = false;    // for billboard baking
 };
@@ -163,7 +163,7 @@ struct bakeSettings
 };
 
 
-
+#define VEG_BLOCK_SIZE 32
 
 struct ribbonVertex
 {
@@ -197,6 +197,18 @@ struct ribbonVertex
         translucencyScale = _translucency;
 
         startBit = pushStart;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
+
+        uint idx = ribbonVertex::ribbons.size();
+        if ((idx > 0) && (idx % VEG_BLOCK_SIZE == 0) && startBit == true)
+        {
+            // start of a new block, but we are in teh middle of a ribbon, repeat the last one as a start
+            ribbonVertex R = ribbonVertex::ribbons.back();
+            R.startBit = false;
+            ribbonVertex::ribbons.push_back(R);
+        }
+
+        ribbonVertex::ribbons.push_back(*this);
+
         pushStart = true;
     }
 
@@ -249,7 +261,7 @@ public:
 };
 
 
-#define VEG_BLOCK_SIZE 32
+
 
 class levelOfDetail
 {
@@ -263,6 +275,8 @@ public:
     uint numVerts = 0;
     uint numBlocks = 0;
     uint unused = 0;
+    uint startBlock = 0;
+    
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -586,8 +600,10 @@ public:
     Buffer::SharedPtr vertexData;
     std::array<plant, 256> plantBuf;
     std::array<plant_instance, 16384> instanceBuf;
-    std::array<block_data, 16384> blockBuf;
+    std::array<block_data, 16384 * 32> blockBuf;
     std::array<ribbonVertex8, 128 * 256> vertexBuf;
+    uint totalBlocksToRender = 0;
+    bool tempUpdateRender = false;
 
 
 
