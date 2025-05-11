@@ -94,6 +94,9 @@ ribbonVertex8 ribbonVertex::pack()
     int depth8 = (int)(clamp(lightDepth, 0.f, 2.0f) * 127.5f);
 
 
+    uint albedo = (int)clamp((albedoScale - 0.1f) / 0.008f, 0.f, 255.f);
+    uint translucency = (int)clamp((translucencyScale - 0.1f) / 0.008f, 0.f, 255.f);
+    
 
 
     ribbonVertex8 p;
@@ -103,7 +106,7 @@ ribbonVertex8 ribbonVertex::pack()
     p.c = (up_yaw9 << 23) + (up_pitch8 << 15) + v15;
     p.d = (left_yaw9 << 23) + (left_pitch8 << 15) + (u7 << 8) + radius8;
     p.e = (coneYaw9 << 23) + (conePitch8 << 15) + (cone7 << 8) + depth8;
-    p.f = (ao << 24) + (shadow << 16) + (albedoScale << 8) + translucencyScale;
+    p.f = ((int)(ambientOcclusion * 255) << 24) + (shadow << 16) + (albedo << 8) + translucency;
     return p;
 }
 
@@ -1023,6 +1026,7 @@ void _leafBuilder::treeView()
     }
 }
 
+#define RND_ALBEDO(data) (data * (1.f + 0.3f * (float)dist(_rootPlant::generator)))
 #define RND_B(data) (data.x * (1.f + data.y * (float)dist(_rootPlant::generator)))
 #define RND_CRV(data) (data.x + (data.y * (float)dist(_rootPlant::generator)))
 
@@ -1071,7 +1075,7 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
         if (showStem)
         {
             R_verts.startRibbon(true);
-            R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);
+            R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);
         }
 
         for (int i = 0; i < 100; i++)
@@ -1082,7 +1086,7 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
             cnt++;
             if (showStem && cnt >= step)
             {
-                R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 127, 127);
+                R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f);
                 cnt -= step;
             }
         }
@@ -1100,8 +1104,8 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
     // WILL BE significantly better if we calc start and end positions
     {
         _vegMaterial mat = materials.get();
-        unsigned char albedoScale = (unsigned char)(glm::lerp(mat.albedoScale.x, mat.albedoScale.y, 1.f - age) * 127.f);// +distAlbedo(gen);
-        unsigned char translucentScale = (unsigned char)(glm::lerp(mat.translucencyScale.x, mat.translucencyScale.y, 1.f - age) * 127.f);
+        float albedoScale = RND_ALBEDO(glm::lerp(mat.albedoScale.y, mat.albedoScale.x, age));
+        float translucentScale = glm::lerp(mat.translucencyScale.y, mat.translucencyScale.x, age);
 
         float length = RND_B(leaf_length) / 100.f * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
         float width = RND_B(leaf_width) * 0.001f * age;
@@ -1328,15 +1332,15 @@ void _twigBuilder::build_lod_0(buildSetting& _settings)
     R_verts.startRibbon(true);
 
     // 2 vers quad version
-    R_verts.set(node, w, mat, float2(1, 0.f), 127, 127);
+    R_verts.set(node, w, mat, float2(1, 0.f), 1.f, 1.f);
     node[3] = NODES_PREV.back()[3];
-    R_verts.set(node, w, mat, float2(1, 1.f), 127, 127);
+    R_verts.set(node, w, mat, float2(1, 1.f), 1.f, 1.f);
 
     // 4 Verts version
     /*
     for (int i = 0; i < 4; i++)
     {
-        R_verts.set(node, w * lod_bakeInfo[0].dU[i], mat, float2(lod_bakeInfo[0].dU[i], 0.f + (0.3333333f * i)), 127, 127);
+        R_verts.set(node, w * lod_bakeInfo[0].dU[i], mat, float2(lod_bakeInfo[0].dU[i], 0.f + (0.3333333f * i)), 1.f, 1.f);
         node[3] += step;
     }
     */
@@ -1357,7 +1361,7 @@ void _twigBuilder::build_lod_1(buildSetting& _settings)
     R_verts.startRibbon(true);
     for (int i = 0; i < 4; i++)
     {
-        R_verts.set(node, w, mat, float2(1.f, 0.f + (0.3333333f * i)), 127, 127);
+        R_verts.set(node, w, mat, float2(1.f, 0.f + (0.3333333f * i)), 1.f, 1.f);
         node[3] += step;
     }
 
@@ -1376,12 +1380,17 @@ void _twigBuilder::build_lod_2(buildSetting& _settings)
     float w = lod_bakeInfo[2].extents.x * lod_bakeInfo[2].bakeWidth;
     uint mat = lod_bakeInfo[2].material.index;
 
+    
+    // THIS version follwos every node, but really nto that good
     R_verts.startRibbon(true);
     float vScale = 1.f / (NODES_PREV.size() - 2);
-    for (int i = 0; i < NODES_PREV.size() - 1; i++)
+    int step = 4;   // FIXME - need to be width over heigth ratio
+    for (int i = 0; i < NODES_PREV.size() - 2; i+= step)
     {
-        R_verts.set(NODES_PREV[i], w, mat, float2(1.f, i  * vScale), 127, 127);
+        R_verts.set(NODES_PREV[i], w, mat, float2(1.f, i * vScale), 1.f, 1.f);
     }
+    R_verts.set(NODES_PREV[NODES_PREV.size() - 2], w, mat, float2(1.f, 1.f), 1.f, 1.f);
+    
 
 
     build_leaves(_settings, 100000);
@@ -1468,7 +1477,7 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     float nodePixels = (stem_length.x * 0.001f) / _settings.pixelSize;
     int nodeNumSegments = __max(1, (int)pow(nodePixels / 4.f, 0.5f));
     float segStep = 99.f / (float)nodeNumSegments;
-    
+
 
     R_verts.startRibbon(true);
     age = RND_B(numSegments);
@@ -1484,7 +1493,7 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
 
         bool visible = W > _settings.pixelSize;
         if (visible && i == 0) {
-            R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 127, 127);   // set very first one
+            R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
         }
         float cnt = 0;
         for (int j = 0; j < 100; j++)
@@ -1500,7 +1509,7 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
             cnt++;
             if (visible && cnt >= segStep)
             {
-                R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 127, 127);
+                R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 1.f, 1.f);
                 cnt -= segStep;
             }
         }
@@ -1524,7 +1533,7 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
 
     build_leaves(_settings, 100000);
     build_tip(_settings);
-    
+
 
     changedForSave |= changed;
     changed = false;
@@ -1567,8 +1576,11 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     lod_bakeInfo[0].dU[1] = du[1] / extents.x;
     lod_bakeInfo[0].dU[2] = du[2] / extents.x;
     lod_bakeInfo[0].dU[3] = du[3] / extents.x;
-    lod_bakeInfo[0].material.name = full_path.stem().string() + "_billboard_lod0";
-    lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[0].material.name + ".vegMaterial";
+    //lod_bakeInfo[0].material.name = full_path.stem().string() + "_billboard_lod0";
+    //lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[0].material.name + ".vegMaterial";
+
+    lod_bakeInfo[0].material.name = std::to_string(_settings.seed) + "_lod0";
+    lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[0].material.name + ".vegetationMaterial";;
 
     // lod 1
     lod_bakeInfo[1].extents = extents;
@@ -1577,8 +1589,10 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     lod_bakeInfo[1].dU[1] = __min(1.f, du[1] / dw);
     lod_bakeInfo[1].dU[2] = __min(1.f, du[2] / dw);
     lod_bakeInfo[1].dU[3] = __min(1.f, du[3] / dw);
-    lod_bakeInfo[1].material.name = full_path.stem().string() + "_billboard_lod1";
-    lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[1].material.name + ".vegMaterial";
+    //lod_bakeInfo[1].material.name = full_path.stem().string() + "_billboard_lod1";
+    //lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[1].material.name + ".vegMaterial";
+    lod_bakeInfo[1].material.name = std::to_string(_settings.seed) + "_lod1";
+    lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[1].material.name + ".vegetationMaterial";;
 
     // lod 2
     extents.y = NODES.back()[3].y;   // last lod use NDOE end
@@ -1588,8 +1602,10 @@ glm::mat4 _twigBuilder::build(buildSetting& _settings)
     lod_bakeInfo[2].dU[1] = __min(1.f, du[1] / dw2);
     lod_bakeInfo[2].dU[2] = __min(1.f, du[2] / dw2);
     lod_bakeInfo[2].dU[3] = __min(1.f, du[3] / dw2);
-    lod_bakeInfo[2].material.name = full_path.stem().string() + "_billboard_lod2";
-    lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[2].material.name + ".vegMaterial";
+    //lod_bakeInfo[2].material.name = full_path.stem().string() + "_billboard_lod2";
+    //lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[2].material.name + ".vegMaterial";
+    lod_bakeInfo[2].material.name = std::to_string(_settings.seed) + "_lod2";
+    lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[2].material.name + ".vegetationMaterial";;
 
 
     return lastNode;
@@ -1613,7 +1629,7 @@ void _rootPlant::onLoad()
     for (int i = 0; i < 16384; i++)
     {
         instanceBuf[i].plant_idx = 0;
-        instanceBuf[i].position = { RND(generator) * 35, 0, RND(generator) * 35 };
+        instanceBuf[i].position = { RND(generator) * 55, 0, RND(generator) * 55 };
         instanceBuf[i].scale = 1.f + RND(generator) * 0.5f;
         instanceBuf[i].rotation = RND(generator) * 3.14f;
         instanceBuf[i].time_offset = RND(generator) * 100;
@@ -1720,14 +1736,15 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::NewLine();
         static float numPix = 100;
         numPix = bakeSettings.objectSize / settings.pixelSize;
-        if(ImGui::DragFloat("size", &bakeSettings.objectSize, 0.01f, 1.f, 64.f, "%3.2fm")) build();
-        if(ImGui::DragFloat("radius", &bakeSettings.radiusScale, 0.001f, 0.1f, 8.f, "%3.2fm")) build();
-        if (ImGui::DragFloat("num pix", &numPix, 1.f, 1.f, 1000.f, "%3.4f")) { settings.pixelSize = bakeSettings.objectSize / numPix; build();}
+        if (ImGui::DragFloat("size", &bakeSettings.objectSize, 0.01f, 1.f, 64.f, "%3.2fm")) build();
+        if (ImGui::DragFloat("radius", &bakeSettings.radiusScale, 0.001f, 0.1f, 8.f, "%3.2fm")) build();
+        if (ImGui::DragFloat("num pix", &numPix, 1.f, 1.f, 1000.f, "%3.4f")) { settings.pixelSize = bakeSettings.objectSize / numPix; build(); }
         ImGui::Text("pixel is %2.1f mm", settings.pixelSize * 1000.f);
-        if (ImGui::DragFloat("pix SZ", &settings.pixelSize, 0.001f, 0.001f, 1.f, "%3.2fm")) { numPix = bakeSettings.objectSize / settings.pixelSize; build();}
+        if (ImGui::DragFloat("pix SZ", &settings.pixelSize, 0.001f, 0.001f, 1.f, "%3.2fm")) { numPix = bakeSettings.objectSize / settings.pixelSize; build(); }
 
         if (ImGui::DragInt("seed", &settings.seed, 1, 0, 1000)) { build(); }
-        ImGui::Text("%d verts", (int)ribbonVertex::packed.size());
+        ImGui::Text("%d verts", totalBlocksToRender * VEG_BLOCK_SIZE);
+        ImGui::Text("%2.2f M tris", (float)totalBlocksToRender * VEG_BLOCK_SIZE * 2.f / 1000000.f);
         //if (ImGui::Button("BUILD")) build();
 
         ImGui::NewLine();
@@ -1748,43 +1765,57 @@ void _rootPlant::renderGui(Gui* _gui)
 
                 ribbonVertex::packed.clear();
 
-                for (uint lod = 1; lod < 100; lod++)
+                uint startBlock[16][16];
+                uint numBlocks[16][16];
+                for (int pIndex = 0; pIndex < 4; pIndex++)
                 {
-                    levelOfDetail* lodInfo = root->getLodInfo(lod);
-                    if (lodInfo)
+                    for (uint lod = 1; lod < 100; lod++)
                     {
-                        lodInfo->pixelSize = Y / lodInfo->numPixels;
-                        settings.pixelSize = lodInfo->pixelSize;
-                        build();
-                        lodInfo->numVerts = (int)ribbonVertex::ribbons.size();
-                        lodInfo->numBlocks = ribbonVertex::packed.size() / VEG_BLOCK_SIZE - start;
-                        lodInfo->unused = ribbonVertex::packed.size() - ribbonVertex::ribbons.size();
-                        lodInfo->startBlock = start;
+                        levelOfDetail* lodInfo = root->getLodInfo(lod);
+                        if (lodInfo)
+                        {
+                            lodInfo->pixelSize = Y / lodInfo->numPixels;
+                            settings.pixelSize = lodInfo->pixelSize;
+                            settings.seed = 1000 + pIndex;
+                                build();
+                            lodInfo->numVerts = (int)ribbonVertex::ribbons.size();
+                            lodInfo->numBlocks = ribbonVertex::packed.size() / VEG_BLOCK_SIZE - start;
+                            lodInfo->unused = ribbonVertex::packed.size() - ribbonVertex::ribbons.size();
+                            lodInfo->startBlock = start;
 
-                        start += lodInfo->numBlocks;
+                            startBlock[pIndex][lod] = start;
+                            numBlocks[pIndex][lod] = lodInfo->numBlocks;
+
+                            start += lodInfo->numBlocks;
+                        }
                     }
                 }
 
 
                 levelOfDetail* display_lodInfo = root->getLodInfo(4);
-                uint numB = display_lodInfo->numBlocks;
+                totalBlocksToRender = 0;
+
                 for (int i = 0; i < 16384; i++)
                 {
+                    int plantIdx = 0;// i % 4;
+                    uint RENDERME = 4;
+                    uint numB = numBlocks[plantIdx][RENDERME];
+                    totalBlocksToRender += numB;
                     for (int j = 0; j < numB; j++)
                     {
-                        blockBuf[i * numB + j].vertex_offset = VEG_BLOCK_SIZE * (display_lodInfo->startBlock + j);
+                        blockBuf[i * numB + j].vertex_offset = VEG_BLOCK_SIZE * (startBlock[plantIdx][RENDERME] + j);
                         blockBuf[i * numB + j].instance_idx = i;
                         blockBuf[i * numB + j].section_idx = 0;
-                        blockBuf[i * numB + j].plant_idx = 0;
+                        blockBuf[i * numB + j].plant_idx = plantIdx;
                     }
                 }
-                totalBlocksToRender = numB * 16384;
+                
                 blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
 
                 plantBuf[0].radiusScale = ribbonVertex::radiusScale;
                 plantBuf[0].scale = ribbonVertex::objectScale;
                 plantBuf[0].offset = ribbonVertex::objectOffset;
-                plantBuf[0].Ao_depthScale = 10;
+                plantBuf[0].Ao_depthScale = 0.3f;
                 plantBuf[0].bDepth = 1;
                 plantBuf[0].bScale = 1;
                 plantBuf[0].sunTilt = -0.2f;
@@ -1819,7 +1850,7 @@ void _rootPlant::renderGui(Gui* _gui)
                         ImGui::SameLine(0, 10);
                         ImGui::Text("px, %2.1f mm", lodInfo->pixelSize * 1000.f);
                         //ImGui::SameLine(0, 10);
-                        ImGui::Text("[v %d, b %d, u %d, startB %d]", lodInfo->numVerts , lodInfo->numBlocks , lodInfo->unused, lodInfo->startBlock);
+                        ImGui::Text("[v %d, b %d, u %d, startB %d]", lodInfo->numVerts, lodInfo->numBlocks, lodInfo->unused, lodInfo->startBlock);
                     }
                     ImGui::PopID();
                 }
@@ -1838,22 +1869,81 @@ void _rootPlant::renderGui(Gui* _gui)
         }
 
         ImGui::NewLine();
+        if (ImGui::Button("BUILD"))
+        {
+            settings.pixelSize = 0.001f;
+            ribbonVertex::packed.clear();
+            build();
+            vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));
+            uint numB = ribbonVertex::packed.size() / VEG_BLOCK_SIZE;
+            for (int j = 0; j < numB; j++)
+            {
+                blockBuf[j].vertex_offset = VEG_BLOCK_SIZE * j;
+                blockBuf[j].instance_idx = 0;
+                blockBuf[j].section_idx = 0;
+                blockBuf[j].plant_idx = 0;
+            }
+            totalBlocksToRender = numB;
+            blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
+
+            plantBuf[0].radiusScale = ribbonVertex::radiusScale;
+            plantBuf[0].scale = ribbonVertex::objectScale;
+            plantBuf[0].offset = ribbonVertex::objectOffset;
+            plantBuf[0].Ao_depthScale = 0.3f;
+            plantBuf[0].bDepth = 1;
+            plantBuf[0].bScale = 1;
+            plantBuf[0].sunTilt = -0.2f;
+            plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+
+            tempUpdateRender = true;
+        }
+
+        ImGui::NewLine();
         if (ImGui::Button("BAKE 0, 1, 2"))
         {
             if (root)
             {
-                // FIXME this has to chnage the settings
-                // straiten it
-                // and detail settings - quite high for bakogn at least 16x the highest ixel settibng - just high for now
-                // build must set all teh extents and du
-                build();
 
-                for (int i = 0; i < 10; i++)
+
+                for (int seed = 1000; seed < 1004; seed++)
                 {
-                    if (root->getBakeInfo(i))
+                    // FIXME this has to chnage the settings
+                    // straiten it
+                    // and detail settings - quite high for bakogn at least 16x the highest ixel settibng - just high for now
+                    // build must set all teh extents and du
+                    settings.seed = seed;
+                    settings.pixelSize = 0.001f;
+                    ribbonVertex::packed.clear();
+                    build();
+                    vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));
+
+                    uint numB = ribbonVertex::packed.size() / VEG_BLOCK_SIZE;
+                    for (int j = 0; j < numB; j++)
                     {
-                        bake(root->getBakeInfo(i));
-                        root->getBakeInfo(i)->material.reload();
+                        blockBuf[j].vertex_offset = VEG_BLOCK_SIZE * j;
+                        blockBuf[j].instance_idx = 0;
+                        blockBuf[j].section_idx = 0;
+                        blockBuf[j].plant_idx = 0;
+                    }
+                    totalBlocksToRender = numB;
+                    blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
+
+                    plantBuf[0].radiusScale = ribbonVertex::radiusScale;
+                    plantBuf[0].scale = ribbonVertex::objectScale;
+                    plantBuf[0].offset = ribbonVertex::objectOffset;
+                    plantBuf[0].Ao_depthScale = 0.3f;
+                    plantBuf[0].bDepth = 1;
+                    plantBuf[0].bScale = 1;
+                    plantBuf[0].sunTilt = -0.2f;
+                    plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+
+                    for (int i = 0; i < 10; i++)
+                    {
+                        if (root->getBakeInfo(i))
+                        {
+                            bake(root->path, std::to_string(settings.seed), root->getBakeInfo(i));
+                            root->getBakeInfo(i)->material.reload();
+                        }
                     }
                 }
             }
@@ -1897,6 +1987,15 @@ void _rootPlant::build()
 
         // now pack it
         extents = float2(0, 0);
+        for (auto& R : ribbonVertex::ribbons)
+        {
+            // can we do this earlier during set - to a global extents?
+            float2 XZ = R.position.xz;
+            float r = glm::length(XZ);
+            extents.x = __max(extents.x, r + R.radius);
+            extents.y = __max(extents.y, abs(R.position.y) + R.radius);
+        }
+
         int verts = ribbonVertex::ribbons.size();
         int last = verts % VEG_BLOCK_SIZE;
         int unused = 0;
@@ -1905,13 +2004,9 @@ void _rootPlant::build()
         //ribbonVertex::packed.reserve(verts + unused);
         for (auto& R : ribbonVertex::ribbons)
         {
+            R.lightBasic(extents);
             ribbonVertex8 P = R.pack();
             ribbonVertex::packed.push_back(P);
-
-            float2 XZ = R.position.xz;
-            float r = glm::length(XZ);
-            extents.x = __max(extents.x, r + R.radius);
-            extents.y = __max(extents.y, abs(R.position.y) + R.radius);
         }
 
         // fill up the rest with th efirst vertex
@@ -1951,10 +2046,26 @@ void _rootPlant::eXport()
 
 
 
-void _rootPlant::bake(lodBake* _info)
+void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 {
     if (!root) return;
 
+    std::filesystem::path PT = _path;
+    //lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\" + full_path.stem().string() + "_bake\\" + lod_bakeInfo[0].material.name + ".vegMaterial";;
+
+
+    std::string resource = terrafectorEditorMaterial::rootFolder;
+
+    std::string newDir = "rmdir " + resource + PT.parent_path().string() + "\\bake_" + PT.stem().string();
+    replaceAllVEG(newDir, "/", "\\");
+    system(newDir.c_str());
+
+    newDir = "mkdir " + resource + PT.parent_path().string() + "\\bake_" + PT.stem().string();
+    replaceAllVEG(newDir, "/", "\\");
+    system(newDir.c_str());
+
+    std::string newRelative = PT.parent_path().string() + "\\bake_" + PT.stem().string() + "\\";
+    newDir = resource + newRelative;
 
 
     int superSample = 8;
@@ -1997,15 +2108,16 @@ void _rootPlant::bake(lodBake* _info)
     bakeShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
     bakeShader.Vars()["gConstantBuffer"]["eyePos"] = float3(0, 0, -100000);  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_radius_alpha"] = W;  // just very far sort of parallel
-    
+
 
     _plantMaterial::static_materials_veg.setTextures(varBakeTextures);
     _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
-    plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
-    vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+    //plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+    //vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
 
-    bakeShader.drawInstanced(renderContext, ribbonVertex::packed.size(), 1);
+    //bakeShader.drawInstanced(renderContext, ribbonVertex::packed.size(), 1);
+    bakeShader.drawInstanced(renderContext, 32, totalBlocksToRender);
 
     renderContext->flush(true);
 
@@ -2026,16 +2138,16 @@ void _rootPlant::bake(lodBake* _info)
     //std::filesystem::path full_path = root->path;
     //std::string name = full_path.stem().string() + "_billboard";
     //std::string newPath = full_path.parent_path().string() + "\\" + name;
-    std::string resource = terrafectorEditorMaterial::rootFolder;
+
     replaceAllVEG(resource, "/", "\\");
     {
         _plantMaterial Mat;
         Mat._constData.translucency = 1;
-        Mat.albedoPath = _info->material.path + "_albedo.dds";
+        Mat.albedoPath = newRelative + _info->material.name + "_albedo.dds";
         Mat.albedoName = _info->material.name + "_albedo.dds";
-        Mat.normalPath = _info->material.path + "_normal.dds";
+        Mat.normalPath = newRelative + _info->material.name + "_normal.dds";
         Mat.normalName = _info->material.name + "_normal.dds";
-        Mat.translucencyPath = _info->material.path + "_translucency.dds";
+        Mat.translucencyPath = newRelative + _info->material.name + "_translucency.dds";
         Mat.translucencyName = _info->material.name + "_translucency.dds";
 
         fbo->getColorTexture(0).get()->generateMips(renderContext);
@@ -2044,12 +2156,12 @@ void _rootPlant::bake(lodBake* _info)
         fbo->getColorTexture(3).get()->generateMips(renderContext);
         fbo->getColorTexture(4).get()->generateMips(renderContext);
 
-        fbo->getColorTexture(0).get()->captureToFile(3, 0, resource + _info->material.path + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
-        fbo->getColorTexture(2).get()->captureToFile(3, 0, resource + _info->material.path + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        fbo->getColorTexture(4).get()->captureToFile(3, 0, resource + _info->material.path + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(0).get()->captureToFile(3, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(3, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(4).get()->captureToFile(3, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
         {
-            std::string png = resource + _info->material.path + "_albedo.png";
+            std::string png = newDir + "_albedo.png";
             std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
             replaceAllVEG(cmdExp, "/", "\\");
             system(cmdExp.c_str());
@@ -2060,7 +2172,7 @@ void _rootPlant::bake(lodBake* _info)
         }
 
         {
-            std::string png = resource + _info->material.path + "_normal.png";
+            std::string png = newDir + "_normal.png";
             std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
             replaceAllVEG(cmdExp, "/", "\\");
             system(cmdExp.c_str());
@@ -2071,7 +2183,7 @@ void _rootPlant::bake(lodBake* _info)
         }
 
         {
-            std::string png = resource + _info->material.path + "_translucency.png";
+            std::string png = newDir + "_translucency.png";
             std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
             replaceAllVEG(cmdExp, "/", "\\");
             system(cmdExp.c_str());
@@ -2099,7 +2211,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
 
     //if (_plantMaterial::static_materials_veg.modified || _plantMaterial::static_materials_veg.modifiedData)
     //if (ribbonVertex::packed.size() > 1)
-    if(tempUpdateRender)
+    if (tempUpdateRender)
     {
         tempUpdateRender = false;
         _plantMaterial::static_materials_veg.modified = false;
@@ -2107,11 +2219,11 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         _plantMaterial::static_materials_veg.setTextures(varVegTextures);
         _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
-        
+
         vegetationShader.State()->setRasterizerState(rasterstate);
         vegetationShader.State()->setBlendState(blendstate);
 
-        vegetationShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
+        
     }
 
 
@@ -2122,12 +2234,16 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
 
         vegetationShader.State()->setFbo(_fbo);
         vegetationShader.State()->setViewport(0, _viewport, true);
+        vegetationShader.State()->setRasterizerState(rasterstate);
+        vegetationShader.State()->setBlendState(blendstate);
 
         vegetationShader.Vars()["gConstantBuffer"]["viewproj"] = _viewproj;
         vegetationShader.Vars()["gConstantBuffer"]["eyePos"] = camPos;
         static float time = 0.0f;
         time += 0.01f;  // FIXME I NEED A Timer
         vegetationShader.Vars()["gConstantBuffer"]["time"] = time;
+
+        vegetationShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it chences every time we loose focus
 
         //vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
         vegetationShader.drawInstanced(_renderContext, 32, totalBlocksToRender);

@@ -12,6 +12,8 @@ Texture2D gAlbedo : register(t0);
 TextureCube gEnv : register(t1);
 Texture2D gHalfBuffer : register(t2);
 
+Texture2D gDappledLight : register(t3);
+
 struct ribbonTextures
 {
     Texture2D<float4> T[4096];
@@ -41,6 +43,12 @@ cbuffer gConstantBuffer
 
 
 
+#define AmbietOcclusion lighting.w
+#define AlbedoScale colour.x
+#define TranslucencyScale colour.y
+#define Sunlight lighting.z
+
+
 
 struct PSIn
 {
@@ -55,7 +63,8 @@ struct PSIn
     nointerpolation uint4 flags : TEXCOORD2; // material
     float3 eye : TEXCOORD3;                 // can this become SVPR  or per plant somehow, feels overkill here per vertex
     float4 colour : TEXCOORD4;
-    float lineScale : TEXCOORD5; 
+    float lineScale : TEXCOORD5;
+    float3 sunUV : TEXCOORD6;
 };
 
 
@@ -77,9 +86,9 @@ float3 lighting(const float3 N, const float3 eye, const float3 colour, const flo
     float3 tempAlbedo = float3(3.03, 0.1, 0.02);
     
     //diffuse env
-    color *= tempAlbedo * colour.x * lighting.z;
+    color *= tempAlbedo * AlbedoScale * lighting.z;
 
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * tempAlbedo * colour.x * lighting.w;
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * tempAlbedo * AlbedoScale * AmbietOcclusion;
     
     // specular sun
     color += pow(ndoth, 15) * 0.3 * lighting.z;
@@ -147,8 +156,8 @@ inline void extractFlags(inout PSIn o, const ribbonVertex8 v)
 /*
 inline void extractColor(inout PSIn o, const ribbonVertex8 v)
 {
-    o.colour.r = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
-    o.colour.g = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
+    o.AlbedoScale = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
+    o.TranslucencyScale = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
     //o.colour.b = 0.5;
 
     o.colour.b = saturate((v.d & 0xff) * radiusScale / length(o.pos.xyz - eyePos) * 200);
@@ -264,7 +273,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     const block_data BLOCK = block_buffer[iId];
     const plant_instance INSTANCE = instance_buffer[BLOCK.instance_idx];
     const plant PLANT = plant_buffer[INSTANCE.plant_idx];
-    const ribbonVertex8 v = vertex_buffer[vId + BLOCK.vertex_offset];
+    const ribbonVertex8 v = vertex_buffer[BLOCK.vertex_offset + vId];
+    
 
 #if defined(_BAKE)
     //rootPosition = float3(0, 0, 0);
@@ -312,8 +322,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractFlags(output, v);
     //extractColor(output, v);
     {
-        output.colour.r = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
-        output.colour.g = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
+        output.AlbedoScale = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
+        output.TranslucencyScale = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
         output.colour.b = saturate((v.d & 0xff) * PLANT.radiusScale / length(output.pos.xyz - eyePos) * 200);
         output.colour.b = saturate((output.colour.b - 0.5) * 50);
     }
@@ -324,14 +334,34 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     //light(output, v, INSTANCE.rotation);
     {
         const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
+        const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
+        const float3 sunU = normalize(cross(sunDir, sunR));
         float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, INSTANCE.rotation);
         float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
         float d = (v.e & 0xff) * 0.00784; //depth8
         float a = saturate(dot(normalize(lightCone + sunDir * PLANT.sunTilt), sunDir)); //cone * 0
-        float b = a * (PLANT.bDepth - d) + d;
-        float ao = 1 - saturate(d * PLANT.Ao_depthScale);
-        output.lighting = float4(0, 0, saturate(1 - (b * PLANT.bScale)), ao);
+        //float b = a * (PLANT.bDepth - d) + d;
+        float b = a * (1 - d) + d;
+        
+        //output.lighting = float4(0, 0, saturate(1 - (b * PLANT.bScale)), ao);
 
+        output.Sunlight = d * 0.2;//        saturate(1 - (b * 2));
+        
+        
+
+        output.sunUV.x = dot(output.pos.xyz, sunR);
+        output.sunUV.y = dot(output.pos.xyz, sunU);
+        output.sunUV.z = saturate(1 - (b * 1.0));
+
+        if (abs(dot(output.pos.xyz, sunR)) < 3 && abs(dot(output.pos.xyz, sunU)) < 15)
+        {
+            output.sunUV.z = 0;
+            //output.Sunlight = 0;
+        }
+
+        output.AmbietOcclusion = pow(((v.f >> 24) / 255.f), 3);
+        //float ao =  1 - saturate(d * PLANT.Ao_depthScale);
+        //float ao = 1 - saturate(d * 3);
         
 #if defined(_BAKE)
     output.lighting.rgb = lightCone;
@@ -348,7 +378,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
             output.flags.y = 0;
         }
     */
-    //output.lighting.w = 0.5f;
+    //output.AmbietOcclusion = 0.5f;
 
     // Now do wind animation
     // maybe before lighting, although for now it doesnt seem to matter
@@ -376,17 +406,29 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     float lineScale = 1.f;
     PSIn v;
 
+    const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
+    const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
+    const float3 sunU = normalize(cross(sunDir, sunR));             // ThisHAS to come in a a constant
+    
     
     //if ((L[1].flags.y == 1) && (L[0].flags.w > 1))
     if ((L[1].flags.y == 1))
     {
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
+        v.pos = L[0].pos + float4(v.tangent * v.lineScale, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunR);
+        v.sunUV.y = dot(v.pos.xyz, sunU);
+        //v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
+        v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
+        v.pos = L[0].pos - float4(v.tangent * v.lineScale, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunR);
+        v.sunUV.y = dot(v.pos.xyz, sunU);
+        //v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
+        v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
       /*  
@@ -408,11 +450,17 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = mul(L[1].pos - float4(v.tangent * v.lineScale, 0), viewproj);
+        v.pos = L[1].pos + float4(v.tangent * v.lineScale, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunR);
+        v.sunUV.y = dot(v.pos.xyz, sunU);
+        v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = mul(L[1].pos + float4(v.tangent * v.lineScale, 0), viewproj);
+        v.pos = L[1].pos - float4(v.tangent * v.lineScale, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunR);
+        v.sunUV.y = dot(v.pos.xyz, sunU);
+        v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
     }
 }
@@ -451,7 +499,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float rnd = 0.25 + 0.5 * rand_1_05(vOut.pos.xy);
     clip(alpha - rnd);
 
-    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.colour.x * pow(vOut.lighting.w, 2);
+    float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.AlbedoScale * pow(vOut.AmbietOcclusion, 2);
 
     output.albedo = float4(pow(color, 1.0 / 2.2), 1);   // previous alpha, doesnt work form bake
     
@@ -484,7 +532,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     
 
-    float trans = vOut.colour.y * MAT.translucency;
+    float trans = vOut.TranslucencyScale * MAT.translucency;
     {
         if (MAT.translucencyTexture >= 0)
         {
@@ -508,8 +556,13 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     else
         return float4(1, 0, vOut.uv.y, 1);
     */
+    
+    
     sprite_material MAT = materials[vOut.flags.x];
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
+    albedo.rgb *= 0.5 * vOut.AlbedoScale; // FIXME should come from material
+    //albedo.rgb = 0.2;
+    
     float alpha = albedo.a;
     if (MAT.alphaTexture >= 0)
     {
@@ -526,45 +579,48 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
         N = (-normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
     }
-    N *= (isFrontFace * 2 - 1);
-
+    N *= -(isFrontFace * 2 - 1);
+    //float4 R =     vOut.Sunlight;
+    //R.a = 1;
+    //return R;
     
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 0.3;
+    const float3 sunColor = float3(1.1, 1.0, 0.7) * 0.8;
     //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(-sunDir + vOut.eye)));
-    float ndots = dot(N, -sunDir); // * vOut.lighting.z;
+    float ndots = dot(N, -sunDir); // * vOut.Sunlight;
     if (MAT.translucency > 0.98)
     {
         //ndots = 0.5;
     }
-    
 
-    float3 color = sunColor * (saturate(ndots)) * albedo.rgb * vOut.colour.x * vOut.lighting.z;
-    
-
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 10 * albedo.rgb * vOut.colour.x * vOut.lighting.w;
-    // temporary ENV till we seyt gEnv again
-    color += float3(0.01, 0.03, 0.05) * albedo.rgb * 2;// * vOut.colour.x * vOut.lighting.w;
+    // sunlight dapple
+    float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * 0.1)).r; // FIXME we need a sun orintated UV passed in really vOut.Sunlight should beome float 3, u, v, depth
+    float dDap = 1.f - vOut.sunUV.z;
+    dappled = smoothstep(dDap - 0.05, dDap + 0.05, dappled);
 
     
+
+    float3 color = sunColor * (saturate(ndots)) * albedo.rgb * dappled;//    vOut.Sunlight;
+
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 1 * albedo.rgb * vOut.AmbietOcclusion;
     
     // specular sun
-    color += pow(ndoth, 39) * 0.31 * vOut.lighting.z;
+    color += pow(ndoth, 29) * 0.51 * dappled;//    vOut.Sunlight;
    
-
+    
     float3 TN = vOut.normal;
     if (!isFrontFace)        TN *= -1;
-    //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * float3(2, 3, 1) * MAT.translucency * vOut.lighting.z;
-    float3 trans = (saturate(-ndots)) *     saturate(dot(sunDir, vOut.eye)) * vOut.colour.y * 0.5 * MAT.translucency * vOut.lighting.z;
-    //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.colour.y * float3(1, 1, 1) * MAT.translucency * vOut.lighting.z; 
+    //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * float3(2, 3, 1) * MAT.translucency * vOut.Sunlight;
+    float3 trans = (saturate(-ndots)) * saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * 0.5 * MAT.translucency * dappled;//    vOut.Sunlight;
+    //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.TranslucencyScale * float3(1, 1, 1) * MAT.translucency * vOut.Sunlight; 
     {
         if (MAT.translucencyTexture >= 0)
         {
-            trans *= pow(textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r, 1);
+            trans *= textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r;
         }
     }
-    color += trans * albedo.rgb * albedo.rgb * 5 * vOut.colour.x;
+    color += trans * albedo.rgb * albedo.rgb * 12 * vOut.AlbedoScale;
     
 
     float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);

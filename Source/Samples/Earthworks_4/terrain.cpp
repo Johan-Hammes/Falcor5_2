@@ -646,8 +646,8 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
         ribbon[ribbonLength].bitangent = vertex[2];
         ribbon[ribbonLength].tangent = vertex[0];
         ribbon[ribbonLength].material = leaf_Material.index;
-        ribbon[ribbonLength].albedoScale = (unsigned char)(glm::lerp(albedoScaleNew, albedoScale, _age) * 127.f) + albRnd;
-        ribbon[ribbonLength].translucencyScale = (unsigned char)(glm::lerp(translucencyScaleNew, translucencyScale, _age) * 127.f);
+        //ribbon[ribbonLength].albedoScale = (unsigned char)(glm::lerp(albedoScaleNew, albedoScale, _age) * 127.f) + albRnd;
+        //ribbon[ribbonLength].translucencyScale = (unsigned char)(glm::lerp(translucencyScaleNew, translucencyScale, _age) * 127.f);
         ribbon[ribbonLength].uv = float2(du, 1.f + t);
 
         //if ((sumAngle > testAngle) && ((l_W * du) > minWidth))
@@ -3370,10 +3370,13 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         vegetation.skyTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_bc.dds", false, true);
         vegetation.envTexture = Texture::createFromFile(settings.dirResource + "/skies/alps_IR_bc.dds", false, true);
+        vegetation.dappledLightTexture = Texture::createFromFile(settings.dirResource + "/vegetation/dappled_noise_01.jpg", false, true);
         triangleShader.Vars()->setTexture("gSky", vegetation.skyTexture);
         ribbonShader.Vars()->setTexture("gEnv", vegetation.envTexture);
         vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
         vegetationShader_Bake.Vars()->setTexture("gEnv", vegetation.envTexture);
+
+        
 
         // Grass from disk ###########################################################################################################
 
@@ -3583,6 +3586,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
     vegetation.ROOT.onLoad();
+    vegetation.ROOT.vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
+    vegetation.ROOT.vegetationShader.Vars()->setTexture("gDappledLight", vegetation.dappledLightTexture);
 
 
 

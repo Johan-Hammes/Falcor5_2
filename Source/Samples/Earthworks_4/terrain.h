@@ -1353,6 +1353,7 @@ private:
         bool show = false;
         Texture::SharedPtr	  skyTexture;
         Texture::SharedPtr	  envTexture;
+        Texture::SharedPtr	  dappledLightTexture;
         // sky mesh
 
         //_GroveTree groveTree;

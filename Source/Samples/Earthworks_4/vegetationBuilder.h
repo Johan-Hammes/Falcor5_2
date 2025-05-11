@@ -185,7 +185,7 @@ struct ribbonVertex
         type = !_cameraFacing;
     }
 
-    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, unsigned char _albedo, unsigned char _translucency)
+    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency)
     {
         position = _node[3];
         radius = _radius;
@@ -211,6 +211,19 @@ struct ribbonVertex
 
         pushStart = true;
     }
+    void lightBasic(float2 extents)
+    {
+        float3 Ldir = position - float3(0, 0.3f * extents.y, 0);
+        lightCone = float4(glm::normalize(Ldir), 0);    // 0 is just 180 degrees so wide
+        lightDepth = extents.x - glm::length(Ldir);
+
+        float3 P = position;
+        P.y = 0;
+        float dx = glm::length(P);
+        float aoW = 0.3f + 0.7f * dx / extents.x;
+        float aoH = 0.4f + 0.6f * position.y / extents.y;
+        ambientOcclusion = __max(aoW, aoH);
+    }
 
     // FIXME void light(lightCone light Depth ao shadow)
 
@@ -226,10 +239,10 @@ struct ribbonVertex
 
     float4  lightCone = {0, 1, 0, 1};
     float   lightDepth = 0.2f;
-    unsigned char ao = 255;
-    unsigned char shadow = 255;
-    unsigned char albedoScale = 255;
-    unsigned char translucencyScale = 255;
+    float ambientOcclusion = 1.f;
+    unsigned char shadow = 255;         // ??? I think this in now unused
+    float albedoScale = 1.f;
+    float translucencyScale = 1.f;
 };
 
 
@@ -488,8 +501,8 @@ public:
     FileDialogFilterVec filters = { {"twig"} };
 
     //Twig has to maintain a minimum of 3 of these or will crash
-    std::vector<levelOfDetail> lodInfo = { levelOfDetail(16), levelOfDetail(40), levelOfDetail(80), levelOfDetail(170), levelOfDetail(300), levelOfDetail(500), levelOfDetail(800) };
-    std::array<lodBake, 3> lod_bakeInfo = { lodBake(64, 1.f), lodBake(128, 0.6f), lodBake(256, 0.3f) };
+    std::vector<levelOfDetail> lodInfo = { levelOfDetail(10), levelOfDetail(14), levelOfDetail(40), levelOfDetail(100), levelOfDetail(300), levelOfDetail(500) };
+    std::array<lodBake, 3> lod_bakeInfo = { lodBake(64, 1.f), lodBake(128, 0.6f), lodBake(256, 0.2f) };
 
     // stem
     float2  numSegments = { 5.3f, 0.3f };
@@ -569,7 +582,7 @@ public:
     void import();
     void eXport();
 
-    void bake(lodBake *_info);
+    void bake(std::string _path, std::string _seed, lodBake *_info);
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos);
 
     RenderContext* renderContext;
