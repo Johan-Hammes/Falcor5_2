@@ -33,9 +33,9 @@ class materialCache_plants {
 public:
     static std::string lastFile;   // fixme, try to copy this to and from vegMaterial on start and exit to remember
 
-    int find_insert_material(const std::string _path, const std::string _name);
-    int find_insert_material(const std::filesystem::path _path);
-    int find_insert_texture(const std::filesystem::path _path, bool isSRGB);
+    int find_insert_material(const std::string _path, const std::string _name, bool _forceReload = false);
+    int find_insert_material(const std::filesystem::path _path, bool _forceReload = false);
+    int find_insert_texture(const std::filesystem::path _path, bool isSRGB, bool _forceReload = false);
     std::string clean(const std::string _s);
 
     void setTextures(ShaderVar& var);
@@ -527,6 +527,8 @@ public:
     bool unique_tip;
     randomVector<_plantRND> tip;
 
+    // feedback
+    uint numLeavesBuilt = 0;
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)

@@ -318,7 +318,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
         if (abs(dot(output.pos.xyz, sunR)) < 3 && abs(dot(output.pos.xyz, sunU)) < 15)
         {
-            output.sunUV.z = 0;
+            //output.sunUV.z = 0;
             //output.Sunlight = 0;
         }
 
@@ -354,22 +354,22 @@ void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
 {
     PSIn v = pt[0];
     
-    v.uv = float2(0, 1);
-    v.AmbietOcclusion = 0.1;
-    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale.x, 0), viewproj);
+    v.uv = float2(0.2, 1);
+    v.AmbietOcclusion = 1.0;
+    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale.x * 0.6, 0), viewproj);
     OutputStream.Append(v);
 
-    v.uv = float2(1, 1);
-    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x, 0), viewproj);
+    v.uv = float2(0.8, 1);
+    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x * 0.6, 0), viewproj);
     OutputStream.Append(v);
         
-    v.uv = float2(0, 0);
+    v.uv = float2(0.2, 0);
     v.AmbietOcclusion = 1.;
-    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale[0].x, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
+    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale[0].x * 0.6, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
     OutputStream.Append(v);
 
-    v.uv = float2(1, 0);
-    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
+    v.uv = float2(0.8, 0);
+    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x * 0.6, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
     OutputStream.Append(v);
     
 }
@@ -480,8 +480,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.AlbedoScale * pow(vOut.AmbietOcclusion, 2);
 
-    color = color * vOut.AlbedoScale;
-    //color = float3(0.5, 0.3, 0.1 );
+    color = color * vOut.AlbedoScale * vOut.AmbietOcclusion;
     output.albedo = float4(pow(color, 1.0 / 2.2), 1);
     
 
@@ -532,7 +531,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
 
-
+    
     /*
     if (isFrontFace)
         return float4(frac(vOut.uv.x), 1, frac(vOut.uv.y), 1);
@@ -557,8 +556,9 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         //alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
     }
     alpha =     pow(alpha, MAT.alphaPow);
+    //if (alpha < 0.2)        return float4(0.5, 0, 0, 1);
     clip(alpha - 0.2);
-
+    
 
     
     float3 N = vOut.normal;
@@ -617,15 +617,16 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 TN = vOut.normal;
     if (!isFrontFace)        TN *= -1;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * float3(2, 3, 1) * MAT.translucency * vOut.Sunlight;
-    float3 trans = (saturate(-ndots)) * saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * 0.5 * MAT.translucency * dappled;//    vOut.Sunlight;
+    float3 trans = (saturate(-ndots)) * saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled;//    vOut.Sunlight;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.TranslucencyScale * float3(1, 1, 1) * MAT.translucency * vOut.Sunlight; 
     {
         if (MAT.translucencyTexture >= 0)
         {
             trans *= textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r;
+            // For teh moment disabled since it looks betetr on billboards, migth cut that bake compeltely but trest other trees first
         }
     }
-    color += trans * albedo.rgb * albedo.rgb * 12 * vOut.AlbedoScale;
+    color += trans * albedo.rgb * albedo.rgb * 8 * vOut.AlbedoScale;
     
 
     

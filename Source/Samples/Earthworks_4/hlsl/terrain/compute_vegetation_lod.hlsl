@@ -46,7 +46,7 @@ void main(uint idx : SV_DispatchThreadId)
             //pix = 10;
         }
         //else
-          //  pix = 10;
+           //pix = 70;
 
         //if (pix > 64) pix = 300;
 
@@ -69,7 +69,7 @@ void main(uint idx : SV_DispatchThreadId)
                         lod = i;
                 }
 
-            
+            //lod = 4;
 
                 uint slot = 0;
                 InterlockedAdd(DrawArgs_Plants[0].instanceCount, PLANT.lods[lod].numBlocks, slot);
