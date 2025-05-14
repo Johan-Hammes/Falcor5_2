@@ -163,7 +163,7 @@ struct bakeSettings
 };
 
 
-#define VEG_BLOCK_SIZE 32
+
 
 struct ribbonVertex
 {
@@ -502,7 +502,7 @@ public:
 
     //Twig has to maintain a minimum of 3 of these or will crash
     std::vector<levelOfDetail> lodInfo = { levelOfDetail(10), levelOfDetail(14), levelOfDetail(40), levelOfDetail(100), levelOfDetail(300), levelOfDetail(500) };
-    std::array<lodBake, 3> lod_bakeInfo = { lodBake(64, 1.f), lodBake(128, 0.6f), lodBake(256, 0.2f) };
+    std::array<lodBake, 3> lod_bakeInfo = { lodBake(256, 1.f), lodBake(128, 0.6f), lodBake(256, 0.2f) };
 
     // stem
     float2  numSegments = { 5.3f, 0.3f };
@@ -583,7 +583,8 @@ public:
     void eXport();
 
     void bake(std::string _path, std::string _seed, lodBake *_info);
-    void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos);
+    void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
+        rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum);
 
     RenderContext* renderContext;
 
@@ -601,14 +602,17 @@ public:
     BlendState::SharedPtr           blendstate;
     BlendState::SharedPtr           blendstateBake;
     pixelShader vegetationShader;
+    pixelShader billboardShader;
     pixelShader bakeShader;
     ShaderVar varVegTextures;
+    ShaderVar varBBTextures;
     ShaderVar varBakeTextures;
 
     computeShader		compute_bakeFloodfill;
 
     Buffer::SharedPtr blockData;
     Buffer::SharedPtr instanceData;
+    Buffer::SharedPtr instanceData_Billboards;
     Buffer::SharedPtr plantData;
     Buffer::SharedPtr vertexData;
     std::array<plant, 256> plantBuf;
@@ -617,6 +621,11 @@ public:
     std::array<ribbonVertex8, 128 * 256> vertexBuf;
     uint totalBlocksToRender = 0;
     bool tempUpdateRender = false;
+
+    Buffer::SharedPtr   drawArgs_vegetation;
+    Buffer::SharedPtr   drawArgs_billboards;
+    computeShader		compute_clearBuffers;
+    computeShader		compute_calulate_lod;
 
 
 

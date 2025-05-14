@@ -150,6 +150,15 @@ void Earthworks_4::onGuiRender(Gui* _gui)
             all.windowPos(0, 0);
             all.windowSize((int)screenSize.x, (int)screenSize.y);
             terrain.onGuiRenderParaglider(all, _gui, screenSize, &atmosphere.params);
+
+            /*
+            ImGui::PushFont(_gui->getFont("H1"));
+            {
+                //ImGui::SetCursorPos(ImVec2(screenSize.x - 100, 0));
+                ImGui::SetCursorPos(ImVec2(100, 100));
+                ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+            }*/
+            ImGui::PopFont();
         }
         all.release();
         ImGui::PopStyleColor();

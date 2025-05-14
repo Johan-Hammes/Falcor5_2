@@ -1621,8 +1621,27 @@ void _rootPlant::onLoad()
 {
     plantData = Buffer::createStructured(sizeof(plant), 256);
     instanceData = Buffer::createStructured(sizeof(plant_instance), 16384);
-    blockData = Buffer::createStructured(sizeof(block_data), 16384 * 32);        // big enough to house inatnces * blocks per instance   8 Mb for now
+    instanceData_Billboards = Buffer::createStructured(sizeof(plant_instance), 16384, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+    blockData = Buffer::createStructured(sizeof(block_data), 16384 * 32, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);        // big enough to house inatnces * blocks per instance   8 Mb for now
     vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 256 * 128);
+    drawArgs_vegetation = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+    drawArgs_billboards = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+
+    // compute
+    //split.compute_tileClear.Vars()->setBuffer("DrawArgs_ClippedLoddedPlants", split.drawArgs_clippedloddedplants);
+
+
+    compute_clearBuffers.load("Samples/Earthworks_4/hlsl/terrain/compute_vegetation_clear.hlsl");
+    compute_clearBuffers.Vars()->setBuffer("DrawArgs_Quads", drawArgs_billboards);
+    compute_clearBuffers.Vars()->setBuffer("DrawArgs_Plants", drawArgs_vegetation);
+
+    compute_calulate_lod.load("Samples/Earthworks_4/hlsl/terrain/compute_vegetation_lod.hlsl");
+    compute_calulate_lod.Vars()->setBuffer("DrawArgs_Quads", drawArgs_billboards);
+    compute_calulate_lod.Vars()->setBuffer("DrawArgs_Plants", drawArgs_vegetation);
+    compute_calulate_lod.Vars()->setBuffer("plant_buffer", plantData);
+    compute_calulate_lod.Vars()->setBuffer("instance_buffer", instanceData);
+    compute_calulate_lod.Vars()->setBuffer("instance_buffer_billboard", instanceData_Billboards);    
+    compute_calulate_lod.Vars()->setBuffer("block_buffer", blockData);
 
     std::uniform_real_distribution<> RND(-1.f, 1.f);
 
@@ -1666,6 +1685,18 @@ void _rootPlant::onLoad()
     auto& block = vegetationShader.Vars()->getParameterBlock("textures");
     varVegTextures = block->findMember("T");
 
+    billboardShader.add("_BILLBOARD", "");
+    billboardShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::PointList, "gsMain");
+    billboardShader.Vars()->setBuffer("plant_buffer", plantData);
+    billboardShader.Vars()->setBuffer("instance_buffer", instanceData_Billboards);
+    billboardShader.Vars()->setBuffer("block_buffer", blockData);
+    billboardShader.Vars()->setBuffer("vertex_buffer", vertexData);
+    billboardShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
+    billboardShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
+    billboardShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
+    auto& blockBB = billboardShader.Vars()->getParameterBlock("textures");
+    varBBTextures = blockBB->findMember("T");
+
     bakeShader.add("_BAKE", "");
     bakeShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
     bakeShader.Vars()->setBuffer("plant_buffer", plantData);
@@ -1706,6 +1737,15 @@ void _rootPlant::renderGui(Gui* _gui)
 {
     Gui::Window builderPanel(_gui, "vegetation builder", { 900, 900 }, { 100, 100 });
     {
+        ImGui::PushFont(_gui->getFont("roboto_32"));
+        {
+            static float timeAvs = 0;
+            timeAvs *= 0.99f;
+            timeAvs += 0.01f * gpFramework->getFrameRate().getAverageFrameTime();
+            //ImGui::SetCursorPos(ImVec2(10, 10));
+            ImGui::Text("%3.1f fps", 1000.0 / timeAvs);
+        }
+
         ImGui::PushFont(_gui->getFont("roboto_18"));
         _plantBuilder::_gui = _gui;
 
@@ -1769,6 +1809,21 @@ void _rootPlant::renderGui(Gui* _gui)
                 uint numBlocks[16][16];
                 for (int pIndex = 0; pIndex < 4; pIndex++)
                 {
+                    plantBuf[pIndex].radiusScale = ribbonVertex::radiusScale;
+                    plantBuf[pIndex].scale = ribbonVertex::objectScale;
+                    plantBuf[pIndex].offset = ribbonVertex::objectOffset;
+                    plantBuf[pIndex].Ao_depthScale = 0.3f;
+                    plantBuf[pIndex].bDepth = 1;
+                    plantBuf[pIndex].bScale = 1;
+                    plantBuf[pIndex].sunTilt = -0.2f;
+                    plantBuf[pIndex].size = extents;
+
+                    lodBake* lodZero = root->getBakeInfo(0);
+                    if (lodZero)
+                    {
+                        plantBuf[pIndex].billboardMaterialIndex = lodZero->material.index;
+                    }
+
                     for (uint lod = 1; lod < 100; lod++)
                     {
                         levelOfDetail* lodInfo = root->getLodInfo(lod);
@@ -1785,6 +1840,16 @@ void _rootPlant::renderGui(Gui* _gui)
 
                             startBlock[pIndex][lod] = start;
                             numBlocks[pIndex][lod] = lodInfo->numBlocks;
+
+                            
+
+
+                            plantBuf[pIndex].numLods = lod - 1;
+                            plantBuf[pIndex].lods[lod - 1].pixSize = (float)lodInfo->numPixels;
+                            plantBuf[pIndex].lods[lod - 1].numBlocks = lodInfo->numBlocks;
+                            plantBuf[pIndex].lods[lod - 1].startVertex = start * VEG_BLOCK_SIZE;
+
+                            
 
                             start += lodInfo->numBlocks;
                         }
@@ -1812,14 +1877,10 @@ void _rootPlant::renderGui(Gui* _gui)
                 
                 blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
 
-                plantBuf[0].radiusScale = ribbonVertex::radiusScale;
-                plantBuf[0].scale = ribbonVertex::objectScale;
-                plantBuf[0].offset = ribbonVertex::objectOffset;
-                plantBuf[0].Ao_depthScale = 0.3f;
-                plantBuf[0].bDepth = 1;
-                plantBuf[0].bScale = 1;
-                plantBuf[0].sunTilt = -0.2f;
-                plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+                
+
+
+                plantData->setBlob(plantBuf.data(), 0, 4 * sizeof(plant));
                 //instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
                 //blockData->setBlob(blockBuf.data(), 0, 16384 * sizeof(block_data));
                 vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
@@ -2194,7 +2255,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
         }
 
         Mat._constData.translucency = 1.f;
-        Mat._constData.alphaPow = 0.8f;
+        Mat._constData.alphaPow = 1.4f;
 
         std::ofstream os(resource + _info->material.path);
         cereal::JSONOutputArchive archive(os);
@@ -2205,7 +2266,8 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 }
 
 
-void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy, rmcv::mat4  _viewproj, float3 camPos)
+void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
+    rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum)
 {
     renderContext = _renderContext;
 
@@ -2223,10 +2285,41 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         vegetationShader.State()->setRasterizerState(rasterstate);
         vegetationShader.State()->setBlendState(blendstate);
 
+        billboardShader.State()->setRasterizerState(rasterstate);
+        billboardShader.State()->setBlendState(blendstate);
+        _plantMaterial::static_materials_veg.setTextures(varBBTextures);
+        
         
     }
 
 
+    {
+        FALCOR_PROFILE("compute_veg_lods");
+        compute_clearBuffers.dispatch(_renderContext, 1, 1);
+
+        compute_calulate_lod.Vars()["gConstantBuffer"]["view"] = _view;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["frustum"] = _clipFrustum;
+        compute_calulate_lod.dispatch(_renderContext, 16384 / 256, 1);
+    }
+    
+
+    {
+        FALCOR_PROFILE("billboards");
+
+        billboardShader.State()->setFbo(_fbo);
+        billboardShader.State()->setViewport(0, _viewport, true);
+        billboardShader.State()->setRasterizerState(rasterstate);
+        billboardShader.State()->setBlendState(blendstate);
+
+        billboardShader.Vars()["gConstantBuffer"]["viewproj"] = _viewproj;
+        billboardShader.Vars()["gConstantBuffer"]["eyePos"] = camPos;
+        billboardShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it chences every time we loose focus
+        
+        if (totalBlocksToRender >= 100)
+        {
+            billboardShader.renderIndirect(_renderContext, drawArgs_billboards);
+        }
+    }
 
     if (ribbonVertex::packed.size() > 1)
     {
@@ -2246,6 +2339,14 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         vegetationShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it chences every time we loose focus
 
         //vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
-        vegetationShader.drawInstanced(_renderContext, 32, totalBlocksToRender);
+        if (totalBlocksToRender < 100)
+        {
+            vegetationShader.drawInstanced(_renderContext, 32, totalBlocksToRender);    // single plant
+        }
+        else if (totalBlocksToRender >= 100)
+        {
+            vegetationShader.renderIndirect(_renderContext, drawArgs_vegetation);
+        }
     }
+
 }

@@ -3277,6 +3277,11 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         vegetationShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
         vegetationShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
 
+
+                   // fixme only cvlamlX
+
+        
+
         vegetationShader_Bake.add("_BAKE", "");
         vegetationShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
         vegetationShader_Bake.Vars()->setBuffer("plant_buffer", vegetation.plantData);
@@ -3587,6 +3592,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     vegetation.ROOT.onLoad();
     vegetation.ROOT.vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
+    vegetation.ROOT.billboardShader.Vars()->setTexture("gEnv", vegetation.envTexture);
     vegetation.ROOT.vegetationShader.Vars()->setTexture("gDappledLight", vegetation.dappledLightTexture);
 
 
@@ -7953,7 +7959,15 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             triangleShader.State()->setBlendState(split.blendstateSplines);
             triangleShader.drawInstanced(_renderContext, 36, 1);
         }
-        vegetation.ROOT.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition());
+
+        rmcv::mat4 clip;
+        //rmcv::mat4 view, clip;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                clip[j][i] = cameraViews[CameraType_Main_Center].frustumMatrix[j][i];
+            }
+        }
+        vegetation.ROOT.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip);
 
 
         /*

@@ -18,8 +18,7 @@ struct ribbonTextures
 {
     Texture2D<float4> T[4096];
 };
-ParameterBlock<ribbonTextures>
-textures;
+ParameterBlock<ribbonTextures> textures;
 
 
 
@@ -63,11 +62,11 @@ struct PSIn
     nointerpolation uint4 flags : TEXCOORD2; // material
     float3 eye : TEXCOORD3;                 // can this become SVPR  or per plant somehow, feels overkill here per vertex
     float4 colour : TEXCOORD4;
-    float lineScale : TEXCOORD5;
+    float2 lineScale : TEXCOORD5;   // its w and h for boillboard
     float3 sunUV : TEXCOORD6;
 };
 
-
+/*
 float3 lighting(const float3 N, const float3 eye, const float3 colour, const float4 lighting, const int matIndex)
 {
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
@@ -99,7 +98,7 @@ float3 lighting(const float3 N, const float3 eye, const float3 colour, const flo
 
     return color;
 }
-
+*/
 
 inline float3 rot_xz(const float3 v, const float yaw)
 {
@@ -153,33 +152,7 @@ inline void extractFlags(inout PSIn o, const ribbonVertex8 v)
     o.flags.y = (v.a >> 30) & 0x1; //  start bool
     o.flags.z = (v.d & 0xff); //  int radius
 }
-/*
-inline void extractColor(inout PSIn o, const ribbonVertex8 v)
-{
-    o.AlbedoScale = 0.1 + ((v.f >> 8) & 0xff) * 0.008; // albedo
-    o.TranslucencyScale = ((v.f >> 0) & 0xff) * 0.008; //tanslucency
-    //o.colour.b = 0.5;
 
-    o.colour.b = saturate((v.d & 0xff) * radiusScale / length(o.pos.xyz - eyePos) * 200);
-    o.colour.b = saturate((o.colour.b - 0.5) * 50);
-    
-}*/
-/*
-inline void light(inout PSIn o, const ribbonVertex8 v, const float rotation)
-{
-    const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
-    float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, rotation);
-    float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
-    float d = (v.e & 0xff) * 0.00784; //depth8
-    float a = saturate(dot(normalize(lightCone + sunDir * sunTilt), sunDir)); //cone * 0
-    float b = a * (bDepth - d) + d;
-    float ao = 1 - saturate(d * Ao_depthScale);
-    o.lighting = float4(0, 0, saturate(1 - (b * bScale)), ao);
-
-#if defined(_BAKE)
-    o.lighting.rgb = lightCone;
-#endif
-}*/
 
 float rand_1_05(in float2 uv)
 {
@@ -226,20 +199,20 @@ void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
 {
     float3 root = float3(0, 0, 0);
     float3 dir = float3(0, 1, 0);
-    float dirL = 0.8f;
+    float dirL = 0.4f;
 
     float3 relative = vertex.pos.xyz - plantRoot - root;
     float dL = saturate(dot(relative, dir) / dirL);
-    float dL2 = pow(dL, 1.5);
+    float dL2 = pow(dL, 0.5);
 
     float3 windDir = float3(1, 0, 0);
     float3 windRight = normalize(cross(windDir, dir));
     float windStrength = windstrength(dot(windDir, vertex.pos.xyz), dot(windRight, vertex.pos.xyz), 0.2, 0.1); // already converted to radians - figure out how
 
-    float W = windStrength * dL2 * 1 * sway(rand_1_05(plantRoot.xz), 0.6, 0.093);
+    float W = windStrength * dL2 * 1 * sway(rand_1_05(plantRoot.xz), 0.2, 0.0093);
     float3x3 rot = mul(AngleAxis3x3(-W, windRight), AngleAxis3x3(-W * 2, dir));
 
-    float Wside = windStrength * dL2 * sway(rand_1_05(plantRoot.xz), 0.0, 0.043);
+    float Wside = windStrength * dL2 * sway(rand_1_05(plantRoot.xz), 0.5, 0.043);
     rot = mul(rot, AngleAxis3x3(Wside, windDir));
 
     
@@ -250,18 +223,6 @@ void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
 
     vertex.binormal = mul(rot, vertex.binormal);
     vertex.normal = mul(rot, vertex.normal );
-    /*
-    if (_rotate)
-    {
-        vertex.tangent = mul(rot, vertex.tangent);
-    }
-    else
-    {
-        vertex.tangent = normalize(cross(vertex.binormal, vertex.eye));
-    }
-    */
-    //vertex.tangent = normalize(cross(vertex.binormal, vertex.eye));
-    
 
 }
 
@@ -270,20 +231,37 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     PSIn output = (PSIn) 0;
 
+#if defined(_BILLBOARD)
+    const plant_instance INSTANCE = instance_buffer[vId];
+    const plant PLANT = plant_buffer[INSTANCE.plant_idx];
+
+    output.pos.xyz = INSTANCE.position;
+    output.pos.w = 1;
+    output.eye = normalize(output.pos.xyz - eyePos);
+
+    output.binormal = float3(0, 1, 0);
+    output.tangent = normalize(cross(output.binormal, -output.eye));
+    output.normal = cross(output.tangent, output.binormal );
+
+    output.AlbedoScale = 1;
+    output.TranslucencyScale = 1;
+
+    output.Sunlight = 1;
+    output.AmbietOcclusion = 1;
+
+    output.flags.x = PLANT.billboardMaterialIndex;
+
+    output.lineScale = PLANT.size * INSTANCE.scale;
+    
+    return output;
+#else
+
+    
     const block_data BLOCK = block_buffer[iId];
     const plant_instance INSTANCE = instance_buffer[BLOCK.instance_idx];
     const plant PLANT = plant_buffer[INSTANCE.plant_idx];
     const ribbonVertex8 v = vertex_buffer[BLOCK.vertex_offset + vId];
     
-
-#if defined(_BAKE)
-    //rootPosition = float3(0, 0, 0);
-    //scale = 1;
-    //rotation = 0;
-    //INSTANCE.position = float3(0, 0, 0);
-    //INSTANCE.rotation = 0;
-    //INSTANCE.scale = 1;
-#endif
 
     // position
     {
@@ -298,7 +276,6 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float R = length(p);
         if (R > 0.3f)      output.colour.a = 0;
         output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.5f, bake_radius_alpha, R);
-        
 #endif
     }
     
@@ -311,13 +288,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     {
         extractTangent(output, v, INSTANCE.rotation); // Likely only after abnimate, do only once
     }
-    /*
-    output.binormal = float3(0, 1, 0);
-    output.tangent = float3(1, 0, 0);
-    output.normal = float3(0, 0, 1);
-    output.tangent = normalize(cross(output.binormal, -output.eye));
-    output.normal = cross(output.binormal, output.tangent);
-    */
+    
     extractUVRibbon(output, v);
     extractFlags(output, v);
     //extractColor(output, v);
@@ -327,9 +298,6 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.colour.b = saturate((v.d & 0xff) * PLANT.radiusScale / length(output.pos.xyz - eyePos) * 200);
         output.colour.b = saturate((output.colour.b - 0.5) * 50);
     }
-
-
-    
     
     //light(output, v, INSTANCE.rotation);
     {
@@ -341,17 +309,12 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float d = (v.e & 0xff) * 0.00784; //depth8
         float a = saturate(dot(normalize(lightCone + sunDir * PLANT.sunTilt), sunDir)); //cone * 0
         //float b = a * (PLANT.bDepth - d) + d;
-        float b = a * (1 - d) + d;
-        
-        //output.lighting = float4(0, 0, saturate(1 - (b * PLANT.bScale)), ao);
-
+        float b = a * (0.5 - d) + d;
         output.Sunlight = d * 0.2;//        saturate(1 - (b * 2));
-        
-        
 
         output.sunUV.x = dot(output.pos.xyz, sunR);
         output.sunUV.y = dot(output.pos.xyz, sunU);
-        output.sunUV.z = saturate(1 - (b * 1.0));
+        output.sunUV.z = saturate(1 - (b * 0.5));
 
         if (abs(dot(output.pos.xyz, sunR)) < 3 && abs(dot(output.pos.xyz, sunU)) < 15)
         {
@@ -360,50 +323,65 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         }
 
         output.AmbietOcclusion = pow(((v.f >> 24) / 255.f), 3);
-        //float ao =  1 - saturate(d * PLANT.Ao_depthScale);
-        //float ao = 1 - saturate(d * 3);
         
 #if defined(_BAKE)
     output.lighting.rgb = lightCone;
 #endif
     }
 
-    /*
-    float3 Rpos = output.pos.xyz;
-    Rpos.y = 0;
-    if (Rpos.z > 0)
-        Rpos.z = 0;
-        if (length(Rpos) > 1.0f)
-        {
-            output.flags.y = 0;
-        }
-    */
     //output.AmbietOcclusion = 0.5f;
 
     // Now do wind animation
     // maybe before lighting, although for now it doesnt seem to matter
     // --------------------------------------------------------------------------------------------------------
-    //windAnimate(output, rootPosition, v.a >> 31);
-
-    //output.diffuseLight = lighting(output.normal, output.eye, output.colour, output.lighting, output.flags.x);
+    //windAnimate(output, INSTANCE.position, v.a >> 31);
 
     // thsi value determines if it splits into 2 or 4 during the geometry shader
     float d = length(output.pos.xyz - eyePos);
     output.flags.w = output.flags.z * PLANT.radiusScale / d * 10000;
-
-    output.lineScale = pow(output.flags.z / 255.f, 2) * PLANT.radiusScale;
+    output.lineScale.x = pow(output.flags.z / 255.f, 2) * PLANT.radiusScale;
             
     return output;
+#endif
 }
 
 
 
+
+#if defined(_BILLBOARD)
+[maxvertexcount(4)]
+void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
+{
+    PSIn v = pt[0];
+    
+    v.uv = float2(0, 1);
+    v.AmbietOcclusion = 0.1;
+    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale.x, 0), viewproj);
+    OutputStream.Append(v);
+
+    v.uv = float2(1, 1);
+    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x, 0), viewproj);
+    OutputStream.Append(v);
+        
+    v.uv = float2(0, 0);
+    v.AmbietOcclusion = 1.;
+    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale[0].x, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
+    OutputStream.Append(v);
+
+    v.uv = float2(1, 0);
+    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
+    OutputStream.Append(v);
+    
+}
+#else
 // HOLY fukcing shit, this is bad anythign above 6
 // at 6 I can still get gain out of this
 [maxvertexcount(4)]
 void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 {
-    float lineScale = 1.f;
+
+    
+    //float lineScale = 1.f;
     PSIn v;
 
     const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
@@ -416,7 +394,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     {
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = L[0].pos + float4(v.tangent * v.lineScale, 0);
+        v.pos = L[0].pos + float4(v.tangent * v.lineScale.x, 0);
         v.sunUV.x = dot(v.pos.xyz, sunR);
         v.sunUV.y = dot(v.pos.xyz, sunU);
         //v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
@@ -424,7 +402,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = L[0].pos - float4(v.tangent * v.lineScale, 0);
+        v.pos = L[0].pos - float4(v.tangent * v.lineScale.x, 0);
         v.sunUV.x = dot(v.pos.xyz, sunR);
         v.sunUV.y = dot(v.pos.xyz, sunU);
         //v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
@@ -450,20 +428,21 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = L[1].pos + float4(v.tangent * v.lineScale, 0);
+        v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
         v.sunUV.x = dot(v.pos.xyz, sunR);
         v.sunUV.y = dot(v.pos.xyz, sunU);
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = L[1].pos - float4(v.tangent * v.lineScale, 0);
+        v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
         v.sunUV.x = dot(v.pos.xyz, sunR);
         v.sunUV.y = dot(v.pos.xyz, sunU);
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
     }
 }
+#endif
 
 
 
@@ -501,13 +480,16 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.AlbedoScale * pow(vOut.AmbietOcclusion, 2);
 
-    output.albedo = float4(pow(color, 1.0 / 2.2), 1);   // previous alpha, doesnt work form bake
+    color = color * vOut.AlbedoScale;
+    //color = float3(0.5, 0.3, 0.1 );
+    output.albedo = float4(pow(color, 1.0 / 2.2), 1);
     
+
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
         float3 n = (textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb * 2) - 1;
-        N = (-n.r * vOut.tangent) + (n.g * vOut.binormal) + (n.b * vOut.normal);
+        //N = (-n.r * vOut.tangent) + (n.g * vOut.binormal) + (n.b * vOut.normal);
     }
     N *= (isFrontFace * 2 - 1);
 
@@ -518,7 +500,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     NAdjusted.r = N.r * 0.5 + 0.5;
     NAdjusted.g = N.g * 0.5 + 0.5;
-    NAdjusted.b = -N.b * 0.5 + 0.5;
+    NAdjusted.b = N.b * 0.5 + 0.5;  //fixme -
 
 //NAdjusted = vOut.lighting.xyz * 0.5 + 0.5;
 //NAdjusted.b = 1 - NAdjusted.b;
@@ -549,19 +531,25 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    
+
+
     /*
     if (isFrontFace)
-        return float4(0, 1, frac(vOut.uv.y), 1);
+        return float4(frac(vOut.uv.x), 1, frac(vOut.uv.y), 1);
     else
         return float4(1, 0, vOut.uv.y, 1);
     */
     
     
     sprite_material MAT = materials[vOut.flags.x];
+
+
+    
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
-    albedo.rgb *= 0.5 * vOut.AlbedoScale; // FIXME should come from material
+    albedo.rgb *= vOut.AlbedoScale; // FIXME should come from material
     //albedo.rgb = 0.2;
+    //albedo.rgb = float3(0.5, 0.3, 0.1);
+
     
     float alpha = albedo.a;
     if (MAT.alphaTexture >= 0)
@@ -571,18 +559,22 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     alpha =     pow(alpha, MAT.alphaPow);
     clip(alpha - 0.2);
 
-    
+
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
         float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
-        N = (-normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
+        N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
+        //normalTex.bg = -1;
+        //return float4((normalTex * 0.5 + 0.5), 1);
     }
     N *= -(isFrontFace * 2 - 1);
     //float4 R =     vOut.Sunlight;
     //R.a = 1;
     //return R;
+
+    //return float4(N, 1);
     
     const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
     const float3 sunColor = float3(1.1, 1.0, 0.7) * 0.8;
@@ -597,17 +589,30 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     // sunlight dapple
     float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * 0.1)).r; // FIXME we need a sun orintated UV passed in really vOut.Sunlight should beome float 3, u, v, depth
     float dDap = 1.f - vOut.sunUV.z;
-    dappled = smoothstep(dDap - 0.05, dDap + 0.05, dappled);
+    dappled =     smoothstep(dDap - 0.05, dDap + 0.05, dappled);
 
+ #if defined(_BILLBOARD)
+    dappled = vOut.AmbietOcclusion;
+    //dDap = 1.f - vOut.AmbietOcclusion;
+    //dappled =     smoothstep(dDap - 0.05, dDap + 0.05, dappled);
+#endif
     
 
     float3 color = sunColor * (saturate(ndots)) * albedo.rgb * dappled;//    vOut.Sunlight;
 
+    
+    
     color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 1 * albedo.rgb * vOut.AmbietOcclusion;
     
+    
+
+    // FIXME fix this with roughness parameter in material
+#if defined(_BILLBOARD)
+ #else
     // specular sun
-    color += pow(ndoth, 29) * 0.51 * dappled;//    vOut.Sunlight;
-   
+    color += pow(ndoth, 49) * 0.51 * dappled; //    vOut.Sunlight;
+#endif
+    
     
     float3 TN = vOut.normal;
     if (!isFrontFace)        TN *= -1;
@@ -623,13 +628,20 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     color += trans * albedo.rgb * albedo.rgb * 12 * vOut.AlbedoScale;
     
 
-    float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
+    
+
+#if defined(_BILLBOARD)
+    dappled = 1;
+#else
+    //float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
     alpha = smoothstep(0.2, 1, alpha);
-    alpha = min(alpha, alphaV);
+    //alpha = min(alpha, alphaV);
+#endif
     
     if (alpha < 0.99)
     {
         float2 uv = vOut.pos.xy / float2(2560, 1440);
+        //float2 uv = vOut.pos.xy / float2(4096, 2160);
         //uv.y = 1 - uv.y;
         float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         //int3 sample = vOut.pos.xyz / 2;
@@ -642,3 +654,15 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 }
 
 #endif
+
+
+/*
+float D3DX_FLOAT_to_SRGB(float val)
+{ 
+    if( val < 0.0031308f )
+        val *= 12.92f;
+    else
+        val = 1.055f * pow(val,1.0f/2.4f) — 0.055f;
+    return val;
+}
+*/

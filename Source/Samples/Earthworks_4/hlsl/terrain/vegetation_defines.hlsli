@@ -33,6 +33,13 @@ struct plant_section
     // sub parts for xpbd
 };
 
+struct _plant_lod
+{
+    float pixSize;
+    uint startVertex;
+    uint numBlocks;
+    uint reserved; 
+};
 
 struct plant
 {
@@ -55,7 +62,9 @@ struct plant
     float flutter_freq;
 
     // lodding
-    uint numLods;    
+    _plant_lod lods[16];    // 16 should do, has t be fixed, 8 might also bnit careful for big trees, although they should really sub-lod
+    uint numLods;
+    uint billboardMaterialIndex;
 };
 
 
@@ -70,3 +79,6 @@ struct ribbonVertex8
     //uint g;
     //uint h;
 };
+
+
+#define VEG_BLOCK_SIZE 32
