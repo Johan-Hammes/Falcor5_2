@@ -355,8 +355,7 @@ public:
     static Gui* _gui;
 };
 
-enum plantType {P_LEAF, P_TWIG, PLANT_END};
-//std::vector plantExt = {"leaf", "twig"};
+enum plantType {P_LEAF, P_STEM, PLANT_END};
 
 // planmaterial repackadged for dandom_arrays
 class _plantRND
@@ -481,7 +480,7 @@ CEREAL_CLASS_VERSION(_leafBuilder, 101);
 
 
 
-class _twigBuilder : public _plantBuilder
+class _stemBuilder : public _plantBuilder
 {
 public:
     void loadPath();
@@ -507,9 +506,9 @@ public:
     float age;  // number of segments floatign pouint, after randomize, needed for leaves build
     float tipWidth = 0;
 
-    FileDialogFilterVec filters = { {"twig"} };
+    FileDialogFilterVec filters = { {"stem"} };
 
-    //Twig has to maintain a minimum of 3 of these or will crash
+    //Stem has to maintain a minimum of 3 of these or will crash
     std::vector<levelOfDetail> lodInfo = { levelOfDetail(10), levelOfDetail(14), levelOfDetail(40), levelOfDetail(100), levelOfDetail(300), levelOfDetail(500) };
     std::array<lodBake, 3> lod_bakeInfo = { lodBake(256, 1.f), lodBake(128, 0.6f), lodBake(256, 0.2f) };
 
@@ -573,7 +572,7 @@ public:
         }
     }
 };
-CEREAL_CLASS_VERSION(_twigBuilder, 101);
+CEREAL_CLASS_VERSION(_stemBuilder, 101);
 
 
 

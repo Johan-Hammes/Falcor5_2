@@ -800,11 +800,11 @@ bool _vegMaterial::renderGui(uint& gui_id)
 void _plantRND::loadFromFile()
 {
     std::filesystem::path filepath;
-    FileDialogFilterVec filters = { {"leaf"}, {"twig"} };
+    FileDialogFilterVec filters = { {"leaf"}, {"stem"} };
     if (openFileDialog(filters, filepath))
     {
         if (filepath.string().find("leaf") != std::string::npos) { plantPtr.reset(new _leafBuilder); type = P_LEAF; }
-        if (filepath.string().find("twig") != std::string::npos) { plantPtr.reset(new _twigBuilder);  type = P_TWIG; }
+        if (filepath.string().find("stem") != std::string::npos) { plantPtr.reset(new _stemBuilder);  type = P_STEM; }
 
         path = materialCache::getRelative(filepath.string());
         name = filepath.filename().string();
@@ -820,7 +820,7 @@ void _plantRND::reload()
     switch (type)
     {
     case P_LEAF:   plantPtr.reset(new _leafBuilder);   break;
-    case P_TWIG:   plantPtr.reset(new _twigBuilder);   break;
+    case P_STEM:   plantPtr.reset(new _stemBuilder);   break;
     }
 
     plantPtr->path = path;
@@ -872,7 +872,7 @@ template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
 
 bool anyChange = true;
 
-ImVec4 twig_color = ImVec4(0.07f, 0.03f, 0.0f, 1);
+ImVec4 stem_color = ImVec4(0.07f, 0.03f, 0.0f, 1);
 ImVec4 leaf_color = ImVec4(0.02f, 0.07f, 0.01f, 1);
 ImVec4 mat_color = ImVec4(0.0f, 0.01f, 0.07f, 1);
 
@@ -882,7 +882,6 @@ ImVec4 mat_color = ImVec4(0.0f, 0.01f, 0.07f, 1);
 #define TOOLTIP_MATERIAL(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 //#define TREE_MAT(x)  style.Colors[ImGuiCol_HeaderActive] = mat_color; ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed);
 //#define TREE_LEAF(x)  style.Colors[ImGuiCol_HeaderActive] = leaf_color; if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed)) 
-//#define TREE_TWIG(x)  style.Colors[ImGuiCol_HeaderActive] = twig_color; if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
 
 #define TREE_LINE(x,t)  if(ImGui::TreeNodeEx(x, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed)) 
 //                        TOOLTIP(t);
@@ -1249,10 +1248,10 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
 
 
 
-// _twigBuilder
+// _stemBuilder
 // -----------------------------------------------------------------------------------------------------------------------------------
 
-void _twigBuilder::loadPath()
+void _stemBuilder::loadPath()
 {
     std::ifstream is(terrafectorEditorMaterial::rootFolder + path);
     cereal::JSONInputArchive archive(is);
@@ -1260,7 +1259,7 @@ void _twigBuilder::loadPath()
     changed = false;
 }
 
-void _twigBuilder::savePath()
+void _stemBuilder::savePath()
 {
     std::ofstream os(terrafectorEditorMaterial::rootFolder + path);
     cereal::JSONOutputArchive archive(os);
@@ -1268,9 +1267,9 @@ void _twigBuilder::savePath()
     changed = false;
 }
 
-void _twigBuilder::load()
+void _stemBuilder::load()
 {
-    if (ImGui::Button("Load##_twigBuilder", ImVec2(60, 0)))
+    if (ImGui::Button("Load##_stemBuilder", ImVec2(60, 0)))
     {
         std::filesystem::path filepath;
         if (openFileDialog(filters, filepath))
@@ -1283,11 +1282,11 @@ void _twigBuilder::load()
 }
 
 
-void _twigBuilder::save()
+void _stemBuilder::save()
 {
     if (changedForSave) {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.1f, 0.0f, 0.8f));
-        if (ImGui::Button("Save##_twigBuilder", ImVec2(60, 0)))
+        if (ImGui::Button("Save##_stemBuilder", ImVec2(60, 0)))
         {
             savePath();
         }
@@ -1296,9 +1295,9 @@ void _twigBuilder::save()
 }
 
 
-void _twigBuilder::saveas()
+void _stemBuilder::saveas()
 {
-    if (ImGui::Button("Save as##_twigBuilder", ImVec2(60, 0)))
+    if (ImGui::Button("Save as##_stemBuilder", ImVec2(60, 0)))
     {
         std::filesystem::path filepath;
         if (saveFileDialog(filters, filepath))
@@ -1310,7 +1309,7 @@ void _twigBuilder::saveas()
     }
 }
 
-void _twigBuilder::renderGui()
+void _stemBuilder::renderGui()
 {
     ImGui::Text(name.c_str());
     TOOLTIP(path.c_str());
@@ -1365,10 +1364,10 @@ void _twigBuilder::renderGui()
     ImGui::Text("numLeavesBuilt : %d", numLeavesBuilt);
 }
 
-void _twigBuilder::treeView()
+void _stemBuilder::treeView()
 {
     auto& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_Header] = twig_color;
+    style.Colors[ImGuiCol_Header] = stem_color;
     if (_rootPlant::selectedPart == this)   style.FrameBorderSize = 2;
 
     TREE_LINE(name.c_str(), path.c_str())
@@ -1390,21 +1389,21 @@ void _twigBuilder::treeView()
 }
 
 
-lodBake* _twigBuilder::getBakeInfo(uint i)
+lodBake* _stemBuilder::getBakeInfo(uint i)
 {
     if (i < lod_bakeInfo.size()) return &lod_bakeInfo[i];
 
     return nullptr;
 }
 
-levelOfDetail* _twigBuilder::getLodInfo(uint i)
+levelOfDetail* _stemBuilder::getLodInfo(uint i)
 {
     if (i < lodInfo.size()) return &lodInfo[i];
     return nullptr;
 }
 
 
-void _twigBuilder::build_lod_0(buildSetting& _settings)
+void _stemBuilder::build_lod_0(buildSetting& _settings)
 {
     ribbonVertex R_verts;
     float w = lod_bakeInfo[0].extents.x;
@@ -1443,7 +1442,7 @@ void _twigBuilder::build_lod_0(buildSetting& _settings)
 }
 
 
-void _twigBuilder::build_lod_1(buildSetting& _settings)
+void _stemBuilder::build_lod_1(buildSetting& _settings)
 {
     ribbonVertex R_verts;
     float w = lod_bakeInfo[1].extents.x * lod_bakeInfo[1].bakeWidth;
@@ -1476,7 +1475,7 @@ void _twigBuilder::build_lod_1(buildSetting& _settings)
 }
 
 
-void _twigBuilder::build_lod_2(buildSetting& _settings)
+void _stemBuilder::build_lod_2(buildSetting& _settings)
 {
     if (NODES_PREV.size() < 2) return;
 
@@ -1506,7 +1505,7 @@ void _twigBuilder::build_lod_2(buildSetting& _settings)
 }
 
 
-void _twigBuilder::build_tip(buildSetting& _settings)
+void _stemBuilder::build_tip(buildSetting& _settings)
 {
     // reset teh seed so all lods build teh same here
     _rootPlant::generator.seed(_settings.seed + 1999);
@@ -1523,7 +1522,7 @@ void _twigBuilder::build_tip(buildSetting& _settings)
 }
 
 
-void _twigBuilder::build_leaves(buildSetting& _settings, uint _max)
+void _stemBuilder::build_leaves(buildSetting& _settings, uint _max)
 {
     numLeavesBuilt = 0;
     std::uniform_real_distribution<> dist(-1.f, 1.f);
@@ -1560,7 +1559,7 @@ void _twigBuilder::build_leaves(buildSetting& _settings, uint _max)
 }
 
 
-glm::mat4 _twigBuilder::build(buildSetting& _settings)
+glm::mat4 _stemBuilder::build(buildSetting& _settings)
 {
     //std::mt19937 gen(_settings.seed);
     std::uniform_real_distribution<> dist(-1.f, 1.f);
@@ -1858,17 +1857,17 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::Columns(2);
         if (ImGui::Button("new Leaf")) { if (root) delete root; root = new _leafBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
         ImGui::SameLine();
-        if (ImGui::Button("new Twig")) { if (root) delete root; root = new _twigBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
+        if (ImGui::Button("new Stem")) { if (root) delete root; root = new _stemBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
 
         if (ImGui::Button("Load")) {
             std::filesystem::path filepath;
-            FileDialogFilterVec filters = { {"leaf"}, {"twig"} };
+            FileDialogFilterVec filters = { {"leaf"}, {"stem"} };
             if (openFileDialog(filters, filepath))
             {
                 _rootPlant::selectedMaterial = nullptr;
                 if (root) delete root;
                 if (filepath.string().find(".leaf") != std::string::npos) { root = new _leafBuilder;  _rootPlant::selectedPart = root; }
-                if (filepath.string().find(".twig") != std::string::npos) { root = new _twigBuilder;  _rootPlant::selectedPart = root; }
+                if (filepath.string().find(".stem") != std::string::npos) { root = new _stemBuilder;  _rootPlant::selectedPart = root; }
 
                 if (root)
                 {
