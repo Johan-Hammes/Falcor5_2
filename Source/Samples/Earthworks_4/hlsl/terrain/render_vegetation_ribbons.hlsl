@@ -308,6 +308,12 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
         output.colour.a = 1; // new alpha component but just for bake
 #if defined(_BAKE)
+        float3 rootPos = INSTANCE.position;
+        rootPos.y = 0;
+        output.pos.xyz =  rootPos + rot_xz(p, INSTANCE.rotation) * INSTANCE.scale;
+        output.pos.w = 1;
+        output.eye = normalize(output.pos.xyz - eyePos);
+        
         p.y = 0;
         float R = length(p);
         if (R > 0.3f)      output.colour.a = 0;
@@ -582,6 +588,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     sprite_material MAT = materials[vOut.flags.x];
 
+
+
     int frontback = (int) !isFrontFace;
     
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
@@ -630,10 +638,10 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     // sunlight dapple
     float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * 0.1)).r; // FIXME we need a sun orintated UV passed in really vOut.Sunlight should beome float 3, u, v, depth
     float dDap = 1.f - vOut.sunUV.z;
-    dappled =     smoothstep(dDap - 0.05, dDap + 0.05, dappled);
+    dappled = 1;//    smoothstep(dDap - 0.05, dDap + 0.05, dappled);
 
  #if defined(_BILLBOARD)
-    dappled = vOut.AmbietOcclusion;
+    dappled = 1;//vOut.AmbietOcclusion;
     //dDap = 1.f - vOut.AmbietOcclusion;
     //dappled =     smoothstep(dDap - 0.05, dDap + 0.05, dappled);
 #endif
@@ -654,7 +662,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float RGH = MAT.roughness[frontback] + 0.01;
     float pw = 1.f / RGH;
     //float scale = 
-    color += pow(ndoth, pw) * pw * 0.1 * dappled * vOut.diffuseLight; //    vOut.Sunlight;
+    color += pow(ndoth, pw) * pw * 0.05 * dappled * vOut.diffuseLight; //    vOut.Sunlight;
 #endif
     
     
@@ -670,13 +678,13 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             // For teh moment disabled since it looks betetr on billboards, migth cut that bake compeltely but trest other trees first
         }
     }
-    color += trans * albedo.rgb * albedo.rgb * 8 * vOut.AlbedoScale * vOut.diffuseLight;
+    color += trans * albedo.rgb * albedo.rgb * 8  * vOut.diffuseLight;
     
 
     
 
 #if defined(_BILLBOARD)
-    dappled = 1;
+    
 #else
     //float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
     alpha = smoothstep(0.2, 1, alpha);

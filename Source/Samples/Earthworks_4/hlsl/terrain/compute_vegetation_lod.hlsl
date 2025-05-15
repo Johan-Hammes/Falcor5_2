@@ -29,7 +29,8 @@ void main(uint idx : SV_DispatchThreadId)
     const plant_instance INSTANCE = instance_buffer[idx];
     const plant PLANT = plant_buffer[INSTANCE.plant_idx];
 
-    float radius = 2;//    PLANT.size.x + PLANT.size.y; // or something like that, or precalc radius
+    
+    float radius = PLANT.size.x + PLANT.size.y; // or something like that, or precalc radius
     float4 viewPos = mul(float4(INSTANCE.position, 1), view); //??? maak seker
 
     float4 test = saturate(mul(frustum, viewPos) + float4(radius, radius, radius, radius));

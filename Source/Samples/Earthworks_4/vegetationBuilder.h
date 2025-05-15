@@ -288,6 +288,7 @@ public:
 class levelOfDetail
 {
 public:
+    levelOfDetail() { ; }
     levelOfDetail(uint _numPix) { numPixels = _numPix; }
 
     int numPixels = 100;   // this is the number of height pixels to use for this lod. Used to calculate pixel size
@@ -315,7 +316,7 @@ public:
     lodBake(uint _h, float _w) { pixHeight = _h; bakeWidth = _w; }
     _vegMaterial material;
     float2 extents = {0, 0};
-    uint pixHeight = 64;
+    int pixHeight = 64;
     float bakeWidth = 1.f;      // really a percentage
     std::array<float, 4> dU = {1, 1, 1, 1};
 
@@ -510,7 +511,7 @@ public:
 
     //Stem has to maintain a minimum of 3 of these or will crash
     std::vector<levelOfDetail> lodInfo = { levelOfDetail(10), levelOfDetail(14), levelOfDetail(40), levelOfDetail(100), levelOfDetail(300), levelOfDetail(500) };
-    std::array<lodBake, 3> lod_bakeInfo = { lodBake(256, 1.f), lodBake(128, 0.6f), lodBake(256, 0.2f) };
+    std::array<lodBake, 3> lod_bakeInfo = { lodBake(32, 1.f), lodBake(64, 0.6f), lodBake(128, 0.2f) };
 
     // stem
     float2  numSegments = { 5.3f, 0.3f };
@@ -563,16 +564,23 @@ public:
 
         archive(unique_tip);
         archive(tip.data);
-        for (auto& M : tip.data) M.reload();
+        if (unique_tip) {
+            for (auto& M : tip.data) M.reload();
+        }
 
         if (_version >= 101)
         {
             archive(lod_bakeInfo);
             for (auto& M : lod_bakeInfo) M.material.reload();
         }
+
+        if (_version >= 102)
+        {
+            archive(CEREAL_NVP(lodInfo));
+        }
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 101);
+CEREAL_CLASS_VERSION(_stemBuilder, 102);
 
 
 
@@ -632,7 +640,10 @@ public:
     std::array<block_data, 16384 * 32> blockBuf;
     std::array<ribbonVertex8, 128 * 256> vertexBuf;
     uint totalBlocksToRender = 0;
+    uint unusedVerts = 0;
     bool tempUpdateRender = false;
+    float time;
+    float timeBB;   // GPU time
 
     Buffer::SharedPtr   drawArgs_vegetation;
     Buffer::SharedPtr   drawArgs_billboards;
