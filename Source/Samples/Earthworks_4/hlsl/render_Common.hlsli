@@ -34,6 +34,12 @@ cbuffer LightsCB : register(b2)
 	
 	float3 	sunColour;			// unless this becomes a texture lookup
 	float 	padd;
+
+    float3 sunRightVector;    // used for volumetric shadow projection code
+    float padd2;
+
+    float3 sunUpVector;
+    float padd3;
 	
 	gpu_LIGHT Lights[128];		// decent upper limit
 };

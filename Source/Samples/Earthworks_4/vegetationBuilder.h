@@ -87,6 +87,8 @@ public:
     std::string         translucencyPath;
     std::string         alphaPath;
 
+    bool changedForSave = false;
+
     void import(std::filesystem::path _path, bool _replacePath = true);
     void import(bool _replacePath = true);
     void save();
@@ -96,27 +98,34 @@ public:
     void loadTexture(int idx);
 
     template<class Archive>
-    void serialize(Archive& _archive, std::uint32_t const _version)
+    void serialize(Archive& archive, std::uint32_t const _version)
     {
-        _archive(CEREAL_NVP(albedoName));
-        _archive(CEREAL_NVP(alphaName));
-        _archive(CEREAL_NVP(normalName));
-        _archive(CEREAL_NVP(translucencyName));
+        archive(CEREAL_NVP(albedoName));
+        archive(CEREAL_NVP(alphaName));
+        archive(CEREAL_NVP(normalName));
+        archive(CEREAL_NVP(translucencyName));
 
-        _archive(CEREAL_NVP(albedoPath));
-        _archive(CEREAL_NVP(alphaPath));
-        _archive(CEREAL_NVP(normalPath));
-        _archive(CEREAL_NVP(translucencyPath));
+        archive(CEREAL_NVP(albedoPath));
+        archive(CEREAL_NVP(alphaPath));
+        archive(CEREAL_NVP(normalPath));
+        archive(CEREAL_NVP(translucencyPath));
 
-        _archive(CEREAL_NVP(_constData.translucency));
-        _archive(CEREAL_NVP(_constData.alphaPow));
+        archive(CEREAL_NVP(_constData.translucency));
+        archive(CEREAL_NVP(_constData.alphaPow));
+
+        if (_version >= 101)
+        {
+            archive_float3(_constData.albedoScale[0]);
+            archive_float3(_constData.albedoScale[1]);
+            archive(CEREAL_NVP(_constData.roughness[0]));
+            archive(CEREAL_NVP(_constData.roughness[1]));
+        }
     }
 
 
     sprite_material _constData;
 };
-#define _PLANTMATERIALVERSION 100
-CEREAL_CLASS_VERSION(_plantMaterial, _PLANTMATERIALVERSION);
+CEREAL_CLASS_VERSION(_plantMaterial, 101);
 
 
 
@@ -591,6 +600,8 @@ public:
     RenderContext* renderContext;
 
     //??? lodding info, so it needs all the runtime data
+
+    bool displayModeSinglePlant = true;
 
     _plantBuilder *root = nullptr;
     buildSetting settings;

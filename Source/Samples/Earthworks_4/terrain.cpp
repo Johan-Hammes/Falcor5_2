@@ -4643,7 +4643,7 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
 
 
 
-void terrainManager::onGuiRender(Gui* _gui)
+void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 {
     if (!showGUI) return;
     if (requestPopupSettings) {
@@ -4703,6 +4703,33 @@ void terrainManager::onGuiRender(Gui* _gui)
             groveTree.renderGui(_gui);
             vegetation.ROOT.renderGui(_gui);
             if (ImGui::Button("Bake Billboard")) { bakeVegetation(); }
+
+            ImGui::PushFont(_gui->getFont("roboto_26"));
+            {
+                ImGui::Text("Time of day");
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("angle", &shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
+                ImGui::NewLine();
+                if (ImGui::Button("change"))
+                {
+                    shadowEdges.requestNewShadow = true;
+                }
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("haze turbidity", &pAtmosphere->haze_Turbidity, 0.01f, 1.f, 15.f, "%1.2f");
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("fog turbidity", &pAtmosphere->fog_Turbidity, 0.01f, 1.f, 125.f, "%1.2f");
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("fog base", &pAtmosphere->fog_BaseAltitudeKm, 0.001f, 0.f, 1.f, "%1.2fkm");
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("fog height", &pAtmosphere->fog_AltitudeKm, 0.001f, 0.05f, 1.f, "%1.2f");
+
+
+            }
+            ImGui::PopFont();
         }
         break;
 
@@ -6707,7 +6734,8 @@ void terrainManager::bakeVegetation(int baseSize, float clipCenter, std::string 
 
         std::ofstream os(name + "_billboard.vegMaterial");
         cereal::JSONOutputArchive archive(os);
-        Mat.serialize(archive, _PLANTMATERIALVERSION);
+        archive(Mat);
+        //Mat.serialize(archive, _PLANTMATERIALVERSION);
     }
 }
 
@@ -7954,7 +7982,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             triangleShader.State()->setViewport(0, _viewport, true);
             triangleShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
             triangleShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
-            triangleShader.Vars()["gConstantBuffer"]["useSkyDome"] = 1;
+            triangleShader.Vars()["gConstantBuffer"]["useSkyDome"] = 0;
             triangleShader.State()->setRasterizerState(split.rasterstateSplines);
             triangleShader.State()->setBlendState(split.blendstateSplines);
             triangleShader.drawInstanced(_renderContext, 36, 1);
@@ -9847,8 +9875,8 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
             camPos.y = sin(mouseVegPitch);
             camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
             camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
-            _camera->setPosition(camPos * mouseVegOrbit);
-            _camera->setTarget(glm::vec3(0, groveTree.treeHeight * 0.5f, 0));
+            _camera->setPosition((camPos * mouseVegOrbit) + float3(0, 1000, 0));
+            _camera->setTarget(glm::vec3(0, 1000.f + groveTree.treeHeight * 0.5f, 0));
         }
         if ((terrainMode == _terrainMode::glider))
         {

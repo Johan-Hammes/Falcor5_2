@@ -332,12 +332,15 @@ struct sprite_material
     int alphaTexture = -1; // a
     int albedoTexture = -1; // rgb
     int normalTexture = -1;
-    int pbrTexture = -1;
+    int pbrTexture = -1;            // this is the one not in use - keep it for now
 
     //???
     int translucencyTexture = -1;
-    float translucency;
-    float alphaPow;
+    float translucency = 1.f;
+    float alphaPow = 1.f;
+
+    float3 albedoScale[2] = { { 0.5f, 0.5f, 0.5f }, { 0.6f, 0.5f, 0.6f } };
+    float roughness[2] = { 0.1f, 0.3f };
     
 };
 

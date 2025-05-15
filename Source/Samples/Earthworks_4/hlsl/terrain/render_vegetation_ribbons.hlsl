@@ -2,6 +2,7 @@
 #include "groundcover_defines.hlsli"
 #include "groundcover_functions.hlsli"		
 #include "vegetation_defines.hlsli"
+#include "../render_Common.hlsli"
 
 
 
@@ -38,9 +39,36 @@ cbuffer gConstantBuffer
     
     float time;
     float bake_radius_alpha;
+
+    
 };
 
 
+cbuffer PerFrameCB
+{
+    bool gConstColor;
+    float3 gAmbient;
+	
+	// volume fog parameters
+    float2 screenSize;
+    float fog_far_Start;
+    float fog_far_log_F; //(k-1 / k) / log(far)		// FIXME might be k-2 to make up for half pixel offsets
+	
+    float fog_far_one_over_k; // 1.0 / k
+    float fog_near_Start;
+    float fog_near_log_F; //(k-1 / k) / log(far)		// FIXME might be k-2 to make up for half pixel offsets
+    float fog_near_one_over_k; // 1.0 / k
+	
+    float gisOverlayStrength;
+    int showGIS;
+    float redStrength;
+    float redScale;
+    float4 gisBox;
+	
+    float redOffset;
+    float3 padding;
+	
+};
 
 #define AmbietOcclusion lighting.w
 #define AlbedoScale colour.x
@@ -48,6 +76,14 @@ cbuffer gConstantBuffer
 #define Sunlight lighting.z
 
 
+float4 sunLight(float3 posKm)
+{
+    float2 sunUV;
+    float dX = dot(posKm.xz, normalize(sunDirection.xz));
+    sunUV.x = saturate(0.5 - (dX / 1600.0f));
+    sunUV.y = 1 - saturate(posKm.y / 100.0f);
+    return SunInAtmosphere.SampleLevel(gSmpLinearClamp, sunUV, 0) * 0.07957747154594766788444188168626;
+}
 
 struct PSIn
 {
@@ -55,7 +91,7 @@ struct PSIn
     float3 normal : NORMAL;
     float3 tangent : TANGENT;
     float3 binormal : BINORMAL;
-    //float3 diffuseLight : COLOR;
+    float3 diffuseLight : COLOR;
     //float3 specularLight : COLOR1;
     float2 uv : TEXCOORD; // texture uv
     float4 lighting : TEXCOORD1; // uv, sunlight, ao
@@ -301,22 +337,22 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     
     //light(output, v, INSTANCE.rotation);
     {
-        const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
-        const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
-        const float3 sunU = normalize(cross(sunDir, sunR));
+        //const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
+        //const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
+        //const float3 sunU = normalize(cross(sunDir, sunR));
         float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, INSTANCE.rotation);
         float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
         float d = (v.e & 0xff) * 0.00784; //depth8
-        float a = saturate(dot(normalize(lightCone + sunDir * PLANT.sunTilt), sunDir)); //cone * 0
+        float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), -sunDirection)); //cone * 0
         //float b = a * (PLANT.bDepth - d) + d;
         float b = a * (0.5 - d) + d;
         output.Sunlight = d * 0.2;//        saturate(1 - (b * 2));
 
-        output.sunUV.x = dot(output.pos.xyz, sunR);
-        output.sunUV.y = dot(output.pos.xyz, sunU);
+        //output.sunUV.x = dot(output.pos.xyz, sunR);   // tehse are set from geometry shader we have to expand sirst
+        //output.sunUV.y = dot(output.pos.xyz, sunU);
         output.sunUV.z = saturate(1 - (b * 0.5));
 
-        if (abs(dot(output.pos.xyz, sunR)) < 3 && abs(dot(output.pos.xyz, sunU)) < 15)
+        if (abs(dot(output.pos.xyz, sunRightVector)) < 3 && abs(dot(output.pos.xyz, sunUpVector)) < 15)
         {
             //output.sunUV.z = 0;
             //output.Sunlight = 0;
@@ -328,6 +364,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.lighting.rgb = lightCone;
 #endif
     }
+
+    output.diffuseLight = sunLight(output.pos.xyz * 0.001).xyz;
 
     //output.AmbietOcclusion = 0.5f;
 
@@ -384,9 +422,9 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     //float lineScale = 1.f;
     PSIn v;
 
-    const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
-    const float3 sunU = normalize(cross(sunDir, sunR));             // ThisHAS to come in a a constant
+    //const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
+    //const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
+    //const float3 sunU = normalize(cross(sunDir, sunR));             // ThisHAS to come in a a constant
     
     
     //if ((L[1].flags.y == 1) && (L[0].flags.w > 1))
@@ -394,17 +432,17 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
     {
         v = L[0];
         v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = L[0].pos + float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunR);
-        v.sunUV.y = dot(v.pos.xyz, sunU);
+        v.pos = L[0].pos - float4(v.tangent * v.lineScale.x, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
         //v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = L[0].pos - float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunR);
-        v.sunUV.y = dot(v.pos.xyz, sunU);
+        v.pos = L[0].pos + float4(v.tangent * v.lineScale.x, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
         //v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
@@ -428,16 +466,16 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         
         v = L[1];
         v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunR);
-        v.sunUV.y = dot(v.pos.xyz, sunU);
+        v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
         v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunR);
-        v.sunUV.y = dot(v.pos.xyz, sunU);
+        v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
+        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
     }
@@ -480,7 +518,9 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.AlbedoScale * pow(vOut.AmbietOcclusion, 2);
 
-    color = color * vOut.AlbedoScale * vOut.AmbietOcclusion;
+
+    int frontback = (int) !isFrontFace;
+    color = color * vOut.AlbedoScale * vOut.AmbietOcclusion * MAT.albedoScale[frontback] * 2.f;
     output.albedo = float4(pow(color, 1.0 / 2.2), 1);
     
 
@@ -542,10 +582,10 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     sprite_material MAT = materials[vOut.flags.x];
 
-
+    int frontback = (int) !isFrontFace;
     
     float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
-    albedo.rgb *= vOut.AlbedoScale; // FIXME should come from material
+    albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f; // FIXME should come from material
     //albedo.rgb = 0.2;
     //albedo.rgb = float3(0.5, 0.3, 0.1);
 
@@ -553,7 +593,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float alpha = albedo.a;
     if (MAT.alphaTexture >= 0)
     {
-        //alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
+        alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
     }
     alpha =     pow(alpha, MAT.alphaPow);
     //if (alpha < 0.2)        return float4(0.5, 0, 0, 1);
@@ -569,18 +609,19 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         //normalTex.bg = -1;
         //return float4((normalTex * 0.5 + 0.5), 1);
     }
-    N *= -(isFrontFace * 2 - 1);
+    N *= (isFrontFace * 2 - 1);
     //float4 R =     vOut.Sunlight;
     //R.a = 1;
     //return R;
 
     //return float4(N, 1);
     
-    const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.1, 1.0, 0.7) * 0.8;
+    
+    //const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
+    //const float3 sunColor = float3(1.1, 1.0, 0.7) * 0.8;
     //float ndotv = saturate(dot(N, vOut.eye));
-    float ndoth = saturate(dot(N, normalize(-sunDir + vOut.eye)));
-    float ndots = dot(N, -sunDir); // * vOut.Sunlight;
+    float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
+    float ndots = dot(N, sunDirection); // * vOut.Sunlight;
     if (MAT.translucency > 0.98)
     {
         //ndots = 0.5;
@@ -598,11 +639,11 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #endif
     
 
-    float3 color = sunColor * (saturate(ndots)) * albedo.rgb * dappled;//    vOut.Sunlight;
+    float3 color = vOut.diffuseLight * (saturate(ndots)) * albedo.rgb * dappled; //    vOut.Sunlight;
 
     
     
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 1 * albedo.rgb * vOut.AmbietOcclusion;
+    color += 1.0 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb  * albedo.rgb * vOut.AmbietOcclusion;
     
     
 
@@ -610,14 +651,17 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #if defined(_BILLBOARD)
  #else
     // specular sun
-    color += pow(ndoth, 49) * 0.51 * dappled; //    vOut.Sunlight;
+    float RGH = MAT.roughness[frontback] + 0.01;
+    float pw = 1.f / RGH;
+    //float scale = 
+    color += pow(ndoth, pw) * pw * 0.1 * dappled * vOut.diffuseLight; //    vOut.Sunlight;
 #endif
     
     
     float3 TN = vOut.normal;
     if (!isFrontFace)        TN *= -1;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * float3(2, 3, 1) * MAT.translucency * vOut.Sunlight;
-    float3 trans = (saturate(-ndots)) * saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled;//    vOut.Sunlight;
+    float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled; //    vOut.Sunlight;
     //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.TranslucencyScale * float3(1, 1, 1) * MAT.translucency * vOut.Sunlight; 
     {
         if (MAT.translucencyTexture >= 0)
@@ -626,7 +670,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             // For teh moment disabled since it looks betetr on billboards, migth cut that bake compeltely but trest other trees first
         }
     }
-    color += trans * albedo.rgb * albedo.rgb * 8 * vOut.AlbedoScale;
+    color += trans * albedo.rgb * albedo.rgb * 8 * vOut.AlbedoScale * vOut.diffuseLight;
     
 
     

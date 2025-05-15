@@ -96,7 +96,7 @@ ribbonVertex8 ribbonVertex::pack()
 
     uint albedo = (int)clamp((albedoScale - 0.1f) / 0.008f, 0.f, 255.f);
     uint translucency = (int)clamp((translucencyScale - 0.1f) / 0.008f, 0.f, 255.f);
-    
+
 
 
     ribbonVertex8 p;
@@ -205,38 +205,44 @@ int materialCache_plants::find_insert_texture(const std::filesystem::path _path,
         }
     }
 
+    Texture::SharedPtr tempTexture = Texture::createFromFile(_path, false, false);
+    int totalPixels = tempTexture->getWidth() * tempTexture->getHeight();
+    bool pleaseCompress = totalPixels > (64 * 64);  // so dont compress teh small ones
 
     std::string ddsFilename = _path.string();
-    if (_path.string().find(".dds") == std::string::npos)
+    if (pleaseCompress)
     {
-        ddsFilename = _path.string() + ".earthworks.dds";
-    }
-    if (!std::filesystem::exists(ddsFilename))
-    {
-        std::string resource = terrafectorEditorMaterial::rootFolder;
-        replaceAllVEG(resource, "/", "\\");
-        std::string temp = resource + "Compressonator\\temp_mip.dds ";
-        std::string comprs = resource + "Compressonator\\CompressonatorCLI  ";
-        std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
-
-        std::string cmdExp = comprs + " -miplevels 6  \"" + _path.string() + "\"  " + temp;
-        replaceAllVEG(cmdExp, "/", "\\");
-        fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp.c_str());
-        system(cmdExp.c_str());
-        if (isSRGB)
+        if (_path.string().find(".dds") == std::string::npos)
         {
-            std::string cmdExp2 = comprs + " -fd BC7 -Quality 0.01 " + temp + ddsFilename;
-            replaceAllVEG(cmdExp2, "/", "\\");
-            fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp2.c_str());
-            system(cmdExp2.c_str());
+            ddsFilename = _path.string() + ".earthworks.dds";
         }
-        else
+        if (!std::filesystem::exists(ddsFilename))
         {
-            std::string cmdExp2 = comprs + " -fd BC6H " + temp + ddsFilename;
-            replaceAllVEG(cmdExp2, "/", "\\");
-            fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp2.c_str());
-            system(cmdExp2.c_str());
+            std::string resource = terrafectorEditorMaterial::rootFolder;
+            replaceAllVEG(resource, "/", "\\");
+            std::string temp = resource + "Compressonator\\temp_mip.dds ";
+            std::string comprs = resource + "Compressonator\\CompressonatorCLI  ";
+            std::string pathOnly = ddsFilename.substr(0, ddsFilename.find_last_of("\\/") + 1);
 
+            std::string cmdExp = comprs + " -miplevels 6  \"" + _path.string() + "\"  " + temp;
+            replaceAllVEG(cmdExp, "/", "\\");
+            fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp.c_str());
+            system(cmdExp.c_str());
+            if (isSRGB)
+            {
+                std::string cmdExp2 = comprs + " -fd BC7 -Quality 0.01 " + temp + ddsFilename;
+                replaceAllVEG(cmdExp2, "/", "\\");
+                fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp2.c_str());
+                system(cmdExp2.c_str());
+            }
+            else
+            {
+                std::string cmdExp2 = comprs + " -fd BC6H " + temp + ddsFilename;
+                replaceAllVEG(cmdExp2, "/", "\\");
+                fprintf(terrafectorSystem::_logfile, "%s\n", cmdExp2.c_str());
+                system(cmdExp2.c_str());
+
+            }
         }
     }
     Texture::SharedPtr tex = Texture::createFromFile(ddsFilename, true, isSRGB);
@@ -551,6 +557,8 @@ bool materialCache_plants::renderGuiSelect(Gui* mpGui)
 
 void _plantMaterial::renderGui(Gui* _gui)
 {
+    bool changed = false;
+
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
 
@@ -559,12 +567,30 @@ void _plantMaterial::renderGui(Gui* _gui)
         ImGui::SetNextItemWidth(100);
         if (ImGui::Button("load")) { import(); }
 
+
+        if (changedForSave) {
+            ImGui::SameLine(0, 30);
+            ImGui::SetNextItemWidth(100);
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.3f, 0.0f, 0.5f));
+            ImGui::SameLine(0, 20);
+            if (ImGui::Button("Save"))
+            {
+                save();
+                changedForSave = false;
+            }
+            ImGui::PopStyleColor();
+        }
+
         ImGui::SameLine(0, 30);
         ImGui::SetNextItemWidth(100);
-        if (ImGui::Button("save")) { eXport(); }
+        ImGui::SameLine(0, 20);
+        if (ImGui::Button("Save as"))
+        {
+            eXport();
+        }
 
         ImGui::PushID(9990);
-        if (ImGui::Selectable(albedoName.c_str())) { loadTexture(0); }
+        if (ImGui::Selectable(albedoName.c_str())) { loadTexture(0); changed = true; }
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("ALBEDO");
@@ -573,7 +599,7 @@ void _plantMaterial::renderGui(Gui* _gui)
 
 
         ImGui::PushID(9991);
-        if (ImGui::Selectable(alphaName.c_str())) { loadTexture(1); }
+        if (ImGui::Selectable(alphaName.c_str())) { loadTexture(1); changed = true; }
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("ALPHA");
@@ -582,7 +608,7 @@ void _plantMaterial::renderGui(Gui* _gui)
 
 
         ImGui::PushID(9992);
-        if (ImGui::Selectable(translucencyName.c_str())) { loadTexture(2); }
+        if (ImGui::Selectable(translucencyName.c_str())) { loadTexture(2); changed = true; }
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("TRANSLUCENCY");
@@ -591,23 +617,33 @@ void _plantMaterial::renderGui(Gui* _gui)
 
 
         ImGui::PushID(9993);
-        if (ImGui::Selectable(normalName.c_str())) { loadTexture(3); }
+        if (ImGui::Selectable(normalName.c_str())) { loadTexture(3); changed = true; }
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("NORMAL");
         }
         ImGui::PopID();
 
-        ImGui::DragFloat("Translucency", &_constData.translucency, 0.01f, 0, 1);
-        ImGui::DragFloat("alphaPow", &_constData.alphaPow, 0.01f, 0.1f, 1);
+        if (ImGui::DragFloat("Translucency", &_constData.translucency, 0.01f, 0, 1)) changed = true;
+        if (ImGui::DragFloat("alphaPow", &_constData.alphaPow, 0.01f, 0.1f, 1)) changed = true;
 
         ImGui::NewLine();
-        ImGui::Text("%d rgb", _constData.albedoTexture);
-        ImGui::Text("%d a", _constData.alphaTexture);
-        ImGui::Text("%d t", _constData.translucencyTexture);
-        ImGui::Text("%d N", _constData.normalTexture);
+
+        if (ImGui::ColorEdit3("albedo front", &_constData.albedoScale[0].x)) changed = true;
+        if (ImGui::DragFloat("roughness front", &_constData.roughness[0], 0.01f, 0, 1)) changed = true;
+        if (ImGui::ColorEdit3("albedo back", &_constData.albedoScale[1].x)) changed = true;
+        if (ImGui::DragFloat("roughness back", &_constData.roughness[1], 0.01f, 0, 1)) changed = true;
+
+        ImGui::NewLine();
+        ImGui::Text("index a, alpha, trans, norm(%d, %d, %d, %d) rgb", _constData.albedoTexture, _constData.alphaTexture, _constData.translucencyTexture, _constData.normalTexture);
     }
     ImGui::PopFont();
+
+    if (changed)
+    {
+        changedForSave = true;
+        _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
+    }
 }
 
 
@@ -626,7 +662,8 @@ void _plantMaterial::import(std::filesystem::path _path, bool _replacePath)
     else
     {
         cereal::JSONInputArchive archive(is);
-        serialize(archive, 100);
+        //serialize(archive, 100);
+        archive(*this);
 
         if (_replacePath) fullPath = _path;
         displayName = _path.filename().string();
@@ -640,7 +677,7 @@ void _plantMaterial::import(bool _replacePath)
     FileDialogFilterVec filters = { {"vegetationMaterial"} };
     if (openFileDialog(filters, path))
     {
-import(path, _replacePath);
+        import(path, _replacePath);
         materialCache_plants::lastFile = path.string();
     }
 }
@@ -648,13 +685,15 @@ void _plantMaterial::save()
 {
     std::ofstream os(fullPath);
     cereal::JSONOutputArchive archive(os);
-    serialize(archive, 100);
+    //serialize(archive, 100);
+    archive(*this);
 }
 void _plantMaterial::eXport(std::filesystem::path _path)
 {
     std::ofstream os(_path);
     cereal::JSONOutputArchive archive(os);
-    serialize(archive, 100);
+    //serialize(archive, 100);
+    archive(*this);
     isModified = false;
 }
 void _plantMaterial::eXport()
@@ -1130,7 +1169,7 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
         uint firstVis = 0;
         uint lastVis = 99;
         bool first = true;
-        
+
         for (int i = 0; i < 100; i++)
         {
             float t = (float)i / 100.f;
@@ -1151,8 +1190,8 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
                     lastVis = i;
                 }
             }
-            
-        } 
+
+        }
         float step = (float)(lastVis - firstVis) / numLeaf;
         float cnt = 0;
 
@@ -1375,7 +1414,7 @@ void _twigBuilder::build_lod_0(buildSetting& _settings)
     if (sz < 2) return;
 
     // Angle this towards the last STEM node, but with teh lengths of the total    
-    
+
     glm::mat4 node = NODES_PREV[0];
     glm::mat4 last = NODES_PREV[sz - 2];
     last[1] = glm::normalize(last[3] - node[3]);     // point in general stem direction
@@ -1400,7 +1439,7 @@ void _twigBuilder::build_lod_0(buildSetting& _settings)
         R_verts.set(node, w * lod_bakeInfo[0].dU[i] * 0.6f, mat, float2(lod_bakeInfo[0].dU[i] * 0.6f, 0.f + (0.3333333f * i)), 1.f, 1.f);
         node[3] += step;
     }
-    
+
 }
 
 
@@ -1421,7 +1460,7 @@ void _twigBuilder::build_lod_1(buildSetting& _settings)
     float tipLength = glm::dot(NODES_PREV[sz - 1][3] - NODES_PREV[sz - 2][3], last[1]);
     GROW(last, tipLength);
 
-    
+
     R_verts.startRibbon(true);
     glm::vec4 step = (last[3] - node[3]) / 3.f;
     for (int i = 0; i < 4; i++)
@@ -1445,17 +1484,17 @@ void _twigBuilder::build_lod_2(buildSetting& _settings)
     float w = lod_bakeInfo[2].extents.x * lod_bakeInfo[2].bakeWidth;
     uint mat = lod_bakeInfo[2].material.index;
 
-    
+
     // THIS version follwos every node, but really nto that good
     R_verts.startRibbon(true);
     float vScale = 1.f / (NODES_PREV.size() - 2);
     int step = 4;   // FIXME - need to be width over heigth ratio
-    for (int i = 0; i < NODES_PREV.size() - 2; i+= step)
+    for (int i = 0; i < NODES_PREV.size() - 2; i += step)
     {
         R_verts.set(NODES_PREV[i], w, mat, float2(1.f, i * vScale), 1.f, 1.f);
     }
     R_verts.set(NODES_PREV[NODES_PREV.size() - 2], w, mat, float2(1.f, 1.f), 1.f, 1.f);
-    
+
 
 
     build_leaves(_settings, 100000);
@@ -1707,7 +1746,7 @@ void _rootPlant::onLoad()
     compute_calulate_lod.Vars()->setBuffer("DrawArgs_Plants", drawArgs_vegetation);
     compute_calulate_lod.Vars()->setBuffer("plant_buffer", plantData);
     compute_calulate_lod.Vars()->setBuffer("instance_buffer", instanceData);
-    compute_calulate_lod.Vars()->setBuffer("instance_buffer_billboard", instanceData_Billboards);    
+    compute_calulate_lod.Vars()->setBuffer("instance_buffer_billboard", instanceData_Billboards);
     compute_calulate_lod.Vars()->setBuffer("block_buffer", blockData);
 
     std::uniform_real_distribution<> RND(-1.f, 1.f);
@@ -1715,12 +1754,12 @@ void _rootPlant::onLoad()
     for (int i = 0; i < 16384; i++)
     {
         instanceBuf[i].plant_idx = 0;
-        instanceBuf[i].position = { RND(generator) * 55, 0, RND(generator) * 55 };
+        instanceBuf[i].position = { RND(generator) * 55, 1000.f, RND(generator) * 55 };
         instanceBuf[i].scale = 1.f + RND(generator) * 0.5f;
         instanceBuf[i].rotation = RND(generator) * 3.14f;
         instanceBuf[i].time_offset = RND(generator) * 100;
     }
-    instanceBuf[0].position = { 0, 0, 0 };
+    instanceBuf[0].position = { 0, 1000, 0 };
     instanceBuf[0].scale = 1.f;
     instanceBuf[0].rotation = 0;
     instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
@@ -1861,6 +1900,7 @@ void _rootPlant::renderGui(Gui* _gui)
         {
             if (ImGui::Button("BuildAllLODS"))
             {
+                displayModeSinglePlant = false;
                 tempUpdateRender = true;
 
                 ribbonVertex::packed.clear();
@@ -1899,7 +1939,7 @@ void _rootPlant::renderGui(Gui* _gui)
                             lodInfo->pixelSize = Y / lodInfo->numPixels;
                             settings.pixelSize = lodInfo->pixelSize;
                             settings.seed = 1000 + pIndex;
-                                build();
+                            build();
                             lodInfo->numVerts = (int)ribbonVertex::ribbons.size();
                             lodInfo->numBlocks = ribbonVertex::packed.size() / VEG_BLOCK_SIZE - start;
                             lodInfo->unused = ribbonVertex::packed.size() - ribbonVertex::ribbons.size();
@@ -1908,7 +1948,7 @@ void _rootPlant::renderGui(Gui* _gui)
                             startBlock[pIndex][lod] = start;
                             numBlocks[pIndex][lod] = lodInfo->numBlocks;
 
-                            
+
 
 
                             plantBuf[pIndex].numLods = lod - 1;
@@ -1916,7 +1956,7 @@ void _rootPlant::renderGui(Gui* _gui)
                             plantBuf[pIndex].lods[lod - 1].numBlocks = lodInfo->numBlocks;
                             plantBuf[pIndex].lods[lod - 1].startVertex = start * VEG_BLOCK_SIZE;
 
-                            
+
 
                             start += lodInfo->numBlocks;
                         }
@@ -1941,10 +1981,10 @@ void _rootPlant::renderGui(Gui* _gui)
                         blockBuf[i * numB + j].plant_idx = plantIdx;
                     }
                 }
-                
+
                 blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
 
-                
+
 
 
                 plantData->setBlob(plantBuf.data(), 0, 4 * sizeof(plant));
@@ -1989,17 +2029,42 @@ void _rootPlant::renderGui(Gui* _gui)
         ImGui::Text("render information");
         ImGui::Text("blocks %d   {%d}", totalBlocksToRender, totalBlocksToRender / 16384);
 
-        if (root && anyChange)
+        if (displayModeSinglePlant && root && anyChange)
         {
             //ribbonVertex::packed.clear();
             //ribbonVertex::packed.reserve(4096); // just fairly large
             //build();
+            ribbonVertex::packed.clear();
+            build();
+            vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));
+            uint numB = ribbonVertex::packed.size() / VEG_BLOCK_SIZE;
+            for (int j = 0; j < numB; j++)
+            {
+                blockBuf[j].vertex_offset = VEG_BLOCK_SIZE * j;
+                blockBuf[j].instance_idx = 0;
+                blockBuf[j].section_idx = 0;
+                blockBuf[j].plant_idx = 0;
+            }
+            totalBlocksToRender = numB;
+            blockData->setBlob(blockBuf.data(), 0, totalBlocksToRender * sizeof(block_data));
+
+            plantBuf[0].radiusScale = ribbonVertex::radiusScale;
+            plantBuf[0].scale = ribbonVertex::objectScale;
+            plantBuf[0].offset = ribbonVertex::objectOffset;
+            plantBuf[0].Ao_depthScale = 0.3f;
+            plantBuf[0].bDepth = 1;
+            plantBuf[0].bScale = 1;
+            plantBuf[0].sunTilt = -0.2f;
+            plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+
+            tempUpdateRender = true;
         }
 
 
         ImGui::NewLine();
         if (ImGui::Button("BUILD lod-0"))
         {
+            displayModeSinglePlant = true;
             build();
             float Y = extents.y;
 
@@ -2038,6 +2103,7 @@ void _rootPlant::renderGui(Gui* _gui)
         }
         if (ImGui::Button("BUILD lod-1"))
         {
+            displayModeSinglePlant = true;
             build();
             float Y = extents.y;
 
@@ -2076,6 +2142,7 @@ void _rootPlant::renderGui(Gui* _gui)
         }
         if (ImGui::Button("BUILD lod-2"))
         {
+            displayModeSinglePlant = true;
             build();
             float Y = extents.y;
 
@@ -2114,6 +2181,7 @@ void _rootPlant::renderGui(Gui* _gui)
         }
         if (ImGui::Button("BUILD"))
         {
+            displayModeSinglePlant = true;
             settings.pixelSize = 0.001f;
             ribbonVertex::packed.clear();
             build();
@@ -2370,7 +2438,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     compute_bakeFloodfill.Vars()->setTexture("gTranslucency", fbo->getColorTexture(4));
     compute_bakeFloodfill.Vars()->setTexture("gpbr", fbo->getColorTexture(3));
 
-    int numBuffer = 32;
+    int numBuffer = 128; // this only gives 16 pixels due to 8x supersampling, consider more
     for (int i = 0; i < numBuffer; i++)
     {
         compute_bakeFloodfill.dispatch(renderContext, iW / 4, iH / 4);
@@ -2386,12 +2454,12 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     {
         _plantMaterial Mat;
         Mat._constData.translucency = 1;
-        Mat.albedoPath = newRelative + _info->material.name + "_albedo.dds";
-        Mat.albedoName = _info->material.name + "_albedo.dds";
-        Mat.normalPath = newRelative + _info->material.name + "_normal.dds";
-        Mat.normalName = _info->material.name + "_normal.dds";
-        Mat.translucencyPath = newRelative + _info->material.name + "_translucency.dds";
-        Mat.translucencyName = _info->material.name + "_translucency.dds";
+        Mat.albedoPath = newRelative + _info->material.name + "_albedo.png";
+        Mat.albedoName = _info->material.name + "_albedo.png";
+        Mat.normalPath = newRelative + _info->material.name + "_normal.png";
+        Mat.normalName = _info->material.name + "_normal.png";
+        Mat.translucencyPath = newRelative + _info->material.name + "_translucency.png";
+        Mat.translucencyName = _info->material.name + "_translucency.png";
 
         fbo->getColorTexture(0).get()->generateMips(renderContext);
         fbo->getColorTexture(1).get()->generateMips(renderContext);
@@ -2399,10 +2467,15 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
         fbo->getColorTexture(3).get()->generateMips(renderContext);
         fbo->getColorTexture(4).get()->generateMips(renderContext);
 
-        fbo->getColorTexture(0).get()->captureToFile(3, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
-        fbo->getColorTexture(2).get()->captureToFile(3, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        fbo->getColorTexture(4).get()->captureToFile(3, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        //fbo->getColorTexture(0).get()->captureToFile(3, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        //fbo->getColorTexture(2).get()->captureToFile(3, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        //fbo->getColorTexture(4).get()->captureToFile(3, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
+        fbo->getColorTexture(0).get()->captureToFile(3, 0, resource + Mat.albedoPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(3, 0, resource + Mat.normalPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(4).get()->captureToFile(3, 0, resource + Mat.translucencyPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+
+        /*
         {
             std::string png = newDir + "_albedo.png";
             std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
@@ -2435,13 +2508,15 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
             system(cmdExp2.c_str());
             //??? Shall I not rather use my compute compressor here?
         }
+        */
 
         Mat._constData.translucency = 1.f;
-        Mat._constData.alphaPow = 1.4f;
+        Mat._constData.alphaPow = 1.0f;
 
         std::ofstream os(resource + _info->material.path);
         cereal::JSONOutputArchive archive(os);
-        Mat.serialize(archive, _PLANTMATERIALVERSION);
+        archive(Mat);
+        //Mat.serialize(archive, _PLANTMATERIALVERSION);
 
         //_info->material.reload();
     }
@@ -2471,8 +2546,8 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         billboardShader.State()->setRasterizerState(rasterstate);
         billboardShader.State()->setBlendState(blendstate);
         _plantMaterial::static_materials_veg.setTextures(varBBTextures);
-        
-        
+
+
     }
 
     if (ribbonVertex::packed.size() > 1 && totalBlocksToRender >= 100)
@@ -2484,7 +2559,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         compute_calulate_lod.Vars()["gConstantBuffer"]["frustum"] = _clipFrustum;
         compute_calulate_lod.dispatch(_renderContext, 16384 / 256, 1);
     }
-    
+
 
     if (ribbonVertex::packed.size() > 1 && totalBlocksToRender >= 100)
     {
@@ -2498,7 +2573,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         billboardShader.Vars()["gConstantBuffer"]["viewproj"] = _viewproj;
         billboardShader.Vars()["gConstantBuffer"]["eyePos"] = camPos;
         billboardShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it chences every time we loose focus
-        
+
         if (totalBlocksToRender >= 100)
         {
             billboardShader.renderIndirect(_renderContext, drawArgs_billboards);

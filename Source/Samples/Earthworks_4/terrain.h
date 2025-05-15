@@ -960,7 +960,7 @@ public:
 
     void onLoad(RenderContext* _renderContext, FILE* _logfile);
     void onShutdown();
-    void onGuiRender(Gui* pGui);
+    void onGuiRender(Gui* pGui, fogAtmosphericParams* pAtmosphere);
     void onGuiRenderParaglider(Gui::Window &_window, Gui* pGui, float2 _screen, fogAtmosphericParams *pAtmosphere);
     void onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _screen);
     void onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen);
@@ -1347,7 +1347,7 @@ private:
 //public:
     //static materialCache_plants    vegetationMaterialCache;
 
-
+    public:
     struct
     {
         bool show = false;
@@ -1373,7 +1373,7 @@ private:
         _rootPlant ROOT;
 
     }vegetation;
-
+    private:
     bool showGUI = true;
 
     

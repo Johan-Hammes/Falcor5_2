@@ -123,7 +123,7 @@ float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
       //  return float4(1, 0, 0, 1);
 
 
-    if (useSkyDome)
+    if (useSkyDome == 1)
     {
     
         //dir.z *= -1;
@@ -143,6 +143,24 @@ float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         float3 final = colour + float3(0.1, 0.1, 0) * A_backface + S * 0.2;
         return float4(final, 1);
     }
+    else if (useSkyDome == 2)       // FIXME do with #defines 
+    {
+        float4 texSize;
+        gAtmosphereInscatter.GetDimensions(0, texSize.x, texSize.y, texSize.z, texSize.w);
+
+        texSize.x = 2550;
+        texSize.y = 1440;
+    
+        float2 atmosphereUV;
+        atmosphereUV = vOut.pos.xy / texSize.xy;
+    //clip(-1);
+        float4 inscatter = textureBicubic(atmosphereUV);
+        inscatter.a = 1;
+        
+
+    //inscatter.xy = atmosphereUV / 3;
+        return inscatter;
+    }
     else
     {
         float4 texSize;
@@ -156,6 +174,7 @@ float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     //clip(-1);
         float4 inscatter = textureBicubic(atmosphereUV);
         inscatter.a = 1;
+        
 
     //inscatter.xy = atmosphereUV / 3;
         return inscatter;

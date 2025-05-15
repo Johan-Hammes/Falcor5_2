@@ -126,7 +126,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         {
 
             onGuiMenubar(_gui);
-            terrain.onGuiRender(_gui);
+            terrain.onGuiRender(_gui, &atmosphere.params);
 
             if (aboutTex && showAbout) {
                 Gui::Window a(_gui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
@@ -339,6 +339,14 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     //terrain.triangleShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
     terrain.triangleShader.Vars()->setTexture("gAtmosphereInscatter_Sky", atmosphere.getFar().inscatter_sky);
 
+    terrain.vegetation.ROOT.vegetationShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
+    terrain.vegetation.ROOT.vegetationShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
+    terrain.vegetation.ROOT.vegetationShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+
+    terrain.vegetation.ROOT.billboardShader.Vars()->setTexture("gAtmosphereInscatter", atmosphere.getFar().inscatter);
+    terrain.vegetation.ROOT.billboardShader.Vars()->setTexture("gAtmosphereOutscatter", atmosphere.getFar().outscatter);
+    terrain.vegetation.ROOT.billboardShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
+
 
 
 
@@ -470,6 +478,24 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
 
         {
+            float3 sunUp = {0, 1, 0};
+            float3 sunRight = glm::normalize(glm::cross(sunUp, global_sun_direction));
+            sunUp = glm::normalize(glm::cross(global_sun_direction, sunRight));
+            terrain.vegetation.ROOT.vegetationShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+            terrain.vegetation.ROOT.vegetationShader.Vars()["LightsCB"]["sunRightVector"] = sunRight; // should come from somewehere else common
+            terrain.vegetation.ROOT.vegetationShader.Vars()["LightsCB"]["sunUpVector"] = sunUp; // should come from somewehere else common
+            terrain.vegetation.ROOT.vegetationShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+            terrain.vegetation.ROOT.vegetationShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.vegetation.ROOT.vegetationShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.vegetation.ROOT.vegetationShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+
+            terrain.vegetation.ROOT.billboardShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+            terrain.vegetation.ROOT.billboardShader.Vars()["LightsCB"]["sunRightVector"] = sunRight; // should come from somewehere else common
+            terrain.vegetation.ROOT.billboardShader.Vars()["LightsCB"]["sunUpVector"] = sunUp; // should come from somewehere else common
+            terrain.vegetation.ROOT.billboardShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+            terrain.vegetation.ROOT.billboardShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.vegetation.ROOT.billboardShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.vegetation.ROOT.billboardShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
             terrain.terrainShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
             terrain.rappersvilleShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
@@ -503,7 +529,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         }
 
 
-        if (terrain.terrainMode != _terrainMode::vegetation)
+        //if (terrain.terrainMode != _terrainMode::vegetation)
         {
             atmosphere.setSmokeTime(terrain.cfd.clipmap.lodOffsets, terrain.cfd.clipmap.lodScales);
             atmosphere.setSMOKE(terrain.cfd.sliceVolumeTexture);
