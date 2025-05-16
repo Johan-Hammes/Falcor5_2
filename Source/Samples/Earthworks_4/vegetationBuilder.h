@@ -220,11 +220,28 @@ struct ribbonVertex
 
         pushStart = true;
     }
-    void lightBasic(float2 extents)
+
+    float3 egg(float2 extents, float3 vector, float yOffset)
+    {
+        float3 V = glm::normalize(vector) * extents.x;
+        if (V.y > 0)
+        {
+            V.y *= extents.y * (1.f - yOffset);
+        }
+        else
+        {
+            V.y *= extents.y * yOffset;
+        }
+        return V;
+    }
+
+    void lightBasic(float2 extents, float plantDepth)
     {
         float3 Ldir = position - float3(0, 0.3f * extents.y, 0);
-        lightCone = float4(glm::normalize(Ldir), 0);    // 0 is just 180 degrees so wide
-        lightDepth = extents.x - glm::length(Ldir);
+        float3 edge = egg(extents, Ldir, 0.3f);
+        lightCone = float4(glm::normalize(Ldir), 0);    // 0 is just 180 degrees so wide, fixme tighter at ythe bottom
+        float depthMeters = __max(0, glm::length(edge) - glm::length(Ldir));
+        lightDepth = depthMeters / plantDepth;
 
         float3 P = position;
         P.y = 0;
@@ -642,8 +659,8 @@ public:
     uint totalBlocksToRender = 0;
     uint unusedVerts = 0;
     bool tempUpdateRender = false;
-    float time;
-    float timeBB;   // GPU time
+    float gputime;
+    float gputimeBB;   // GPU time
 
     Buffer::SharedPtr   drawArgs_vegetation;
     Buffer::SharedPtr   drawArgs_billboards;

@@ -73,7 +73,7 @@ cbuffer PerFrameCB
 #define AmbietOcclusion lighting.w
 #define AlbedoScale colour.x
 #define TranslucencyScale colour.y
-#define Sunlight lighting.z
+#define Shadow sunUV.z
 
 
 float4 sunLight(float3 posKm)
@@ -102,39 +102,7 @@ struct PSIn
     float3 sunUV : TEXCOORD6;
 };
 
-/*
-float3 lighting(const float3 N, const float3 eye, const float3 colour, const float4 lighting, const int matIndex)
-{
-    const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    const float3 sunColor = float3(1.2, 1.0, 0.7) * 5.0;
-    float ndoth = saturate(dot(N, normalize(sunDir - eye)));
-    float ndots = dot(N, sunDir);
-    //if (MAT.translucency > 0.98)
-    //{
-    //    ndots = 0.5;
-    //}
 
-    sprite_material MAT = materials[matIndex];
-
-    float3 color = sunColor * (saturate(ndots)); // forward scattered diffuse light
-
-    float3 tempAlbedo = float3(3.03, 0.1, 0.02);
-    
-    //diffuse env
-    color *= tempAlbedo * AlbedoScale * lighting.z;
-
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * 2 * tempAlbedo * AlbedoScale * AmbietOcclusion;
-    
-    // specular sun
-    color += pow(ndoth, 15) * 0.3 * lighting.z;
-
-    float3 trans = 2 * saturate(-ndots * 1) * colour.y * float3(1, 2, 0.4) * MAT.translucency * lighting.z;
-    color += trans * tempAlbedo * 2;
-
-
-    return color;
-}
-*/
 
 inline float3 rot_xz(const float3 v, const float yaw)
 {
@@ -282,12 +250,19 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.AlbedoScale = 1;
     output.TranslucencyScale = 1;
 
-    output.Sunlight = 1;
+    output.Shadow = 0;
     output.AmbietOcclusion = 1;
+
+    if ((dot(output.pos.xyz, sunRightVector)) > 2 && (dot(output.pos.xyz, sunRightVector)) < 5)
+    {
+        output.Shadow = 1;
+    }
 
     output.flags.x = PLANT.billboardMaterialIndex;
 
     output.lineScale = PLANT.size * INSTANCE.scale;
+
+    output.diffuseLight = sunLight(output.pos.xyz * 0.001).xyz;
     
     return output;
 #else
@@ -341,26 +316,19 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         output.colour.b = saturate((output.colour.b - 0.5) * 50);
     }
     
-    //light(output, v, INSTANCE.rotation);
     {
-        //const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
-        //const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
-        //const float3 sunU = normalize(cross(sunDir, sunR));
         float3 lightCone = yawPitch_9_8bit(v.e >> 23, (v.e >> 15) & 0xff, INSTANCE.rotation);
-        float cone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
-        float d = (v.e & 0xff) * 0.00784; //depth8
-        float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), -sunDirection)); //cone * 0
-        //float b = a * (PLANT.bDepth - d) + d;
-        float b = a * (0.5 - d) + d;
-        output.Sunlight = d * 0.2;//        saturate(1 - (b * 2));
+        float sunCone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
+        float sunDepth = (v.e & 0xff) * 0.00784; //depth8   // sulight % how deep inside this plant 0..1 sun..shadow
+        float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), sunDirection)); // - sunCone * 0 sunCosTheta sunCone biasess this bigger or smaller 0 is 180 degrees
+        //float b = sunDepth + a * (PLANT.bDepth - sunDepth);
+        output.Shadow = saturate(a * (sunDepth) + sunDepth); // darker to middle
+        // look at top one again, This one is BAD BAD BAD at making very transparent planst work
 
-        //output.sunUV.x = dot(output.pos.xyz, sunR);   // tehse are set from geometry shader we have to expand sirst
-        //output.sunUV.y = dot(output.pos.xyz, sunU);
-        output.sunUV.z = saturate(1 - (b * 0.5));
-
-        if (abs(dot(output.pos.xyz, sunRightVector)) < 3 && abs(dot(output.pos.xyz, sunUpVector)) < 15)
+        //if (abs(dot(output.pos.xyz, sunRightVector)) < 2 && abs(dot(output.pos.xyz, sunRightVector)) < 5 && abs(dot(output.pos.xyz, sunUpVector)) < 15)
+        if ((dot(output.pos.xyz, sunRightVector)) > 2 && (dot(output.pos.xyz, sunRightVector)) < 5)
         {
-            //output.sunUV.z = 0;
+            output.Shadow = 1;
             //output.Sunlight = 0;
         }
 
@@ -592,7 +560,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     int frontback = (int) !isFrontFace;
     
-    float4 albedo = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy);
+    float4 albedo = textures.T[MAT.albedoTexture].SampleBias(gSampler, vOut.uv.xy, -1); // Bias -1 gives much betetr alpha values
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f; // FIXME should come from material
     //albedo.rgb = 0.2;
     //albedo.rgb = float3(0.5, 0.3, 0.1);
@@ -618,68 +586,64 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         //return float4((normalTex * 0.5 + 0.5), 1);
     }
     N *= (isFrontFace * 2 - 1);
-    //float4 R =     vOut.Sunlight;
-    //R.a = 1;
-    //return R;
+    
 
     //return float4(N, 1);
     
     
-    //const float3 sunDir = -normalize(float3(-0.6, -0.5, -0.8));
-    //const float3 sunColor = float3(1.1, 1.0, 0.7) * 0.8;
-    //float ndotv = saturate(dot(N, vOut.eye));
     float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
-    float ndots = dot(N, sunDirection); // * vOut.Sunlight;
+    float ndots = dot(N, sunDirection);
     if (MAT.translucency > 0.98)
     {
         //ndots = 0.5;
     }
 
     // sunlight dapple
-    float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * 0.1)).r; // FIXME we need a sun orintated UV passed in really vOut.Sunlight should beome float 3, u, v, depth
-    float dDap = 1.f - vOut.sunUV.z;
-    dappled = 1;//    smoothstep(dDap - 0.05, dDap + 0.05, dappled);
+    float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * 0.1)).r;
+    dappled =     smoothstep(vOut.Shadow - 0.05, vOut.Shadow + 0.05, dappled);
 
  #if defined(_BILLBOARD)
-    dappled = 1;//vOut.AmbietOcclusion;
-    //dDap = 1.f - vOut.AmbietOcclusion;
-    //dappled =     smoothstep(dDap - 0.05, dDap + 0.05, dappled);
+    dappled = 1 - vOut.Shadow;
 #endif
-    
 
-    float3 color = vOut.diffuseLight * (saturate(ndots)) * albedo.rgb * dappled; //    vOut.Sunlight;
+    //float4 R = dappled;
+    //R.a = 1;
+    //return R;
+    //return float4(vOut.diffuseLight, 1);
 
+    float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
+
+    //return float4(color, 1);
     
-    
-    color += 1.0 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb  * albedo.rgb * vOut.AmbietOcclusion;
+    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb  * albedo.rgb * vOut.AmbietOcclusion;
     
     
 
     // FIXME fix this with roughness parameter in material
-#if defined(_BILLBOARD)
- #else
+//#if defined(_BILLBOARD)
+    //color.r = dappled;
+// #else
     // specular sun
     float RGH = MAT.roughness[frontback] + 0.01;
     float pw = 1.f / RGH;
     //float scale = 
-    color += pow(ndoth, pw) * pw * 0.05 * dappled * vOut.diffuseLight; //    vOut.Sunlight;
-#endif
+    color += pow(ndoth, pw) * pw * 0.05 * dappled * vOut.diffuseLight;
+//#endif
     
     
     float3 TN = vOut.normal;
     if (!isFrontFace)        TN *= -1;
-    //float3 trans = saturate(dot(sunDir, vOut.eye)) * vOut.TranslucencyScale * float3(2, 3, 1) * MAT.translucency * vOut.Sunlight;
-    float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled; //    vOut.Sunlight;
-    //float3 trans = saturate(dot(sunDir, vOut.eye)) *     saturate(dot(sunDir, TN)) * vOut.TranslucencyScale * float3(1, 1, 1) * MAT.translucency * vOut.Sunlight; 
+    float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled;
     {
         if (MAT.translucencyTexture >= 0)
         {
-            trans *= textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r;
+            float t = textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r;
+            trans *= pow(t, 2);
             // For teh moment disabled since it looks betetr on billboards, migth cut that bake compeltely but trest other trees first
         }
     }
-    color += trans * albedo.rgb * albedo.rgb * 8  * vOut.diffuseLight;
-    
+    color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight;
+    //color = trans *  30 * vOut.diffuseLight;
 
     
 

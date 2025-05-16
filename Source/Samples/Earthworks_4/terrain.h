@@ -328,7 +328,7 @@ struct _weedLight
     float cosTop = -0.3f;
     float cosBottom = 0.5f;
 
-    float Ao_depthScale = 0.3f;
+    float Ao_depthScale = 0.3f;     // unused
     float sunTilt = -0.2f;
     float bDepth = 10.0f;
     float bScale = 0.5f;

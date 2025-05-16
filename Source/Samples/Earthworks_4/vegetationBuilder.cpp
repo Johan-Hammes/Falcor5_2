@@ -1796,8 +1796,8 @@ void _rootPlant::onLoad()
     for (int i = 0; i < 16384; i++)
     {
         instanceBuf[i].plant_idx = 0;
-        instanceBuf[i].position = { RND(generator) * 15, 1000.f, RND(generator) * 15 };
-        instanceBuf[i].scale = 1.f + RND(generator) * 0.5f;
+        instanceBuf[i].position = { RND(generator) * 25, 1000.f, RND(generator) * 25 };
+        instanceBuf[i].scale = 1.f + RND(generator) * 0.2f;
         instanceBuf[i].rotation = RND(generator) * 3.14f;
         instanceBuf[i].time_offset = RND(generator) * 100;
     }
@@ -1894,8 +1894,8 @@ void _rootPlant::renderGui(Gui* _gui)
             ImGui::Text("%3.1f fps", 1000.0 / timeAvs);
 
             //
-            ImGui::Text("ribbons %f ms", time * 1000.f);
-            ImGui::Text("billboards %f ms", timeBB * 1000.f);
+            ImGui::Text("ribbons %f ms", gputime);
+            ImGui::Text("billboards %f ms", gputimeBB);
         }
 
         ImGui::PushFont(_gui->getFont("roboto_18"));
@@ -1993,7 +1993,7 @@ void _rootPlant::renderGui(Gui* _gui)
                     plantBuf[pIndex].radiusScale = ribbonVertex::radiusScale;
                     plantBuf[pIndex].scale = ribbonVertex::objectScale;
                     plantBuf[pIndex].offset = ribbonVertex::objectOffset;
-                    plantBuf[pIndex].Ao_depthScale = 0.3f;
+                    plantBuf[pIndex].Ao_depthScale = 0.3f;  // FIXME unused
                     plantBuf[pIndex].bDepth = 1;
                     plantBuf[pIndex].bScale = 1;
                     plantBuf[pIndex].sunTilt = -0.2f;
@@ -2085,6 +2085,17 @@ void _rootPlant::renderGui(Gui* _gui)
 
                         ImGui::SameLine(0, 10);
                         ImGui::Text("px %2.1fmm", lodInfo->pixelSize * 1000.f);
+                        ImGui::SameLine(0, 10);
+                        if (ImGui::Button("build")) {
+                            displayModeSinglePlant = true;
+                            float Y = extents.y;
+                            levelOfDetail* lodInfo = root->getLodInfo(0);
+                            if (lodInfo)
+                            {
+                                lodInfo->pixelSize = Y / lodInfo->numPixels;
+                                settings.pixelSize = lodInfo->pixelSize;
+                            }
+                        }
                         ImGui::SameLine(0, 10);
                         ImGui::Text("[v %d, b %d, u %d", lodInfo->numVerts, lodInfo->numBlocks, lodInfo->unused);
                         //ImGui::Text("[v %d, b %d, u %d, startB %d]", lodInfo->numVerts, lodInfo->numBlocks, lodInfo->unused, lodInfo->startBlock);
@@ -2211,7 +2222,8 @@ void _rootPlant::build()
 
         for (auto& R : ribbonVertex::ribbons)
         {
-            R.lightBasic(extents);
+            float sumlightPenetrationDepth = 1.5f;    // the depth where we expect sunlight to suffer
+            R.lightBasic(extents, sumlightPenetrationDepth);
             ribbonVertex8 P = R.pack();
             ribbonVertex::packed.push_back(P);
         }
@@ -2436,6 +2448,9 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 
         Mat._constData.translucency = 1.f;
         Mat._constData.alphaPow = 1.0f;
+        Mat._constData.roughness[0] = 0.6f;
+        Mat._constData.roughness[1] = 0.6f;
+        
 
         std::ofstream os(resource + _info->material.path);
         cereal::JSONOutputArchive archive(os);
@@ -2502,6 +2517,10 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         {
             billboardShader.renderIndirect(_renderContext, drawArgs_billboards);
         }
+
+        auto& profiler = Profiler::instance();
+        auto eventBB = profiler.getEvent("/onFrameRender/vegetation/billboards");
+        gputimeBB = eventBB->getGpuTimeAverage();
     }
 
     if (ribbonVertex::packed.size() > 1)
@@ -2532,13 +2551,8 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         }
 
         auto& profiler = Profiler::instance();
-
         auto event = profiler.getEvent("/onFrameRender/vegetation/ribbonShader");
-        //auto eventBB = profiler.getEvent("onFrameRender/vegetation/billboards");
-
-
-        time = event->getGpuTimeAverage();
-        //timeBB = eventBB->getGpuTimeAverage();
+        gputime = event->getGpuTimeAverage();
         
     }
 

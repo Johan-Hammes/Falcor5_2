@@ -52,7 +52,7 @@ struct plant
     float unused_01;
 
     // lighting
-    float Ao_depthScale = 0.3f;
+    float Ao_depthScale = 0.3f; //??? unused
     float sunTilt = -0.2f;
     float bDepth = 20.0f;
     float bScale = 0.5f;

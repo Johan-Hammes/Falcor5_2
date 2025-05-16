@@ -38,7 +38,7 @@ void main(uint idx : SV_DispatchThreadId)
     if (all(test))
     {
         float distance = length(viewPos.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-        float pix = 4.5 * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
+        float pix = 6.5 * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
         //float pix = 5 / distance * 1080; // And add a user controlled scale in as well
         //pix = 10;
         if (INSTANCE.position.x < 0)
