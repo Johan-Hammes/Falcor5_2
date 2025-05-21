@@ -38,7 +38,8 @@ void main(uint idx : SV_DispatchThreadId)
     if (all(test))
     {
         float distance = length(viewPos.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-        float pix = 6.5 * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
+        float pix = 1.95 * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
+        //float pix = 1.001 * 0.1  / distance * 1080; // And add a user controlled scale in as well
         //float pix = 5 / distance * 1080; // And add a user controlled scale in as well
         //pix = 10;
         if (INSTANCE.position.x < 0)
@@ -47,40 +48,50 @@ void main(uint idx : SV_DispatchThreadId)
             //pix = 10;
         }
         //else
-           //pix = 70;
+        //pix = 72;
 
         //if (pix > 64) pix = 300;
+        
+        //if (pix < PLANT.lods[0].pixSize && pix > 2)
+        if (pix < 64 && pix > 2)
+        {
+        // do billboards
+            uint slot = 0;
+            InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
+            instance_buffer_billboard[slot] = INSTANCE;
 
-            if (pix < 64)
+        }
+        else
+        {
+        // now the actual lodding info needs to be in the plant itself but hardcode for now
+            int lod = PLANT.numLods - 1;
+            /*
+            for (int i = 0; i < PLANT.numLods; i++)
             {
-            // do billboards
-                uint slot = 0;
-                InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
-                instance_buffer_billboard[slot] = INSTANCE;
-
-            }
-            else
-            {
-            // now the actual lodding info needs to be in the plant itself but hardcode for now
-                int lod = PLANT.numLods - 1;
+                float size = 1064 * pow(2, idx);
+                //if (pix >= PLANT.lods[lod].pixSize)
+                if (pix > size)
+                    lod = i;
+            }*/
             
-                for (int i = 0; i < PLANT.numLods; i++)
-                {
-                    if (pix < PLANT.lods[lod].pixSize)
-                        lod = i;
-                }
-
-            //lod = 4;
-
-                uint slot = 0;
-                InterlockedAdd(DrawArgs_Plants[0].instanceCount, PLANT.lods[lod].numBlocks, slot);
-                for (int i = 0; i < PLANT.lods[lod].numBlocks; i++)
-                {
-                    block_buffer[slot + i].instance_idx = idx;
-                    block_buffer[slot + i].plant_idx = 0; //                INSTANCE.plant_idx;
-                    block_buffer[slot + i].section_idx = 0; // FIXME add later
-                    block_buffer[slot + i].vertex_offset = PLANT.lods[lod].startVertex + (i * VEG_BLOCK_SIZE);
-                }
+            for (int i = 0; i < 4; i++)
+            {
+                float size = 64 * pow(2, i);
+                if (pix > size)
+                    lod = i;
             }
+
+            
+
+            uint slot = 0;
+            InterlockedAdd(DrawArgs_Plants[0].instanceCount, PLANT.lods[lod].numBlocks, slot);
+            for (int i = 0; i < PLANT.lods[lod].numBlocks; i++)
+            {
+                block_buffer[slot + i].instance_idx = idx;
+                block_buffer[slot + i].plant_idx = 0; //                INSTANCE.plant_idx;
+                block_buffer[slot + i].section_idx = 0; // FIXME add later
+                block_buffer[slot + i].vertex_offset = PLANT.lods[lod].startVertex + (i * VEG_BLOCK_SIZE);
+            }
+        }
     }
 }

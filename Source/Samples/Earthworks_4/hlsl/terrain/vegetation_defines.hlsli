@@ -41,6 +41,15 @@ struct _plant_lod
     uint reserved; 
 };
 
+struct _pivot
+{
+    float3 root;
+
+    //???
+    float frequency;
+    float stiffness;
+};
+
 struct plant
 {
     float2 size;        // half width but full height
@@ -57,6 +66,10 @@ struct plant
     float bDepth = 20.0f;
     float bScale = 0.5f;
 
+    // soft shadows
+    float shadowUVScale = 1.f;
+    float shadowSoftness = 0.15f;
+    
     // flutter
     float flutter_stength;
     float flutter_freq;
@@ -65,6 +78,8 @@ struct plant
     _plant_lod lods[16];    // 16 should do, has t be fixed, 8 might also bnit careful for big trees, although they should really sub-lod
     uint numLods;
     uint billboardMaterialIndex;
+
+    // pivot points for animation
 };
 
 
@@ -76,8 +91,8 @@ struct ribbonVertex8
     uint d;
     uint e;
     uint f;
-    //uint g;
-    //uint h;
+    uint g;
+    uint h;
 };
 
 

@@ -172,7 +172,7 @@ struct bakeSettings
 };
 
 
-
+#pragma optimize("", off)
 
 struct ribbonVertex
 {
@@ -192,11 +192,18 @@ struct ribbonVertex
     {
         pushStart = false;   // prepare for a new ribbon to start
         type = !_cameraFacing;
+        S_root = 0;
     }
 
-    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency)
+    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
+        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f )
     {
+
         position = _node[3];
+        if (fabs(position.x) > 2 || fabs(position.z) > 2)
+        {
+            bool bCM = true;
+        }
         radius = _radius;
         bitangent = _node[1];  // right handed matrix : up
         tangent = _node[0];
@@ -204,6 +211,21 @@ struct ribbonVertex
         uv = _uv;
         albedoScale = _albedo;
         translucencyScale = _translucency;
+
+        leafStiffness = _stiff;
+        leafFrequency = _freq;
+        leafIndex = _index;
+
+        
+        leafRoot = S_root;
+        if (_clearLeafRoot)
+        {
+            S_root = 0;
+        }
+        else
+        {
+            S_root++;
+        }
 
         startBit = pushStart;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
 
@@ -213,6 +235,18 @@ struct ribbonVertex
             // start of a new block, but we are in teh middle of a ribbon, repeat the last one as a start
             ribbonVertex R = ribbonVertex::ribbons.back();
             R.startBit = false;
+            
+            if (_clearLeafRoot)
+            {
+                S_root = 0;
+            }
+            else
+            {
+                R.leafRoot++; // This is the previous one plus 1 more
+                leafRoot = R.leafRoot + 1;  // advance teh new vertex one more
+                S_root = leafRoot + 1;
+            }
+
             ribbonVertex::ribbons.push_back(R);
         }
 
@@ -235,13 +269,18 @@ struct ribbonVertex
         return V;
     }
 
-    void lightBasic(float2 extents, float plantDepth)
+    void lightBasic(float2 extents, float plantDepth, float yOffset)
     {
-        float3 Ldir = position - float3(0, 0.3f * extents.y, 0);
-        float3 edge = egg(extents, Ldir, 0.3f);
+        float midHeight = yOffset * extents.y;
+        float3 Ldir = position - float3(0, midHeight, 0);
+        float3 edge = egg(extents, Ldir, yOffset);
         lightCone = float4(glm::normalize(Ldir), 0);    // 0 is just 180 degrees so wide, fixme tighter at ythe bottom
         float depthMeters = __max(0, glm::length(edge) - glm::length(Ldir));
         lightDepth = depthMeters / plantDepth;
+        if (position.y < midHeight)
+        {
+            lightDepth = (depthMeters + (midHeight - position.y)) / plantDepth;
+        }
 
         float3 P = position;
         P.y = 0;
@@ -249,6 +288,11 @@ struct ribbonVertex
         float aoW = 0.3f + 0.7f * dx / extents.x;
         float aoH = 0.4f + 0.6f * position.y / extents.y;
         ambientOcclusion = __max(aoW, aoH);
+        if (position.y < midHeight)
+        {
+            float scale = (midHeight - position.y) / midHeight;
+            ambientOcclusion *= (1.f - scale * 0.5f);
+        }
     }
 
     // FIXME void light(lightCone light Depth ao shadow)
@@ -269,6 +313,14 @@ struct ribbonVertex
     unsigned char shadow = 255;         // ??? I think this in now unused
     float albedoScale = 1.f;
     float translucencyScale = 1.f;
+
+    uint root[4] = { 0, 0, 0, 0 };
+
+    static uint S_root;
+    uint leafRoot = 0;
+    float leafStiffness = 1.f;
+    float leafFrequency = 10.f;
+    float leafIndex = 0.f;
 };
 
 
@@ -371,6 +423,12 @@ public:
     bool changed = true;
     bool changedForSave = false;
     static Gui* _gui;
+
+    // lighting information
+    float shadowUVScale = 1.f;
+    float shadowSoftness = 0.15f;
+    float shadowDepth = 1.f;
+    float shadowPenetationHeight = 0.3f;
 };
 
 enum plantType {P_LEAF, P_STEM, PLANT_END};
@@ -595,9 +653,18 @@ public:
         {
             archive(CEREAL_NVP(lodInfo));
         }
+
+        if (_version >= 103)
+        {
+            archive(CEREAL_NVP(shadowUVScale));
+            archive(CEREAL_NVP(shadowSoftness));
+            archive(CEREAL_NVP(shadowDepth));
+            archive(CEREAL_NVP(shadowPenetationHeight));
+        }
+        
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 102);
+CEREAL_CLASS_VERSION(_stemBuilder, 103);
 
 
 
@@ -609,7 +676,8 @@ class _rootPlant
 public:
     void onLoad();
     void renderGui(Gui* _gui);
-    void build();
+    void buildAllLods();
+    void build(bool _updateExtents = false);
     void loadMaterials();
     void reloadMaterials();
 
@@ -626,6 +694,10 @@ public:
     //??? lodding info, so it needs all the runtime data
 
     bool displayModeSinglePlant = true;
+
+    int totalInstances = 16384;
+    float instanceArea = 40.f;
+    void builInstanceBuffer();
 
     _plantBuilder *root = nullptr;
     buildSetting settings;

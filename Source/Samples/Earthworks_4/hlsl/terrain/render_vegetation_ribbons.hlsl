@@ -39,7 +39,7 @@ cbuffer gConstantBuffer
     
     float time;
     float bake_radius_alpha;
-
+    int bake_AoToAlbedo;
     
 };
 
@@ -74,6 +74,7 @@ cbuffer PerFrameCB
 #define AlbedoScale colour.x
 #define TranslucencyScale colour.y
 #define Shadow sunUV.z
+#define PlantIdx flags.w
 
 
 float4 sunLight(float3 posKm)
@@ -141,7 +142,7 @@ inline void extractTangentFlat(inout PSIn o, const ribbonVertex8 v, const float 
 {
     o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, rotation); // remember to add rotation to yaw
     o.tangent = yawPitch_9_8bit(v.d >> 23, (v.d >> 15) & 0xff, rotation); // remember to add rotation to yaw
-    o.normal = cross(o.binormal, o.tangent);
+    // this is done in animate  o.normal = cross(o.binormal, o.tangent);
 }
 
 inline void extractUVRibbon(inout PSIn o, const ribbonVertex8 v)
@@ -231,7 +232,93 @@ void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
 }
 
 
-PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
+void windAnimate2(inout PSIn vertex, float3 plantRoot)  // plantRoot only for randomness for now
+{
+    float3 root = float3(0, 0, 0);
+    float3 dir = float3(0, 1, 0);
+    float dirL = 2.4f;  // maize
+
+    float3 relative = vertex.pos.xyz - root;
+    //float dL = saturate(dot(relative, dir) / dirL);
+    float dL = saturate(length(relative) / dirL);
+    float dl2 = pow(dL, 1.8);
+    float biNormScale = 1.8 * pow(dL, 0.8);
+
+    float3 windDir = float3(0, 0, 1);
+    float3 windRight = normalize(cross(relative, dir));
+    float windStrength = (0.2 + 0.15 * sin(rand_1_05(plantRoot.xz) + time * 0.3) + 0.06 * sin(rand_1_05(plantRoot.xy) + time * 2.5));
+    windStrength += 0.01 * sin(rand_1_05(plantRoot.xz) + time * 6.05);
+    //windStrength = 0.6 * sin(time*0.3);
+    windStrength *= 0.1;
+
+    float scale = windStrength * dl2 / dL;
+    scale *= scale;
+    scale += 1;
+    scale = 1 / sqrt(scale);
+    
+    vertex.pos.xyz += windDir * windStrength * dirL * dl2;
+    vertex.pos.xyz *= scale;
+
+    float flutter = frac(vertex.pos.x * 1) + frac(vertex.pos.y * 1) + sin(time * frac(vertex.pos.x * 1) * 0.01) * 0.5 + sin(time * 5) * 0.1 + sin(time * 8) * 0.05;
+
+    
+    // this one must scale look at dezmoz
+    vertex.binormal = normalize(vertex.binormal + windDir * windStrength * biNormScale);
+    //vertex.tangent = mul(AngleAxis3x3(flutter, vertex.binormal), vertex.tangent); // flutter
+    vertex.normal = cross(vertex.binormal, vertex.tangent);
+}
+
+void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiffness, float frequency, float flutter)
+{
+    float3 relative = vertex.pos.xyz - root;
+    float rnd = frac(rand_1_05(root.xz));
+
+    float3 windDir = float3(0, 0, 1);
+    float3 windRight = normalize(cross(rootDir, windDir)); // HAS to come from teh root binormal
+    float windStrength = 0.2 + 0.1 * sin(time * frequency + rnd * 10);
+
+    //windStrength *= 10;
+    windStrength *= stiffness;
+    //windStrength = 1.5;
+
+    float3x3 rot = AngleAxis3x3(-windStrength, windRight);
+
+    float flutterStrength = 0.2 + 0.1 * sin(time * frequency * 3 + rnd * 4);
+    float3x3 rotflutter = AngleAxis3x3(-windStrength * flutter, vertex.binormal);
+    
+    vertex.pos.xyz = root + mul(relative, rot);
+    vertex.binormal = mul(vertex.binormal, rot);
+    vertex.tangent = mul(vertex.tangent, rot);
+    //vertex.tangent = mul(vertex.tangent, rotflutter);
+    //vertex.tangent = mul(AngleAxis3x3(flutter, vertex.binormal), vertex.tangent); // flutter
+    // normal is done after
+}
+
+void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLANT, float rotation, float Iscale)
+{
+    float scale = 2.1 + 0.8 * sin(time * 0.07);
+    // leaf first
+    if ((h & 0xff) > 0)
+    {
+        ribbonVertex8 vRoot = vertex_buffer[vId - (h & 0xff)];
+        float3 root = float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * PLANT.scale - PLANT.offset;
+        float3 rootDir = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, rotation);
+
+        float stiff = 1;//        ((h >> 16) & 0xff) * 0.004 * 10;
+        float freq = ((h >> 8) & 0xff) * 0.004;
+        float index = ((h >> 24) & 0xff) * 0.004;
+        
+        float dx = index * (root.y / 2.5);      // secodn scales overall plant
+        windAnimateOnce(vertex, root, rootDir, dx * scale * stiff, 3.f / freq, 0.f);
+    }
+
+    windAnimateOnce(vertex, float3(0, 0, 0), float3(0, 1, 0), vertex.pos.y / 2.5 / 2 * scale, 0.95f / Iscale, 0.f);
+}
+
+
+PSIn
+    vsMain(
+    uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     PSIn output = (PSIn) 0;
 
@@ -259,6 +346,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     }
 
     output.flags.x = PLANT.billboardMaterialIndex;
+    output.PlantIdx = INSTANCE.plant_idx;
 
     output.lineScale = PLANT.size * INSTANCE.scale;
 
@@ -277,9 +365,10 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     // position
     {
         float3 p = float3((v.a >> 16) & 0x3fff, v.a & 0xffff, (v.b >> 18) & 0x3fff) * PLANT.scale - PLANT.offset;
-        output.pos.xyz = INSTANCE.position + rot_xz(p, INSTANCE.rotation) * INSTANCE.scale;
+        //output.pos.xyz = INSTANCE.position + rot_xz(p, INSTANCE.rotation) * INSTANCE.scale;
+        output.pos.xyz = rot_xz(p, INSTANCE.rotation);
         output.pos.w = 1;
-        output.eye = normalize(output.pos.xyz - eyePos);
+        // also after animate output.eye = normalize(output.pos.xyz - eyePos);
 
         output.colour.a = 1; // new alpha component but just for bake
 #if defined(_BAKE)
@@ -348,11 +437,31 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     // --------------------------------------------------------------------------------------------------------
     //windAnimate(output, INSTANCE.position, v.a >> 31);
 
+    //windAnimate2(output, INSTANCE.position);
+#if defined(_BAKE)
+#else
+    windAnimateAll(output, v.g, v.h, BLOCK.vertex_offset + vId, PLANT, INSTANCE.rotation, INSTANCE.scale);
+#endif
+
+    //SCALE and root here.
+    output.pos.xyz *= INSTANCE.scale;
+    output.pos.xyz += INSTANCE.position;
+
+    output.eye = normalize(output.pos.xyz - eyePos);
+    if (!(v.a >> 31))
+    {
+        output.tangent = normalize(cross(output.binormal, -output.eye));
+    }
+    output.normal = cross(output.binormal, output.tangent);
+
+
     // thsi value determines if it splits into 2 or 4 during the geometry shader
     float d = length(output.pos.xyz - eyePos);
-    output.flags.w = output.flags.z * PLANT.radiusScale / d * 10000;
+    //flags.w is now plantIdxoutput.flags.w = output.flags.z * PLANT.radiusScale / d * 10000;
     output.lineScale.x = pow(output.flags.z / 255.f, 2) * PLANT.radiusScale;
-            
+
+    output.PlantIdx = INSTANCE.plant_idx;
+    
     return output;
 #endif
 }
@@ -421,7 +530,8 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         v.pos = mul(v.pos, viewproj);
         OutputStream.Append(v);
 
-      /*  
+      /*
+        // FIXME I have reassigned flags.w for now DO NOT USE THIS
         if (L[0].flags.w > 10)      // but we can do the test rigth here from radius
         {
             float l1 = length(L[1].pos.xyz - L[0].pos.xyz);
@@ -494,7 +604,11 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 
     int frontback = (int) !isFrontFace;
-    color = color * vOut.AlbedoScale * vOut.AmbietOcclusion * MAT.albedoScale[frontback] * 2.f;
+    color = color * vOut.AlbedoScale  * MAT.albedoScale[frontback] * 2.f;
+    if(bake_AoToAlbedo)
+    {
+        color = color * vOut.AmbietOcclusion;
+    }
     output.albedo = float4(pow(color, 1.0 / 2.2), 1);
     
 
@@ -554,8 +668,9 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     */
     
     
-    sprite_material MAT = materials[vOut.flags.x];
-
+    const sprite_material MAT = materials[vOut.flags.x];
+    const plant PLANT = plant_buffer[vOut.PlantIdx];
+    
 
 
     int frontback = (int) !isFrontFace;
@@ -564,7 +679,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f; // FIXME should come from material
     //albedo.rgb = 0.2;
     //albedo.rgb = float3(0.5, 0.3, 0.1);
-
+    
     
     float alpha = albedo.a;
     if (MAT.alphaTexture >= 0)
@@ -573,8 +688,10 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     alpha =     pow(alpha, MAT.alphaPow);
     //if (alpha < 0.2)        return float4(0.5, 0, 0, 1);
-    clip(alpha - 0.2);
-    
+    //clip(alpha - 0.2);
+
+    float rnd = 0.2 + 0.25 * rand_1_05(vOut.pos.xy);
+    clip(alpha - rnd);
 
     
     float3 N = vOut.normal;
@@ -588,7 +705,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     N *= (isFrontFace * 2 - 1);
     
 
-    //return float4(N, 1);
+    //return float4(vOut.AmbietOcclusion, 0, 0, 1);
     
     
     float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
@@ -599,8 +716,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
 
     // sunlight dapple
-    float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * 0.1)).r;
-    dappled =     smoothstep(vOut.Shadow - 0.05, vOut.Shadow + 0.05, dappled);
+    float dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * PLANT.shadowUVScale)).r;
+    dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
 
  #if defined(_BILLBOARD)
     dappled = 1 - vOut.Shadow;
@@ -615,7 +732,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     //return float4(color, 1);
     
-    color += gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb  * albedo.rgb * vOut.AmbietOcclusion;
+    color += 0.7 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     
 
@@ -627,7 +744,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float RGH = MAT.roughness[frontback] + 0.01;
     float pw = 1.f / RGH;
     //float scale = 
-    color += pow(ndoth, pw) * pw * 0.05 * dappled * vOut.diffuseLight;
+    color += pow(ndoth, pw) * pw * 0.1 * dappled * vOut.diffuseLight;
 //#endif
     
     
