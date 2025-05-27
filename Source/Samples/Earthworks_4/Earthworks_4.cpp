@@ -549,7 +549,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
 void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    gpDevice->toggleVSync(false);
+    gpDevice->toggleVSync(refresh.vsync);
     onFrameUpdate(_renderContext);
 
 
@@ -621,9 +621,9 @@ void Earthworks_4::onRenderOverlay(RenderContext* _renderContext, const Fbo::Sha
     {
         uint w = tex->getWidth();
         uint h = tex->getHeight();
-        uint scale = __max(1, __max(w / 1024, h / 1024));
+        uint scale = __min(8, __max(1, 1024 / h));
         glm::vec4 srcRect = glm::vec4(0, 0, w, h);
-        glm::vec4 dstRect = glm::vec4(1000, 30, 1000, 30) + glm::vec4(0, 0, w / scale, h / scale);
+        glm::vec4 dstRect = glm::vec4(1000, 30, 1000, 30) + glm::vec4(0, 0, w * scale, h * scale);
         _renderContext->blit(tex->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
         terrafectorEditorMaterial::static_materials.dispTexIndex = -1;
         _plantMaterial::static_materials_veg.dispTexIndex = -1;
@@ -689,7 +689,8 @@ bool Earthworks_4::onMouseEvent(const MouseEvent& _mouseEvent)
 void Earthworks_4::onResizeSwapChain(uint32_t _width, uint32_t _height)
 {
     auto monitorDescs = MonitorInfo::getMonitorDescs();
-    screenSize = monitorDescs[0].resolution;
+    //screenSize = monitorDescs[0].resolution;   // THIS is used o my dual scren setup - BUT flipping my screns at some stage by umpluggin one broke this, so it has to be fixd first
+    screenSize = float2(_width, _height);
     viewport3d.originX = 0;
     viewport3d.originY = 0;
     viewport3d.minDepth = 0;

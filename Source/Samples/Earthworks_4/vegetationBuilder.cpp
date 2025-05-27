@@ -2,7 +2,7 @@
 #include "imgui.h"
 #include "PerlinNoise.hpp"      //https://github.com/Reputeless/PerlinNoise/blob/master/PerlinNoise.hpp
 
-#pragma optimize("", off)
+
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -51,6 +51,7 @@ void ribbonVertex::setup(float scale, float radius, float3 offset)
 
 uint ribbonVertex::S_root = 0;
 
+#pragma optimize("", off)
 ribbonVertex8 ribbonVertex::pack()
 {
     int x14 = ((int)((position.x + objectOffset.x) / objectScale)) & 0x3fff;
@@ -119,7 +120,7 @@ ribbonVertex8 ribbonVertex::pack()
     p.h = (L_index << 24) + (L_stiff << 16) + (L_freq << 8) + leafRoot; // add stiffnes etc later
     return p;
 }
-
+#pragma optimize("", on)
 
 
 
@@ -146,7 +147,7 @@ int materialCache_plants::find_insert_material(const std::string _path, const st
     {
         // Now we have to search, but use the first one we find
         std::string fullName = _name + ".vegetationMaterial";
-        fullPath = terrafectorEditorMaterial::rootFolder + "/vegetationMaterials";
+        fullPath = terrafectorEditorMaterial::rootFolder + "/vegetationMaterial";
         for (const auto& entry : std::filesystem::recursive_directory_iterator(fullPath))
         {
             std::string subPath = clean(entry.path().string());
@@ -179,7 +180,7 @@ int materialCache_plants::find_insert_material(const std::filesystem::path _path
     }
 
     // else add new
-    if (_path.string().length() > 5 && std::filesystem::exists(_path))
+    if ((_path.string().find("vegetationMaterial") != std::string::npos) && std::filesystem::exists(_path))
     {
         uint materialIndex = (uint)materialVector.size();
         _plantMaterial& material = materialVector.emplace_back();
@@ -378,15 +379,13 @@ void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
         for (cnt = 0; cnt < materialVector.size(); cnt++)
         {
             std::string  thisPath = "other";
-            if (displaySortMap[cnt].name.find("vegetationMaterials") != std::string::npos)
+            if (displaySortMap[cnt].name.find("vegetationMaterial") != std::string::npos)
             {
-                thisPath = displaySortMap[cnt].name.substr(21, displaySortMap[cnt].name.find_last_of("\\/") - 22);
+                thisPath = displaySortMap[cnt].name.substr(12, displaySortMap[cnt].name.find_last_of("\\/") - 12);  // -12 removes the first vegetation
             }
             if (thisPath != path) {
-                ImGui::PushFont(mpGui->getFont("roboto_32"));
                 ImGui::NewLine();
                 ImGui::Text(thisPath.c_str());
-                ImGui::PopFont();
                 path = thisPath;
                 subCount = 0;
                 rootPos = ImGui::GetCursorPos();
@@ -399,67 +398,12 @@ void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
                 {
                     selectedMaterial = displaySortMap[cnt].index;
                 }
-                /*
-                uint x = subCount % numColumns;
-                uint y = (int)floor(subCount / numColumns);
-                ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
-
-                int size = material.displayName.size() - 19;
-                if (size >= 0)
-                {
-                    ImGui::Text((material.displayName.substr(0, 19) + "..").c_str());
-                }
-                else
-                {
-                    ImGui::Text(material.displayName.c_str());
-                }
-
-                ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
-                if (material.thumbnail) {
-                    if (_window.imageButton("testImage", material.thumbnail, float2(128, 128)))
-                    {
-                        selectedMaterial = displaySortMap[cnt].index;
-                    }
-                }
-                else
-                {
-                    style.Colors[ImGuiCol_Button] = ImVec4(material._constData.albedoScale.x, material._constData.albedoScale.y, material._constData.albedoScale.z, 1.f);
-                    if (ImGui::Button("##test", ImVec2(128, 128)))
-                    {
-                        selectedMaterial = displaySortMap[cnt].index;
-                    }
-                }
-                style.Colors[ImGuiCol_Button] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f);
-
-                if (ImGui::BeginPopupContextItem())
-                {
-                    if (ImGui::Selectable("Explorer")) {
-                        std::string cmdExp = "explorer " + material.fullPath.string();  //
-                        cmdExp = cmdExp.substr(0, cmdExp.find_last_of("\\/") + 1);
-                        replaceAll(cmdExp, "//", "/");
-                        replaceAll(cmdExp, "/", "\\");
-                        system(cmdExp.c_str());
-                    }
-
-                    ImGui::EndPopup();
-                }
-
-                if (material._constData.materialType == 1)
-                {
-                    ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + 10 + rootPos.y));
-                    ImGui::Selectable("MULTI");
-                    ImGui::LabelText("m1", "MULTI");
-                }
-
-                */
+                TOOLTIP((material.fullPath.string() + "\n" + std::to_string(displaySortMap[cnt].index)).c_str());
             }
             ImGui::PopID();
             subCount++;
         }
     }
-
-
-
 
     style = oldStyle;
 }
@@ -479,12 +423,12 @@ void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
 
 
     char text[1024];
-    ImGui::PushFont(mpGui->getFont("roboto_26"));
+    ImGui::PushFont(mpGui->getFont("roboto_20"));
     ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
     ImGui::PopFont();
 
 
-    ImGui::PushFont(mpGui->getFont("roboto_20"));
+    
     {
         for (uint i = 0; i < textureVector.size(); i++)
         {
@@ -498,7 +442,8 @@ void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
 
             if (ImGui::IsItemHovered())
             {
-                ImGui::SetTooltip("%d  :  %s\n%d x %d", i, pT->getSourcePath().c_str(), pT->getWidth(), pT->getHeight());
+                ImGui::SetTooltip("%d  :  %s\n%d x %d", i, pT->getSourcePath().string().c_str(), pT->getWidth(), pT->getHeight());
+                
                 _plantMaterial::static_materials_veg.dispTexIndex = i;
             }
 
@@ -535,7 +480,7 @@ void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
 
         }
     }
-    ImGui::PopFont();
+    
 
     style = oldStyle;
 }
@@ -606,6 +551,7 @@ void _plantMaterial::renderGui(Gui* _gui)
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("ALBEDO");
+            _plantMaterial::static_materials_veg.dispTexIndex = _constData.albedoTexture;
         }
         ImGui::PopID();
 
@@ -615,6 +561,7 @@ void _plantMaterial::renderGui(Gui* _gui)
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("ALPHA");
+            _plantMaterial::static_materials_veg.dispTexIndex = _constData.alphaTexture;
         }
         ImGui::PopID();
 
@@ -624,6 +571,7 @@ void _plantMaterial::renderGui(Gui* _gui)
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("TRANSLUCENCY");
+            _plantMaterial::static_materials_veg.dispTexIndex = _constData.translucencyTexture;
         }
         ImGui::PopID();
 
@@ -633,6 +581,7 @@ void _plantMaterial::renderGui(Gui* _gui)
         if (ImGui::IsItemHovered())
         {
             ImGui::SetTooltip("NORMAL");
+            _plantMaterial::static_materials_veg.dispTexIndex = _constData.normalTexture;
         }
         ImGui::PopID();
 
@@ -678,7 +627,7 @@ void _plantMaterial::import(std::filesystem::path _path, bool _replacePath)
         archive(*this);
 
         if (_replacePath) fullPath = _path;
-        displayName = _path.filename().string();
+        displayName = _path.stem().string();
         reloadTextures();
         isModified = false;
     }
@@ -907,7 +856,7 @@ ImVec4 mat_color = ImVec4(0.0f, 0.01f, 0.07f, 1);
                     ImGui::Text(name);    \
                     ImGui::SameLine(80, 0); \
                     ImGui::SetNextItemWidth(80);    \
-                    if (ImGui::DragFloat("##X", &data.x, 1.f, 0, 300, "%2.2fmm")) changed = true; \
+                    if (ImGui::DragFloat("##X", &data.x, 1.f, 0, 2000, "%2.2fmm")) changed = true; \
                     TOOLTIP(t1); \
                     ImGui::SameLine(0, 10); \
                     ImGui::SetNextItemWidth(80);    \
@@ -1069,6 +1018,12 @@ void _leafBuilder::renderGui()
     R_CURVE("gavity", gravitrophy, "rotate towards the ground or sky", "random");
     R_VERTS("num verts", numVerts);
     ImGui::NewLine();
+    R_FLOAT("stiffness", ossilation_stiffness, 0.1f, 0.8f, 20.f, "");
+    R_FLOAT("sqrt(sway)", ossilation_constant_sqrt, 0.1f, 1.01f, 100.f, "");
+    ImGui::SameLine(0, 20);
+    ImGui::Text("%2.3fHz", 1.f / (rootFrequency() * sqrt(leaf_length.x * 0.001f) / sqrt(leaf_width.x * 0.001f)));
+    R_FLOAT("root-tip", ossilation_power, 0.01f, 0.02f, 1.8f, "");
+    ImGui::NewLine();
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
     materials.renderGui("materials", gui_id);
 
@@ -1179,8 +1134,8 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
         float twist = RND_CRV(leaf_twist) / 100.f * age;
 
         // some of this detail needs to go into the left data and user set
-        float freq = (length * 100.f) / 1.f;
-        float stiffness = (width / (length * 100.f));
+        float freq = rootFrequency() * sqrt(length * 100) / sqrt(width * 100);
+        float stiffness = 1.f / ossilation_stiffness;
 
         // Lodding leaf............................................................
         bool showLeaf = width > _settings.pixelSize;
@@ -1241,7 +1196,7 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
             if (i == firstVis && showLeaf)
             {
                 R_verts.startRibbon(cameraFacing || forceFacing);
-                R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale, false, stiffness, freq, (float)i / 99.f);
+                R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale, false, stiffness, freq, pow((float)i / 99.f, ossilation_power));
                 cnt++;
             }
             else if (i > firstVis)
@@ -1249,7 +1204,7 @@ glm::mat4 _leafBuilder::build(buildSetting& _settings)
                 cnt++;
                 if ((i <= lastVis) && showLeaf && cnt >= step)
                 {
-                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale, false, stiffness, freq, (float)i / 99.f);
+                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, t), albedoScale, translucentScale, false, stiffness, freq, pow((float)i / 99.f, ossilation_power));
                     cnt -= step;
                 }
             }
@@ -1358,6 +1313,7 @@ void _stemBuilder::renderGui()
     
     R_LENGTH("age", numSegments, "total number of nodes", "random is used for automatic variations");
     if (numSegments.x < 0.5f) numSegments.x = 0.5f;
+    R_FLOAT("age_power", stem_age_power, 0.1f, 1.f, 25.f, "");
     R_INT("start", startSegment, 0, 20, "first segment with leaves\nbelow this is bare stalk");
     R_LENGTH("length", stem_length, "stem length in mm", "random");
     R_LENGTH("width", stem_width, "stem width in mm", "random");
@@ -1367,6 +1323,17 @@ void _stemBuilder::renderGui()
     R_CURVE("node bend", node_angle, "stem bend at a node", "random");
     ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
     stem_Material.renderGui(gui_id);
+    R_FLOAT("stiffness", ossilation_stiffness, 0.1f, 0.8f, 20.f, "");
+    R_FLOAT("sqrt(sway)", ossilation_constant_sqrt, 0.1f, 1.01f, 100.f, "");
+    ImGui::SameLine(0, 20);
+    float l = 1;
+    if (NODES_PREV.size() >= 2)
+    {
+        l = glm::length(NODES_PREV.back()[3] - NODES_PREV.front()[3]);
+    }
+    if (l == 0) l = 1; // avoid devide by zero
+    ImGui::Text("%2.3fHz", 1.f / (rootFrequency() / sqrt(l)));
+    R_FLOAT("root-tip", ossilation_power, 0.01f, 0.02f, 1.8f, "");
 
     // leaves
     ImGui::NewLine();
@@ -1655,19 +1622,30 @@ glm::mat4 _stemBuilder::build(buildSetting& _settings)
     R_verts.startRibbon(true);
     age = RND_B(numSegments);
     int iAge = __max(1, (int)age);
+
+    float W = RND_B(stem_width) * 0.001f;
+    float W0 = W * (1 + pow(age, stem_age_power)) / age;
+    bool visible = W0 > _settings.pixelSize;
+    if (visible) {
+        R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
+    }
+
     for (int i = 0; i < iAge; i++)
     {
-        float leafAge = 1.f - pow((float)i / age, leaf_age_power);
+        int nodeAge = iAge - i;
+
+        float stemAge = 1.f - pow((float)i / age, stem_age_power);
         float L = RND_B(stem_length) * 0.001f / 100.f;
-        float W = RND_B(stem_width) * 0.001f * pow(leafAge, 0.4f);
+        W = RND_B(stem_width) * 0.001f;
         tipWidth = W;
+        float W = RND_B(stem_width) * 0.001f;
+        W = W * (1 + pow(nodeAge, stem_age_power)) / age;
+        visible = W > _settings.pixelSize;
+
         float C = RND_CRV(stem_curve) / 100.f;
         float P = RND_CRV(stem_phototropism) / 100.f;
 
-        bool visible = W > _settings.pixelSize;
-        if (visible && i == 0) {
-            R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
-        }
+        
         float cnt = 0;
         for (int j = 0; j < 100; j++)
         {
@@ -1800,6 +1778,8 @@ void _rootPlant::onLoad()
     drawArgs_vegetation = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
     drawArgs_billboards = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
 
+    buffer_feedback = Buffer::createStructured(sizeof(vegetation_feedback), 1);
+    buffer_feedback_read = Buffer::createStructured(sizeof(vegetation_feedback), 1, Resource::BindFlags::None, Buffer::CpuAccess::Read);
     // compute
     //split.compute_tileClear.Vars()->setBuffer("DrawArgs_ClippedLoddedPlants", split.drawArgs_clippedloddedplants);
 
@@ -1807,6 +1787,7 @@ void _rootPlant::onLoad()
     compute_clearBuffers.load("Samples/Earthworks_4/hlsl/terrain/compute_vegetation_clear.hlsl");
     compute_clearBuffers.Vars()->setBuffer("DrawArgs_Quads", drawArgs_billboards);
     compute_clearBuffers.Vars()->setBuffer("DrawArgs_Plants", drawArgs_vegetation);
+    compute_clearBuffers.Vars()->setBuffer("feedback", buffer_feedback);
 
     compute_calulate_lod.load("Samples/Earthworks_4/hlsl/terrain/compute_vegetation_lod.hlsl");
     compute_calulate_lod.Vars()->setBuffer("DrawArgs_Quads", drawArgs_billboards);
@@ -1815,6 +1796,7 @@ void _rootPlant::onLoad()
     compute_calulate_lod.Vars()->setBuffer("instance_buffer", instanceData);
     compute_calulate_lod.Vars()->setBuffer("instance_buffer_billboard", instanceData_Billboards);
     compute_calulate_lod.Vars()->setBuffer("block_buffer", blockData);
+    compute_calulate_lod.Vars()->setBuffer("feedback", buffer_feedback);
 
     std::uniform_real_distribution<> RND(-1.f, 1.f);
 
@@ -1953,6 +1935,30 @@ void _rootPlant::renderGui(Gui* _gui)
         }
 
         ImGui::NewLine();
+
+        if (ImGui::DragFloat3("wind dir", &windDir.x, 0.01f, -1.f, 1.f))
+        {
+            windDir.y = 0;
+            windDir = glm::normalize(windDir);
+        }
+        ImGui::DragFloat("strength", &windStrength, 0.1f, 0.f, 100.f, "%3.2fm/s");
+        ImGui::SameLine(0, 20);
+        ImGui::Text("%3.2f km/h", windStrength * 3.6f);
+
+        // lodding feedback
+        ImGui::NewLine();
+        ImGui::DragFloat("loddingBias", &loddingBias, 0.1f, 0.1f, 10.f);
+        ImGui::Text("pZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
+        for (int i = 0; i < 10; i++)
+        {
+            ImGui::Text("%d, ", feedback.numLod[i]);
+            ImGui::SameLine(0, 10);
+        }
+        ImGui::NewLine();
+        ImGui::Text("billboard - %d {blocks - %d, tris %d}", feedback.numLod[0], feedback.numBlocks, feedback.numBlocks * VEG_BLOCK_SIZE * 2);
+        
+
+        ImGui::NewLine();
         static float numPix = 100;
         numPix = bakeSettings.objectSize / settings.pixelSize;
         if (ImGui::DragFloat("size", &bakeSettings.objectSize, 0.01f, 1.f, 64.f, "%3.2fm")) anyChange=true;
@@ -1975,28 +1981,32 @@ void _rootPlant::renderGui(Gui* _gui)
         }
 
         ImGui::NewLine();
-        
-        if (ImGui::Button("bake textures"))
-        {
-            if (root)
-            {
-                for (int seed = 1000; seed < 1001; seed++)
-                {
-                    settings.seed = seed;
-                    settings.pixelSize = 0.001f;
-                    ribbonVertex::packed.clear();
-                    build(true);
 
-                    for (int i = 0; i < 10; i++)
+        if (displayModeSinglePlant)
+        {
+            if (ImGui::Button("bake textures"))
+            {
+                if (root)
+                {
+                    for (int seed = 1000; seed < 1001; seed++)
                     {
-                        if (root->getBakeInfo(i) && (root->getBakeInfo(i)->pixHeight > 0))
+                        settings.seed = seed;
+                        settings.pixelSize = 0.001f;
+                        ribbonVertex::packed.clear();
+                        build(true);
+
+                        for (int i = 0; i < 10; i++)
                         {
-                            bake(root->path, std::to_string(settings.seed), root->getBakeInfo(i));
-                            root->getBakeInfo(i)->material.reload();
+                            if (root->getBakeInfo(i) && (root->getBakeInfo(i)->pixHeight > 0))
+                            {
+                                bake(root->path, std::to_string(settings.seed), root->getBakeInfo(i));
+                                root->getBakeInfo(i)->material.reload();
+                            }
                         }
                     }
+                    //root->changedForSave = true;
+                    root->save();
                 }
-                root->save();
             }
         }
 
@@ -2038,10 +2048,13 @@ void _rootPlant::renderGui(Gui* _gui)
                         ImGui::Text("px %2.1fmm", lodInfo->pixelSize * 1000.f);
                         ImGui::SameLine(0, 10);
                         if (ImGui::Button("build")) {
+
+                            if (lod > 2) build(true);   // to generate new extents
                             displayModeSinglePlant = true;
                             anyChange = true;
                             lodInfo->pixelSize = extents.y / lodInfo->numPixels;
                             settings.pixelSize = lodInfo->pixelSize;
+
                         }
                         ImGui::SameLine(0, 10);
                         ImGui::Text("[v %d, b %d, u %d", lodInfo->numVerts, lodInfo->numBlocks, lodInfo->unused);
@@ -2096,7 +2109,7 @@ void _rootPlant::buildAllLods()
 
     uint start = 0;
     settings.pixelSize = 0.001f;    // 1mm just tiny
-    build(true); // this is just to generate extents
+    build(true); // this is just to generate extents    .. Should generate all of teh pivot data as well
     float Y = extents.y;
 
     ribbonVertex::packed.clear();
@@ -2116,12 +2129,19 @@ void _rootPlant::buildAllLods()
         plantBuf[pIndex].shadowUVScale = root->shadowUVScale;
         plantBuf[pIndex].shadowSoftness = root->shadowSoftness;
 
+        plantBuf[pIndex].rootPivot.root = { 0, 0, 0 };
+        plantBuf[pIndex].rootPivot.extent = { 0, 1.f / extents.y, 0 };
+        plantBuf[pIndex].rootPivot.frequency = root->rootFrequency() * sqrt(extents.y);
+        plantBuf[pIndex].rootPivot.stiffness = root->ossilation_stiffness;
+        plantBuf[pIndex].rootPivot.shift = root->ossilation_power;
+
         lodBake* lodZero = root->getBakeInfo(0);
         if (lodZero)
         {
             plantBuf[pIndex].billboardMaterialIndex = lodZero->material.index;
         }
 
+        plantBuf[pIndex].numLods = 0;
         for (uint lod = 100; lod >= 1; lod--)   // backwards since it fixes abug in build()
         {
             levelOfDetail* lodInfo = root->getLodInfo(lod);
@@ -2139,8 +2159,8 @@ void _rootPlant::buildAllLods()
                 startBlock[pIndex][lod] = start;
                 numBlocks[pIndex][lod] = lodInfo->numBlocks;
 
-
-                plantBuf[pIndex].numLods = lod - 1;
+                
+                plantBuf[pIndex].numLods = __max(plantBuf[pIndex].numLods, lod - 1);    // omdat ons nou agteruit gaan
                 plantBuf[pIndex].lods[lod - 1].pixSize = (float)lodInfo->numPixels;
                 plantBuf[pIndex].lods[lod - 1].numBlocks = lodInfo->numBlocks;
                 plantBuf[pIndex].lods[lod - 1].startVertex = start * VEG_BLOCK_SIZE;
@@ -2154,6 +2174,8 @@ void _rootPlant::buildAllLods()
 
     plantData->setBlob(plantBuf.data(), 0, 4 * sizeof(plant));
     vertexData->setBlob(ribbonVertex::packed.data(), 0, ribbonVertex::packed.size() * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+
+    settings.seed = 1000;
 }
 
 
@@ -2236,6 +2258,13 @@ void _rootPlant::build(bool _updateExtents)
             plantBuf[0].sunTilt = -0.2f;
             plantBuf[0].shadowUVScale = root->shadowUVScale;
             plantBuf[0].shadowSoftness = root->shadowSoftness;
+
+            plantBuf[0].rootPivot.root = { 0, 0, 0 };
+            plantBuf[0].rootPivot.extent = { 0, 1.f / extents.y, 0 };
+            plantBuf[0].rootPivot.frequency = root->rootFrequency() * sqrt(extents.y);
+            plantBuf[0].rootPivot.stiffness = root->ossilation_stiffness;
+            plantBuf[0].rootPivot.shift = root->ossilation_power;
+
             plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
         }
         tempUpdateRender = true;
@@ -2477,7 +2506,14 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
 
         compute_calulate_lod.Vars()["gConstantBuffer"]["view"] = _view;
         compute_calulate_lod.Vars()["gConstantBuffer"]["frustum"] = _clipFrustum;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["lodBias"] = loddingBias;
         compute_calulate_lod.dispatch(_renderContext, 16384 / 256, 1);
+
+        _renderContext->copyResource(buffer_feedback_read.get(), buffer_feedback.get());
+
+        const uint8_t* pData = (uint8_t*)buffer_feedback_read->map(Buffer::MapType::Read);
+        std::memcpy(&feedback, pData, sizeof(vegetation_feedback));
+        buffer_feedback_read->unmap();
     }
 
 
@@ -2515,6 +2551,11 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         static float time = 0.0f;
         time += gpFramework->getFrameRate().getAverageFrameTime() * 0.001f;
         vegetationShader.Vars()["gConstantBuffer"]["time"] = time;
+
+        vegetationShader.Vars()["gConstantBuffer"]["windDir"] = windDir;
+        vegetationShader.Vars()["gConstantBuffer"]["windStrength"] = windStrength;
+
+        
 
         vegetationShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it chences every time we loose focus
 
@@ -2555,5 +2596,25 @@ void _rootPlant::builInstanceBuffer()
     instanceBuf[0].position = { 0, 1000, 0 };
     instanceBuf[0].scale = 1.f;
     instanceBuf[0].rotation = 0;
+
+    for (int j = 0; j < 64; j++)
+    {
+        for (int i = 0; i < 256; i++)
+        {
+            int index = j * 256 + i;
+
+            instanceBuf[index].plant_idx = index % 4;
+            //instanceBuf[index].position = { (float)(j - 32) + RND(generator) * 0.01f, 1000.f, (float)(i - 128) * 0.25f + RND(generator) * 0.01f };
+            instanceBuf[index].position = { (float)(j - 32) * 1.4 + RND(generator) * 0.1f, 1000.f, (float)(i - 128) * 0.35f + RND(generator) * 0.1f };
+            instanceBuf[index].scale = 1.f +RND(generator) * 0.15f;
+            instanceBuf[index].rotation = RND(generator) * 3.14f;
+            instanceBuf[index].time_offset = RND(generator) * 100;
+        }
+    }
+
+    instanceBuf[0].position = { 0, 1000, 0 };
+    instanceBuf[0].scale = 1.f;
+    instanceBuf[0].rotation = 0;
+
     instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
 }

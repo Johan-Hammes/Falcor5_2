@@ -4,6 +4,7 @@
 
 RWStructuredBuffer<t_DrawArguments> DrawArgs_Quads;
 RWStructuredBuffer<t_DrawArguments> DrawArgs_Plants;
+RWStructuredBuffer<vegetation_feedback> feedback;
 
 
 
@@ -21,4 +22,11 @@ void main(uint idx : SV_DispatchThreadId)
     DrawArgs_Quads[0].vertexCountPerInstance = 0;
     DrawArgs_Quads[0].startInstanceLocation = 0;
     DrawArgs_Quads[0].startVertexLocation = 0;
+
+    for (int i = 0; i < 32; i++)
+    {
+        feedback[0].numLod[i] = 0;
+    }
+    feedback[0].numBlocks = 0;
+
 }

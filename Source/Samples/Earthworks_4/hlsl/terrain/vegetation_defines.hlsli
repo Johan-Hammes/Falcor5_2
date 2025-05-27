@@ -44,10 +44,13 @@ struct _plant_lod
 struct _pivot
 {
     float3 root;
+    float3 extent;  // vector from root to tip of this pivot. elements dot() with it to determine distance  1/ over length so dotproduct is alreadu 0..1
 
     //???
-    float frequency;
+    float frequency;    // scale inside the shader by sqrt(1/scale) as well ALL Frequencies
     float stiffness;
+    float shift; // shifts the ben towards teh root abort tip
+    //??? should bwe add a pow factor to shift the bend more towards or awasy from teh origin, could be extremely poiwerful, test first
 };
 
 struct plant
@@ -80,6 +83,7 @@ struct plant
     uint billboardMaterialIndex;
 
     // pivot points for animation
+    _pivot rootPivot;
 };
 
 
@@ -97,3 +101,15 @@ struct ribbonVertex8
 
 
 #define VEG_BLOCK_SIZE 32
+
+
+
+struct vegetation_feedback
+{
+    // plant zero
+    float plantZero_pixeSize;
+    uint plantZeroLod;
+
+    uint numLod[32];
+    uint numBlocks;
+};

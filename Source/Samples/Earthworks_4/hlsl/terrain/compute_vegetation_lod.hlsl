@@ -13,11 +13,15 @@ StructuredBuffer<plant_instance> instance_buffer;
 RWStructuredBuffer<block_data> block_buffer;
 RWStructuredBuffer<plant_instance> instance_buffer_billboard;
 
+RWStructuredBuffer<vegetation_feedback> feedback;
+
 
 cbuffer gConstantBuffer
 {
     float4x4 view;
     float4x4 frustum;
+
+    float lodBias;
 };
 
 
@@ -34,57 +38,54 @@ void main(uint idx : SV_DispatchThreadId)
     float4 viewPos = mul(float4(INSTANCE.position, 1), view); //??? maak seker
 
     float4 test = saturate(mul(frustum, viewPos) + float4(radius, radius, radius, radius));
+    uint slot = 0;
     
     if (all(test))
     {
         float distance = length(viewPos.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-        float pix = 1.95 * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
-        //float pix = 1.001 * 0.1  / distance * 1080; // And add a user controlled scale in as well
-        //float pix = 5 / distance * 1080; // And add a user controlled scale in as well
-        //pix = 10;
-        if (INSTANCE.position.x < 0)
-        {
-        
-            //pix = 10;
-        }
-        //else
-        //pix = 72;
+        float pix = lodBias * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
 
-        //if (pix > 64) pix = 300;
-        
-        //if (pix < PLANT.lods[0].pixSize && pix > 2)
-        if (pix < 64 && pix > 2)
+        if (idx == 0)
         {
-        // do billboards
+            feedback[0].plantZero_pixeSize = pix;
+            feedback[0].plantZeroLod = 0;
+        }
+
+
+        if (pix < 64 && pix > 2)        // do billboards
+        {
             uint slot = 0;
             InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
             instance_buffer_billboard[slot] = INSTANCE;
 
+            InterlockedAdd(feedback[0].numLod[0], 1, slot);
         }
         else
         {
-        // now the actual lodding info needs to be in the plant itself but hardcode for now
             int lod = PLANT.numLods - 1;
-            /*
-            for (int i = 0; i < PLANT.numLods; i++)
-            {
-                float size = 1064 * pow(2, idx);
-                //if (pix >= PLANT.lods[lod].pixSize)
-                if (pix > size)
-                    lod = i;
-            }*/
             
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i <= PLANT.numLods; i++)
             {
                 float size = 64 * pow(2, i);
                 if (pix > size)
                     lod = i;
             }
 
+            InterlockedAdd(feedback[0].numLod[lod + 1], 1, slot);
+            
+            if (idx == 0)
+            {
+                feedback[0].plantZero_pixeSize = pix;
+                feedback[0].plantZeroLod = 0;
+            }
             
 
-            uint slot = 0;
+            
+            InterlockedAdd(feedback[0].numBlocks, PLANT.lods[lod].numBlocks, slot);
             InterlockedAdd(DrawArgs_Plants[0].instanceCount, PLANT.lods[lod].numBlocks, slot);
+            
+ 
+            
             for (int i = 0; i < PLANT.lods[lod].numBlocks; i++)
             {
                 block_buffer[slot + i].instance_idx = idx;

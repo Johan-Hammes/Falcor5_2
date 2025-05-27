@@ -160,6 +160,9 @@ struct buildSetting
     int         seed = 1000;
     float       age = 1.f;
     bool        forcePhototropy = false;    // for billboard baking
+
+    // new values for more complex builds
+
 };
 
 struct bakeSettings
@@ -429,6 +432,13 @@ public:
     float shadowSoftness = 0.15f;
     float shadowDepth = 1.f;
     float shadowPenetationHeight = 0.3f;
+
+    // ossilations
+    float ossilation_stiffness = 1.f;   // this affects how far it bends for certain wind types, but also
+    float ossilation_constant_sqrt = 10.f;     //freq = (1 / 2π) * √(g / L). so this is g/L per meter, we scale by a furher √(1/L)
+    float ossilation_power = 1.f;       // shifts the bend towards the root or the tip
+    float rootFrequency() { return 0.1591549430f * ossilation_constant_sqrt * sqrt(1.f / ossilation_stiffness); }
+    int     deepest_pivot_pack_level = 3;
 };
 
 enum plantType {P_LEAF, P_STEM, PLANT_END};
@@ -549,9 +559,17 @@ public:
 
         stem_Material.reload();
         for (auto& M : materials.data) M.reload();
+
+        if (_version >= 102)
+        {
+            archive(CEREAL_NVP(ossilation_stiffness));
+            archive(CEREAL_NVP(ossilation_constant_sqrt));
+            archive(CEREAL_NVP(ossilation_power));
+            archive(CEREAL_NVP(deepest_pivot_pack_level));
+        }
     }
 };
-CEREAL_CLASS_VERSION(_leafBuilder, 101);
+CEREAL_CLASS_VERSION(_leafBuilder, 102);
 
 
 
@@ -598,6 +616,9 @@ public:
     float2  node_rotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
     float2  node_angle = float2(0.2f, 0.2f);    // andgle that the stem bends at the node ??? always away fromt he leaf angle if there is such a thing
     _vegMaterial stem_Material;
+    float   stem_age_power = 2.f;
+
+    
 
     // leaves
     float2  numLeaves = {3.f, 0.f};  // per segment
@@ -661,10 +682,19 @@ public:
             archive(CEREAL_NVP(shadowDepth));
             archive(CEREAL_NVP(shadowPenetationHeight));
         }
-        
+
+        if (_version >= 104)
+        {
+            archive(CEREAL_NVP(stem_age_power));
+
+            archive(CEREAL_NVP(ossilation_stiffness));
+            archive(CEREAL_NVP(ossilation_constant_sqrt));
+            archive(CEREAL_NVP(ossilation_power));
+            archive(CEREAL_NVP(deepest_pivot_pack_level));
+        }
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 103);
+CEREAL_CLASS_VERSION(_stemBuilder, 104);
 
 
 
@@ -704,6 +734,10 @@ public:
     bakeSettings bakeSettings;
     float2 extents;
 
+
+    float3 windDir = {1, 0, 0};
+    float windStrength = 1.f;      // m/s
+
     // render and bake
     Sampler::SharedPtr			sampler_ClampAnisotropic;
     Sampler::SharedPtr			sampler_Ribbons;
@@ -733,6 +767,11 @@ public:
     bool tempUpdateRender = false;
     float gputime;
     float gputimeBB;   // GPU time
+
+    Buffer::SharedPtr  buffer_feedback;
+    Buffer::SharedPtr  buffer_feedback_read;
+    vegetation_feedback feedback;
+    float loddingBias = 1.f;
 
     Buffer::SharedPtr   drawArgs_vegetation;
     Buffer::SharedPtr   drawArgs_billboards;

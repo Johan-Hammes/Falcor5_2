@@ -909,7 +909,6 @@ void _twig::renderGui(Gui* _gui)
         TOOLTIP("negative - add gravity\n positive add phototropism");
 
 
-
         if (ImGui::Button(stem_Material.displayname.c_str(), ImVec2(W, 0)))
         {
             loadStemMaterial();
@@ -946,7 +945,7 @@ void _twig::renderGui(Gui* _gui)
         ImGui::SameLine(80, 0);
         ImGui::SetNextItemWidth(80);
         if (ImGui::DragFloat("##leaf_age_power", &leaf_age_power, 0.1f, 0.1f, 10, "%3.2f")) changed = true;
-        TOOLTIP("scale tte age along the twig, 0 is newest growth");
+        TOOLTIP("scale the age along the twig, 0 is newest growth");
 
         if (ImGui::Checkbox("twistAway", &twistAway)) changed = true;
         TOOLTIP("for single leaves\ndoes the stem twist away from the angle of the leaf");
