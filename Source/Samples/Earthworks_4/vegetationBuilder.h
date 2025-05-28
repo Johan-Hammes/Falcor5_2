@@ -168,7 +168,7 @@ struct buildSetting
 
 struct bakeSettings
 {
-    float objectSize = 4.0f;
+    float objectSize = 15.0f;
     float radiusScale = 1.0f;                   //  so biggest radius
     float3 objectOffset = float3(0.5, 0.1f, 0.5f);
     float getScale() { return objectSize / 16384.0f; }
@@ -176,7 +176,7 @@ struct bakeSettings
 };
 
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 struct ribbonVertex
 {
@@ -419,7 +419,7 @@ public:
     virtual void saveas() { ; }
     virtual void renderGui() { ; }
     virtual void treeView() { ; }
-    virtual glm::mat4 build(buildSetting _settings) { return glm::mat4(1.f); }
+    virtual glm::mat4 build(buildSetting _settings, bool _addVerts) { return glm::mat4(1.f); }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
     virtual levelOfDetail* getLodInfo(uint i) { return nullptr; }    // so does nothing if not implimented
 
@@ -504,7 +504,7 @@ public:
     void saveas();
     void renderGui();
     void treeView();
-    glm::mat4 build(buildSetting _settings);
+    glm::mat4 build(buildSetting _settings, bool _addVerts);
 
     FileDialogFilterVec filters = { {"leaf"} };
 
@@ -589,16 +589,19 @@ public:
     lodBake* getBakeInfo(uint i);//bakeInfo
     levelOfDetail* getLodInfo(uint i);
     void build_lod_0(buildSetting _settings);
-    void build_lod_1(buildSetting _settings);
-    void build_lod_2(buildSetting _settings);
-    void build_leaves(buildSetting _settings, uint _max);
-    void build_tip(buildSetting _settings);
-    glm::mat4 build(buildSetting _settings);
+    void build_lod_1(buildSetting _settings, bool _buildLeaves);
+    void build_lod_2(buildSetting _settings, bool _buildLeaves);
+    void build_leaves(buildSetting _settings, uint _max, bool _addVerts);
+    void build_tip(buildSetting _settings, bool _addVerts);
+    void build_extents(buildSetting _settings);
+    void build_NODES(buildSetting _settings, bool _addVerts);
+    glm::mat4 build(buildSetting _settings, bool _addVerts);
     
 
     //void build_Nodes(buildSetting& _settings);
     std::vector<glm::mat4> NODES;
-    std::vector<glm::mat4> NODES_PREV; // bad bad leroy brown do without, so build twice, alwasy
+    glm::mat4 tip_NODE;
+    //std::vector<glm::mat4> NODES_PREV; // bad bad leroy brown do without, so build twice, alwasy
     float age;  // number of segments floatign pouint, after randomize, needed for leaves build
     float tip_width = 0;
     float root_width = 0;

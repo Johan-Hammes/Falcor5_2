@@ -733,11 +733,12 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     //clip(alpha - 0.2);
 
     float rnd = 0.3 + 0.25 * rand_1_05(vOut.pos.xy);
-    //if (frac(vOut.uv.y) < 0.01)
-    //{
-    //    return float4(1, 0, 0, 1);
-    //    }
-        
+    /*
+        if (frac(vOut.uv.y) < 0.01)
+    {
+        return float4(1, 0, 0, 1);
+        }
+      */  
     clip(alpha - rnd);
     //return albedo;
     
