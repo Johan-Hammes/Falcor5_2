@@ -158,7 +158,8 @@ struct buildSetting
     float       numSegments;
     float       pixelSize = 0.001f;  //1 cm
     int         seed = 1000;
-    float       age = 1.f;
+    float       node_age = -1.f; // dont use for root    // this one is a node age, like 12, good for building twigs
+    float       normalized_age = 1.f;  // this one is a 0..1 age useful for leaves etc
     bool        forcePhototropy = false;    // for billboard baking
 
     // new values for more complex builds
@@ -376,7 +377,8 @@ public:
     template<class Archive>
     void serialize(Archive& archive)
     {
-        archive(numPixels);
+        archive(CEREAL_NVP(numPixels));
+        archive(CEREAL_NVP(pixelSize));
     }
 };
 
@@ -417,7 +419,7 @@ public:
     virtual void saveas() { ; }
     virtual void renderGui() { ; }
     virtual void treeView() { ; }
-    virtual glm::mat4 build(buildSetting& _settings) { return glm::mat4(1.f); }
+    virtual glm::mat4 build(buildSetting _settings) { return glm::mat4(1.f); }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
     virtual levelOfDetail* getLodInfo(uint i) { return nullptr; }    // so does nothing if not implimented
 
@@ -502,7 +504,7 @@ public:
     void saveas();
     void renderGui();
     void treeView();
-    glm::mat4 build(buildSetting& _settings);
+    glm::mat4 build(buildSetting _settings);
 
     FileDialogFilterVec filters = { {"leaf"} };
 
@@ -586,19 +588,21 @@ public:
     void treeView();
     lodBake* getBakeInfo(uint i);//bakeInfo
     levelOfDetail* getLodInfo(uint i);
-    void build_lod_0(buildSetting& _settings);
-    void build_lod_1(buildSetting& _settings);
-    void build_lod_2(buildSetting& _settings);
-    void build_leaves(buildSetting& _settings, uint _max);
-    void build_tip(buildSetting& _settings);
-    glm::mat4 build(buildSetting& _settings);
+    void build_lod_0(buildSetting _settings);
+    void build_lod_1(buildSetting _settings);
+    void build_lod_2(buildSetting _settings);
+    void build_leaves(buildSetting _settings, uint _max);
+    void build_tip(buildSetting _settings);
+    glm::mat4 build(buildSetting _settings);
     
 
     //void build_Nodes(buildSetting& _settings);
     std::vector<glm::mat4> NODES;
-    std::vector<glm::mat4> NODES_PREV;
+    std::vector<glm::mat4> NODES_PREV; // bad bad leroy brown do without, so build twice, alwasy
     float age;  // number of segments floatign pouint, after randomize, needed for leaves build
-    float tipWidth = 0;
+    float tip_width = 0;
+    float root_width = 0;
+    int     firstLiveSegment = 1;
 
     FileDialogFilterVec filters = { {"stem"} };
 
@@ -608,19 +612,20 @@ public:
 
     // stem
     float2  numSegments = { 5.3f, 0.3f };
-    int     startSegment = 1;       // first segment with leaves
+    float2  max_live_segments = { 10.f, 0.2f };  // curve for width growth
     float2  stem_length = { 50.f, 0.2f };   // in mm
-    float2  stem_width = { 5.f, 0.2f };
+    float2  stem_width = { 1.f, 0.2f };     // width at the start
+    float2  stem_d_width = { 0.1f, 0.1f };  // width growth per node
+    float2  stem_pow_width = { 0.1f, 0.1f };  // curve for width growth
     float2  stem_curve = { 0.2f, 0.3f };      // radian bend over lenth
     float2  stem_phototropism = { 0.0f, 0.3f };
     float2  node_rotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
     float2  node_angle = float2(0.2f, 0.2f);    // andgle that the stem bends at the node ??? always away fromt he leaf angle if there is such a thing
     _vegMaterial stem_Material;
-    float   stem_age_power = 2.f;
 
     
 
-    // leaves
+    // branches, can be leavea
     float2  numLeaves = {3.f, 0.f};  // per segment
     float2  leaf_angle = float2(0.5f, 0.3f);   // angle that the leaves come out of
     float2  leaf_rnd = float2(0.3f, 0.3f);
@@ -639,9 +644,11 @@ public:
     void serialize(Archive& archive, std::uint32_t const _version)
     {
         archive_float2(numSegments);
-        archive(startSegment);
+        archive_float2(max_live_segments);
         archive_float2(stem_length);
         archive_float2(stem_width);
+        archive_float2(stem_d_width);
+        archive_float2(stem_pow_width);
         archive_float2(stem_curve);
         archive_float2(stem_phototropism);
         archive_float2(node_rotation);   // around the axis
@@ -664,37 +671,24 @@ public:
             for (auto& M : tip.data) M.reload();
         }
 
-        if (_version >= 101)
-        {
-            archive(lod_bakeInfo);
-            for (auto& M : lod_bakeInfo) M.material.reload();
-        }
+        archive(lod_bakeInfo);
+        for (auto& M : lod_bakeInfo) M.material.reload();
 
-        if (_version >= 102)
-        {
-            archive(CEREAL_NVP(lodInfo));
-        }
+        archive(CEREAL_NVP(lodInfo));
 
-        if (_version >= 103)
-        {
-            archive(CEREAL_NVP(shadowUVScale));
-            archive(CEREAL_NVP(shadowSoftness));
-            archive(CEREAL_NVP(shadowDepth));
-            archive(CEREAL_NVP(shadowPenetationHeight));
-        }
+        archive(CEREAL_NVP(shadowUVScale));
+        archive(CEREAL_NVP(shadowSoftness));
+        archive(CEREAL_NVP(shadowDepth));
+        archive(CEREAL_NVP(shadowPenetationHeight));
 
-        if (_version >= 104)
-        {
-            archive(CEREAL_NVP(stem_age_power));
-
-            archive(CEREAL_NVP(ossilation_stiffness));
-            archive(CEREAL_NVP(ossilation_constant_sqrt));
-            archive(CEREAL_NVP(ossilation_power));
-            archive(CEREAL_NVP(deepest_pivot_pack_level));
-        }
+        archive(CEREAL_NVP(ossilation_stiffness));
+        archive(CEREAL_NVP(ossilation_constant_sqrt));
+        archive(CEREAL_NVP(ossilation_power));
+        archive(CEREAL_NVP(deepest_pivot_pack_level));
+        
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 104);
+CEREAL_CLASS_VERSION(_stemBuilder, 100);
 
 
 
@@ -727,6 +721,7 @@ public:
 
     int totalInstances = 16384;
     float instanceArea = 40.f;
+    bool cropLines = false;
     void builInstanceBuffer();
 
     _plantBuilder *root = nullptr;

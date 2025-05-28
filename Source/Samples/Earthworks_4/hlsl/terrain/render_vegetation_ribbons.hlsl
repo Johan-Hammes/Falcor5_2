@@ -285,10 +285,12 @@ void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiff
 
     float3x3 rot = AngleAxis3x3(-bendStrength, windRight);
 
+    float scale = 1.f;// / pow(1 + bendStrength, 0.41); //length compensation
+
     //float flutterStrength = 0.2 + 0.1 * sin(time * frequency * 3 + rnd * 4);
     //float3x3 rotflutter = AngleAxis3x3(-bendStrength * flutter, vertex.binormal);
     
-    vertex.pos.xyz = root + mul(relative, rot);
+    vertex.pos.xyz = root + mul(relative, rot) * scale;
     vertex.binormal = mul(vertex.binormal, rot);
     //vertex.tangent = mul(vertex.tangent, rot);
     //vertex.tangent = mul(vertex.tangent, rotflutter);
@@ -730,7 +732,12 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     //if (alpha < 0.2)        return float4(0.5, 0, 0, 1);
     //clip(alpha - 0.2);
 
-    float rnd = 0.3    +0.25 * rand_1_05(vOut.pos.xy);
+    float rnd = 0.3 + 0.25 * rand_1_05(vOut.pos.xy);
+    //if (frac(vOut.uv.y) < 0.01)
+    //{
+    //    return float4(1, 0, 0, 1);
+    //    }
+        
     clip(alpha - rnd);
     //return albedo;
     
@@ -817,8 +824,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     if (alpha < 0.7)
     {
-        float2 uv = vOut.pos.xy / float2(2560, 1440);
-        //float2 uv = vOut.pos.xy / float2(4096, 2160);
+        //float2 uv = vOut.pos.xy / float2(2560, 1440);
+        float2 uv = vOut.pos.xy / float2(4096, 2160);
         //uv.y = 1 - uv.y;
         float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         //int3 sample = vOut.pos.xyz / 2;
