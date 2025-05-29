@@ -402,6 +402,10 @@ PSIn
         float R = length(p);
         if (R > 0.3f)      output.colour.a = 0;
         output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.5f, bake_radius_alpha, R);
+        if(bake_AoToAlbedo > 0.5)
+        {
+            output.colour.a = 1.f;
+        }
 #endif
     }
     
@@ -658,6 +662,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
 //lighting.rgb
     float3 NAdjusted = N;
+    NAdjusted = normalize(vOut.lighting.rgb);
 
     NAdjusted = vOut.lighting.rgb;
     NAdjusted.r = N.r * 0.5 + 0.5;
@@ -733,13 +738,15 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     //clip(alpha - 0.2);
 
     float rnd = 0.3 + 0.25 * rand_1_05(vOut.pos.xy);
+
+        //if ((alpha - rnd) < 0)        return float4(1, 0, 0, 0.3);
     /*
         if (frac(vOut.uv.y) < 0.01)
     {
         return float4(1, 0, 0, 1);
         }
       */  
-    clip(alpha - rnd);
+        clip(alpha - rnd);
     //return albedo;
     
     float3 N = vOut.normal;
@@ -793,7 +800,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float RGH = MAT.roughness[frontback] + 0.01;
     float pw = 1.f / RGH;
     //float scale = 
-    color += pow(ndoth, pw) * pw * 0.05 * dappled * vOut.diffuseLight;
+    color += pow(ndoth, pw) * pw * 0.02 * dappled * vOut.diffuseLight;
 //#endif
     
     

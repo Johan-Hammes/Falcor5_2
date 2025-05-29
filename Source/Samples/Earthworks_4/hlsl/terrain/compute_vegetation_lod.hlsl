@@ -60,7 +60,7 @@ void main(uint idx : SV_DispatchThreadId)
 
             InterlockedAdd(feedback[0].numLod[0], 1, slot);
         }
-        else
+        else if (pix >= 64)
         {
             int lod = PLANT.numLods - 1;
             
@@ -70,7 +70,7 @@ void main(uint idx : SV_DispatchThreadId)
                 if (pix > size)
                     lod = i;
             }
-
+            lod = 0;
             InterlockedAdd(feedback[0].numLod[lod + 1], 1, slot);
             
             if (idx == 0)

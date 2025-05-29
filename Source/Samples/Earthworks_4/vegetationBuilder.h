@@ -162,14 +162,15 @@ struct buildSetting
     float       normalized_age = 1.f;  // this one is a 0..1 age useful for leaves etc
     bool        forcePhototropy = false;    // for billboard baking
 
+
     // new values for more complex builds
 
 };
 
-struct bakeSettings
+struct packSettings
 {
     float objectSize = 15.0f;
-    float radiusScale = 1.0f;                   //  so biggest radius
+    float radiusScale = 5.0f;                   //  so biggest radius
     float3 objectOffset = float3(0.5, 0.1f, 0.5f);
     float getScale() { return objectSize / 16384.0f; }
     float3 getOffset() { return objectOffset * objectSize; }
@@ -420,6 +421,7 @@ public:
     virtual void renderGui() { ; }
     virtual void treeView() { ; }
     virtual glm::mat4 build(buildSetting _settings, bool _addVerts) { return glm::mat4(1.f); }
+    virtual void calculate_extents(buildSetting _settings) { ; }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
     virtual levelOfDetail* getLodInfo(uint i) { return nullptr; }    // so does nothing if not implimented
 
@@ -588,12 +590,16 @@ public:
     void treeView();
     lodBake* getBakeInfo(uint i);//bakeInfo
     levelOfDetail* getLodInfo(uint i);
-    void build_lod_0(buildSetting _settings);
-    void build_lod_1(buildSetting _settings, bool _buildLeaves);
-    void build_lod_2(buildSetting _settings, bool _buildLeaves);
+    glm::mat4  build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
+    glm::mat4  build_4(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
+    glm::mat4  build_n(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
+    glm::mat4  build_lod_0(buildSetting _settings);
+    glm::mat4  build_lod_1(buildSetting _settings, bool _buildLeaves);
+    glm::mat4  build_lod_2(buildSetting _settings, bool _buildLeaves);
     void build_leaves(buildSetting _settings, uint _max, bool _addVerts);
     void build_tip(buildSetting _settings, bool _addVerts);
-    void build_extents(buildSetting _settings);
+    //void build_extents(buildSetting _settings);
+    void calculate_extents(buildSetting _settings);
     void build_NODES(buildSetting _settings, bool _addVerts);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     
@@ -713,6 +719,7 @@ public:
     void eXport();
 
     void bake(std::string _path, std::string _seed, lodBake *_info);
+    int bake_Reload_Count = 0;
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
         rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum);
 
@@ -729,7 +736,7 @@ public:
 
     _plantBuilder *root = nullptr;
     buildSetting settings;
-    bakeSettings bakeSettings;
+    packSettings vertex_pack_Settings;
     float2 extents;
 
 

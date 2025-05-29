@@ -1104,7 +1104,7 @@ private:
 
     
     
-    _terrainMode terrainMode = _terrainMode::terrafector;
+    _terrainMode terrainMode = _terrainMode::vegetation;
     private:
     bool hasChanged = false;
 

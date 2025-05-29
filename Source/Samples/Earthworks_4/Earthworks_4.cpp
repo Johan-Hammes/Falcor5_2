@@ -115,6 +115,10 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         fflush(logFile);
         _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 14);
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
+
+        _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 50);
+        _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 70);
+        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 90);
         guiStyle();
         first = false;
     }
@@ -730,7 +734,7 @@ void Earthworks_4::guiStyle()
 #define DARKLIME(v) ImVec4(0.06f, 0.1f, 0.03f, v);
 
     auto& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.90f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
@@ -747,7 +751,7 @@ void Earthworks_4::guiStyle()
 
     style.Colors[ImGuiCol_ModalWindowDimBg] = DARKLIME(0.3f);
 
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.f, 0.f, 0.f, 0.8f);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.f, 0.f, 0.f, 0.9f);
 
     style.FrameRounding = 0.f;
     style.FramePadding = ImVec2(0, 0);
