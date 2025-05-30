@@ -177,7 +177,7 @@ struct packSettings
 };
 
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 struct ribbonVertex
 {
@@ -327,7 +327,7 @@ struct ribbonVertex
     float leafFrequency = 10.f;
     float leafIndex = 0.f;
 };
-
+#pragma optimize("", on)
 
 
 
@@ -437,6 +437,11 @@ public:
     float shadowDepth = 1.f;
     float shadowPenetationHeight = 0.3f;
 
+    // packing debug info
+    uint numInstancePacked = 0;
+    uint numVertsPacked = 0;
+    virtual void clear_build_info() { ; }
+
     // ossilations
     float ossilation_stiffness = 1.f;   // this affects how far it bends for certain wind types, but also
     float ossilation_constant_sqrt = 10.f;     //freq = (1 / 2π) * √(g / L). so this is g/L per meter, we scale by a furher √(1/L)
@@ -506,6 +511,7 @@ public:
     void saveas();
     void renderGui();
     void treeView();
+    void clear_build_info();
     glm::mat4 build(buildSetting _settings, bool _addVerts);
 
     FileDialogFilterVec filters = { {"leaf"} };
@@ -602,6 +608,7 @@ public:
     void calculate_extents(buildSetting _settings);
     void build_NODES(buildSetting _settings, bool _addVerts);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
+    void clear_build_info();
     
 
     //void build_Nodes(buildSetting& _settings);

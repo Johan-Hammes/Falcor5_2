@@ -9,7 +9,7 @@ void pixelShader::load(const std::filesystem::path& _path, const std::string _vs
     if (_gsEntry.size() > 0) {
         GraphicsProgram::Desc d(_path);
         d.vsEntry(_vsEntry).psEntry(_psEntry).gsEntry(_gsEntry);
-        //d.setShaderModel("6_6");
+        d.setShaderModel("6_6");
         program = GraphicsProgram::create(d, defineList);
     }
     else {

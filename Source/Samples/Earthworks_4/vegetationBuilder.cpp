@@ -1087,10 +1087,18 @@ void _leafBuilder::treeView()
 #define YAW(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 0, 1))
 //#define RPY(_mat,_r,_p,_y)  TWIST(_mat,_r) * CURVE(_mat,_p) * CURVE_Z(_mat,_y)
 
+void _leafBuilder::clear_build_info()
+{
+    numInstancePacked = 0;
+    numVertsPacked = 0;
+}
 
 
+#pragma optimize("", off)
 glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 {
+    uint startVerts = ribbonVertex::ribbons.size();
+
     std::uniform_real_distribution<> distrib(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     std::uniform_int_distribution<> distPerlin(1, 50000);
@@ -1238,9 +1246,15 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
     }
 
+    uint numVerts = ribbonVertex::ribbons.size() - startVerts;
+    if (numVerts > 0) numInstancePacked ++;
+    numVertsPacked += numVerts;
+
     changedForSave |= changed;
+    
     return node;
 }
+#pragma optimize("", on)
 
 
 
@@ -1439,11 +1453,18 @@ void _stemBuilder::treeView()
         //style.Colors[ImGuiCol_Header] = selected_color;
         style.Colors[ImGuiCol_Border] = ImVec4(0.7f, 0.7f, 0.7f, 1);
     }
+    
 
     if (changedForSave) style.Colors[ImGuiCol_Header] = selected_color;
 
     TREE_LINE(name.c_str(), path.c_str(), flags)
     {
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%d instances \n%d verts", numInstancePacked, numVertsPacked);
+        }
+
+        
+
         style.FrameBorderSize = 0;
         CLICK_PART;
         ImGui::Text("leaves");
@@ -1556,14 +1577,52 @@ glm::mat4  _stemBuilder::build_n(buildSetting _settings, uint _bakeIndex, bool _
 glm::mat4 _stemBuilder::build_lod_0(buildSetting _settings)
 {
     if (NODES.size() < 2) return NODES.front();
-    return build_4(_settings, 0, true);
+
+    float numPixX = lod_bakeInfo[0].extents.x / _settings.pixelSize;
+    float L = glm::length(tip_NODE[3] - NODES.front()[3]);
+    float numPixY = L / _settings.pixelSize;
+   // if (numPixX > 0.5f)
+    {
+        if (numPixY < 4)
+        {
+            return NODES.back();
+        }
+        if (numPixY < 8)
+        {
+            return build_2(_settings, 0, true);
+        }
+        else
+        {
+            return build_4(_settings, 0, true);
+        }
+    }
+    return NODES.back();
 }
 
 
 glm::mat4   _stemBuilder::build_lod_1(buildSetting _settings, bool _buildLeaves)
 {
     if (NODES.size() < 2) return NODES.front();
-    return build_4(_settings, 1, true);   
+
+    float numPixX = lod_bakeInfo[1].extents.x / _settings.pixelSize;
+    float L = glm::length(tip_NODE[3] - NODES.front()[3]);
+    float numPixY = L / _settings.pixelSize;
+    //if (numPixX > 0.5f)
+    {
+        if (numPixY < 4)
+        {
+            return NODES.back();
+        }
+        if (numPixY < 8)
+        {
+            return build_2(_settings, 1, true);
+        }
+        else
+        {
+            return build_4(_settings, 1, true);
+        }
+    }
+    return NODES.back();
 }
 
 
@@ -1654,6 +1713,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
     }
 }
 
+#pragma optimize("", off)
 void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 {
     //std::mt19937 gen(_settings.seed);
@@ -1741,9 +1801,30 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
         YAW(node, RND_CRV(node_angle));
     }
 }
+#pragma optimize("", on)
+
+void _stemBuilder::clear_build_info()
+{
+    numInstancePacked = 0;
+    numVertsPacked = 0;
+
+    for (auto& L : leaves.data)
+    {
+        if (L.plantPtr)  L.plantPtr->clear_build_info();
+    }
+
+    for (auto& L : tip.data)
+    {
+        if (L.plantPtr)  L.plantPtr->clear_build_info();
+    }
+}
 
 glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 {
+    uint startVerts = ribbonVertex::ribbons.size();
+    uint leafVerts = ribbonVertex::ribbons.size();
+    uint tipVerts = ribbonVertex::ribbons.size();
+
     build_NODES(_settings, false);
     tip_NODE = NODES.back();    // just in case build tip adds nothing
     build_tip(_settings, false);
@@ -1761,15 +1842,27 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
             }
 
             if (_settings.pixelSize >= lodInfo[0].pixelSize) {
-                _settings.pixelSize = lodInfo[0].pixelSize;
-                return build_lod_0(_settings);
+                //_settings.pixelSize = lodInfo[0].pixelSize;
+                
+                glm::mat4 R = build_lod_0(_settings);
+                uint numVerts = ribbonVertex::ribbons.size() - startVerts;
+                if (numVerts > 0) numInstancePacked++;
+                numVertsPacked += numVerts;
+
+                return R;
             }
 
-            if (_settings.pixelSize >= lodInfo[1].pixelSize) {
-                _settings.pixelSize = lodInfo[1].pixelSize;
+            else if (_settings.pixelSize >= lodInfo[1].pixelSize) {
+                //_settings.pixelSize = lodInfo[1].pixelSize;
                 if (lod_bakeInfo[2].pixHeight == 0)
                 {
-                    return build_lod_1(_settings, false);
+                    glm::mat4 R = build_lod_1(_settings, false);
+
+                    uint numVerts = ribbonVertex::ribbons.size() - startVerts;
+                    if (numVerts > 0) numInstancePacked++;
+                    numVertsPacked += numVerts;
+
+                    return R;
                 }
                 else
                 {
@@ -1778,13 +1871,19 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
             }
 
 
-            if (_settings.pixelSize >= lodInfo[2].pixelSize)
+            else if (_settings.pixelSize >= lodInfo[2].pixelSize)
             {
-                _settings.pixelSize = lodInfo[2].pixelSize;
+                //_settings.pixelSize = lodInfo[2].pixelSize;
                 if (lod_bakeInfo[2].pixHeight == 0)
                 {
                     _settings.pixelSize = lodInfo[1].pixelSize;
-                    return build_lod_1(_settings, false);
+                    glm::mat4 R = build_lod_1(_settings, false);
+
+                    uint numVerts = ribbonVertex::ribbons.size() - startVerts;
+                    if (numVerts > 0) numInstancePacked++;
+                    numVertsPacked += numVerts;
+
+                    return R;
                 }   // if lod3 doesnt bake at all, this is a billboard onlt
                 else
                 {
@@ -1797,11 +1896,18 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
     if (_addVerts)
     {
         build_NODES(_settings, true);
+        leafVerts = ribbonVertex::ribbons.size();
         build_leaves(_settings, 100000, true);
+        
+        tipVerts = ribbonVertex::ribbons.size();
         build_tip(_settings, true);
+        
     }
 
-
+    uint numVerts = ribbonVertex::ribbons.size() - startVerts;
+    if (numVerts > 0) numInstancePacked++;
+    uint numUnique = leafVerts - startVerts;    // the rest is in choildren
+    numVertsPacked += numUnique;
 
     changedForSave |= changed;
     changed = false;
@@ -2434,9 +2540,10 @@ void _rootPlant::build(bool _updateExtents)
         settings.normalized_age = 1;
 
         ribbonVertex::ribbons.clear();
-        ribbonVertex::ribbons.reserve(2000);
+        //ribbonVertex::ribbons.reserve(2000);
 
         generator.seed(settings.seed);
+        root->clear_build_info();
         root->build(settings, true);
 
         // Now light the plant

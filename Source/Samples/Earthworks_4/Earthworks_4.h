@@ -78,6 +78,7 @@ private:
     Texture::SharedPtr aboutTex;
     int slowTimer = 0;      // this is used to alow donw framerate
     bool showEditGui = true;
+    bool hideGui = false;
         
 
     struct {

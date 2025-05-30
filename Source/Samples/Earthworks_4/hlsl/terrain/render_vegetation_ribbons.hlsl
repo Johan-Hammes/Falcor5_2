@@ -89,21 +89,50 @@ float4 sunLight(float3 posKm)
     return SunInAtmosphere.SampleLevel(gSmpLinearClamp, sunUV, 0) * 0.07957747154594766788444188168626;
 }
 
+/*
 struct PSIn
 {
     float4 pos : SV_POSITION;
-    float3 normal : NORMAL;
-    float3 tangent : TANGENT;
-    float3 binormal : BINORMAL;
-    float3 diffuseLight : COLOR;
+    half3 normal : NORMAL;
+    half3 tangent : TANGENT;
+    half3 binormal : BINORMAL;
+    
+    half3 diffuseLight : COLOR;
     //float3 specularLight : COLOR1;
+    
     float2 uv : TEXCOORD; // texture uv
     float4 lighting : TEXCOORD1; // uv, sunlight, ao
-    nointerpolation uint4 flags : TEXCOORD2; // material
+    nointerpolation uint4 flags : TEXCOORD2; // material        BLENDINDICES[n]
     float3 eye : TEXCOORD3;                 // can this become SVPR  or per plant somehow, feels overkill here per vertex
     float4 colour : TEXCOORD4;
     float2 lineScale : TEXCOORD5;   // its w and h for boillboard
     float3 sunUV : TEXCOORD6;
+};
+*/
+struct PSIn
+{
+    float4 pos : SV_POSITION;
+    
+    
+    half3 normal : NORMAL;
+    half3 tangent : TANGENT;
+    half3 binormal : BINORMAL;
+    
+    half3 diffuseLight : COLOR;
+    //float3 specularLight : COLOR1;
+    
+    float2 uv : TEXCOORD; // texture uv
+    float4 lighting : TEXCOORD1; // uv, sunlight, ao
+    nointerpolation uint4 flags : TEXCOORD2; // material        BLENDINDICES[n]
+    float3 eye : TEXCOORD3; // can this become SVPR  or per plant somehow, feels overkill here per vertex
+    float4 colour : TEXCOORD4;
+    float3 lineScale : TEXCOORD5;   // its w and h for boillboard
+    float3 sunUV : TEXCOORD6;
+
+    float4 viewTangent : TEXCOORD7;
+    float4 viewBinormal : TEXCOORD8;
+
+    uint shadingRate : SV_ShadingRate;
 };
 
 
@@ -350,7 +379,6 @@ PSIn
 
     output.binormal = float3(0, 1, 0);
     output.tangent = normalize(cross(output.binormal, -output.eye));
-    //output.normal = cross(output.tangent, output.binormal );
     output.normal = cross(output.binormal, output.tangent);
 
     output.AlbedoScale = 1;
@@ -359,7 +387,7 @@ PSIn
     output.Shadow = 0;
     output.AmbietOcclusion = 1;
 
-    if ((dot(output.pos.xyz, sunRightVector)) > 2 && (dot(output.pos.xyz, sunRightVector)) < 5)
+    if ((dot(output.pos.xyz, sunRightVector)) > 10 && (dot(output.pos.xyz, sunRightVector)) < 50)
     {
         output.Shadow = 1;
     }
@@ -367,9 +395,17 @@ PSIn
     output.flags.x = PLANT.billboardMaterialIndex;
     output.PlantIdx = INSTANCE.plant_idx;
 
-    output.lineScale = PLANT.size * INSTANCE.scale;
+    output.lineScale.xy = PLANT.size * INSTANCE.scale;
+
+    output.lineScale.z = 0.6;
+
+    output.viewTangent = mul( float4( output.tangent * output.lineScale.x, 0), viewproj);
+    output.viewBinormal = mul( float4( output.binormal * output.lineScale.y, 0), viewproj);
+    output.pos = mul(output.pos, viewproj);
 
     output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb;
+
+    output.shadingRate = 1;
     
     return output;
 #else
@@ -439,7 +475,7 @@ PSIn
         // look at top one again, This one is BAD BAD BAD at making very transparent planst work
 
         //if (abs(dot(output.pos.xyz, sunRightVector)) < 2 && abs(dot(output.pos.xyz, sunRightVector)) < 5 && abs(dot(output.pos.xyz, sunUpVector)) < 15)
-        if ((dot(output.pos.xyz, sunRightVector)) > 2 && (dot(output.pos.xyz, sunRightVector)) < 5)
+        if ((dot(output.pos.xyz, sunRightVector)) > 10 && (dot(output.pos.xyz, sunRightVector)) < 50)
         {
             output.Shadow = 1;
             //output.Sunlight = 0;
@@ -486,7 +522,7 @@ PSIn
     output.normal = cross(output.binormal, output.tangent);
 
 
-    if ((dot(output.pos.xyz, sunRightVector)) > 2 && (dot(output.pos.xyz, sunRightVector)) < 5)
+    if ((dot(output.pos.xyz, sunRightVector)) > 10 && (dot(output.pos.xyz, sunRightVector)) < 50)
     {
         output.Shadow = 1;
     }
@@ -498,8 +534,11 @@ PSIn
     //flags.w is now plantIdxoutput.flags.w = output.flags.z * PLANT.radiusScale / d * 10000;
     output.lineScale.x = pow(output.flags.z / 255.f, 2) * PLANT.radiusScale;
 
-    output.PlantIdx = INSTANCE.plant_idx;
+    //output.viewTangent = mul(float4(output.tangent * output.lineScale.x, 0), viewproj);
+    //output.pos = mul(output.pos, viewproj);
     
+    output.PlantIdx = INSTANCE.plant_idx;
+    output.shadingRate = 1;
     return output;
 #endif
 }
@@ -512,25 +551,46 @@ PSIn
 void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
 {
     PSIn v = pt[0];
-    
-    v.uv = float2(0.2, 1);
-    v.AmbietOcclusion = 1.0;
-    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale.x * 0.6, 0), viewproj);
+    float scale = 1 - pt[0].lineScale.z;
+/*
+    v.uv = float2(0.5, 1.1);
+    v.pos = pt[0].pos - pt[0].viewBinormal * 0.1;
+    v.AmbietOcclusion = 0.3;
     OutputStream.Append(v);
 
-    v.uv = float2(0.8, 1);
-    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x * 0.6, 0), viewproj);
+    v.uv = float2(1.0 -  scale/2 , 0.5);
+    v.pos = pt[0].pos + pt[0].viewTangent * pt[0].lineScale.z + pt[0].viewBinormal * 0.5;
+    v.AmbietOcclusion = 0.6;
     OutputStream.Append(v);
         
-    v.uv = float2(0.2, 0);
-    v.AmbietOcclusion = 1.;
-    v.pos = mul(pt[0].pos - float4(pt[0].tangent * pt[0].lineScale[0].x * 0.6, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
+    v.uv = float2(0.0 + scale/2, 0.5);
+    v.pos = pt[0].pos - pt[0].viewTangent * pt[0].lineScale.z + pt[0].viewBinormal * 0.5;
     OutputStream.Append(v);
 
-    v.uv = float2(0.8, 0);
-    v.pos = mul(pt[0].pos + float4(pt[0].tangent * pt[0].lineScale[0].x * 0.6, 0) + float4(pt[0].binormal * pt[0].lineScale.y, 0), viewproj);
+    v.uv = float2(0.5, -0.1);
+    v.pos = pt[0].pos + pt[0].viewBinormal * 1.1;
+    v.AmbietOcclusion = 1.0;
     OutputStream.Append(v);
-    
+*/
+
+    v.uv = float2(0.0, 1);
+    //v.AmbietOcclusion = 1.03;
+    v.pos = pt[0].pos - pt[0].viewTangent;
+    OutputStream.Append(v);
+
+    v.uv = float2(1.0, 1);
+    v.pos = pt[0].pos + pt[0].viewTangent;
+    OutputStream.Append(v);
+        
+    v.uv = float2(0.0, 0);
+    //v.AmbietOcclusion = 1.0;
+    v.pos = pt[0].pos - pt[0].viewTangent + pt[0].viewBinormal;
+    OutputStream.Append(v);
+
+    v.uv = float2(1.0, 0);
+    v.pos = pt[0].pos + pt[0].viewTangent + pt[0].viewBinormal;
+    OutputStream.Append(v);
+  
 }
 #else
 // HOLY fukcing shit, this is bad anythign above 6
@@ -698,7 +758,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    
+    //return 1;
     
     /*
     if (isFrontFace)
@@ -706,7 +766,10 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     else
         return float4(1, 0, vOut.uv.y, 1);
     */
-    
+
+#if defined(_BILLBOARD)
+    clip(vOut.uv.y);    
+#endif
     
     const sprite_material MAT = materials[vOut.flags.x];
     const plant PLANT = plant_buffer[vOut.PlantIdx];
@@ -722,22 +785,25 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     int frontback = (int) !isFrontFace;
     
-    float4 albedo = textures.T[MAT.albedoTexture].SampleBias(gSampler, vOut.uv.xy, -1); // Bias -1 gives much betetr alpha values
+    float4 albedo = textures.T[MAT.albedoTexture].SampleBias(gSamplerClamp, vOut.uv.xy, -0.0); // Bias -1 gives much betetr alpha values
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f; // FIXME should come from material
     //albedo.rgb = 0.2;
     //albedo.rgb = float3(0.5, 0.3, 0.1);
     
     
     float alpha = albedo.a;
+    /*
+    // this is a proper win 0.3 to 0.288 for somethign I not using for now
     if (MAT.alphaTexture >= 0)
     {
         alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
     }
+    */
     alpha =     pow(alpha, MAT.alphaPow);
     //if (alpha < 0.2)        return float4(0.5, 0, 0, 1);
     //clip(alpha - 0.2);
 
-    float rnd = 0.3 + 0.25 * rand_1_05(vOut.pos.xy);
+    float rnd = 0.4    +0.15 * rand_1_05(vOut.pos.xy);
 
         //if ((alpha - rnd) < 0)        return float4(1, 0, 0, 0.3);
     /*
@@ -752,7 +818,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
-        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
         N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
         //normalTex.bg = -1;
         //return float4((normalTex * 0.5 + 0.5), 1);
@@ -824,7 +890,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
 #else
     //float alphaV = pow(saturate(vOut.flags.w * 0.1), 0.3);
-      alpha = smoothstep(0.3, 1, alpha);
+      alpha = smoothstep(rnd, 1, alpha);
     //alpha = min(alpha, alphaV);
 #endif
 

@@ -126,18 +126,21 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
     if (showEditGui)
     {
-        ImGui::PushFont(_gui->getFont("roboto_20"));
+        if (!hideGui)
         {
+            ImGui::PushFont(_gui->getFont("default"));
+            {
 
-            onGuiMenubar(_gui);
-            terrain.onGuiRender(_gui, &atmosphere.params);
+                onGuiMenubar(_gui);
+                terrain.onGuiRender(_gui, &atmosphere.params);
 
-            if (aboutTex && showAbout) {
-                Gui::Window a(_gui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
-                a.image("#about", aboutTex, float2(aboutTex->getWidth(), aboutTex->getHeight()));
+                if (aboutTex && showAbout) {
+                    Gui::Window a(_gui, "About", { aboutTex->getWidth(), aboutTex->getHeight() }, { 0, 100 });
+                    a.image("#about", aboutTex, float2(aboutTex->getWidth(), aboutTex->getHeight()));
+                }
             }
+            ImGui::PopFont();
         }
-        ImGui::PopFont();
     }
     //else if (!terrain.useFreeCamWhileGliding)
     else
@@ -674,6 +677,11 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
         {
             showEditGui = !showEditGui;
         }
+        if (_keyEvent.key == Input::Key::Q)
+        {
+            hideGui = !hideGui;
+        }
+        
     }
 
     return false;
