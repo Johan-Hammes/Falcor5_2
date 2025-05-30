@@ -192,6 +192,11 @@ namespace Falcor
         }
         ID3D12GraphicsCommandList* pCmdList = pCtx->getLowLevelData()->getCommandList().GetInterfacePtr();
         pCmdList->OMSetRenderTargets(colorTargets, pRTV.data(), FALSE, &pDSV);
+        /*
+        FALCOR_GET_COM_INTERFACE(pCmdList, ID3D12GraphicsCommandList5, pList5);
+        const D3D12_SHADING_RATE_COMBINER CMB = D3D12_SHADING_RATE_COMBINER_OVERRIDE;
+        pList5->RSSetShadingRate(D3D12_SHADING_RATE_2X2, &CMB);
+        */
     }
 
     static void D3D12SetSamplePositions(ID3D12GraphicsCommandList* pList, const Fbo* pFbo)
@@ -294,7 +299,11 @@ namespace Falcor
 
         ID3D12GraphicsCommandList* pList = mpLowLevelData->getCommandList();
 
-
+        /*
+        FALCOR_GET_COM_INTERFACE(pList, ID3D12GraphicsCommandList5, pList5);
+        D3D12_SHADING_RATE_COMBINER combiners[2] = { D3D12_SHADING_RATE_COMBINER_OVERRIDE, D3D12_SHADING_RATE_COMBINER_PASSTHROUGH };
+        pList5->RSSetShadingRate(D3D12_SHADING_RATE_1X1, combiners);
+        */
         if (is_set(StateBindFlags::Topology, mBindFlags))           pList->IASetPrimitiveTopology(getD3DPrimitiveTopology(pState->getVao()->getPrimitiveTopology()));
         if (is_set(StateBindFlags::Vao, mBindFlags))                D3D12SetVao(this, pList, pState->getVao().get());
         if (is_set(StateBindFlags::Fbo, mBindFlags))                D3D12SetFbo(this, pState->getFbo().get());
