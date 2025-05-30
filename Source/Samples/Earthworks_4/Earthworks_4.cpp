@@ -46,16 +46,27 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
     auto& style = ImGui::GetStyle();
     switch (terrain.terrainMode)
     {
-    case _terrainMode::vegetation:      style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.04f, 0.14f, 0.04f, 1.0f);   break;
-    case _terrainMode::ecotope:         style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.04f, 0.04f, 0.24f, 1.0f);   break;
+    case _terrainMode::vegetation:      style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.03f, 0.05f, 0.01f, 1.0f);   break;
+    case _terrainMode::ecotope:         style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.01f, 0.06f, 0.06f, 1.0f);   break;
     case _terrainMode::terrafector:     style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.24f, 0.14f, 0.0f, 1.0f);   break;
-    case _terrainMode::roads:           style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.14f, 0.04f, 0.04f, 1.0f);   break;
+    case _terrainMode::roads:           style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.005f, 0.005f, 0.005f, 1.0f);   break;
     case _terrainMode::glider:          style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.04f, 0.04f, 0.04f, 1.0f);   break;
     }
 
     if (ImGui::BeginMainMenuBar())
     {
-        ImGui::Text("Earthworks 4");
+        ImGui::PushFont(_gui->getFont("header2"));
+        {
+            ImGui::SetCursorPos(ImVec2(10, -3));
+            ImGui::Text("Earthworks 4");
+
+            ImGui::SetCursorPos(ImVec2(screenSize.x - 120, -3));
+            ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+
+            ImGui::SetCursorPos(ImVec2(screenSize.x - 15, -3));
+            if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
+        }
+        ImGui::PopFont();
 
         terrain.onGuiMenubar(_gui);
 
@@ -70,15 +81,6 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
                 camera->setFocalLength(15.0f);
                 camera->setPosition(float3(0, 500, 0));
             }
-            //camera->renderUI()
-            /*
-            * camera = Camera::create();
-    camera->setDepthRange(0.1f, 40000.0f);
-    camera->setAspectRatio(1920.0f / 1080.0f);
-    camera->setFocalLength(15.0f);
-    camera->setPosition(float3(0, 900, 0));
-    camera->setTarget(float3(0, 900, 100));
-            */
 
             ImGui::Separator();
             ImGui::Checkbox("vsync", &refresh.vsync);
@@ -93,15 +95,10 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
             ImGui::EndMenu();
         }
 
-        ImGui::SetCursorPos(ImVec2(screenSize.x - 100, 0));
-        ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+    
 
-        ImGui::SetCursorPos(ImVec2(screenSize.x - 15, 0));
-        if (ImGui::Selectable("X")) { gpFramework->getWindow()->shutdown(); }
+        ImGui::EndMainMenuBar();
     }
-    ImGui::EndMainMenuBar();
-
-
 }
 
 
@@ -116,9 +113,11 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 14);
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
 
-        _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 50);
-        _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 70);
-        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 90);
+        _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 40);
+        _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 55);
+        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 70);
+        _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 70);
+        _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", screenSize.y / 70);
         guiStyle();
         first = false;
     }
@@ -130,8 +129,8 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         {
             ImGui::PushFont(_gui->getFont("default"));
             {
-
                 onGuiMenubar(_gui);
+
                 terrain.onGuiRender(_gui, &atmosphere.params);
 
                 if (aboutTex && showAbout) {

@@ -437,11 +437,11 @@ PSIn
         p.y = 0;
         float R = length(p);
         if (R > 0.3f)      output.colour.a = 0;
-        output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.5f, bake_radius_alpha, R);
-        if(bake_AoToAlbedo > 0.5)
-        {
-            output.colour.a = 1.f;
-        }
+        output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.75f, bake_radius_alpha, R);
+        //if(bake_AoToAlbedo > 0.5)
+        //{
+         //   output.colour.a = 1.f;
+        //}
 #endif
     }
     
@@ -724,8 +724,14 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 NAdjusted = N;
     NAdjusted = normalize(vOut.lighting.rgb);
 
-    NAdjusted = vOut.lighting.rgb;
-    NAdjusted.r = N.r * 0.5 + 0.5;
+    float3 NCone =vOut.lighting.rbg;
+    NCone.r *= -1;
+    NCone.b *= -1;
+
+    N = normalize(NCone + N * 0.3);
+    
+
+    NAdjusted.r = -N.r * 0.5 + 0.5;
     NAdjusted.g = N.g * 0.5 + 0.5;
     NAdjusted.b = -N.b * 0.5 + 0.5;  //fixme -
 
@@ -898,8 +904,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     
     if (alpha < 0.7)
     {
-        //float2 uv = vOut.pos.xy / float2(2560, 1440);
-        float2 uv = vOut.pos.xy / float2(4096, 2160);
+        float2 uv = vOut.pos.xy / float2(2560, 1440);
+        //float2 uv = vOut.pos.xy / float2(4096, 2160);
         //uv.y = 1 - uv.y;
         float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         //int3 sample = vOut.pos.xyz / 2;

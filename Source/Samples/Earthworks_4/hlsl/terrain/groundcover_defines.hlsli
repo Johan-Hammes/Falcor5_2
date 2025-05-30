@@ -339,7 +339,7 @@ struct sprite_material
     float translucency = 1.f;
     float alphaPow = 1.f;
 
-    float3 albedoScale[2] = { { 0.5f, 0.5f, 0.5f }, { 0.6f, 0.5f, 0.6f } };
+    float3 albedoScale[2] = { { 0.5f, 0.5f, 0.5f }, { 0.6f, 0.5f, 0.6f } }; // front and back
     float roughness[2] = { 0.02f, 0.3f };
     
 };

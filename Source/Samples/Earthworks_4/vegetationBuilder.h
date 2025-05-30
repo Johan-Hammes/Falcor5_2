@@ -393,8 +393,12 @@ public:
     float2 extents = {0, 0};
     int pixHeight = 64;
     float bakeWidth = 1.f;      // really a percentage
+    float2 bake_V = { 0.f, 1.f };   // start and end offsets to cut it smaller
     std::array<float, 4> dU = {1, 1, 1, 1};
 
+    float translucency = 1.f;
+    float  alphaPow = 1.f;
+    bool bakeAOToAlbedo = true;
     //bool renderGui(uint& gui_id);
 
     template<class Archive>
@@ -405,7 +409,11 @@ public:
         archive(pixHeight);
         archive(bakeWidth);
         archive(dU);
-        
+
+        archive(CEREAL_NVP(translucency));
+        archive(CEREAL_NVP(alphaPow));
+        archive(CEREAL_NVP(bakeAOToAlbedo));
+        archive_float2(bake_V);
     }
 };
 
@@ -420,6 +428,8 @@ public:
     virtual void saveas() { ; }
     virtual void renderGui() { ; }
     virtual void treeView() { ; }
+    virtual void incrementLods() { ; }
+    virtual void decrementLods() { ; }
     virtual glm::mat4 build(buildSetting _settings, bool _addVerts) { return glm::mat4(1.f); }
     virtual void calculate_extents(buildSetting _settings) { ; }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
@@ -594,6 +604,8 @@ public:
     void saveas();
     void renderGui();
     void treeView();
+    virtual void incrementLods() { lodInfo.resize(lodInfo.size() + 1); }
+    virtual void decrementLods() { if (lodInfo.size() > 3) lodInfo.resize(lodInfo.size() - 1);    }
     lodBake* getBakeInfo(uint i);//bakeInfo
     levelOfDetail* getLodInfo(uint i);
     glm::mat4  build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
@@ -808,4 +820,8 @@ public:
     }
 };
 CEREAL_CLASS_VERSION(_rootPlant, 100);
+
+
+
+
 

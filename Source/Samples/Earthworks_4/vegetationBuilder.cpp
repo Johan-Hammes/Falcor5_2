@@ -7,6 +7,90 @@
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
 
+
+std::array<std::string, 77> resourceString =
+{
+    "Unknown",
+    "R8Unorm",
+    "R8Snorm",
+    "R16Unorm",
+    "R16Snorm",
+    "RG8Unorm",
+    "RG8Snorm",
+    "RG16Unorm",
+    "RG16Snorm",
+    "RGB16Unorm",
+    "RGB16Snorm",
+    "R24UnormX8",
+    "RGB5A1Unorm",
+    "RGBA8Unorm",
+    "RGBA8Snorm",
+    "RGB10A2Unorm",
+    "RGB10A2Uint",
+    "RGBA16Unorm",
+    "RGBA8UnormSrgb",
+    "R16Float",
+    "RG16Float",
+    "RGB16Float",
+    "RGBA16Float",
+    "R32Float",
+    "R32FloatX32",
+    "RG32Float",
+    "RGB32Float",
+    "RGBA32Float",
+    "R11G11B10Float",
+    "RGB9E5Float",
+    "R8Int",
+    "R8Uint",
+    "R16Int",
+    "R16Uint",
+    "R32Int",
+    "R32Uint",
+    "RG8Int",
+    "RG8Uint",
+    "RG16Int",
+    "RG16Uint",
+    "RG32Int",
+    "RG32Uint",
+    "RGB16Int",
+    "RGB16Uint",
+    "RGB32Int",
+    "RGB32Uint",
+    "RGBA8Int",
+    "RGBA8Uint",
+    "RGBA16Int",
+    "RGBA16Uint",
+    "RGBA32Int",
+    "RGBA32Uint",
+    "BGRA8Unorm",
+    "BGRA8UnormSrgb",
+    "BGRX8Unorm",
+    "BGRX8UnormSrgb",
+    "Alpha8Unorm",
+    "Alpha32Float",
+    "R5G6B5Unorm",
+    "D32Float",
+    "D16Unorm",
+    "D32FloatS8X24",
+    "D24UnormS8",
+    "BC1Unorm",
+    "BC1UnormSrgb",
+    "BC2Unorm",
+    "BC2UnormSrgb",
+    "BC3Unorm",
+    "BC3UnormSrgb",
+    "BC4Unorm",
+    "BC4Snorm",
+    "BC5Unorm",
+    "BC5Snorm",
+    "BC6HS16",
+    "BC6HU16",
+    "BC7Unorm",
+    "BC7UnormSrgb",
+};
+
+
+
 materialCache_plants _plantMaterial::static_materials_veg;
 std::string materialCache_plants::lastFile;
 
@@ -423,7 +507,7 @@ void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
 
 
     char text[1024];
-    ImGui::PushFont(mpGui->getFont("roboto_20"));
+    ImGui::PushFont(mpGui->getFont("header2"));
     ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texMb);
     ImGui::PopFont();
 
@@ -442,7 +526,10 @@ void materialCache_plants::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
 
             if (ImGui::IsItemHovered())
             {
-                ImGui::SetTooltip("%d  :  %s\n%d x %d", i, pT->getSourcePath().string().c_str(), pT->getWidth(), pT->getHeight());
+                uint32_t format = (int)pT->getFormat();
+                //ImGui::PushFont(mpGui->getFont("header2"));
+                ImGui::SetTooltip("%d  :  %s \n%d x %d {%d mips} \n%s", i, pT->getSourcePath().string().c_str(), pT->getWidth(), pT->getHeight(), pT->getMipCount(), resourceString[format].c_str());
+                //ImGui::PopFont();
 
                 _plantMaterial::static_materials_veg.dispTexIndex = i;
             }
@@ -822,9 +909,10 @@ template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
     bool first = true;
     if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed))
     {
-        if (ImGui::Button(".  +  .")) { data.emplace_back(); }
-        ImGui::SameLine(0, 50);
         if (ImGui::Button(".  -  .")) { if (data.size() > 1) data.pop_back(); }
+        ImGui::SameLine(0, 50);
+        if (ImGui::Button(".  +  .")) { data.emplace_back(); }
+        
 
         for (auto& D : data) D.renderGui(gui_id);
 
@@ -1065,6 +1153,10 @@ void _leafBuilder::treeView()
 
     TREE_LINE(name.c_str(), path.c_str(), flags)
     {
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%d instances \n%d verts", numInstancePacked, numVertsPacked);
+        }
+
         style.FrameBorderSize = 0;
         CLICK_PART;
         ImGui::TreePop();
@@ -1247,11 +1339,11 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
     }
 
     uint numVerts = ribbonVertex::ribbons.size() - startVerts;
-    if (numVerts > 0) numInstancePacked ++;
+    if (numVerts > 0) numInstancePacked++;
     numVertsPacked += numVerts;
 
     changedForSave |= changed;
-    
+
     return node;
 }
 #pragma optimize("", on)
@@ -1412,6 +1504,7 @@ void _stemBuilder::renderGui()
 
     ImGui::Text("numLeavesBuilt : %d", numLeavesBuilt);
 
+    /*
     ImGui::NewLine();
     ImGui::Text("Bake Setup");
     for (int i = 0; i < 10; i++)
@@ -1439,7 +1532,7 @@ void _stemBuilder::renderGui()
         if (numLODS != lodInfo.size()) lodInfo.resize(numLODS);
         changed = true;
     }
-
+    */
 }
 
 void _stemBuilder::treeView()
@@ -1453,7 +1546,7 @@ void _stemBuilder::treeView()
         //style.Colors[ImGuiCol_Header] = selected_color;
         style.Colors[ImGuiCol_Border] = ImVec4(0.7f, 0.7f, 0.7f, 1);
     }
-    
+
 
     if (changedForSave) style.Colors[ImGuiCol_Header] = selected_color;
 
@@ -1463,7 +1556,7 @@ void _stemBuilder::treeView()
             ImGui::SetTooltip("%d instances \n%d verts", numInstancePacked, numVertsPacked);
         }
 
-        
+
 
         style.FrameBorderSize = 0;
         CLICK_PART;
@@ -1500,8 +1593,9 @@ levelOfDetail* _stemBuilder::getLodInfo(uint i)
 #pragma optimize("", off)
 glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera)
 {
-    float w = lod_bakeInfo[_bakeIndex].extents.x * lod_bakeInfo[_bakeIndex].bakeWidth;
-    uint mat = lod_bakeInfo[_bakeIndex].material.index;
+    lodBake &lB = lod_bakeInfo[_bakeIndex];
+    float w = lB.extents.x * lB.bakeWidth;
+    uint mat = lB.material.index;
 
     glm::mat4 node = NODES.front();
     glm::mat4 last = NODES.back();
@@ -1510,6 +1604,10 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
     float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
     GROW(last, tipLength);
 
+    // adjust start end
+    float totalLenght = glm::length(last[3] - node[3]);
+    GROW(node, totalLenght * lB.bake_V.x);
+    GROW(last, -totalLenght * (1 - lB.bake_V.y));
 
     ribbonVertex R_verts;
     R_verts.startRibbon(_faceCamera);
@@ -1522,8 +1620,9 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
 
 glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _faceCamera)
 {
-    float w = lod_bakeInfo[_bakeIndex].extents.x *lod_bakeInfo[_bakeIndex].bakeWidth;
-    uint mat = lod_bakeInfo[_bakeIndex].material.index;
+    lodBake& lB = lod_bakeInfo[_bakeIndex];
+    float w = lB.extents.x * lB.bakeWidth;
+    uint mat = lB.material.index;
 
     glm::mat4 node = NODES.front();
     glm::mat4 last = NODES.back();
@@ -1531,8 +1630,15 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
     float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
     GROW(last, tipLength);
 
-    glm::vec4 step = (last[3] - node[3]) / 3.f;
-    float4 binorm_step = (last[1] - node[1]) / 3.f;;
+    glm::vec4 step = (last[3] - node[3]);
+    float4 binorm_step = (last[1] - node[1]);
+
+    node[3] += step * lB.bake_V.x;
+    node[1] += binorm_step * lB.bake_V.x;
+    step *= (lB.bake_V.y - lB.bake_V.x);
+    binorm_step *= (lB.bake_V.y - lB.bake_V.x);
+    step /= 3.f;
+    binorm_step /= 3.f;
 
     ribbonVertex R_verts;
     R_verts.startRibbon(_faceCamera);
@@ -1541,7 +1647,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
     {
         glm::mat4 CURRENT = node;
         // pull to closest node
-        if ((i == 1) || (i == 2) && (NODES.size() > 3))
+        if ((i < 3) && (NODES.size() > 3))
         {
             float dist = 10000;
             int currentIdx = 0;
@@ -1581,7 +1687,7 @@ glm::mat4 _stemBuilder::build_lod_0(buildSetting _settings)
     float numPixX = lod_bakeInfo[0].extents.x / _settings.pixelSize;
     float L = glm::length(tip_NODE[3] - NODES.front()[3]);
     float numPixY = L / _settings.pixelSize;
-   // if (numPixX > 0.5f)
+    // if (numPixX > 0.5f)
     {
         if (numPixY < 4)
         {
@@ -1843,7 +1949,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 
             if (_settings.pixelSize >= lodInfo[0].pixelSize) {
                 //_settings.pixelSize = lodInfo[0].pixelSize;
-                
+
                 glm::mat4 R = build_lod_0(_settings);
                 uint numVerts = ribbonVertex::ribbons.size() - startVerts;
                 if (numVerts > 0) numInstancePacked++;
@@ -1898,10 +2004,10 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
         build_NODES(_settings, true);
         leafVerts = ribbonVertex::ribbons.size();
         build_leaves(_settings, 100000, true);
-        
+
         tipVerts = ribbonVertex::ribbons.size();
         build_tip(_settings, true);
-        
+
     }
 
     uint numVerts = ribbonVertex::ribbons.size() - startVerts;
@@ -1984,7 +2090,7 @@ void _stemBuilder::calculate_extents(buildSetting _settings)
     //lod_bakeInfo[0].material.name = full_path.stem().string() + "_billboard_lod0";
     //lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[0].material.name + ".vegMaterial";
 
-    lod_bakeInfo[0].material.name = std::to_string(_settings.seed) + "_lod0";
+    lod_bakeInfo[0].material.name = "bake_0";
     lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[0].material.name + ".vegetationMaterial";;
 
     // lod 1
@@ -1996,7 +2102,7 @@ void _stemBuilder::calculate_extents(buildSetting _settings)
     lod_bakeInfo[1].dU[3] = __min(1.f, du[3] / dw);
     //lod_bakeInfo[1].material.name = full_path.stem().string() + "_billboard_lod1";
     //lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[1].material.name + ".vegMaterial";
-    lod_bakeInfo[1].material.name = std::to_string(_settings.seed) + "_lod1";
+    lod_bakeInfo[1].material.name = "bake_1";
     lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[1].material.name + ".vegetationMaterial";;
 
     // lod 2
@@ -2009,7 +2115,7 @@ void _stemBuilder::calculate_extents(buildSetting _settings)
     lod_bakeInfo[2].dU[3] = __min(1.f, du[3] / dw2);
     //lod_bakeInfo[2].material.name = full_path.stem().string() + "_billboard_lod2";
     //lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[2].material.name + ".vegMaterial";
-    lod_bakeInfo[2].material.name = std::to_string(_settings.seed) + "_lod2";
+    lod_bakeInfo[2].material.name = "bake_2";
     lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[2].material.name + ".vegetationMaterial";;
 
 }
@@ -2143,6 +2249,7 @@ void _rootPlant::onLoad()
 
 void _rootPlant::renderGui(Gui* _gui)
 {
+    uint gui_id = 99994;
     _plantBuilder::_gui = _gui;
 
     Gui::Window builderPanel(_gui, "vegetation builder", { 900, 900 }, { 100, 100 });
@@ -2197,39 +2304,36 @@ void _rootPlant::renderGui(Gui* _gui)
             ImGui::SameLine(0, 15);
             if (ImGui::Button("new Stem")) { if (root) delete root; root = new _stemBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
 
-            ImGui::NewLine();
-            ImGui::PushFont(_gui->getFont("header2"));
-            {
-                ImGui::Text("extents (%2.2f, %2.2f)m", extents.x, extents.y);
 
-                if (displayModeSinglePlant)
-                {
-                    ImGui::Text("v - %d, b - %d, u - %d", totalBlocksToRender * VEG_BLOCK_SIZE, totalBlocksToRender, unusedVerts);
-                    //ImGui::Text("%2.2f M tris", (float)totalBlocksToRender * VEG_BLOCK_SIZE * 2.f / 1000000.f);
-                }
-                else
-                {
-                    ImGui::DragFloat("loddingBias", &loddingBias, 0.1f, 0.1f, 10.f);
-                    ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
-                    for (int i = 0; i < 10; i++)
-                    {
-                        ImGui::Text("%d, ", feedback.numLod[i]);
-                        ImGui::SameLine(0, 10);
-                    }
-                    ImGui::NewLine();
-                    ImGui::Text("billboard - %d {blocks - %d}", feedback.numLod[0], feedback.numBlocks);
-                }
 
-            }
-            ImGui::PopFont();
-
-            ImGui::NewLine();
             if (root)
             {
+                ImGui::PushFont(_gui->getFont("header1"));
+                {
+                    ImGui::Text(root->name.c_str());
+                }
+                ImGui::PopFont();
+
+
+
+                root->treeView();
+
+                ImGui::NewLine();
+                ImGui::Text("lodding");
+
                 if (ImGui::Button("Build all lods"))
                 {
                     buildAllLods();
                 }
+                ImGui::Text("extents (%2.2f, %2.2f)m", extents.x, extents.y);
+                ImGui::Text("v - %d, b - %d, u - %d", totalBlocksToRender * VEG_BLOCK_SIZE, totalBlocksToRender, unusedVerts);
+
+                
+
+                if (ImGui::Button(".  -  .")) { root->decrementLods(); }
+                ImGui::SameLine(0, 50);
+                if (ImGui::Button(".  +  .")) { root->incrementLods(); }
+                
 
                 for (uint lod = 0; lod < 100; lod++)
                 {
@@ -2267,7 +2371,7 @@ void _rootPlant::renderGui(Gui* _gui)
                                 lodInfo->unused = ribbonVertex::packed.size() - ribbonVertex::ribbons.size();
                             }
                             if (ImGui::IsItemHovered())
-                                ImGui::SetTooltip("%d: verts %d, blocks %d unused %d", lod, lodInfo->numVerts, lodInfo->numBlocks, lodInfo->unused);
+                                ImGui::SetTooltip("%d: verts %d, blocks %d", lod, lodInfo->numVerts, lodInfo->numBlocks);
 
                             ImGui::SameLine(0, 10);
                             ImGui::Text("%2.1fmm/pix", lodInfo->pixelSize * 1000.f);
@@ -2283,7 +2387,7 @@ void _rootPlant::renderGui(Gui* _gui)
                     displayModeSinglePlant = true;
                     anyChange = true;
                 }
-                
+
                 if (ImGui::Button("calculate extents"))
                 {
                     settings.pixelSize = 0.00005f;   // half a mm
@@ -2295,82 +2399,179 @@ void _rootPlant::renderGui(Gui* _gui)
                     root->changed = true;
                     root->calculate_extents(settings);
                 }
-                
-                TOOLTIP("this will buid a straight version as for a bake, and then calculate its extents\nit has to be doen for every plant before save\nit happens automatically duting BAKE");
 
-                if (root->getBakeInfo(0))
+
+
+                ImGui::NewLine();
+
                 {
-                    ImGui::Text("bake extents (%2.3f, %2.3f)", root->getBakeInfo(0)->extents.x, root->getBakeInfo(0)->extents.y);
-                    ImGui::Text("dU (%2.1f, %2.1f, %2.1f, %2.1f)", root->getBakeInfo(0)->dU[0], root->getBakeInfo(0)->dU[1], root->getBakeInfo(0)->dU[2], root->getBakeInfo(0)->dU[3]);
-                    ImGui::Text("dU (%2.1f, %2.1f, %2.1f, %2.1f)", root->getBakeInfo(1)->dU[0], root->getBakeInfo(1)->dU[1], root->getBakeInfo(1)->dU[2], root->getBakeInfo(1)->dU[3]);
-                    ImGui::Text("dU (%2.1f, %2.1f, %2.1f, %2.1f)", root->getBakeInfo(2)->dU[0], root->getBakeInfo(2)->dU[1], root->getBakeInfo(2)->dU[2], root->getBakeInfo(2)->dU[3]);
+                    bake_Reload_Count--;
+                    if (root && (bake_Reload_Count == 0))
+                    {
+                        for (int i = 0; i < 10; i++)
+                        {
+                            if (root->getBakeInfo(i) && (root->getBakeInfo(i)->pixHeight > 0))
+                            {
+                                root->getBakeInfo(i)->material.reload();
+                            }
+                        }
+                    }
+                    if (ImGui::Button(" Bake materials "))
+                    {
+                        if (root)
+                        {
+                            std::filesystem::path PT = root->path;
+                            std::string resource = terrafectorEditorMaterial::rootFolder;
+
+                            std::string newDir = resource + PT.parent_path().string() + "\\bake_" + PT.stem().string();
+                            replaceAllVEG(newDir, "/", "\\");
+                            newDir = "rmdir /S /Q " + newDir;
+                            system(newDir.c_str());
+
+                            newDir = "mkdir " + resource + PT.parent_path().string() + "\\bake_" + PT.stem().string();
+                            replaceAllVEG(newDir, "/", "\\");
+                            system(newDir.c_str());
+
+                            for (int seed = 1000; seed < 1001; seed++)
+                            {
+                                settings.seed = seed;
+                                settings.pixelSize = 0.0001f;
+                                settings.forcePhototropy = true;
+                                ribbonVertex::packed.clear();
+                                build(true);
+                                settings.forcePhototropy = false;
+                                root->calculate_extents(settings);
+
+                                for (int i = 0; i < 10; i++)
+                                {
+                                    if (root->getBakeInfo(i) && (root->getBakeInfo(i)->pixHeight > 0))
+                                    {
+                                        bake(root->path, std::to_string(settings.seed), root->getBakeInfo(i));
+                                        root->getBakeInfo(i)->material.reload();
+                                        // try slow reload
+                                        root->changed = true;
+                                        //bake_Reload_Count = 100;
+                                    }
+                                }
+                            }
+                            //root->changedForSave = true;
+                            root->save();
+                        }
+                    }
+
+                    for (int i = 0; i < 10; i++)
+                    {
+
+
+                        lodBake* bake = root->getBakeInfo(i);
+                        if (bake)
+                        {
+                            float columnWidth = ImGui::GetWindowWidth() / 2 - 5;
+                            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.005f, 0.005f, 0.005f, 0.5f));
+                            ImGui::BeginChildFrame(1235 + i, ImVec2(columnWidth, 70));
+                            {
+                                ImGui::Text("%d", i);
+                                ImGui::SameLine(50, 0);
+                                ImGui::Text("height");
+                                ImGui::SameLine(90, 0);
+                                ImGui::SetNextItemWidth(70);
+                                if (ImGui::DragInt("##pixhgt", &bake->pixHeight, 0.1f, 0, 1024))             root->changed = true;
+                                TOOLTIP("in pixels \n stick with pow(2) unless you absolutely know what you are doing");
+
+                                if (bake->pixHeight > 0)
+                                {
+                                    ImGui::SameLine(180, 0);
+                                    ImGui::Text("width");
+                                    ImGui::SameLine(220, 0);
+                                    ImGui::SetNextItemWidth(70);
+                                    if (ImGui::DragFloat("##width", &bake->bakeWidth, 0.01f, 0.1f, 1.f))             root->changed = true;
+
+                                    ImGui::NewLine();
+                                    ImGui::SameLine(30, 0);
+                                    ImGui::Text("start end");
+                                    ImGui::SameLine(90, 0);
+                                    ImGui::SetNextItemWidth(200);
+                                    if (ImGui::DragFloat2("##V", &bake->bake_V.x, 0.001f, 0.0f, 1.f)) {
+                                        root->changed = true;
+                                        if (bake->bake_V.x > bake->bake_V.y - 0.2f) bake->bake_V.x = bake->bake_V.y - 0.2f;
+                                        bake->bake_V.x = __max(0, bake->bake_V.x);
+                                        if (bake->bake_V.x > bake->bake_V.y - 0.2f) bake->bake_V.y = bake->bake_V.x + 0.2f;
+                                    }
+
+
+                                    if (ImGui::Checkbox("ao", &bake->bakeAOToAlbedo)) root->changed = true;
+                                    TOOLTIP("if used as a billboard, bake the ao to the texture itself for added depth\nif used as a code with vertex ao, leave out");
+
+
+                                    ImGui::SameLine(50, 0);
+                                    ImGui::Text("transl");
+                                    ImGui::SameLine(90, 0);
+                                    ImGui::SetNextItemWidth(70);
+                                    if (ImGui::DragFloat("##translucency", &bake->translucency, 0.01f, 0.1f, 10.f))              root->changed = true;
+
+
+                                    ImGui::SameLine(180, 0);
+                                    ImGui::Text("alpha");
+                                    ImGui::SameLine(220, 0);
+                                    ImGui::SetNextItemWidth(70);
+                                    if (ImGui::DragFloat("##alphaPow", &bake->alphaPow, 0.01f, 0.1f, 10.f))                root->changed = true;
+                                    TOOLTIP("scale alpha in teh material <1 is more solid");
+                                }
+
+                            }
+                            ImGui::EndChildFrame();
+                            ImGui::PopStyleColor();
+
+                        }
+                    }
                 }
-                
+
+                ImGui::NewLine();
+                ImGui::Text("wind");
+
+
+
+                ImGui::NewLine();
+                ImGui::Text("other");
+
             }
+
+
+
+
+
+            {
+
+
+                if (displayModeSinglePlant)
+                {
+
+                    //ImGui::Text("%2.2f M tris", (float)totalBlocksToRender * VEG_BLOCK_SIZE * 2.f / 1000000.f);
+                }
+                else
+                {
+                    ImGui::DragFloat("loddingBias", &loddingBias, 0.1f, 0.1f, 10.f);
+                    ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
+                    for (int i = 0; i < 10; i++)
+                    {
+                        ImGui::Text("%d, ", feedback.numLod[i]);
+                        ImGui::SameLine(0, 10);
+                    }
+                    ImGui::NewLine();
+                    ImGui::Text("billboard - %d {blocks - %d}", feedback.numLod[0], feedback.numBlocks);
+                }
+
+            }
+
 
 
             ImGui::NewLine();
 
 
             //if (displayModeSinglePlant)
-            {
-                bake_Reload_Count--;
-                if (root && (bake_Reload_Count == 0))
-                {
-                    for (int i = 0; i < 10; i++)
-                    {
-                        if (root->getBakeInfo(i) && (root->getBakeInfo(i)->pixHeight > 0))
-                        {
-                            root->getBakeInfo(i)->material.reload();
-                        }
-                    }
-                }
-                if (ImGui::Button("bake textures"))
-                {
-                    if (root)
-                    {
-                        std::filesystem::path PT = root->path;
-                        std::string resource = terrafectorEditorMaterial::rootFolder;
 
-                        std::string newDir = resource + PT.parent_path().string() + "\\bake_" + PT.stem().string();
-                        replaceAllVEG(newDir, "/", "\\");
-                        newDir = "rmdir /S /Q " + newDir;
-                        system(newDir.c_str());
 
-                        newDir = "mkdir " + resource + PT.parent_path().string() + "\\bake_" + PT.stem().string();
-                        replaceAllVEG(newDir, "/", "\\");
-                        system(newDir.c_str());
 
-                        for (int seed = 1000; seed < 1001; seed++)
-                        {
-                            settings.seed = seed;
-                            settings.pixelSize = 0.0001f;
-                            settings.forcePhototropy = true;
-                            ribbonVertex::packed.clear();
-                            build(true);
-                            settings.forcePhototropy = false;
-                            root->calculate_extents(settings);
-
-                            for (int i = 0; i < 10; i++)
-                            {
-                                if (root->getBakeInfo(i) && (root->getBakeInfo(i)->pixHeight > 0))
-                                {
-                                    bake(root->path, std::to_string(settings.seed), root->getBakeInfo(i));
-                                    //root->getBakeInfo(i)->material.reload();
-                                    // try slow reload
-                                    root->changed = true;
-                                    bake_Reload_Count = 100;
-                                }
-                            }
-                        }
-                        //root->changedForSave = true;
-                        root->save();
-                    }
-                }
-            }
-
-            ImGui::NewLine();
-            if (root) root->treeView();
             ImGui::NewLine();
             ImGui::NewLine();
 
@@ -2438,8 +2639,29 @@ void _rootPlant::renderGui(Gui* _gui)
 
 
             ImGui::NextColumn();
+            if (selectedPart)
+            {
+                float columnWidth = ImGui::GetWindowWidth() / 2 - 10;
+                float columnHeight = ImGui::GetWindowHeight() - 25;
 
-            if (selectedPart)       selectedPart->renderGui();  // now render the selected item.
+                //ImVec2 CP = ImGui::GetCursorPos();
+                if (selectedPart->changedForSave)
+                {
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.05f, 0.0f, 0.9f));
+                }
+                else
+                {
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.05f, 0.0f, 0.0f));
+                }
+                ImGui::BeginChildFrame(123450, ImVec2(columnWidth, columnHeight));
+                {
+                    selectedPart->renderGui();  // now render the selected item.
+                }
+                ImGui::EndChildFrame();
+                ImGui::PopStyleColor();
+                //ImGui::SetCursorPos(CP);
+
+            }
         }
         ImGui::PopFont();
     }
@@ -2660,11 +2882,19 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 
 
     int superSample = 4;
+
     float W = _info->extents.x * _info->bakeWidth;      // this is half width
     float H = _info->extents.y;
-    int iW = 4 * (int)(_info->pixHeight * W * 2.f / H / 4) * superSample;      // *4  /4 is to keep blocks of 4
+    float H0 = _info->extents.y * _info->bake_V.x;
+    float H1 = _info->extents.y * _info->bake_V.y;
+    float delH = H1 - H0;
+
+    int iW = 4 * (int)(_info->pixHeight * W * 2.f / delH / 4) * superSample;      // *4  /4 is to keep blocks of 4
     iW = __max(4, iW);
     int iH = _info->pixHeight * superSample;
+
+
+
 
     Fbo::Desc desc;
     desc.setDepthStencilTarget(ResourceFormat::D24UnormS8);			// keep for now, not sure why, but maybe usefult for cuts
@@ -2689,7 +2919,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 
     glm::mat4 V, VP;
     V = { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, W, 1} };
-    VP = glm::orthoLH(-W, W, 0.f, H, -1000.0f, 1000.0f) * V;
+    VP = glm::orthoLH(-W, W, H0, H1, -1000.0f, 1000.0f) * V;
     rmcv::mat4 viewproj;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -2700,9 +2930,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     bakeShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
     bakeShader.Vars()["gConstantBuffer"]["eyePos"] = float3(0, 0, -100000);  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_radius_alpha"] = W;  // just very far sort of parallel
-    int bToA = 0;
-    if (_info->bakeWidth >= 0.8) bToA = 1;
-    bakeShader.Vars()["gConstantBuffer"]["bake_AoToAlbedo"] = bToA;
+    bakeShader.Vars()["gConstantBuffer"]["bake_AoToAlbedo"] = _info->bakeAOToAlbedo;
 
 
 
@@ -2734,12 +2962,12 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     {
         _plantMaterial Mat;
         Mat._constData.translucency = 1;
-        Mat.albedoPath = newRelative + _info->material.name + "_albedo.png";
-        Mat.albedoName = _info->material.name + "_albedo.png";
-        Mat.normalPath = newRelative + _info->material.name + "_normal.png";
-        Mat.normalName = _info->material.name + "_normal.png";
-        Mat.translucencyPath = newRelative + _info->material.name + "_translucency.png";
-        Mat.translucencyName = _info->material.name + "_translucency.png";
+        Mat.albedoPath = newRelative + _info->material.name + "_albedo.dds";
+        Mat.albedoName = _info->material.name + "_albedo.dds";
+        Mat.normalPath = newRelative + _info->material.name + "_normal.dds";
+        Mat.normalName = _info->material.name + "_normal.dds";
+        Mat.translucencyPath = newRelative + _info->material.name + "_translucency.dds";
+        Mat.translucencyName = _info->material.name + "_translucency.dds";
 
         fbo->getColorTexture(0).get()->generateMips(renderContext);
         fbo->getColorTexture(1).get()->generateMips(renderContext);
@@ -2747,18 +2975,23 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
         fbo->getColorTexture(3).get()->generateMips(renderContext);
         fbo->getColorTexture(4).get()->generateMips(renderContext);
 
-        //fbo->getColorTexture(0).get()->captureToFile(3, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
-        //fbo->getColorTexture(2).get()->captureToFile(3, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        //fbo->getColorTexture(4).get()->captureToFile(3, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(0).get()->captureToFile(2, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(2, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(4).get()->captureToFile(2, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
-        fbo->getColorTexture(0).get()->captureToFile(2, 0, resource + Mat.albedoPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
-        fbo->getColorTexture(2).get()->captureToFile(2, 0, resource + Mat.normalPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        fbo->getColorTexture(4).get()->captureToFile(2, 0, resource + Mat.translucencyPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        //fbo->getColorTexture(0).get()->captureToFile(2, 0, resource + Mat.albedoPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        //fbo->getColorTexture(2).get()->captureToFile(2, 0, resource + Mat.normalPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        //fbo->getColorTexture(4).get()->captureToFile(2, 0, resource + Mat.translucencyPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
-        /*
+        // FIXME total num MIps to build
+
+        int maxHmip = (int)log2(iH / 4);
+        int maxWmip = (int)log2(iW / 4);
+        int totalMIP = __min(maxHmip, maxWmip) - 2; // -2 for the supersampling
+        std::string mipNumber = std::to_string(totalMIP);
         {
             std::string png = newDir + "_albedo.png";
-            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels " + mipNumber + " \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
             replaceAllVEG(cmdExp, "/", "\\");
             system(cmdExp.c_str());
             std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + resource + Mat.albedoPath + "\"";
@@ -2769,7 +3002,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 
         {
             std::string png = newDir + "_normal.png";
-            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels " + mipNumber + " \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
             replaceAllVEG(cmdExp, "/", "\\");
             system(cmdExp.c_str());
             std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC6H " + resource + "Compressonator\\temp_mip.dds \"" + resource + Mat.normalPath + "\"";
@@ -2780,7 +3013,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 
         {
             std::string png = newDir + "_translucency.png";
-            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels 6 \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
+            std::string cmdExp = resource + "Compressonator\\CompressonatorCLI -miplevels " + mipNumber + " \"" + png + "\" " + resource + "Compressonator\\temp_mip.dds";
             replaceAllVEG(cmdExp, "/", "\\");
             system(cmdExp.c_str());
             std::string cmdExp2 = resource + "Compressonator\\CompressonatorCLI -fd BC7 " + resource + "Compressonator\\temp_mip.dds \"" + resource + Mat.translucencyPath + "\"";
@@ -2788,10 +3021,13 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
             system(cmdExp2.c_str());
             //??? Shall I not rather use my compute compressor here?
         }
-        */
 
-        Mat._constData.translucency = 1.f;
-        Mat._constData.alphaPow = 1.0f;
+
+
+
+
+        Mat._constData.translucency = _info->translucency;
+        Mat._constData.alphaPow = _info->alphaPow;
         Mat._constData.roughness[0] = 0.6f;
         Mat._constData.roughness[1] = 0.6f;
 
