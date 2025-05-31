@@ -46,7 +46,7 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
     auto& style = ImGui::GetStyle();
     switch (terrain.terrainMode)
     {
-    case _terrainMode::vegetation:      style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.03f, 0.05f, 0.01f, 1.0f);   break;
+    case _terrainMode::vegetation:      style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.02f, 0.04f, 0.01f, 1.0f);   break;
     case _terrainMode::ecotope:         style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.01f, 0.06f, 0.06f, 1.0f);   break;
     case _terrainMode::terrafector:     style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.24f, 0.14f, 0.0f, 1.0f);   break;
     case _terrainMode::roads:           style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.005f, 0.005f, 0.005f, 1.0f);   break;
@@ -118,6 +118,8 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 70);
         _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 70);
         _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", screenSize.y / 70);
+
+        _gui->addFont("small", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 100);
         guiStyle();
         first = false;
     }
@@ -739,14 +741,15 @@ void Earthworks_4::guiStyle()
 #define TEXTG(v) ImVec4(0.860f, 0.930f, 0.890f, v)
 #define LIME(v) ImVec4(0.38f, 0.52f, 0.10f, v);
 #define DARKLIME(v) ImVec4(0.06f, 0.1f, 0.03f, v);
+#define GREY(i,v) ImVec4(i, i, i, v);
 
     auto& style = ImGui::GetStyle();
     style.Colors[ImGuiCol_WindowBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.90f);
     style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
     style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
 
-    style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
-    style.Colors[ImGuiCol_ButtonHovered] = DARKLIME(1.f);
+    style.Colors[ImGuiCol_Button] = GREY(0.01f, 1.f);
+    style.Colors[ImGuiCol_ButtonHovered] = GREY(0.03f, 1.f);
     style.Colors[ImGuiCol_HeaderHovered] = DARKLIME(1.f);
 
     style.Colors[ImGuiCol_Tab] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
@@ -758,15 +761,17 @@ void Earthworks_4::guiStyle()
 
     style.Colors[ImGuiCol_ModalWindowDimBg] = DARKLIME(0.3f);
 
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.f, 0.f, 0.f, 0.9f);
+    style.Colors[ImGuiCol_FrameBg] = GREY(0.f, 0.93f);
+    style.Colors[ImGuiCol_FrameBgHovered] = GREY(0.03f, 0.93f);
+    style.Colors[ImGuiCol_FrameBgActive] = GREY(0.02f, 0.93f);
 
     style.FrameRounding = 0.f;
     style.FramePadding = ImVec2(0, 0);
 
-    style.ScrollbarSize = 20;
+    style.ScrollbarSize = 25;
 
     style.WindowPadding = ImVec2(0, 0);              // Padding within a window.
-    style.WindowRounding = 0.f;             // Radius of window corners rounding. Set to 0.0f to have rectangular windows.
+    style.WindowRounding = 0.f;                     // Radius of window corners rounding. Set to 0.0f to have rectangular windows.
     style.WindowBorderSize = 0.f;
 
 }

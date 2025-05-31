@@ -803,7 +803,7 @@ public:
     computeShader		compute_calulate_lod;
 
 
-
+    bool showDebugInShader = false;
 
     static _plantBuilder *selectedPart;
     static _plantMaterial *selectedMaterial;

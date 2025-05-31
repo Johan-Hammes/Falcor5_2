@@ -35,7 +35,7 @@ using namespace Assimp;
 #include <chrono>
 using namespace std::chrono;
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -4686,8 +4686,9 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
         ImGui::PopItemWidth();
         ImGui::NewLine();
 
+        auto& oldStyle = ImGui::GetStyle();
         auto& style = ImGui::GetStyle();
-        style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
+        //style.Colors[ImGuiCol_Button] = ImVec4(0.03f, 0.03f, 0.3f, 0.5f);
 
         switch (terrainMode)
         {
@@ -4966,6 +4967,8 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
         }
         ImGui::PopFont();
+
+        style = oldStyle;   // reset it
     }
     rightPanel.release();
 

@@ -603,7 +603,7 @@ void _plantMaterial::renderGui(Gui* _gui)
 {
     bool changed = false;
 
-    ImGui::PushFont(_gui->getFont("roboto_20"));
+    ImGui::PushFont(_gui->getFont("small"));
     {
 
         ImGui::Text(displayName.c_str());
@@ -1078,13 +1078,14 @@ void _leafBuilder::saveas()
 
 void _leafBuilder::renderGui()
 {
-    ImGui::PushFont(_gui->getFont("roboto_26"));
+    ImGui::PushFont(_gui->getFont("header1"));
     {
         ImGui::Text(name.c_str());
     }
+    ImGui::PopFont();
     TOOLTIP(path.c_str());
 
-    ImGui::PushFont(_gui->getFont("roboto_20"));
+    ImGui::PushFont(_gui->getFont("header2"));
     {
         load();
         ImGui::SameLine(70, 0);
@@ -1439,16 +1440,28 @@ void _stemBuilder::renderGui()
     unsigned int gui_id = 1001;
 
     ImGui::NewLine();
-    ImGui::Text("light");
-    R_FLOAT("uv scale", shadowUVScale, 0.001f, 0.001f, 10.f, "");
-    R_FLOAT("softness", shadowSoftness, 0.01f, 0.01f, 0.3f, "");
-    R_FLOAT("depth", shadowDepth, 0.01f, 0.01f, 10.f, "");
-    R_FLOAT("hgt", shadowPenetationHeight, 0.01f, 0.05f, 0.95f, "");
+    ImGui::PushFont(_gui->getFont("bold"));
+    {
+        ImGui::Text("light");
+    }
+    ImGui::PopFont();
+
+    ImGui::PushFont(_gui->getFont("italic"));
+    {
+        R_FLOAT("uv scale", shadowUVScale, 0.001f, 0.001f, 10.f, "");
+        R_FLOAT("softness", shadowSoftness, 0.01f, 0.01f, 0.3f, "");
+        R_FLOAT("depth", shadowDepth, 0.01f, 0.01f, 10.f, "");
+        R_FLOAT("hgt", shadowPenetationHeight, 0.01f, 0.05f, 0.95f, "");
+    }
+    ImGui::PopFont();
 
     ImGui::NewLine();
-    ImGui::Text("wind");
-    R_FLOAT("stiffness", ossilation_stiffness, 0.1f, 0.8f, 20.f, "");
-    R_FLOAT("sqrt(sway)", ossilation_constant_sqrt, 0.1f, 1.01f, 100.f, "");
+    ImGui::PushFont(_gui->getFont("bold"));
+    {
+        ImGui::Text("sway");
+    }
+    ImGui::PopFont();
+
     ImGui::SameLine(0, 20);
     float l = 1;
     if (NODES.size() >= 2)
@@ -1457,12 +1470,20 @@ void _stemBuilder::renderGui()
     }
     if (l == 0) l = 1; // avoid devide by zero
     ImGui::Text("%2.3fHz", 1.f / (rootFrequency() / sqrt(l)));
+
+    R_FLOAT("stiffness", ossilation_stiffness, 0.1f, 0.8f, 20.f, "");
+    R_FLOAT("sqrt(sway)", ossilation_constant_sqrt, 0.1f, 1.01f, 100.f, "");
     R_FLOAT("root-tip", ossilation_power, 0.01f, 0.02f, 1.8f, "");
 
     ImGui::NewLine();
-    ImGui::Text("stem / trunk");
+    ImGui::PushFont(_gui->getFont("bold"));
+    {
+        ImGui::Text("stem / trunk");
+    }
+    ImGui::PopFont();
 
-    ImGui::Text("sz (%2.1f, %2.1f)mm, [%d, %d]", root_width * 1000.f, tip_width * 1000.f, (int)age, firstLiveSegment);
+    ImGui::SameLine(0, 10);
+    ImGui::Text("%2.1f - %2.1f)mm, [%d, %d]", root_width * 1000.f, tip_width * 1000.f, (int)age, firstLiveSegment);
 
     R_LENGTH("age", numSegments, "total number of nodes", "random is used for automatic variations");
     if (numSegments.x < 0.5f) numSegments.x = 0.5f;
@@ -1482,7 +1503,15 @@ void _stemBuilder::renderGui()
 
     // leaves
     ImGui::NewLine();
-    ImGui::Text("leaves / branches");
+    ImGui::PushFont(_gui->getFont("bold"));
+    {
+        ImGui::Text("leaves / branches");
+    }
+    ImGui::PopFont();
+
+    ImGui::SameLine(0, 10);
+    ImGui::Text("%d added", numLeavesBuilt);
+
     R_LENGTH("numLeaves", numLeaves, "stem length in mm", "random");
     numLeaves.x = __max(0.5f, numLeaves.x);
     R_CURVE("angle", leaf_angle, "angle of teh stalk t the ", "change of angle as it ages, usually drooping");
@@ -1494,7 +1523,12 @@ void _stemBuilder::renderGui()
 
     // tip
     ImGui::NewLine();
-    ImGui::Text("tip");
+    ImGui::PushFont(_gui->getFont("bold"));
+    {
+        ImGui::Text("tip");
+    }
+    ImGui::PopFont();
+
     if (ImGui::Checkbox("unique_tip", &unique_tip)) changed = true;
     if (unique_tip)
     {
@@ -1502,7 +1536,7 @@ void _stemBuilder::renderGui()
         tip.renderGui("tip", gui_id);
     }
 
-    ImGui::Text("numLeavesBuilt : %d", numLeavesBuilt);
+    
 
     /*
     ImGui::NewLine();
@@ -2256,6 +2290,8 @@ void _rootPlant::renderGui(Gui* _gui)
     {
         ImGui::Columns(2);
 
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.05f, 0.0f, 0.0f));
+
         ImGui::PushFont(_gui->getFont("header2"));
         {
             //            timeAvs += 0.01f * gpFramework->getFrameRate().getAverageFrameTime();
@@ -2328,11 +2364,14 @@ void _rootPlant::renderGui(Gui* _gui)
                 ImGui::Text("extents (%2.2f, %2.2f)m", extents.x, extents.y);
                 ImGui::Text("v - %d, b - %d, u - %d", totalBlocksToRender * VEG_BLOCK_SIZE, totalBlocksToRender, unusedVerts);
 
-                
 
-                if (ImGui::Button(".  -  .")) { root->decrementLods(); }
-                ImGui::SameLine(0, 50);
-                if (ImGui::Button(".  +  .")) { root->incrementLods(); }
+                ImGui::PushFont(_gui->getFont("header1"));
+                {
+                    if (ImGui::Button(" - ")) { root->decrementLods(); }
+                    ImGui::SameLine(0, 50);
+                    if (ImGui::Button(" + ")) { root->incrementLods(); }
+                }
+                ImGui::PopFont();
                 
 
                 for (uint lod = 0; lod < 100; lod++)
@@ -2526,6 +2565,7 @@ void _rootPlant::renderGui(Gui* _gui)
                     }
                 }
 
+                ImGui::Checkbox("show Debug", &showDebugInShader);
                 ImGui::NewLine();
                 ImGui::Text("wind");
 
@@ -2664,6 +2704,7 @@ void _rootPlant::renderGui(Gui* _gui)
             }
         }
         ImGui::PopFont();
+        ImGui::PopStyleColor();
     }
     builderPanel.release();
 }
@@ -3124,6 +3165,10 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
 
         vegetationShader.Vars()["gConstantBuffer"]["windDir"] = windDir;
         vegetationShader.Vars()["gConstantBuffer"]["windStrength"] = windStrength;
+
+        vegetationShader.Vars()["gConstantBuffer"]["showDEBUG"] = showDebugInShader;
+
+        
 
 
 

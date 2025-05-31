@@ -8,7 +8,7 @@
 
 
 SamplerState gSampler;
-SamplerState gSamplerClamp; // for blending with hald-buffer
+SamplerState gSamplerClamp;             // for blending with hald-buffer
 Texture2D gAlbedo : register(t0);
 TextureCube gEnv : register(t1);
 Texture2D gHalfBuffer : register(t2);
@@ -19,8 +19,7 @@ struct ribbonTextures
 {
     Texture2D<float4> T[4096];
 };
-ParameterBlock<ribbonTextures>
-textures;
+ParameterBlock<ribbonTextures> textures;
 
 
 
@@ -28,7 +27,7 @@ StructuredBuffer<sprite_material> materials;
 //StructuredBuffer<ribbonVertex8> instanceBuffer;     // THIS HAS TO GO
 //StructuredBuffer<xformed_PLANT> instances;
 
-StructuredBuffer<plant> plant_buffer;
+StructuredBuffer<plant>             plant_buffer;
 StructuredBuffer<plant_instance> instance_buffer;
 StructuredBuffer<block_data> block_buffer;
 StructuredBuffer<ribbonVertex8> vertex_buffer;
@@ -72,7 +71,7 @@ cbuffer PerFrameCB
     float4 gisBox;
 	
     float redOffset;
-    float3 padding;
+    float3 padding;	
 };
 
 #define AmbietOcclusion lighting.w
@@ -128,7 +127,7 @@ struct PSIn
     nointerpolation uint4 flags : TEXCOORD2; // material        BLENDINDICES[n]
     float3 eye : TEXCOORD3; // can this become SVPR  or per plant somehow, feels overkill here per vertex
     float4 colour : TEXCOORD4;
-    float3 lineScale : TEXCOORD5; // its w and h for boillboard
+    float3 lineScale : TEXCOORD5;   // its w and h for boillboard
     float3 sunUV : TEXCOORD6;
 
     float4 viewTangent : TEXCOORD7;
@@ -261,7 +260,7 @@ void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
     vertex.pos.xyz = plantRoot + root + newV * scale;
 
     vertex.binormal = mul(rot, vertex.binormal);
-    vertex.normal = mul(rot, vertex.normal);
+    vertex.normal = mul(rot, vertex.normal );
 
 }
 
@@ -270,7 +269,7 @@ void windAnimate2(inout PSIn vertex, float3 plantRoot)  // plantRoot only for ra
 {
     float3 root = float3(0, 0, 0);
     float3 dir = float3(0, 1, 0);
-    float dirL = 2.4f; // maize
+    float dirL = 2.4f;  // maize
 
     float3 relative = vertex.pos.xyz - root;
     //float dL = saturate(dot(relative, dir) / dirL);
@@ -316,7 +315,7 @@ void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiff
 
     float3x3 rot = AngleAxis3x3(-bendStrength, windRight);
 
-    float scale = 1.f; // / pow(1 + bendStrength, 0.41); //length compensation
+    float scale = 1.f;// / pow(1 + bendStrength, 0.41); //length compensation
 
     //float flutterStrength = 0.2 + 0.1 * sin(time * frequency * 3 + rnd * 4);
     //float3x3 rotflutter = AngleAxis3x3(-bendStrength * flutter, vertex.binormal);
@@ -341,7 +340,7 @@ void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLA
     //float frequencyShift = sqrt(1.f / Iscale); //??? rsqrt(Iscale)
     float frequencyShift = Iscale; //??? rsqrt(Iscale)  wghile sqrt is teh right maths this is one random number we have and betetr to exageraet the frequencies between teh different plants
     
-    float scale = 2.1 + 0.8 * sin(time * 0.07);
+    float scale = 2.1    +0.8 * sin(time * 0.07);
     // leaf first
     if ((h & 0xff) > 0)
     {
@@ -349,11 +348,11 @@ void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLA
         float3 root = float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * PLANT.scale - PLANT.offset;
         float3 rootDir = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, rotation);
 
-        float stiff = ((h >> 16) & 0xff) * 0.004 * 30;
+        float stiff =         ((h >> 16) & 0xff) * 0.004 * 30;
         float freq = ((h >> 8) & 0xff) * 0.004;
         float index = ((h >> 24) & 0xff) * 0.004;
         
-        float dx = index * (root.y / 2.5); // secodn scales overall plant
+        float dx =     index * (root.y / 2.5); // secodn scales overall plant
         windAnimateOnce(vertex, root, rootDir, dx * scale * stiff * 1, freq * frequencyShift, 0.f, 0.0f);
     }
 
@@ -788,15 +787,13 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f;
     float alpha = pow(albedo.a, MAT.alphaPow);
 
-    float rnd = 0.4;//
-    +0.15 * rand_1_05(vOut.pos.xy);
+    float rnd = 0.4    +0.15 * rand_1_05(vOut.pos.xy);
     if (showDEBUG)
     {
-        if ((alpha - rnd) < 0)
-            return float4(1, 0, 0, 0.3);
+        if ((alpha - rnd) < 0)  return float4(1, 0, 0, 0.3);
     }
     clip(alpha - rnd);
-    alpha = smoothstep(rnd, 0.9, alpha);
+    alpha = smoothstep(rnd, 1, alpha);
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
@@ -844,15 +841,14 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 
     // apply JHFAA to edges    
-    if (alpha < 0.9)
+    if (alpha < 0.7)
     {
         float2 uv = vOut.pos.xy / screenSize; //        float2(2560, 1440);
         float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         color = lerp(prev, color, alpha);
         if (showDEBUG)
         {
-            float V = vOut.diffuseLight.r * 0.5 * (1- alpha);
-            return float4(V, V, 0, 1); // yellow pixels
+            return float4(alpha, alpha, 0, 1); // yellow pixels
         }
     }
 

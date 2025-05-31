@@ -59,7 +59,7 @@
 
 #include "vegetationBuilder.h"
 //#include"hlsl/terrain/vegetation_defines.hlsli"
-
+//#pragma optimize("", off)
 
 #include "glider.h"
 #include "cfd.h"

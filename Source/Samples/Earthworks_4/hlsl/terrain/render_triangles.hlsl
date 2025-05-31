@@ -171,8 +171,8 @@ float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
         texSize.x = 2550;
         texSize.y = 1440;
-        texSize.x = 4096;
-        texSize.y = 2160;
+        //texSize.x = 4096;
+        //texSize.y = 2160;
     
         float2 atmosphereUV;
         atmosphereUV = vOut.pos.xy / texSize.xy;
