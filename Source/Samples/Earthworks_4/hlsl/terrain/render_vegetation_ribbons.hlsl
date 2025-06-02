@@ -75,11 +75,14 @@ cbuffer PerFrameCB
     float3 padding;
 };
 
+// PDIN flags
 #define AmbietOcclusion lighting.w
 #define AlbedoScale colour.x
 #define TranslucencyScale colour.y
 #define Shadow sunUV.z
 #define PlantIdx flags.w
+
+
 
 
 float4 sunLight(float3 posKm)
@@ -188,7 +191,7 @@ inline void extractUVRibbon(inout PSIn o, const ribbonVertex8 v)
 inline void extractFlags(inout PSIn o, const ribbonVertex8 v)
 {
     o.flags.x = (v.b >> 8) & 0x2ff; //  material
-    o.flags.y = (v.a >> 30) & 0x1; //  start bool
+    o.flags.y = ((v.a >> 30) & 0x1)    +((v.b & 0x1) << 1); //  start bool   we can double pack
     o.flags.z = (v.d & 0xff); //  int radius
 }
 
@@ -364,6 +367,8 @@ void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLA
     windAnimateOnce(vertex, PLANT.rootPivot.root, PLANT.rootPivot.extent, pivotShift / 2 * scale, PLANT.rootPivot.frequency * frequencyShift, 0.f, 1.f);
 }
 
+// packing flags
+#define packDiamond (v.b & 0x1)
 
 PSIn
     vsMain(
@@ -432,14 +437,15 @@ PSIn
         float3 rootPos = float3(0, 0, 0);
         rootPos.y = 0;
         //output.pos.xyz =  rootPos + rot_xz(p, INSTANCE.rotation) * INSTANCE.scale;
-        output.pos.xyz =  rot_xz(p, INSTANCE.rotation);
+        //output.pos.xyz =  rot_xz(p, INSTANCE.rotation);
+        output.pos.xyz =  rot_xz(p, 1.5708);        // WaveActiveAllEqual bake_AoToAlbedo instance_buffer InterlockedXor direction
         output.pos.w = 1;
         //output.eye = normalize(output.pos.xyz - eyePos);
         
         p.y = 0;
         float R = length(p);
         if (R > 0.3f)      output.colour.a = 0;
-        output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.75f, bake_radius_alpha, R);
+        output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
         //float tipFade = 1 - 
         //if(bake_AoToAlbedo > 0.5)
         //{
@@ -555,7 +561,7 @@ void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
 {
     PSIn v = pt[0];
     float scale = 1 - pt[0].lineScale.z;
-/*
+
     v.uv = float2(0.5, 1.1);
     v.pos = pt[0].pos - pt[0].viewBinormal * 0.1;
     v.AmbietOcclusion = 0.3;
@@ -574,8 +580,8 @@ void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
     v.pos = pt[0].pos + pt[0].viewBinormal * 1.1;
     v.AmbietOcclusion = 1.0;
     OutputStream.Append(v);
-*/
 
+/*
     v.uv = float2(0.0, 1);
     //v.AmbietOcclusion = 1.03;
     v.pos = pt[0].pos - pt[0].viewTangent;
@@ -593,6 +599,7 @@ void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
     v.uv = float2(1.0, 0);
     v.pos = pt[0].pos + pt[0].viewTangent + pt[0].viewBinormal;
     OutputStream.Append(v);
+*/
   
 }
 #else
@@ -601,68 +608,81 @@ void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
 [maxvertexcount(4)]
 void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 {
-
-    
-    //float lineScale = 1.f;
     PSIn v;
 
-    //const float3 sunDir = normalize(float3(-0.6, -0.5, -0.8));
-    //const float3 sunR = normalize(cross(float3(0, 1, 0), sunDir));
-    //const float3 sunU = normalize(cross(sunDir, sunR));             // ThisHAS to come in a a constant
-    
-    
-    //if ((L[1].flags.y == 1) && (L[0].flags.w > 1))
-    if ((L[1].flags.y == 1))
+    if ((L[1].flags.y & 0x1) == 1)
     {
-        v = L[0];
-        v.uv.x = 0.5 + L[0].uv.x;
-        v.pos = L[0].pos - float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
-        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
-        //v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
-        v.pos = mul(v.pos, viewproj);
-        OutputStream.Append(v);
-
-        v.uv.x = 0.5 - L[0].uv.x;
-        v.pos = L[0].pos + float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
-        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
-        //v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
-        v.pos = mul(v.pos, viewproj);
-        OutputStream.Append(v);
-
-      /*
-        // FIXME I have reassigned flags.w for now DO NOT USE THIS
-        if (L[0].flags.w > 10)      // but we can do the test rigth here from radius
+        const bool diamond =        (L[0].flags.y >> 1);
+        if (diamond)
         {
-            float l1 = length(L[1].pos.xyz - L[0].pos.xyz);
-            float4 posBezier = float4(((L[0].pos.xyz + L[1].pos.xyz) * 0.5) + ((L[0].binormal - L[1].binormal) * l1 * 0.125), 1);
+            PSIn v = L[0];
+            float scale = 0;//            1 - L[0].lineScale.z;
 
-            v.uv.y = (L[0].uv.y + L[1].uv.y) * 0.5;
+            v.uv = float2(0.5, 1.1);
+            // first one is correct v.pos = pt[0].pos - pt[0].viewBinormal * 0.1;
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+            v.pos = mul(v.pos, viewproj);
+            OutputStream.Append(v);
+
+            // we should really interpolate here, but use start fo now
+            v.uv = float2(1.0 - scale / 2, 0.5);
+            v.pos = (L[0].pos + L[1].pos) * 0.5 + float4(v.tangent * v.lineScale.x, 0);
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+            v.pos = mul(v.pos, viewproj);
+            OutputStream.Append(v);
+        
+            v.uv = float2(0.0 + scale / 2, 0.5);
+            v.pos = (L[0].pos + L[1].pos) * 0.5 - float4(v.tangent * v.lineScale.x, 0);
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+            v.pos = mul(v.pos, viewproj);
+            OutputStream.Append(v);
+
+            v = L[1];
+            v.uv = float2(0.5, -0.1);
+            // last one is correct v.pos = pt[0].pos + pt[0].viewBinormal * 1.1;
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+            v.pos = mul(v.pos, viewproj);
+            OutputStream.Append(v);
+            
+        }
+        else
+        {
+            v = L[0];
             v.uv.x = 0.5 + L[0].uv.x;
-            v.pos = mul(posBezier - float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
+            v.pos = L[0].pos - float4(v.tangent * v.lineScale.x, 0);
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+        //v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
+            v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
 
             v.uv.x = 0.5 - L[0].uv.x;
-            v.pos = mul(posBezier + float4(v.tangent * pow(v.flags.z / 255.f, 2) * radiusScale, 0), viewproj);
+            v.pos = L[0].pos + float4(v.tangent * v.lineScale.x, 0);
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+        //v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
+            v.pos = mul(v.pos, viewproj);
+            OutputStream.Append(v);
+
+            v = L[1];
+            v.uv.x = 0.5 + L[1].uv.x;
+            v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+            v.pos = mul(v.pos, viewproj);
+            OutputStream.Append(v);
+
+            v.uv.x = 0.5 - L[1].uv.x;
+            v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
+            v.sunUV.x = dot(v.pos.xyz, sunRightVector);
+            v.sunUV.y = dot(v.pos.xyz, sunUpVector);
+            v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
         }
-        */
-        
-        v = L[1];
-        v.uv.x = 0.5 + L[1].uv.x;
-        v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
-        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
-        v.pos = mul(v.pos, viewproj);
-        OutputStream.Append(v);
-
-        v.uv.x = 0.5 - L[1].uv.x;
-        v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
-        v.sunUV.x = dot(v.pos.xyz, sunRightVector);
-        v.sunUV.y = dot(v.pos.xyz, sunUpVector);
-        v.pos = mul(v.pos, viewproj);
-        OutputStream.Append(v);
     }
 }
 #endif
@@ -788,7 +808,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f;
     float alpha = pow(albedo.a, MAT.alphaPow);
 
-    float rnd = 0.4;//
+    float rnd = 0.4; //
     +0.15 * rand_1_05(vOut.pos.xy);
     if (showDEBUG)
     {
@@ -851,7 +871,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         color = lerp(prev, color, alpha);
         if (showDEBUG)
         {
-            float V = vOut.diffuseLight.r * 0.5 * (1- alpha);
+            float V = vOut.diffuseLight.r * 0.5 * (1 - alpha);
             return float4(V, V, 0, 1); // yellow pixels
         }
     }

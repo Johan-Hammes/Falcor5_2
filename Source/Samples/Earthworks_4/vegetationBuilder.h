@@ -189,6 +189,9 @@ struct ribbonVertex
     static std::vector<ribbonVertex>    ribbons;
     static std::vector<ribbonVertex8>    packed;
     static bool pushStart;
+    static int lod_startBlock;   // This is the blok this lod started on
+    static int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
+    static int totalRejectedVerts;   // this will not accept more verts once we push past ? But how to handle when pushing lods
 
     static void setup(float scale, float radius, float3 offset);
     ribbonVertex8 pack();
@@ -200,9 +203,21 @@ struct ribbonVertex
         S_root = 0;
     }
 
-    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
-        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f )
+    static void clearStats(int _max)
     {
+        lod_startBlock = 0;
+        totalRejectedVerts = 0;
+        maxBlocks = _max;
+    }
+
+    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
+        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false )
+    {
+        if ((ribbons.size() / VEG_BLOCK_SIZE - lod_startBlock) >= maxBlocks)
+        {
+            totalRejectedVerts++;
+            return;
+        }
 
         position = _node[3];
         if (fabs(position.x) > 2 || fabs(position.z) > 2)
@@ -221,6 +236,7 @@ struct ribbonVertex
         leafFrequency = _freq;
         leafIndex = _index;
 
+        diamond = _diamond;
         
         leafRoot = S_root;
         if (_clearLeafRoot)
@@ -306,7 +322,7 @@ struct ribbonVertex
     bool    startBit = false;
     float3  position;
     int     material;
-    float   anim_blend;
+    //float   anim_blend;     //??? deprecated
     float2  uv;
     float3  bitangent;
     float3  tangent;
@@ -326,6 +342,8 @@ struct ribbonVertex
     float leafStiffness = 1.f;
     float leafFrequency = 10.f;
     float leafIndex = 0.f;
+
+    bool diamond = false;   // This piece will use Diomond generation og GPU
 };
 #pragma optimize("", on)
 
@@ -367,6 +385,7 @@ public:
 
     int numPixels = 100;   // this is the number of height pixels to use for this lod. Used to calculate pixel size
     float pixelSize = 0.f;  //auto calculated
+    int maxBlocks = 999;
 
     // feedback
     uint numVerts = 0;
@@ -374,12 +393,14 @@ public:
     uint unused = 0;
     uint startBlock = 0;
     
+    
 
     template<class Archive>
     void serialize(Archive& archive)
     {
         archive(CEREAL_NVP(numPixels));
         archive(CEREAL_NVP(pixelSize));
+        archive(CEREAL_NVP(maxBlocks));
     }
 };
 
@@ -460,7 +481,7 @@ public:
     int     deepest_pivot_pack_level = 3;
 };
 
-enum plantType {P_LEAF, P_STEM, PLANT_END};
+enum plantType {P_LEAF, P_STEM, P_CLUMP, P_AGREGATE, P_GROVE, PLANT_END};
 
 // planmaterial repackadged for dandom_arrays
 class _plantRND
@@ -721,15 +742,107 @@ CEREAL_CLASS_VERSION(_stemBuilder, 100);
 
 
 
+class _clumpBuilder : public _plantBuilder
+{
+public:
+    void loadPath();
+    void savePath();
+    void load();
+    void save();
+    void saveas();
+    void renderGui();
+    void treeView();
+    virtual void incrementLods() { lodInfo.resize(lodInfo.size() + 1); }
+    virtual void decrementLods() { if (lodInfo.size() > 3) lodInfo.resize(lodInfo.size() - 1); }
+    lodBake* getBakeInfo(uint i);//bakeInfo
+    levelOfDetail* getLodInfo(uint i);
+
+    void clear_build_info();
+    void calculate_extents(buildSetting _settings);
+    glm::mat4 build(buildSetting _settings, bool _addVerts);
+    glm::mat4 buildChildren(buildSetting _settings, bool _addVerts);
+    glm::mat4 build_lod_0(buildSetting _settings);
+    glm::mat4 build_lod_1(buildSetting _settings);
+    glm::mat4 build_lod_2(buildSetting _settings);
+    glm::mat4 build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
+    
+    
+
+    FileDialogFilterVec filters = { {"clump"} };
+    std::vector<glm::mat4> ROOTS;
+    glm::mat4 START;
+    glm::mat4 TIP_CENTER;
+
+    std::vector<levelOfDetail> lodInfo = { levelOfDetail(10), levelOfDetail(14), levelOfDetail(40), levelOfDetail(100), levelOfDetail(300), levelOfDetail(500) };
+    //Stem has to maintain a minimum of 3 of these or will crash
+    std::array<lodBake, 3> lod_bakeInfo = { lodBake(32, 1.f), lodBake(64, 0.6f), lodBake(128, 0.2f) };
+
+    // stem
+    float2  size = { 1.1f, 0.3f };
+    float2  aspect = { 1.0f, 0.1f };
+    bool radial = true;     // radial or X aligned
+
+    // child
+    float2  numChildren = { 3.f, 0.f };  // per segment
+    float2  child_angle = float2(0.5f, 0.3f);   // angle that the leaves come out of
+    float2  child_rnd = float2(0.3f, 0.3f);
+    float2  child_age = float2(10.3f, 0.2f);
+    float   child_age_power = 2.f;
+    randomVector<_plantRND> children; // age in this conetxt is inside to outside
+
+
+
+    template<class Archive>
+    void serialize(Archive& archive, std::uint32_t const _version)
+    {
+        // clump
+        archive_float2(size);
+        archive_float2(aspect);
+        archive(radial);
+
+        // child
+        archive_float2(numChildren);
+        archive_float2(child_angle);    // from circle
+        archive_float2(child_rnd);
+        archive_float2(child_age);
+        archive(child_age_power);
+        archive(children.data);
+        for (auto& M : children.data) M.reload();
+
+        // baking lodding and sway
+        archive(lod_bakeInfo);
+        for (auto& M : lod_bakeInfo) M.material.reload();
+
+        archive(CEREAL_NVP(lodInfo));
+
+        archive(CEREAL_NVP(shadowUVScale));
+        archive(CEREAL_NVP(shadowSoftness));
+        archive(CEREAL_NVP(shadowDepth));
+        archive(CEREAL_NVP(shadowPenetationHeight));
+
+        archive(CEREAL_NVP(ossilation_stiffness));
+        archive(CEREAL_NVP(ossilation_constant_sqrt));
+        archive(CEREAL_NVP(ossilation_power));
+        archive(CEREAL_NVP(deepest_pivot_pack_level));
+
+    }
+};
+CEREAL_CLASS_VERSION(_clumpBuilder, 100);
+
+
+
 
 
 class _rootPlant
 {
 public:
     void onLoad();
+    void renderGui_perf(Gui* _gui);
+    void renderGui_lodbake(Gui* _gui);
+    void renderGui_other(Gui* _gui);
     void renderGui(Gui* _gui);
     void buildAllLods();
-    void build(bool _updateExtents = false);
+    void build(int _maxBlocks, bool _updateExtents = false);
     void loadMaterials();
     void reloadMaterials();
 
@@ -792,6 +905,8 @@ public:
     float gputime;
     float gputimeBB;   // GPU time
 
+    int maxBlocksForBuild = 9999;
+
     Buffer::SharedPtr  buffer_feedback;
     Buffer::SharedPtr  buffer_feedback_read;
     vegetation_feedback feedback;
@@ -813,6 +928,12 @@ public:
     static std::uniform_real_distribution<> rand_1;
     static std::uniform_real_distribution<> rand_01;
     static std::uniform_int_distribution<> rand_int;
+
+    // cleanup for left side
+    bool showPerformance = true;
+    bool showBaking = true;
+    bool showLodding = true;
+    bool showRest = false;
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)

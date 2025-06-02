@@ -30,6 +30,7 @@
 #include "imgui.h"
 #include "Core/Platform/MonitorInfo.h"
 #include <filesystem>
+#include <iostream>
 
  //#pragma optimize("", off)
 
@@ -108,6 +109,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
     static bool first = true;
     if (first)
     {
+        std::cout << "onGuiRender() - first\n";
         fprintf(logFile, "add fonts Sienthas\n");
         fflush(logFile);
         _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 14);
@@ -178,7 +180,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
 void Earthworks_4::onLoad(RenderContext* _renderContext)
 {
-
+    std::cout << "onLoad()\n";
 
 
 
@@ -319,9 +321,10 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     camera->setTarget(float3(0, 900, 100));
 
 
-
+    std::cout << "  terrain\n";
     terrain.onLoad(_renderContext, logFile);
 
+    std::cout << "  atmosphere\n";
     fprintf(logFile, "atmosphere.onLoad()\n");
     fflush(logFile);
     atmosphere.onLoad(_renderContext, logFile);
@@ -357,7 +360,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
 
 
 
-
+    std::cout << "  cfd\n";
     fprintf(logFile, "terrain.cfdStart()\n");
     fflush(logFile);
     terrain.cfdStart();
