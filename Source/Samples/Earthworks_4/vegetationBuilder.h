@@ -671,6 +671,7 @@ public:
     float2  node_rotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
     float2  node_angle = float2(0.2f, 0.2f);    // andgle that the stem bends at the node ??? always away fromt he leaf angle if there is such a thing
     _vegMaterial stem_Material;
+    bool    bake2_replaces_stem = false;
 
     
 
@@ -734,10 +735,15 @@ public:
         archive(CEREAL_NVP(ossilation_constant_sqrt));
         archive(CEREAL_NVP(ossilation_power));
         archive(CEREAL_NVP(deepest_pivot_pack_level));
+
+        if (_version >= 101)
+        {
+            archive(CEREAL_NVP(bake2_replaces_stem));
+        }
         
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 100);
+CEREAL_CLASS_VERSION(_stemBuilder, 101);
 
 
 

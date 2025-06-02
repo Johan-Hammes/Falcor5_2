@@ -811,7 +811,7 @@ int main(int argc, char** argv)
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
-    config.windowDesc.monitor = 1;
+    config.windowDesc.monitor = 0;
 
     // HDR
     // config.windowDesc.monitor = 1;

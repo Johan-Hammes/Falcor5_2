@@ -3330,6 +3330,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         }
 
 
+        std::cout << "      cfd\n";
         {
             cfd.sliceVTexture[0] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
             cfd.sliceVTexture[1] = Texture::create2D(128, 128, Falcor::ResourceFormat::RGB32Float, 1, 1, nullptr, Falcor::Resource::BindFlags::ShaderResource);
@@ -3431,6 +3432,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
+        std::cout << "      shaders\n";
 
         compute_TerrainUnderMouse.load("Samples/Earthworks_4/hlsl/terrain/compute_terrain_under_mouse.hlsl");
         compute_TerrainUnderMouse.Vars()->setSampler("gSampler", sampler_Clamp);
@@ -3597,6 +3599,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
+    std::cout << "      paraglider\n";
 
     AirSim.setup();
     paraBuilder.setxfoilDir(settings.dirResource + "/xfoil");
@@ -9852,10 +9855,10 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         {
             if (ImGui::IsMouseDown(1))
             {
-                mouseVegPitch += diff.y * 10.0f;
+                mouseVegPitch += diff.y * 3.0f;
                 mouseVegPitch = glm::clamp(mouseVegPitch, -1.f, 1.5f);
 
-                mouseVegYaw += diff.x * 20.0f;
+                mouseVegYaw += diff.x * 10.0f;
                 while (mouseVegYaw < 0) mouseVegYaw += 6.28318530718f;
                 while (mouseVegYaw > 6.28318530718f) mouseVegYaw -= 6.28318530718f;
             }
@@ -9863,7 +9866,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         break;
         case MouseEvent::Type::Wheel:
         {
-            float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
+            float scale = 1.0 - mouseEvent.wheelDelta.y / 16.0f;
             mouseVegOrbit *= scale;
             mouseVegOrbit = glm::clamp(mouseVegOrbit, 0.1f, 5000.f);
         }
