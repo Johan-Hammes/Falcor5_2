@@ -40,6 +40,7 @@ cbuffer gConstantBuffer
     
     float time;
     float bake_radius_alpha;
+    float bake_height_alpha;
     int bake_AoToAlbedo;
 
     float3 windDir;
@@ -394,7 +395,7 @@ PSIn
     output.Shadow = 0;
     output.AmbietOcclusion = 1;
 
-    if ((dot(output.pos.xyz, sunRightVector)) > 10 && (dot(output.pos.xyz, sunRightVector)) < 50)
+    if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
     {
         output.Shadow = 1;
     }
@@ -446,11 +447,7 @@ PSIn
         float R = length(p);
         if (R > 0.3f)      output.colour.a = 0;
         output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
-        //float tipFade = 1 - 
-        //if(bake_AoToAlbedo > 0.5)
-        //{
-         //   output.colour.a = 1.f;
-        //}
+        output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
 #endif
     }
     
@@ -484,7 +481,7 @@ PSIn
         // look at top one again, This one is BAD BAD BAD at making very transparent planst work
 
         //if (abs(dot(output.pos.xyz, sunRightVector)) < 2 && abs(dot(output.pos.xyz, sunRightVector)) < 5 && abs(dot(output.pos.xyz, sunUpVector)) < 15)
-        if ((dot(output.pos.xyz, sunRightVector)) > 10 && (dot(output.pos.xyz, sunRightVector)) < 50)
+        if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
         {
             output.Shadow = 1;
             //output.Sunlight = 0;
@@ -531,7 +528,7 @@ PSIn
     output.normal = cross(output.binormal, output.tangent);
 
 
-    if ((dot(output.pos.xyz, sunRightVector)) > 10 && (dot(output.pos.xyz, sunRightVector)) < 50)
+    if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
     {
         output.Shadow = 1;
     }
@@ -728,7 +725,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     color = color * vOut.AlbedoScale  * MAT.albedoScale[frontback] * 2.f;
     if(bake_AoToAlbedo)
     {
-        color = color * vOut.AmbietOcclusion;
+        color = color * (0.9 + 0.1 * vOut.AmbietOcclusion);
     }
     output.albedo = float4(pow(color, 1.0 / 2.2), 1);
     
@@ -777,7 +774,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= dot(float3(0.3, 0.4, 0.3), textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).rgb);
         }
     }
-    trans = saturate(pow(trans, 1.0 / 2.2));
+    //trans = saturate(pow(trans, 1.0 / 2.2));
     output.extra = float4(0, 0, 0, 1-trans);
 
     return output;
@@ -843,7 +840,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
 
     // environment cube light
-    color += 0.7 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 1.4 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.01;
