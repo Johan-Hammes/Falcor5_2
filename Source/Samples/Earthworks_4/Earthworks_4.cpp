@@ -117,9 +117,9 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
         _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 40);
         _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 55);
-        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 70);
-        _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 70);
-        _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", screenSize.y / 70);
+        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 65);
+        _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 65);
+        _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", screenSize.y / 65);
 
         _gui->addFont("small", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 100);
         guiStyle();
@@ -811,7 +811,7 @@ int main(int argc, char** argv)
     }
     config.windowDesc.width = 2560;
     config.windowDesc.height = 1140;
-    config.windowDesc.monitor = 0;
+    config.windowDesc.monitor = 1;
 
     // HDR
     // config.windowDesc.monitor = 1;

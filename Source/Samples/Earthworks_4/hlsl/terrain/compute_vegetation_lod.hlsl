@@ -49,13 +49,14 @@ void main(uint idx : SV_DispatchThreadId)
         if (pix < 32 && pix > 2)        // do billboards
         //if (pix < PLANT.lods[0].pixSize)        // do billboards
         {
+            
             uint slot = 0;
-            InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
-            instance_buffer_billboard[slot] = INSTANCE;
+            //InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
+            //instance_buffer_billboard[slot] = INSTANCE;
+            //InterlockedAdd(feedback[0].numLod[0], 1, slot);
 
-            InterlockedAdd(feedback[0].numLod[0], 1, slot);
         }
-        else/* if (pix >= 64)*/
+        else if (pix >= 32)
         {
             int lod = PLANT.numLods - 1;
             
@@ -67,8 +68,9 @@ void main(uint idx : SV_DispatchThreadId)
                     lod = i;
             }
             //lod = 0;
-
-            //if (lod == 3)
+            //if (lod > 0)
+            //    lod = 0;
+            //if (lod == 4)
             {
             
                 InterlockedAdd(feedback[0].numLod[lod + 1], 1, slot);

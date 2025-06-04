@@ -29,6 +29,7 @@ StructuredBuffer<sprite_material> materials;
 //StructuredBuffer<xformed_PLANT> instances;
 
 StructuredBuffer<plant> plant_buffer;
+StructuredBuffer<_plant_anim_pivot> plant_pivot_buffer;
 StructuredBuffer<plant_instance> instance_buffer;
 StructuredBuffer<block_data> block_buffer;
 StructuredBuffer<ribbonVertex8> vertex_buffer;
@@ -306,13 +307,13 @@ void windAnimate2(inout PSIn vertex, float3 plantRoot)  // plantRoot only for ra
     vertex.normal = cross(vertex.binormal, vertex.tangent);
 }
 
-void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiffness, float frequency, float flutter, float _bendStrength)
+void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiffness, float frequency, int offset, float _bendStrength)
 {
     float3 relative = vertex.pos.xyz - root;
-    float rnd = frac(rand_1_05(root.xz));
+    float rnd = frac(rand_1_05(root.xz * 10000));
 
     float3 windRight = normalize(cross(rootDir, windDir)); // HAS to come from teh root binormal
-    float bendStrength = 0.5 * _bendStrength + 0.3 * sin(time / frequency * 6 + rnd * 10);
+    float bendStrength = 0.5 * _bendStrength + 0.1 * sin(time / frequency * 6 + rnd * 100);
 
     //windStrength *= 10;
     bendStrength *= stiffness * pow(windStrength / 25.f, 1.5);
@@ -340,7 +341,7 @@ Need to find a way to run this semi in reverse without applying then run backwar
 - The other option is simpy to reduce bend strenhtg on lower levels 
 - The other option would be to compute all of the base pivots in compute beforehand, and onyl do the leaves here
 */
-void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLANT, float rotation, float Iscale)
+void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLANT, float rotation, float Iscale, uint p0idx, uint p1idx, uint p2idx, uint p3idx)
 {
     //float frequencyShift = sqrt(1.f / Iscale); //??? rsqrt(Iscale)
     float frequencyShift = Iscale; //??? rsqrt(Iscale)  wghile sqrt is teh right maths this is one random number we have and betetr to exageraet the frequencies between teh different plants
@@ -364,8 +365,21 @@ void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLA
     //float pivotShift = pow(saturate(vertex.pos.y / 3.2), 0.2);
     //windAnimateOnce(vertex, float3(0, 0, 0), float3(0, 1, 0), pivotShift / 2 * scale, 0.95f / Iscale, 0.f, 1.f);
 
-    float pivotShift = pow(saturate(dot(vertex.pos.xyz - PLANT.rootPivot.root, PLANT.rootPivot.extent)), PLANT.rootPivot.shift) / PLANT.rootPivot.stiffness;
-    windAnimateOnce(vertex, PLANT.rootPivot.root, PLANT.rootPivot.extent, pivotShift / 2 * scale, PLANT.rootPivot.frequency * frequencyShift, 0.f, 1.f);
+    //float pivotShift = pow(saturate(dot(vertex.pos.xyz - PLANT.rootPivot.root, PLANT.rootPivot.extent)), PLANT.rootPivot.shift) / PLANT.rootPivot.stiffness;
+    //windAnimateOnce(vertex, PLANT.rootPivot.root, PLANT.rootPivot.extent, pivotShift / 2 * scale, PLANT.rootPivot.frequency * frequencyShift, 0.f, 1.f);
+    /*
+    const _plant_anim_pivot P0 = plant_pivot_buffer[p0idx];
+    float pivotShift = pow(saturate(dot(vertex.pos.xyz - P0.root, P0.extent)), P0.shift) / P0.stiffness;
+    windAnimateOnce(vertex, P0.root, P0.extent, pivotShift / 2 * scale, P0.frequency * frequencyShift, P0.offset, 1.f);
+    */
+    const _plant_anim_pivot P1 = plant_pivot_buffer[p1idx];
+    float pivotShift = pow(saturate(dot(vertex.pos.xyz - P1.root, P1.extent)), P1.shift) / P1.stiffness;
+    windAnimateOnce(vertex, P1.root, P1.extent, pivotShift / 2 * scale, P1.frequency * frequencyShift, P1.offset, 1.f);
+    
+    
+
+
+    
 }
 
 // packing flags
@@ -403,7 +417,7 @@ PSIn
     output.flags.x = PLANT.billboardMaterialIndex;
     output.PlantIdx = INSTANCE.plant_idx;
 
-    output.lineScale.xy = PLANT.size * INSTANCE.scale;
+    output.lineScale.xy = PLANT.size;// * INSTANCE.scale;
 
     output.lineScale.z = 0.6;
 
@@ -412,6 +426,8 @@ PSIn
     output.pos = mul(output.pos, viewproj);
 
     output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb;
+    output.diffuseLight = sunLight(INSTANCE.position * 0.001).rgb;
+    
 
     output.shadingRate = 1;
     
@@ -439,7 +455,7 @@ PSIn
         rootPos.y = 0;
         //output.pos.xyz =  rootPos + rot_xz(p, INSTANCE.rotation) * INSTANCE.scale;
         //output.pos.xyz =  rot_xz(p, INSTANCE.rotation);
-        output.pos.xyz =  rot_xz(p, 1.5708);        // WaveActiveAllEqual bake_AoToAlbedo instance_buffer InterlockedXor direction
+        output.pos.xyz =  rot_xz(p, 1.57079632679);        // WaveActiveAllEqual bake_AoToAlbedo instance_buffer InterlockedXor direction
         output.pos.w = 1;
         //output.eye = normalize(output.pos.xyz - eyePos);
         
@@ -454,11 +470,21 @@ PSIn
     
     if (v.a >> 31)
     {
+        
+#if defined(_BAKE)
+        extractTangentFlat(output, v, 1.57079632679);
+#else
         extractTangentFlat(output, v, INSTANCE.rotation);
+#endif
     }
     else
     {
+#if defined(_BAKE)
+        extractTangent(output, v, 1.57079632679); // Likely only after abnimate, do only once
+#else
         extractTangent(output, v, INSTANCE.rotation); // Likely only after abnimate, do only once
+#endif
+        
     }
     
     extractUVRibbon(output, v);
@@ -512,7 +538,7 @@ PSIn
     root.y = 0;
     output.pos.xyz += root;
 #else
-    windAnimateAll(output, v.g, v.h, BLOCK.vertex_offset + vId, PLANT, INSTANCE.rotation, INSTANCE.scale);
+    windAnimateAll(output, v.g, v.h, BLOCK.vertex_offset + vId, PLANT, INSTANCE.rotation, INSTANCE.scale, v.g >> 24, v.g >> 16 & 0xff, v.g >> 8 & 0xff, v.g & 0xff);
     //SCALE and root here.
     output.pos.xyz *= INSTANCE.scale;
     output.pos.xyz += INSTANCE.position;
@@ -521,6 +547,10 @@ PSIn
     
 
     output.eye = normalize(output.pos.xyz - eyePos);
+#if defined(_BAKE)
+    output.eye = float3(0, 0, -1);
+#endif
+    
     if (!(v.a >> 31))
     {
         output.tangent = normalize(cross(output.binormal, -output.eye));
@@ -722,7 +752,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 
     int frontback = (int) !isFrontFace;
-    color = color * vOut.AlbedoScale  * MAT.albedoScale[frontback] * 2.f;
+    color *= vOut.AlbedoScale  * MAT.albedoScale[frontback] * 2.f;
     if(bake_AoToAlbedo)
     {
         color = color * (0.9 + 0.1 * vOut.AmbietOcclusion);
@@ -748,11 +778,11 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     NCone.r *= -1;
     NCone.b *= -1;
 
-    N = normalize(NCone + N * 0.3);
+   // N = normalize(NCone + N * 0.3);
     
 
     NAdjusted.r = -N.r * 0.5 + 0.5;
-    NAdjusted.g = N.g * 0.5 + 0.5;
+    NAdjusted.g = -N.g * 0.5 + 0.5;
     NAdjusted.b = -N.b * 0.5 + 0.5;  //fixme -
 
 //NAdjusted = vOut.lighting.xyz * 0.5 + 0.5;
@@ -791,9 +821,21 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         return float4(1, 0, vOut.uv.y, 1);
     */
 
-#if defined(_BILLBOARD)
-    clip(vOut.uv.y);    
-#endif
+    /*
+    if (showDEBUG && vOut.uv.y < 0)
+    {
+        return float4(0, 0, 1, 1);
+
+    }
+*/
+  //  clip(vOut.uv.y);    // clip the extra tip off diamonds
+    /*
+    float2 uv = vOut.pos.xy / screenSize; //        float2(2560, 1440);
+    float4 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgba;
+    float4 colorE = lerp(prev, vOut.colour, vOut.colour.a);
+    return colorE;
+    */
+    
     
     const sprite_material MAT = materials[vOut.flags.x];
     const plant PLANT = plant_buffer[vOut.PlantIdx];
@@ -805,15 +847,16 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f;
     float alpha = pow(albedo.a, MAT.alphaPow);
 
-    float rnd = 0.4; //
-    +0.15 * rand_1_05(vOut.pos.xy);
+    float rnd = 0.5; //    +0.15 * rand_1_05(vOut.pos.xy);
     if (showDEBUG)
     {
-        if ((alpha - rnd) < 0)
-            return float4(1, 0, 0, 0.3);
+        if ((alpha - rnd) < 0)            return float4(1, 0, 0, 0.3);
     }
     clip(alpha - rnd);
-    alpha = smoothstep(rnd, 0.9, alpha);
+    alpha = smoothstep(rnd, 0.8, alpha);
+    
+    //return albedo;
+
     
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
@@ -827,6 +870,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
     float ndots = dot(N, sunDirection);
 
+    //return albedo * ndoth;
     // sunlight dapple
     float dappled;
 #if defined(_BILLBOARD)
@@ -838,15 +882,16 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     // sunlight
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
-
+    
     // environment cube light
-    color += 1.4 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 1.04 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     // specular sunlight
-    float RGH = MAT.roughness[frontback] + 0.01;
+    float RGH = MAT.roughness[frontback] + 0.001;
     float pw = 1.f / RGH;
-    color += pow(ndoth, pw) * pw * 0.02 * dappled * vOut.diffuseLight;
+    color += pow(ndoth, pw) * 0.1 * dappled * vOut.diffuseLight;
 
+    //return float4(vOut.diffuseLight, 1);
     // translucent light    
     float3 TN = vOut.normal * flipNormal;
     float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled;
@@ -859,18 +904,20 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight;
 
-
+    
     // apply JHFAA to edges    
-    if (alpha < 0.9)
+    //if (alpha < 0.9)
     {
         float2 uv = vOut.pos.xy / screenSize; //        float2(2560, 1440);
         float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         color = lerp(prev, color, alpha);
+        
         if (showDEBUG)
         {
             float V = vOut.diffuseLight.r * 0.5 * (1 - alpha);
             return float4(V, V, 0, 1); // yellow pixels
         }
+
     }
 
     return float4(color, 1);

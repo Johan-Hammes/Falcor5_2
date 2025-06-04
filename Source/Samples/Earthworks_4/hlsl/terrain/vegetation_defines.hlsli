@@ -41,7 +41,7 @@ struct _plant_lod
     uint reserved; 
 };
 
-struct _pivot
+struct _plant_anim_pivot
 {
     float3 root;
     float3 extent;  // vector from root to tip of this pivot. elements dot() with it to determine distance  1/ over length so dotproduct is alreadu 0..1
@@ -51,6 +51,14 @@ struct _pivot
     float stiffness;
     float shift; // shifts the ben towards teh root abort tip
     //??? should bwe add a pow factor to shift the bend more towards or awasy from teh origin, could be extremely poiwerful, test first
+
+    int offset;
+    // ??? can we pack this tighter
+    /*
+    half3   root, extent
+    half frequency
+    8/8 stiffness and shift    128bits 16 bytes   vs 36 bytes badly aligned 
+    */
 };
 
 struct plant
@@ -83,7 +91,8 @@ struct plant
     uint billboardMaterialIndex;
 
     // pivot points for animation
-    _pivot rootPivot;
+    _plant_anim_pivot rootPivot;
+    //_plant_anim_pivot pivots[256]; oWNE buggfer he have alimit on strucure size of 2048 bytes
 };
 
 

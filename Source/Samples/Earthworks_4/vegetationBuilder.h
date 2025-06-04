@@ -162,6 +162,9 @@ struct buildSetting
     float       normalized_age = 1.f;  // this one is a 0..1 age useful for leaves etc
     bool        forcePhototropy = false;    // for billboard baking
 
+    // PIVOT POIUTNS
+    uint    pivotIndex[4];
+    int     pivotDepth = 0;
 
     // new values for more complex builds
 
@@ -188,6 +191,8 @@ struct ribbonVertex
 
     static std::vector<ribbonVertex>    ribbons;
     static std::vector<ribbonVertex8>    packed;
+    static std::vector <_plant_anim_pivot> pivotPoints;
+
     static bool pushStart;
     static int lod_startBlock;   // This is the blok this lod started on
     static int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
@@ -196,11 +201,16 @@ struct ribbonVertex
     static void setup(float scale, float radius, float3 offset);
     ribbonVertex8 pack();
 
-    void    startRibbon(bool _cameraFacing)
+    void    startRibbon(bool _cameraFacing, uint pv[4])
     {
         pushStart = false;   // prepare for a new ribbon to start
         type = !_cameraFacing;
         S_root = 0;
+
+        root[0] = pv[0];
+        root[1] = pv[1];
+        root[2] = pv[2];
+        root[3] = pv[3];
     }
 
     static void clearStats(int _max)
@@ -209,6 +219,9 @@ struct ribbonVertex
         totalRejectedVerts = 0;
         maxBlocks = _max;
     }
+
+    void pushPivot(float3 _root, float3 _extent, float _frequency, float _stiffness, float _shift, unsigned char _offset);
+
 
     void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
         float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false )
@@ -421,6 +434,8 @@ public:
     float  alphaPow = 1.f;
     bool bakeAOToAlbedo = true;
     //bool renderGui(uint& gui_id);
+    bool forceDiamond = false;
+    bool faceCamera = false;
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -435,6 +450,9 @@ public:
         archive(CEREAL_NVP(alphaPow));
         archive(CEREAL_NVP(bakeAOToAlbedo));
         archive_float2(bake_V);
+
+        archive(CEREAL_NVP(forceDiamond));
+        archive(CEREAL_NVP(faceCamera));
     }
 };
 
@@ -471,6 +489,7 @@ public:
     // packing debug info
     uint numInstancePacked = 0;
     uint numVertsPacked = 0;
+    uint numPivots = 0;
     virtual void clear_build_info() { ; }
 
     // ossilations
@@ -900,6 +919,7 @@ public:
     Buffer::SharedPtr instanceData;
     Buffer::SharedPtr instanceData_Billboards;
     Buffer::SharedPtr plantData;
+    Buffer::SharedPtr plantpivotData;
     Buffer::SharedPtr vertexData;
     std::array<plant, 256> plantBuf;
     std::array<plant_instance, 16384> instanceBuf;
