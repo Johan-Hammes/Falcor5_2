@@ -945,6 +945,7 @@ public:
 
 
     bool showDebugInShader = false;
+    bool showNumPivots = false;
 
     static _plantBuilder *selectedPart;
     static _plantMaterial *selectedMaterial;

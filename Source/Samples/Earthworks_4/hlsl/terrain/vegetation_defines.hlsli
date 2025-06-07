@@ -44,7 +44,7 @@ struct _plant_lod
 struct _plant_anim_pivot
 {
     float3 root;
-    float3 extent;  // vector from root to tip of this pivot. elements dot() with it to determine distance  1/ over length so dotproduct is alreadu 0..1
+    float3 extent;  // vector towards the tip but lenght = 1/length - dot product with actual vertex is already on 0..1
 
     //???
     float frequency;    // scale inside the shader by sqrt(1/scale) as well ALL Frequencies

@@ -121,9 +121,9 @@ struct PSIn
     float4 pos : SV_POSITION;
     
     
-    half3 normal : NORMAL;
-    half3 tangent : TANGENT;
-    half3 binormal : BINORMAL;
+    float3 normal : NORMAL;
+    float3 tangent : TANGENT;
+    float3 binormal : BINORMAL;
     
     half3 diffuseLight : COLOR;
     //float3 specularLight : COLOR1;
@@ -138,6 +138,8 @@ struct PSIn
 
     float4 viewTangent : TEXCOORD7;
     float4 viewBinormal : TEXCOORD8;
+
+    float3 debugColour : TEXCOORD9;
 
     uint shadingRate : SV_ShadingRate;
 };
@@ -193,7 +195,7 @@ inline void extractUVRibbon(inout PSIn o, const ribbonVertex8 v)
 inline void extractFlags(inout PSIn o, const ribbonVertex8 v)
 {
     o.flags.x = (v.b >> 8) & 0x2ff; //  material
-    o.flags.y = ((v.a >> 30) & 0x1)    +((v.b & 0x1) << 1); //  start bool   we can double pack
+    o.flags.y = ((v.a >> 30) & 0x1) + ((v.b & 0x1) << 1); //  start bool   we can double pack
     o.flags.z = (v.d & 0xff); //  int radius
 }
 
@@ -238,7 +240,7 @@ float twist(float D, float strength, float variance)
     float value = sin(D * 3.1 - time * 3.5);
     return strength + (value * variance);
 }
-
+/*
 void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
 {
     float3 root = float3(0, 0, 0);
@@ -306,17 +308,20 @@ void windAnimate2(inout PSIn vertex, float3 plantRoot)  // plantRoot only for ra
     //vertex.tangent = mul(AngleAxis3x3(flutter, vertex.binormal), vertex.tangent); // flutter
     vertex.normal = cross(vertex.binormal, vertex.tangent);
 }
-
-void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiffness, float frequency, int offset, float _bendStrength)
+*/
+void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiffness, float frequency, int offset, float _bendStrength,
+                    float3 wDir, float wStrength)
 {
+    
+    
     float3 relative = vertex.pos.xyz - root;
     float rnd = frac(rand_1_05(root.xz * 10000));
 
-    float3 windRight = normalize(cross(rootDir, windDir)); // HAS to come from teh root binormal
+    float3 windRight = normalize(cross(rootDir, wDir)); // HAS to come from teh root binormal
     float bendStrength = 0.5 * _bendStrength + 0.1 * sin(time / frequency * 6 + rnd * 100);
 
     //windStrength *= 10;
-    bendStrength *= stiffness * pow(windStrength / 25.f, 1.5);
+    bendStrength *= stiffness * pow(wStrength / 25.f, 1.5);
     //windStrength = 1.5;
 
     float3x3 rot = AngleAxis3x3(-bendStrength, windRight);
@@ -334,6 +339,120 @@ void windAnimateOnce(inout PSIn vertex, float3 root, float3 rootDir, float stiff
     // normal is done after
 }
 
+
+// damn this is nice and clean
+void bezierPivot(float _t, inout float3 _pos, inout float3 _binorm, float3 a, float3 b, float3 c)
+{
+    float3 d = lerp(a, b, _t);
+    float3 e = lerp(b, c, _t);
+    _binorm = normalize(e - d);
+    _pos = lerp(d, e, _t);
+}
+
+
+
+// seriously look at half3
+float3x3 singlePivot(const float3 _position, const _plant_anim_pivot _pivot, const float3 _windDir, const float _windStrengthNormalized, float instanceScale, float _pivotShift, float S)
+{
+    float3 windRight = normalize(cross(_pivot.extent, _windDir));
+    float3 windNorm = normalize(cross(windRight, _pivot.extent));
+    float swayStrength = 0.15 * sin(time / _pivot.frequency * instanceScale * 6  + _pivot.offset);
+    float bendStrength = abs(dot(_windDir, windNorm));
+    float total = _windStrengthNormalized / _pivot.stiffness * _pivotShift * bendStrength * (1 + swayStrength); //??? pow to normalize a little
+
+    return AngleAxis3x3(-total, windRight);
+}
+
+
+#define A ((_v.g >> 24) & 0xff)
+#define B ((_v.g >> 16) & 0xff)
+#define C ((_v.g >> 8) & 0xff)
+#define D (_v.g & 0xff)
+#define F (_v.h & 0xff)
+
+float3 allPivots(inout float3 _position, inout float3 _binormal, inout float3 _tangent, ribbonVertex8 _v, uint _vId, const plant _plant, const plant_instance _instance)
+{
+    // WIND ################################################################################################################
+    float dx = dot(_instance.position.xz, windDir.xz) * 0.1; // so repeat roughly every 100m
+    float newWindStrenth =  (1 + 0.6 * pow(sin(dx - time * windStrength * 0.015), 1)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
+    newWindStrenth = 0.01 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
+    float ss = sin(_instance.position.x * 1.3 - time * 0.4) + sin(_instance.position.z * 1.3 - time * 0.3); // swirl strenth -2 to 2
+    float3x3 rot = AngleAxis3x3(ss * 0.3, float3(0, 1, 0));
+    float3 NewWindDir = normalize(mul(windDir, rot));
+
+    // solve all root pivots
+    _plant_anim_pivot pivots[5];
+    uint numPivots = 0;
+    
+    if (A < 255)    {    pivots[numPivots] = plant_pivot_buffer[A];        numPivots++;    }
+    if (B < 255)    {    pivots[numPivots] = plant_pivot_buffer[B];        numPivots++;    }
+    if (C < 255)    {    pivots[numPivots] = plant_pivot_buffer[C];        numPivots++;    }
+    if (D < 255)    {    pivots[numPivots] = plant_pivot_buffer[D];        numPivots++;    }
+    if (F > 0)      {
+        ribbonVertex8 vRoot = vertex_buffer[_vId - F];
+        pivots[numPivots].root = rot_xz(float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset, _instance.rotation);
+        pivots[numPivots].extent = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, _instance.rotation);
+        pivots[numPivots].stiffness = 0.1 / (((_v.h >> 16) & 0xff) * 0.004);
+        pivots[numPivots].frequency =  ((_v.h >> 8) & 0xff) * 0.004 * 6;
+        pivots[numPivots].shift = ((_v.h >> 24) & 0xff) * 0.004;
+        pivots[numPivots].offset = _vId - F;
+        numPivots++;
+    }
+
+    for (int i=0; i<numPivots-1; i++)
+    {
+        float pivotShift = pow(dot((pivots[i + 1].root - pivots[i].root), pivots[i].extent), pivots[i].shift);
+        rot = singlePivot(pivots[i + 1].root, pivots[i], NewWindDir, newWindStrenth, _instance.scale, pivotShift, 1);
+        for (int j=i+1; j<numPivots; j++)
+        {
+            float3 rel = pivots[j].root - pivots[i].root;
+            pivots[j].root = pivots[i].root + mul(rel, rot);
+            pivots[j].extent = mul(pivots[j].extent, rot);
+        }
+
+        float3 rel = _position - pivots[i].root;        // and lastly the vertex itself
+        _position = pivots[i].root + mul(rel, rot);
+        _binormal = mul(_binormal, rot);
+        _tangent = mul(_tangent, rot);
+    }
+
+    // last pivot to vertex
+    {
+        uint LAST = numPivots - 1;
+        float pivotShift = 1;
+        if (F > 0)
+        {
+            pivotShift = pow((_v.h >> 24) * 0.004, pivots[numPivots - 1].shift);
+        }
+        else
+        {
+            // this one bends the stem
+            pivotShift = pow(dot((_position - pivots[LAST].root), pivots[LAST].extent), pivots[LAST].shift);
+        }
+
+        rot = singlePivot(_position, pivots[LAST], NewWindDir, newWindStrenth, _instance.scale, pivotShift, 0);
+        float3 rel = _position - pivots[LAST].root; // and lastly the vertex itself
+        _position = pivots[LAST].root + mul(rel, rot);
+        _binormal = mul(_binormal, rot);
+        _tangent = mul(_tangent, rot);
+        
+    }
+
+    //if (showDEBUG == 2)
+    {
+        float3 debugColours = 0;
+        if (A < 255)            debugColours = float3(0, 0, 0.5);
+        if (B < 255)            debugColours = float3(0, 0, 1.0);
+        if (C < 255)            debugColours = float3(0.5, 0, 0.5);
+        if (D < 255)            debugColours = float3(1, 0, 0);
+
+        if (F > 0)                debugColours.g = 1;
+        return debugColours;
+    }
+
+    return 0;
+}
+
 /*
 Need to find a way to run this semi in reverse without applying then run backwards to calculate
 - Wind has a bend strength, and ossilate strength, where bend strength depends on teh dot procutct of wind and binormal
@@ -341,8 +460,17 @@ Need to find a way to run this semi in reverse without applying then run backwar
 - The other option is simpy to reduce bend strenhtg on lower levels 
 - The other option would be to compute all of the base pivots in compute beforehand, and onyl do the leaves here
 */
-void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLANT, float rotation, float Iscale, uint p0idx, uint p1idx, uint p2idx, uint p3idx)
+void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLANT, float rotation, float Iscale, uint p0idx, uint p1idx, uint p2idx, uint p3idx, float3 INST_root)
 {
+    // ?? maybe we should do this in computer per instace and save
+    // WIND ################################################################################################################
+    float dx = dot(INST_root.xz, windDir.xz) * 0.01; // so repeat roughly every 100m
+    float newWindStrenth = windStrength * (1 + 0.4 * pow(sin(dx + time * windStrength * 0.06), 1)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
+    float ss = sin(INST_root.x * 0.03 + time * 0.1) + sin(INST_root.y * 0.03 + time * 0.1); // swirl strenth -2 to 2
+    float3x3 rot = AngleAxis3x3(ss * 0.5, float3(0, 1, 0));
+    float3 NewWindDir = normalize(mul(windDir, 0.3 * rot));
+
+    
     //float frequencyShift = sqrt(1.f / Iscale); //??? rsqrt(Iscale)
     float frequencyShift = Iscale; //??? rsqrt(Iscale)  wghile sqrt is teh right maths this is one random number we have and betetr to exageraet the frequencies between teh different plants
     
@@ -359,7 +487,7 @@ void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLA
         float index = ((h >> 24) & 0xff) * 0.004;
         
         float dx = index * (root.y / 2.5); // secodn scales overall plant
-        windAnimateOnce(vertex, root, rootDir, dx * scale * stiff * 1, freq * frequencyShift, 0.f, 0.0f);
+        windAnimateOnce(vertex, root, rootDir, dx * scale * stiff * 1, freq * frequencyShift, 0.f, 0.0f, NewWindDir, newWindStrenth);
     }
 
     //float pivotShift = pow(saturate(vertex.pos.y / 3.2), 0.2);
@@ -374,11 +502,7 @@ void windAnimateAll(inout PSIn vertex, uint g, uint h, uint vId, const plant PLA
     */
     const _plant_anim_pivot P1 = plant_pivot_buffer[p1idx];
     float pivotShift = pow(saturate(dot(vertex.pos.xyz - P1.root, P1.extent)), P1.shift) / P1.stiffness;
-    windAnimateOnce(vertex, P1.root, P1.extent, pivotShift / 2 * scale, P1.frequency * frequencyShift, P1.offset, 1.f);
-    
-    
-
-
+    windAnimateOnce(vertex, P1.root, P1.extent, pivotShift / 2 * scale, P1.frequency * frequencyShift, P1.offset, 1.f, NewWindDir, newWindStrenth);
     
 }
 
@@ -509,7 +633,7 @@ PSIn
         //if (abs(dot(output.pos.xyz, sunRightVector)) < 2 && abs(dot(output.pos.xyz, sunRightVector)) < 5 && abs(dot(output.pos.xyz, sunUpVector)) < 15)
         if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
         {
-            output.Shadow = 1;
+           // output.Shadow = 1;
             //output.Sunlight = 0;
         }
 
@@ -538,7 +662,10 @@ PSIn
     root.y = 0;
     output.pos.xyz += root;
 #else
-    windAnimateAll(output, v.g, v.h, BLOCK.vertex_offset + vId, PLANT, INSTANCE.rotation, INSTANCE.scale, v.g >> 24, v.g >> 16 & 0xff, v.g >> 8 & 0xff, v.g & 0xff);
+    //windAnimateAll(output, v.g, v.h, BLOCK.vertex_offset + vId, PLANT, INSTANCE.rotation, INSTANCE.scale,
+     //               v.g >> 24, v.g >> 16 & 0xff, v.g >> 8 & 0xff, v.g & 0xff, INSTANCE.position);
+
+    output.debugColour = allPivots(output.pos.xyz, output.binormal, output.tangent, v, BLOCK.vertex_offset + vId, PLANT, INSTANCE);
     //SCALE and root here.
     output.pos.xyz *= INSTANCE.scale;
     output.pos.xyz += INSTANCE.position;
@@ -560,7 +687,7 @@ PSIn
 
     if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
     {
-        output.Shadow = 1;
+        //output.Shadow = 1;
     }
 
     output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb;
@@ -639,11 +766,11 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
 
     if ((L[1].flags.y & 0x1) == 1)
     {
-        const bool diamond =        (L[0].flags.y >> 1);
+        const bool diamond = (L[0].flags.y >> 1);
         if (diamond)
         {
             PSIn v = L[0];
-            float scale = 0;//            1 - L[0].lineScale.z;
+            float scale = 0; //            1 - L[0].lineScale.z;
 
             v.uv = float2(0.5, 1.1);
             // first one is correct v.pos = pt[0].pos - pt[0].viewBinormal * 0.1;
@@ -822,11 +949,13 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     */
 
     /*
-    if (showDEBUG && vOut.uv.y < 0)
+    if ((showDEBUG == 1) && vOut.uv.y < 0)
     {
         return float4(0, 0, 1, 1);
 
     }
+
+    
 */
   //  clip(vOut.uv.y);    // clip the extra tip off diamonds
     /*
@@ -848,14 +977,22 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float alpha = pow(albedo.a, MAT.alphaPow);
 
     float rnd = 0.5; //    +0.15 * rand_1_05(vOut.pos.xy);
-    if (showDEBUG)
+    if (showDEBUG == 1)
     {
-        if ((alpha - rnd) < 0)            return float4(1, 0, 0, 0.3);
+//        if ((alpha - rnd) < 0)
+  //          return float4(1, 0, 0, 0.3);
     }
     clip(alpha - rnd);
     alpha = smoothstep(rnd, 0.8, alpha);
     
     //return albedo;
+
+    if (showDEBUG == 1)
+    {
+        albedo.rgb = albedo.rgb * vOut.debugColour;
+        albedo.a = 1;
+        return albedo;
+    }
 
     
     float3 N = vOut.normal;
@@ -880,11 +1017,12 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
 #endif
 
+    
     // sunlight
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
     
     // environment cube light
-    color += 1.04 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 1.16 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.001;
@@ -912,7 +1050,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         float3 prev = gHalfBuffer.Sample(gSamplerClamp, uv).rgb;
         color = lerp(prev, color, alpha);
         
-        if (showDEBUG)
+        if (showDEBUG == 1)
         {
             float V = vOut.diffuseLight.r * 0.5 * (1 - alpha);
             return float4(V, V, 0, 1); // yellow pixels

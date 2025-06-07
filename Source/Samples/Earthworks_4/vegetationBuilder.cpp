@@ -2671,11 +2671,11 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
         float ext_L = glm::length(extent);
         extent = glm::normalize(extent) / ext_L;
 
+        _settings.pivotIndex[_settings.pivotDepth] = (int)ribbonVertex::pivotPoints.size();
+        _settings.pivotDepth += 1;
         R.pushPivot((float3)START[3], extent, rootFrequency() * sqrt(ext_L), ossilation_stiffness, ossilation_power, DDD(_rootPlant::generator));
-
-        
-
-        numPivots++;
+        //numPivots++;
+        // clumps do not indent whne addign a pivot, all children are at the same level, saves us a silly level
     }
 
     if (_addVerts)
@@ -2934,57 +2934,61 @@ void _rootPlant::renderGui_perf(Gui* _gui)
     }
     else
     {
-        R_FLOAT("lod Bias", loddingBias, 0.01f, 0.1f, 10.f, "");
-        ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
-        //ImGui::PushFont(_gui->getFont("small"));
+        ImGui::PushFont(_gui->getFont("small"));
         {
-            ImGui::NewLine();
-            for (int i = 1; i < 10; i++)
+            R_FLOAT("lod Bias", loddingBias, 0.01f, 0.1f, 10.f, "");
+            ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
+            //ImGui::PushFont(_gui->getFont("small"));
             {
-                ImGui::SameLine((float)(i * 40), 0);
-                ImGui::Text("%d, ", feedback.numLod[i]);
-            }
-
-            ImGui::NewLine();
-            for (int i = 1; i < 10; i++)
-            {
-                if (root->getLodInfo(i))
+                ImGui::NewLine();
+                for (int i = 1; i < 10; i++)
                 {
                     ImGui::SameLine((float)(i * 40), 0);
-                    ImGui::Text("%d, ", root->getLodInfo(i)->numBlocks);
+                    ImGui::Text("%d, ", feedback.numLod[i]);
                 }
-            }
 
-            ImGui::NewLine();
-            for (int i = 1; i < 10; i++)
-            {
-                if (root->getLodInfo(i))
+                ImGui::NewLine();
+                for (int i = 1; i < 10; i++)
                 {
-                    ImGui::SameLine((float)(i * 40), 0);
-                    ImGui::Text("%d, ", root->getLodInfo(i)->numVerts);
+                    if (root->getLodInfo(i))
+                    {
+                        ImGui::SameLine((float)(i * 40), 0);
+                        ImGui::Text("%d, ", root->getLodInfo(i)->numBlocks);
+                    }
                 }
-            }
 
-
-            ImGui::NewLine();
-            for (int i = 1; i < 10; i++)
-            {
-                if (root->getLodInfo(i))
+                ImGui::NewLine();
+                for (int i = 1; i < 10; i++)
                 {
-                    ImGui::SameLine((float)(i * 40), 0);
-                    ImGui::Text("%1.2f, ", feedback.numLod[i] * root->getLodInfo(i)->numVerts * 2 / 1000000.f);
+                    if (root->getLodInfo(i))
+                    {
+                        ImGui::SameLine((float)(i * 40), 0);
+                        ImGui::Text("%d, ", root->getLodInfo(i)->numVerts);
+                    }
                 }
+
+
+                ImGui::NewLine();
+                for (int i = 1; i < 10; i++)
+                {
+                    if (root->getLodInfo(i))
+                    {
+                        ImGui::SameLine((float)(i * 40), 0);
+                        ImGui::Text("%1.2f, ", feedback.numLod[i] * root->getLodInfo(i)->numVerts * 2 / 1000000.f);
+                    }
+                }
+                ImGui::SameLine(0, 5);
+                ImGui::Text(" M tris");
             }
-            ImGui::SameLine(0, 5);
-            ImGui::Text(" M tris");
         }
-        // ImGui::PopFont();
+        ImGui::PopFont();
 
 
     }
     auto& style = ImGui::GetStyle();
     style.FrameBorderSize = 1;
     ImGui::Checkbox("show debug colours", &showDebugInShader);
+    ImGui::Checkbox("show pivots", &showNumPivots);
     style.FrameBorderSize = 0;
 }
 
@@ -3798,6 +3802,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         billboardShader.Vars()["gConstantBuffer"]["viewproj"] = _viewproj;
         billboardShader.Vars()["gConstantBuffer"]["eyePos"] = camPos;
         billboardShader.Vars()["gConstantBuffer"]["showDEBUG"] = showDebugInShader;
+        if (showNumPivots) billboardShader.Vars()["gConstantBuffer"]["showDEBUG"] = 2;
 
         billboardShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it chences every time we loose focus
 
@@ -3828,6 +3833,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         vegetationShader.Vars()["gConstantBuffer"]["windStrength"] = windStrength;
 
         vegetationShader.Vars()["gConstantBuffer"]["showDEBUG"] = showDebugInShader;
+        if (showNumPivots) billboardShader.Vars()["gConstantBuffer"]["showDEBUG"] = 2;
 
 
 
