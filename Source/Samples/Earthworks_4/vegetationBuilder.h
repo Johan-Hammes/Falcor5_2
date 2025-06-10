@@ -41,7 +41,7 @@ public:
     void setTextures(ShaderVar& var);
 
     void rebuildStructuredBuffer();
-    
+
     std::vector<_plantMaterial>	materialVector;
     int selectedMaterial = -1;
     std::vector<Texture::SharedPtr>			textureVector;
@@ -50,7 +50,7 @@ public:
     void renderGui(Gui* mpGui, Gui::Window& _window);
     void renderGuiTextures(Gui* mpGui, Gui::Window& _window);
     bool renderGuiSelect(Gui* mpGui);
-    
+
 public:
     int dispTexIndex = -1;
     Texture::SharedPtr getDisplayTexture();
@@ -224,8 +224,12 @@ struct ribbonVertex
 
 
     void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
-        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false )
+        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false)
     {
+        if (_uv.y < 0)
+        {
+            bool bCM = true;
+        }
         if ((ribbons.size() / VEG_BLOCK_SIZE - lod_startBlock) >= maxBlocks)
         {
             totalRejectedVerts++;
@@ -250,7 +254,7 @@ struct ribbonVertex
         leafIndex = _index;
 
         diamond = _diamond;
-        
+
         leafRoot = S_root;
         if (_clearLeafRoot)
         {
@@ -269,7 +273,7 @@ struct ribbonVertex
             // start of a new block, but we are in teh middle of a ribbon, repeat the last one as a start
             ribbonVertex R = ribbonVertex::ribbons.back();
             R.startBit = false;
-            
+
             if (_clearLeafRoot)
             {
                 S_root = 0;
@@ -341,7 +345,7 @@ struct ribbonVertex
     float3  tangent;
     float   radius;
 
-    float4  lightCone = {0, 1, 0, 1};
+    float4  lightCone = { 0, 1, 0, 1 };
     float   lightDepth = 0.2f;
     float ambientOcclusion = 1.f;
     unsigned char shadow = 255;         // ??? I think this in now unused
@@ -375,7 +379,7 @@ public:
 
     void loadFromFile();
     void reload();
-    bool renderGui(uint &gui_id);
+    bool renderGui(uint& gui_id);
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -389,33 +393,47 @@ public:
 
 
 
-
+enum bakeType { BAKE_NONE, BAKE_DIAMOND, BAKE_4, BAKE_N };
 class levelOfDetail
 {
 public:
     levelOfDetail() { ; }
     levelOfDetail(uint _numPix) { numPixels = _numPix; }
 
-    int numPixels = 100;   // this is the number of height pixels to use for this lod. Used to calculate pixel size
-    float pixelSize = 0.f;  //auto calculated
-    int maxBlocks = 999;
+    int numPixels = 100;        // this is the number of height pixels to use for this lod. Used to calculate pixel size
+    float pixelSize = 0.f;      // This is for plant on GPU - determines when to split
+
+    float geometryPixelScale = 1.f;    // Amount to scale but if I set numPixels correct might not be needed
+    bool useGeometry = true;
+    int bakeIndex = 0;
+    int bakeType = BAKE_NONE;
+
+
 
     // feedback
     uint numVerts = 0;
     uint numBlocks = 0;
     uint unused = 0;
     uint startBlock = 0;
-    
-    
+
+
 
     template<class Archive>
-    void serialize(Archive& archive)
+    void serialize(Archive& archive, std::uint32_t const _version)
     {
         archive(CEREAL_NVP(numPixels));
         archive(CEREAL_NVP(pixelSize));
-        archive(CEREAL_NVP(maxBlocks));
+
+        if (_version >= 101)
+        {
+            archive(CEREAL_NVP(geometryPixelScale));
+            archive(CEREAL_NVP(useGeometry));
+            archive(CEREAL_NVP(bakeIndex));
+            archive(CEREAL_NVP(bakeType));
+        }
     }
 };
+CEREAL_CLASS_VERSION(levelOfDetail, 101);
 
 
 
@@ -424,11 +442,11 @@ class lodBake
 public:
     lodBake(uint _h, float _w) { pixHeight = _h; bakeWidth = _w; }
     _vegMaterial material;
-    float2 extents = {0, 0};
+    float2 extents = { 0, 0 };
     int pixHeight = 64;
     float bakeWidth = 1.f;      // really a percentage
     float2 bake_V = { 0.f, 1.f };   // start and end offsets to cut it smaller
-    std::array<float, 4> dU = {1, 1, 1, 1};
+    std::array<float, 4> dU = { 1, 1, 1, 1 };
 
     float translucency = 1.f;
     float  alphaPow = 1.f;
@@ -500,7 +518,7 @@ public:
     int     deepest_pivot_pack_level = 3;
 };
 
-enum plantType {P_LEAF, P_STEM, P_CLUMP, P_AGREGATE, P_GROVE, PLANT_END};
+enum plantType { P_LEAF, P_STEM, P_CLUMP, P_AGREGATE, P_GROVE, PLANT_END };
 
 // planmaterial repackadged for dandom_arrays
 class _plantRND
@@ -518,17 +536,17 @@ public:
     template<class Archive>
     void serialize(Archive& archive)
     {
-/*        if (plantPtr)
-        {
-            archive(plantPtr->name);
-            archive(plantPtr->path);
-            archive(type);
-        }
-        else
-        {*/
-            archive(name);
-            archive(path);
-            archive(type);
+        /*        if (plantPtr)
+                {
+                    archive(plantPtr->name);
+                    archive(plantPtr->path);
+                    archive(type);
+                }
+                else
+                {*/
+        archive(name);
+        archive(path);
+        archive(type);
         //}
     }
 };
@@ -536,20 +554,20 @@ public:
 
 
 // would be nice if we have more controll over distribution including with numSegments
-template <class T> class randomVector 
+template <class T> class randomVector
 {
 public:
     randomVector() { data.resize(1); }      // minimum size has to be one, otherwise get() is dangerous
     std::vector<T> data;
-    
-    void renderGui(char *name, uint& gui_id);
+
+    void renderGui(char* name, uint& gui_id);
     void clear() { data.clear(); }
     T get();
 };
 
 
 
-
+enum leafPivot { pivot_off, pivot_leaf, pivot_full_1, pivot_full_2 };
 
 class _leafBuilder : public _plantBuilder
 {
@@ -588,7 +606,11 @@ private:
     _vegMaterial stem_Material;
     randomVector<_vegMaterial> materials;
 
-    
+    leafPivot   pivotType = pivot_leaf;
+    bool useTwoVertDiamond = false;
+    float leafLengthSplit = 32.f;            // Number of pixels before we tru to insert a split, still clamped by min max
+
+
 public:
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
@@ -620,16 +642,16 @@ public:
         stem_Material.reload();
         for (auto& M : materials.data) M.reload();
 
-        if (_version >= 102)
-        {
-            archive(CEREAL_NVP(ossilation_stiffness));
-            archive(CEREAL_NVP(ossilation_constant_sqrt));
-            archive(CEREAL_NVP(ossilation_power));
-            archive(CEREAL_NVP(deepest_pivot_pack_level));
-        }
+        archive(CEREAL_NVP(ossilation_stiffness));
+        archive(CEREAL_NVP(ossilation_constant_sqrt));
+        archive(CEREAL_NVP(ossilation_power));
+        archive(CEREAL_NVP(deepest_pivot_pack_level));
+        archive(CEREAL_NVP(pivotType));
+        archive(CEREAL_NVP(useTwoVertDiamond));
+        archive(CEREAL_NVP(leafLengthSplit));
     }
 };
-CEREAL_CLASS_VERSION(_leafBuilder, 102);
+CEREAL_CLASS_VERSION(_leafBuilder, 100);
 
 
 
@@ -645,7 +667,7 @@ public:
     void renderGui();
     void treeView();
     virtual void incrementLods() { lodInfo.resize(lodInfo.size() + 1); }
-    virtual void decrementLods() { if (lodInfo.size() > 3) lodInfo.resize(lodInfo.size() - 1);    }
+    virtual void decrementLods() { if (lodInfo.size() > 3) lodInfo.resize(lodInfo.size() - 1); }
     lodBake* getBakeInfo(uint i);//bakeInfo
     levelOfDetail* getLodInfo(uint i);
     glm::mat4  build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
@@ -661,7 +683,7 @@ public:
     void build_NODES(buildSetting _settings, bool _addVerts);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     void clear_build_info();
-    
+
 
     //void build_Nodes(buildSetting& _settings);
     std::vector<glm::mat4> NODES;
@@ -690,12 +712,13 @@ public:
     float2  node_rotation = { 0.7f, 0.3f };   // like 2 leaves 90 degrees
     float2  node_angle = float2(0.2f, 0.2f);    // andgle that the stem bends at the node ??? always away fromt he leaf angle if there is such a thing
     _vegMaterial stem_Material;
-    bool    bake2_replaces_stem = false;
+    bool    bake2_replaces_stem = false;    // deprecated
+    float   nodeLengthSplit = 32.f;
 
-    
+
 
     // branches, can be leavea
-    float2  numLeaves = {3.f, 0.f};  // per segment
+    float2  numLeaves = { 3.f, 0.f };  // per segment
     float2  leaf_angle = float2(0.5f, 0.3f);   // angle that the leaves come out of
     float2  leaf_rnd = float2(0.3f, 0.3f);
     float   leaf_age_power = 2.f;
@@ -705,6 +728,7 @@ public:
     // tip
     bool unique_tip;
     randomVector<_plantRND> tip;
+    float2  tip_age = float2(-1.f, 0.f);
 
     // feedback
     uint numLeavesBuilt = 0;
@@ -726,7 +750,7 @@ public:
         stem_Material.reload();
 
         archive_float2(numLeaves);
-       
+
         archive_float2(leaf_angle);
         archive_float2(leaf_rnd);
         archive(leaf_age_power);
@@ -755,14 +779,12 @@ public:
         archive(CEREAL_NVP(ossilation_power));
         archive(CEREAL_NVP(deepest_pivot_pack_level));
 
-        if (_version >= 101)
-        {
-            archive(CEREAL_NVP(bake2_replaces_stem));
-        }
-        
+        archive(CEREAL_NVP(bake2_replaces_stem));
+        archive_float2(tip_age);
+        archive(CEREAL_NVP(nodeLengthSplit));
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 101);
+CEREAL_CLASS_VERSION(_stemBuilder, 100);
 
 
 
@@ -790,8 +812,8 @@ public:
     glm::mat4 build_lod_1(buildSetting _settings);
     glm::mat4 build_lod_2(buildSetting _settings);
     glm::mat4 build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
-    
-    
+
+
 
     FileDialogFilterVec filters = { {"clump"} };
     std::vector<glm::mat4> ROOTS;
@@ -867,7 +889,7 @@ public:
     void renderGui_other(Gui* _gui);
     void renderGui(Gui* _gui);
     void buildAllLods();
-    void build(int _maxBlocks, bool _updateExtents = false);
+    void build(bool _updateExtents = false, uint pivotOffset = 0);
     void loadMaterials();
     void reloadMaterials();
 
@@ -875,7 +897,7 @@ public:
     void import();
     void eXport();
 
-    void bake(std::string _path, std::string _seed, lodBake *_info);
+    void bake(std::string _path, std::string _seed, lodBake* _info);
     int bake_Reload_Count = 0;
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
         rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum);
@@ -891,13 +913,13 @@ public:
     bool cropLines = false;
     void builInstanceBuffer();
 
-    _plantBuilder *root = nullptr;
+    _plantBuilder* root = nullptr;
     buildSetting settings;
     packSettings vertex_pack_Settings;
     float2 extents;
 
 
-    float3 windDir = {1, 0, 0};
+    float3 windDir = { 1, 0, 0 };
     float windStrength = 1.f;      // m/s
 
     // render and bake
@@ -907,9 +929,15 @@ public:
     BlendState::SharedPtr           blendstate;
     BlendState::SharedPtr           blendstateBake;
     pixelShader vegetationShader;
+    pixelShader vegetationShader_GOURAUD;
+    pixelShader vegetationShader_DEBUG_PIVOTS;
+    pixelShader vegetationShader_DEBUG_PIXELS;
     pixelShader billboardShader;
     pixelShader bakeShader;
     ShaderVar varVegTextures;
+    ShaderVar varTextures_Gauraud;
+    ShaderVar varTextures_Debug_Pivots;
+    ShaderVar varTextures_Debug_Pixels;
     ShaderVar varBBTextures;
     ShaderVar varBakeTextures;
 
@@ -931,7 +959,6 @@ public:
     float gputime;
     float gputimeBB;   // GPU time
 
-    int maxBlocksForBuild = 9999;
 
     Buffer::SharedPtr  buffer_feedback;
     Buffer::SharedPtr  buffer_feedback_read;
@@ -943,12 +970,13 @@ public:
     computeShader		compute_clearBuffers;
     computeShader		compute_calulate_lod;
 
+    int currentLOD = -1;
 
     bool showDebugInShader = false;
     bool showNumPivots = false;
 
-    static _plantBuilder *selectedPart;
-    static _plantMaterial *selectedMaterial;
+    static _plantBuilder* selectedPart;
+    static _plantMaterial* selectedMaterial;
 
     // randomizer
     static std::mt19937 generator;

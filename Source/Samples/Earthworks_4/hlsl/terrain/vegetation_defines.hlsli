@@ -44,12 +44,15 @@ struct _plant_lod
 struct _plant_anim_pivot
 {
     float3 root;
+    float frequency; // scale inside the shader by sqrt(1/scale) as well ALL Frequencies
+
     float3 extent;  // vector towards the tip but lenght = 1/length - dot product with actual vertex is already on 0..1
+    float stiffness;
+
+    float3 relative;    // for the solve
+    float shift; // shifts the ben towards the root abort tip
 
     //???
-    float frequency;    // scale inside the shader by sqrt(1/scale) as well ALL Frequencies
-    float stiffness;
-    float shift; // shifts the ben towards teh root abort tip
     //??? should bwe add a pow factor to shift the bend more towards or awasy from teh origin, could be extremely poiwerful, test first
 
     int offset;

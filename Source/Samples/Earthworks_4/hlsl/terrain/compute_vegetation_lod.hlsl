@@ -45,8 +45,8 @@ void main(uint idx : SV_DispatchThreadId)
         float distance = length(viewPos.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
         float pix = lodBias * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
 
-
-        if (pix < 32 && pix > 2)        // do billboards
+/*
+        if (pix < 12 && pix > 2)        // do billboards
         //if (pix < PLANT.lods[0].pixSize)        // do billboards
         {
             
@@ -57,20 +57,22 @@ void main(uint idx : SV_DispatchThreadId)
 
         }
         else if (pix >= 32)
+*/
+        if (pix >= PLANT.lods[0].pixSize / 2)
         {
-            int lod = PLANT.numLods - 1;
+            int lod = 0;//            PLANT.numLods - 1;
             
             for (int i = 0; i <= PLANT.numLods; i++)
             {
-                float size = 32 * pow(1.5, i);
-                //float size = PLANT.lods[i].pixSize;
+                //float size = 32 * pow(1.5, i);
+                float size = PLANT.lods[i].pixSize;
                 if (pix >= size)
                     lod = i;
             }
             //lod = 0;
             //if (lod > 0)
             //    lod = 0;
-            //if (lod == 4)
+
             {
             
                 InterlockedAdd(feedback[0].numLod[lod + 1], 1, slot);

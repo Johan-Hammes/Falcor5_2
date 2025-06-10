@@ -9866,7 +9866,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
         break;
         case MouseEvent::Type::Wheel:
         {
-            float scale = 1.0 - mouseEvent.wheelDelta.y / 16.0f;
+            float scale = 1.0 - mouseEvent.wheelDelta.y / 6.0f;
             mouseVegOrbit *= scale;
             mouseVegOrbit = glm::clamp(mouseVegOrbit, 0.1f, 5000.f);
         }

@@ -115,13 +115,15 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         _gui->addFont("H1", "Framework/Fonts/Sienthas.otf", screenSize.y / 14);
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
 
-        _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 40);
-        _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 55);
-        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", screenSize.y / 65);
-        _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 65);
-        _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", screenSize.y / 65);
+        float scale = 1.f;
+        if (screenSize.y > 1600.f) scale = 0.8f;
+        _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 40);
+        _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 55);
+        _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 65);
+        _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", scale * screenSize.y / 65);
+        _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", scale * screenSize.y / 65);
 
-        _gui->addFont("small", "Framework/Fonts/Nunito-Bold.ttf", screenSize.y / 100);
+        _gui->addFont("small", "Framework/Fonts/Nunito-Bold.ttf", scale * screenSize.y / 100);
         guiStyle();
         first = false;
     }
