@@ -8281,6 +8281,19 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     }
 
+    {
+        FALCOR_PROFILE("skydome");
+
+        triangleShader.State()->setFbo(_fbo);
+        triangleShader.State()->setViewport(0, _viewport, true);
+        triangleShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
+        triangleShader.Vars()["gConstantBuffer"]["eye"] = _camera->getPosition();
+        triangleShader.Vars()["gConstantBuffer"]["useSkyDome"] = 0;
+        triangleShader.State()->setRasterizerState(split.rasterstateSplines);
+        triangleShader.State()->setBlendState(split.blendstateSplines);
+        triangleShader.drawInstanced(_renderContext, 36, 1);
+        //triangleShader.renderIndirect(_renderContext, split.drawArgs_clippedloddedplants);
+    }
 
 
     /*

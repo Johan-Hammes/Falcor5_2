@@ -118,7 +118,7 @@ float4 psMain(buildingFarVSOut vIn) : SV_TARGET0
 	{
 		//far one
 		float3 atmosphereUV;
-        atmosphereUV.xy = vIn.pos.xy / screenSize;
+        atmosphereUV.xy = vIn.pos.xy / float2(4096, 2160);//        screenSize;
 		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start ) * fog_far_log_F + fog_far_one_over_k;
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);

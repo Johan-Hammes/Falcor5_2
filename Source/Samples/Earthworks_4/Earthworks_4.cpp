@@ -580,9 +580,9 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
         {
             // blit the sky
-            glm::vec4 srcRect = glm::vec4(0, 0, atmosphere.getFar().m_params.m_x, atmosphere.getFar().m_params.m_y);
-            glm::vec4 dstRect = glm::vec4(0, 0, screenSize.x, screenSize.y);
-            _renderContext->blit(atmosphere.getFar().inscatter_sky->getSRV(0, 1, 0, 1), hdrFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
+            //glm::vec4 srcRect = glm::vec4(0, 0, atmosphere.getFar().m_params.m_x, atmosphere.getFar().m_params.m_y);
+            //glm::vec4 dstRect = glm::vec4(0, 0, screenSize.x, screenSize.y);
+            //_renderContext->blit(atmosphere.getFar().inscatter_sky->getSRV(0, 1, 0, 1), hdrFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Linear);
         }
 
 
