@@ -475,6 +475,9 @@ public:
 };
 
 
+
+
+
 class _plantBuilder
 {
 public:
@@ -651,7 +654,7 @@ public:
         archive(CEREAL_NVP(leafLengthSplit));
     }
 };
-CEREAL_CLASS_VERSION(_leafBuilder, 100);
+CEREAL_CLASS_VERSION(_leafBuilder, 101);
 
 
 
@@ -812,6 +815,7 @@ public:
     glm::mat4 build_lod_1(buildSetting _settings);
     glm::mat4 build_lod_2(buildSetting _settings);
     glm::mat4 build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
+    glm::mat4 build_4(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
 
 
 
@@ -877,7 +881,30 @@ public:
 CEREAL_CLASS_VERSION(_clumpBuilder, 100);
 
 
+class binaryPlantOnDisk
+{
+public:
+    std::map<int, _vegMaterial> materials;
+    std::vector<plant> plantData;           // for laoding onlt
+    std::vector<ribbonVertex8> vertexData;
+    std::vector < _plant_anim_pivot> pivotData;
+    
+    uint numP;
+    uint numV;
 
+    void getMaterials();
+    void onLoad(std::string path, uint vOffset);
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(materials);
+        archive(numP);
+        archive(numV);
+        
+    }
+};
+CEREAL_CLASS_VERSION(binaryPlantOnDisk, 100);
 
 
 class _rootPlant
@@ -892,6 +919,7 @@ public:
     void build(bool _updateExtents = false, uint pivotOffset = 0);
     void loadMaterials();
     void reloadMaterials();
+    void importBinary();
 
     void remapMaterials();
     void import();
@@ -909,7 +937,7 @@ public:
     bool displayModeSinglePlant = true;
 
     int totalInstances = 16384;
-    float instanceArea = 40.f;
+    float instanceArea[4] = { 10.f, 10.f, 10.f, 10.f };
     bool cropLines = false;
     void builInstanceBuffer();
 
@@ -918,6 +946,11 @@ public:
     packSettings vertex_pack_Settings;
     float2 extents;
 
+    // Binary viewer
+    int numBinaryPlants = 0;
+    int binVertexOffset = 0;
+    int binPlantOffset = 0;
+    int binPivotOffset = 0;
 
     float3 windDir = { 1, 0, 0 };
     float windStrength = 1.f;      // m/s
@@ -989,6 +1022,11 @@ public:
     bool showBaking = true;
     bool showLodding = true;
     bool showRest = false;
+
+    int firstPlant = 0;
+    int lastPlant = 10000; // just big
+    int firstLod = 0;
+    int lastLod = 100;
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)

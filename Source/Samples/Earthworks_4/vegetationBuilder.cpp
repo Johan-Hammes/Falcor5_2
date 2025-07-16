@@ -1139,8 +1139,8 @@ void _leafBuilder::renderGui()
     style.Colors[ImGuiCol_Header] = ImVec4(0.01f, 0.01f, 0.01f, 1.f);
     if (ImGui::TreeNodeEx("animation", flags))
     {
-        if (ImGui::Combo("pivot type", (int*) & pivotType, "off\0leaf\0full 1\0full 2\0")) { changed = true; }
-        
+        if (ImGui::Combo("pivot type", (int*)&pivotType, "off\0leaf\0full 1\0full 2\0")) { changed = true; }
+
         R_FLOAT("stiffness", ossilation_stiffness, 0.1f, 0.8f, 20.f, "");
         R_FLOAT("sqrt(sway)", ossilation_constant_sqrt, 0.1f, 1.01f, 100.f, "");
         ImGui::SameLine(0, 20);
@@ -1184,8 +1184,8 @@ void _leafBuilder::renderGui()
         R_VERTS("num verts", numVerts);
         CHECKBOX("use diamond", &useTwoVertDiamond, "use diamond pattern when the leaf uses only 2 vertices");
         R_FLOAT("length split", leafLengthSplit, 0.1f, 4.f, 100.f, "Number of pixels to insert a new node in this leaf, pusg it higher for very curved leaves \nWill still be clamped by min and max above");
-        
-        
+
+
         ImGui::NewLine();
         style.Colors[ImGuiCol_Header] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
         materials.renderGui("materials", gui_id);
@@ -1267,9 +1267,17 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
     ribbonVertex R_verts;
     float age = pow(_settings.normalized_age, 1.f);
     //age = saturate(_settings.age);
+    bool stemVisible = false;
+
+
+    // freq and stiffness needs to app,y to both stem and leaf
+    float lengthS = RND_B(leaf_length) * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
+    float widthS = RND_B(leaf_width) * 0.001f * age;
+    float freq = rootFrequency() * sqrt(lengthS) / sqrt(widthS);
+    float stiffness = 1.f / ossilation_stiffness;
 
     // stem
-    if (stem_length.x > 0 )
+    if (stem_length.x > 0)
     {
         float length = RND_B(stem_length) / 100.f * 0.001f * age;   // to meters and numSegments
         float width = stem_width.x * 0.001f * age;
@@ -1284,7 +1292,8 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
         if (_addVerts && showStem)
         {
             R_verts.startRibbon(true, _settings.pivotIndex);
-            R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, false);
+            R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
+            stemVisible = true;
         }
 
         for (int i = 0; i < 100; i++)
@@ -1295,7 +1304,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
             cnt++;
             if (_addVerts && showStem && cnt >= step)
             {
-                R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f, false);
+                R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
                 cnt -= step;
             }
         }
@@ -1323,13 +1332,13 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
         float twist = RND_CRV(leaf_twist) / 100.f * age;
 
         // some of this detail needs to go into the left data and user set
-        float freq = rootFrequency() * sqrt(length * 100) / sqrt(width * 100);
-        float stiffness = 1.f / ossilation_stiffness;
+        //float freq = rootFrequency() * sqrt(length * 100) / sqrt(width * 100);
+        //float stiffness = 1.f / ossilation_stiffness;
 
         // Lodding leaf............................................................
         // random width to test
         bool showLeaf = (width * d50(_rootPlant::generator)) > _settings.pixelSize;
-        int numLeaf = glm::clamp((int)((length / _settings.pixelSize) / leafLengthSplit * 100.f), numVerts.x - 1, numVerts.y-1);     // 1 for every 8 pixels, clampped
+        int numLeaf = glm::clamp((int)((length / _settings.pixelSize) / leafLengthSplit * 100.f), numVerts.x - 1, numVerts.y - 1);     // 1 for every 8 pixels, clampped
         bool forceFacing = false;// numLeaf == 1;
         uint firstVis = 0;
         uint lastVis = 99;
@@ -1392,7 +1401,12 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
             if (_addVerts && i == firstVis && showLeaf)
             {
+                int oldRoot = R_verts.S_root;
                 R_verts.startRibbon(cameraFacing || forceFacing, _settings.pivotIndex);
+                if (stemVisible)
+                {
+                    R_verts.S_root = oldRoot;   // uglu but means that the two ribbons share the one root
+                }
 
                 R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
                 cnt = 0;
@@ -1624,7 +1638,7 @@ void _stemBuilder::renderGui()
         if (unique_tip)
         {
             R_LENGTH("tip age", tip_age, "age of the tip\n-1 means that the tip plant will decide", "random");
-            
+
             //ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
             style.Colors[ImGuiCol_Header] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
             tip.renderGui("tip", gui_id);
@@ -1702,7 +1716,7 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         float w = lB.extents.x * lB.bakeWidth;
         uint mat = lB.material.index;
 
-       
+
         //float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
         //float tipLength = glm::length(tip_NODE[3] - last[3]);
         float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
@@ -1755,7 +1769,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
     for (int i = 0; i < 4; i++)
     {
         glm::mat4 CURRENT = node;
-        
+
         if (all.size() > 4)
         {
             int currentIdx = 0;
@@ -1763,14 +1777,14 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
             {
                 float3 rel = all[iN][3] - node[3];
                 float d = glm::dot(rel, (float3)node[1]);
-                if (d >=  0)
+                if (d >= 0)
                 {
                     d = fabs(d);
                     float3 rel2 = all[iN + 1][3] - node[3];
                     float d2 = fabs(glm::dot(rel2, (float3)node[1]));
                     float total = d + d2;
 
-                    CURRENT[3] = glm::lerp(all[iN][3], all[iN+1][3], d / total);
+                    CURRENT[3] = glm::lerp(all[iN][3], all[iN + 1][3], d / total);
                     break;
                 }
             }
@@ -1988,7 +2002,7 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
         float t = (float)i / age;
         float W = root_width - dR * pow(t, rootPow);
         float nodePixels = (L * 100) / _settings.pixelSize;
-        int nodeNumSegments = glm::clamp((int)(nodePixels / nodeLengthSplit ), 1, 20);     // 1 for every 8 pixels, clampped
+        int nodeNumSegments = glm::clamp((int)(nodePixels / nodeLengthSplit), 1, 20);     // 1 for every 8 pixels, clampped
         float segStep = 99.f / (float)nodeNumSegments;
 
         float cnt = 0;
@@ -2061,7 +2075,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
         _settings.pivotDepth += 1;
         R.pushPivot((float3)NODES.front()[3], extent, rootFrequency() * sqrt(ext_L), ossilation_stiffness, ossilation_power, DDD(_rootPlant::generator));
 
-           // FIXME, Shoul dnot happen on bluid-2 and build4 - They should set leaf pivots if at all
+        // FIXME, Shoul dnot happen on bluid-2 and build4 - They should set leaf pivots if at all
 
         numPivots++;
     }
@@ -2146,7 +2160,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
                 }
             }
 
-            
+
             else if (_settings.pixelSize >= lodInfo[2].pixelSize)
             {
                 //_settings.pixelSize = lodInfo[2].pixelSize;
@@ -2171,7 +2185,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 
     if (_addVerts)
     {
-        
+
         build_tip(_settings, true);
         tipVerts = ribbonVertex::ribbons.size();
 
@@ -2706,7 +2720,7 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
 
     START = nodeCENTERLINE;
     TIP_CENTER = nodeCENTERLINE;
-    
+
     GROW(TIP_CENTER, tipDistance);
 
     return TIP_CENTER;
@@ -2746,7 +2760,7 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
         }
 
         if (lod.bakeType == BAKE_DIAMOND)       build_2(_settings, lod.bakeIndex, true);
-        //if (lod.bakeType == BAKE_4)             build_4(_settings, lod.bakeIndex, true);
+        if (lod.bakeType == BAKE_4)             build_4(_settings, lod.bakeIndex, true);
         //if (lod.bakeType == BAKE_N)             build_n(_settings, lod.bakeIndex, true);    // FIXME
 
         if (lod.useGeometry || _settings.forcePhototropy)
@@ -2855,6 +2869,49 @@ glm::mat4  _clumpBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool 
         R_verts.set(last, w * 0.8f, mat, float2(0.8f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
     }
     return TIP_CENTER;
+}
+
+
+glm::mat4  _clumpBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _faceCamera)
+{
+    lodBake& lB = lod_bakeInfo[_bakeIndex];
+    if (lB.pixHeight > 0)
+    {
+        float w = lB.extents.x * lB.bakeWidth;
+        uint mat = lB.material.index;
+
+        glm::mat4 node = START;
+        glm::mat4 last = TIP_CENTER;
+
+        // adjust start end
+        float totalLenght = glm::length(last[3] - node[3]);
+        GROW(node, totalLenght * lB.bake_V.x);
+        GROW(last, -totalLenght * (1 - lB.bake_V.y));
+
+        glm::vec4 step = (last[3] - node[3]);
+        float4 binorm_step = (last[1] - node[1]);
+
+        node[3] += step * lB.bake_V.x;
+        node[1] += binorm_step * lB.bake_V.x;
+        step *= (lB.bake_V.y - lB.bake_V.x);
+        binorm_step *= (lB.bake_V.y - lB.bake_V.x);
+        step /= 3.f;
+        binorm_step /= 3.f;
+
+        ribbonVertex R_verts;
+        R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
+
+        for (int i = 0; i < 4; i++)
+        {
+            R_verts.set(node, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
+            node[3] += step;
+            node[1] += binorm_step;
+        }
+    }
+    return TIP_CENTER;
+
+
+
 }
 #pragma optimize("", on)
 
@@ -3059,14 +3116,14 @@ void _rootPlant::renderGui_perf(Gui* _gui)
 
         //ImGui::Text("%2.2f M tris", (float)totalBlocksToRender * VEG_BLOCK_SIZE * 2.f / 1000000.f);
     }
-    else
+    else if (root)
     {
         R_FLOAT("lod Bias", loddingBias, 0.01f, 0.1f, 10.f, "");
         ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
 
         ImGui::PushFont(_gui->getFont("small"));
         {
-            
+
             //ImGui::PushFont(_gui->getFont("small"));
             {
                 ImGui::NewLine();
@@ -3119,6 +3176,9 @@ void _rootPlant::renderGui_perf(Gui* _gui)
     ImGui::Checkbox("show debug colours", &showDebugInShader);
     ImGui::Checkbox("show pivots", &showNumPivots);
     style.FrameBorderSize = 0;
+
+    ImGui::DragInt2("plants", &firstPlant, 0.1f, 0, 1000);
+    ImGui::DragInt("lods", &firstLod, 0.1f, -1, 1000);
 }
 
 void _rootPlant::renderGui_lodbake(Gui* _gui)
@@ -3169,6 +3229,18 @@ void _rootPlant::renderGui(Gui* _gui)
                             build(true);    //to get extetns
                         }
                     }
+                }
+                if (ImGui::Button("import"))
+                {
+                    importBinary();
+                }
+                ImGui::SameLine(0, 30);
+                if (ImGui::Button("clearBinary"))
+                {
+                    numBinaryPlants = 0;
+                    binVertexOffset = 0;
+                    binPlantOffset = 0;
+                    binPivotOffset = 0;
                 }
             }
             ImGui::PopFont();
@@ -3230,7 +3302,7 @@ void _rootPlant::renderGui(Gui* _gui)
                             {
                                 ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.16f, 0.05f, 0.0f, 0.03f));
                             }
-                        
+
                             ImGui::BeginChildFrame(5678 + lod, ImVec2(columnWidth, 110));
                             {
                                 ImGui::Text("%d", lod);
@@ -3437,7 +3509,20 @@ void _rootPlant::renderGui(Gui* _gui)
             ImGui::Checkbox("cropLines", &cropLines);
             style.FrameBorderSize = 0;
 
-            if (ImGui::DragFloat("rnd area", &instanceArea, 0.1f, 5.f, 100.f, "%3.2fm"))
+            
+            if (ImGui::DragFloat("rnd area", &instanceArea[0], 0.1f, 5.f, 100.f, "%3.2fm"))
+            {
+                builInstanceBuffer();
+            }
+            if (ImGui::DragFloat("rnd area1", &instanceArea[1], 0.1f, 5.f, 100.f, "%3.2fm"))
+            {
+                builInstanceBuffer();
+            }
+            if (ImGui::DragFloat("rnd area2", &instanceArea[2], 0.1f, 5.f, 100.f, "%3.2fm"))
+            {
+                builInstanceBuffer();
+            }
+            if (ImGui::DragFloat("rnd area3", &instanceArea[3], 0.1f, 5.f, 100.f, "%3.2fm"))
             {
                 builInstanceBuffer();
             }
@@ -3456,7 +3541,7 @@ void _rootPlant::renderGui(Gui* _gui)
                     ribbonVertex::packed.clear();
                     build(false);
 
-                    levelOfDetail *lod = root->getLodInfo(currentLOD);
+                    levelOfDetail* lod = root->getLodInfo(currentLOD);
                     if (lod)
                     {
                         lod->numVerts = (int)ribbonVertex::ribbons.size();
@@ -3466,7 +3551,7 @@ void _rootPlant::renderGui(Gui* _gui)
                 }
                 else
                 {
-                    buildAllLods();                    
+                    buildAllLods();
                 }
                 anyChange = false;
             }
@@ -3552,6 +3637,8 @@ void _rootPlant::buildAllLods()
             levelOfDetail* lodInfo = root->getLodInfo(lod);
             if (lodInfo)
             {
+                
+
                 lodInfo->pixelSize = Y / lodInfo->numPixels;
                 settings.pixelSize = lodInfo->pixelSize;
                 settings.seed = 1000 + pIndex;
@@ -3573,6 +3660,8 @@ void _rootPlant::buildAllLods()
 
 
                 start += lodInfo->numBlocks;
+
+                fprintf(terrafectorSystem::_logfile, "plant lod : %d, %fm, %d\n", lod, (float)lodInfo->numPixels, lodInfo->numBlocks);
             }
         }
         // need to make a copy of the pivot data here after most detailed build I guess
@@ -3580,14 +3669,130 @@ void _rootPlant::buildAllLods()
     }
 
     plantData->setBlob(plantBuf.data(), 0, 4 * sizeof(plant));
-    
+
     int numV = __min(65536 * 8, ribbonVertex::packed.size());
     vertexData->setBlob(ribbonVertex::packed.data(), 0, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
 
     settings.seed = 1000;
+
+    binaryPlantOnDisk OnDisk;
+    /*
+    OnDisk.plantData.resize(4); // FIXME is we do otherthen 4 variations
+    for (int i = 0; i < 4; i++)
+    {
+        OnDisk.plantData[i] = plantBuf[i];
+    }
+    OnDisk.vertexData.resize(numV); // FIXME is we do otherthen 4 variations
+    for (int i = 0; i < numV; i++)
+    {
+        OnDisk.vertexData[i] = ribbonVertex::packed[i];
+    }
+    */
+    OnDisk.numP = 4;
+    OnDisk.numV = numV;
+    //OnDisk.getMaterials();
+    for (int i = 0; i < numV; i++)
+    {
+        int idx = (ribbonVertex::packed[i].b >> 8) & 0x3ff;
+        _vegMaterial M;
+        M.path = _plantMaterial::static_materials_veg.materialVector[idx].relativePath;
+        M.name = _plantMaterial::static_materials_veg.materialVector[idx].displayName;
+        M.index = idx;
+        OnDisk.materials[idx] = M;
+    }
+
+    std::string resource = terrafectorEditorMaterial::rootFolder;
+    std::ofstream os(resource + root->path + ".binary");
+    cereal::JSONOutputArchive archive(os);
+    archive(OnDisk);
+
+    std::ofstream osData(resource + root->path + ".binaryData", std::ios::binary);
+    osData.write((const char*)plantBuf.data(), 4 * sizeof(plant));
+    osData.write((const char*)ribbonVertex::packed.data(), numV * sizeof(ribbonVertex8));
+    osData.write((const char*)ribbonVertex::pivotPoints.data(), 4 * 256 * sizeof(_plant_anim_pivot));
 }
 
 
+void binaryPlantOnDisk::getMaterials()
+{
+    /*
+    for (auto& V : vertexData)
+    {
+        int idx = (V.b >> 8) & 0x3ff;
+        materials[idx] = _plantMaterial::static_materials_veg.materialVector[idx];
+    }*/
+}
+
+void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
+{
+    plantData.resize(numP);
+    vertexData.resize(numV);
+    pivotData.resize(numP * 256);
+
+    std::ifstream osData(path + "Data", std::ios::binary);
+    osData.read((char*)plantData.data(), 4 * sizeof(plant));
+    osData.read((char*)vertexData.data(), numV * sizeof(ribbonVertex8));
+    osData.read((char*)pivotData.data(), numP * 256 * sizeof(_plant_anim_pivot));
+
+    // load materials, and build remapper
+    std::string resource = terrafectorEditorMaterial::rootFolder;
+    int indexLookup[4096];// just big, bad code
+    for (auto& M : materials)
+    {
+        indexLookup[M.first] = _plantMaterial::static_materials_veg.find_insert_material(std::filesystem::path(resource + M.second.path), false); //terrafectorEditorMaterial::rootFolder + 
+    }
+
+    
+        for (auto& V : vertexData)
+        {
+            int idx = (V.b >> 8 ) & 0x3ff;
+            V.b ^= (idx << 8);  // xor clears
+            V.b += (indexLookup[idx] << 8);
+        }
+
+        for (auto& P : plantData)
+        {
+            for (int i = 0; i <= P.numLods; i++)
+            {
+                P.lods[i].startVertex += vOffset;
+            }
+        }
+
+
+        
+}
+
+void _rootPlant::importBinary()
+{
+    FileDialogFilterVec filters = { {"binary"} };
+    std::filesystem::path filepath;
+    if (openFileDialog(filters, filepath))
+    {
+        binaryPlantOnDisk OnDisk;
+        std::ifstream os(filepath);
+        cereal::JSONInputArchive archive(os);
+        archive(OnDisk);
+
+        OnDisk.onLoad(filepath.string(), binVertexOffset / sizeof(ribbonVertex8));
+
+        plantData->setBlob(OnDisk.plantData.data(), binPlantOffset, OnDisk.numP * sizeof(plant));
+
+        int numV = __min(65536 * 8, OnDisk.numV);
+        vertexData->setBlob(OnDisk.vertexData.data(), binVertexOffset, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+
+        plantpivotData->setBlob(OnDisk.pivotData.data(), binPivotOffset, OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
+
+        binVertexOffset += numV * sizeof(ribbonVertex8);
+        binPlantOffset += OnDisk.numP * sizeof(plant);
+        binPivotOffset += OnDisk.numP * 256 * sizeof(_plant_anim_pivot);
+        numBinaryPlants++;
+
+        displayModeSinglePlant = false;
+        ribbonVertex::packed.resize(OnDisk.numV);
+        tempUpdateRender = true;
+        _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
+    }
+}
 
 void _rootPlant::build(bool _updateExtents, uint pivotOffset)
 {
@@ -3938,6 +4143,10 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         compute_calulate_lod.Vars()["gConstantBuffer"]["view"] = _view;
         compute_calulate_lod.Vars()["gConstantBuffer"]["frustum"] = _clipFrustum;
         compute_calulate_lod.Vars()["gConstantBuffer"]["lodBias"] = loddingBias;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["firstPlant"] = firstPlant;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["lastPlant"] = lastPlant;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["firstLod"] = firstLod;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["lastLod"] = lastLod;
         compute_calulate_lod.dispatch(_renderContext, 16384 / 256, 1);
 
         _renderContext->copyResource(buffer_feedback_read.get(), buffer_feedback.get());
@@ -4061,6 +4270,9 @@ void _rootPlant::builInstanceBuffer()
 {
     std::uniform_real_distribution<> RND(-1.f, 1.f);
 
+    //const siv::PerlinNoise::seed_type seed = distPerlin(_rootPlant::generator);
+    const siv::PerlinNoise perlin{ 100 };
+
     totalInstances = __min(16384, totalInstances);  // becuase thats the size fo my buffer
 
     if (cropLines)
@@ -4080,12 +4292,44 @@ void _rootPlant::builInstanceBuffer()
             }
         }
     }
-    else
+    else if (numBinaryPlants == 0)
     {
+        static float sum = 0;
+        float3 pos;
         for (int i = 0; i < 16384; i++)
         {
+            while (sum < 1.f)
+            {
+                pos = { RND(generator) * instanceArea[0], 1000.f, RND(generator) * instanceArea[0] };
+                float noise = perlin.octave2D_01(pos.x / 2.f, pos.z / 2.f, 3);
+                sum += pow(noise, 3);
+            }
+            sum -= 1.f;
+
             instanceBuf[i].plant_idx = i % 4;
-            instanceBuf[i].position = { RND(generator) * instanceArea, 1000.f, RND(generator) * instanceArea };
+            instanceBuf[i].position = pos;
+            instanceBuf[i].scale = 1.f + RND(generator) * 0.2f;
+            instanceBuf[i].rotation = RND(generator) * 3.14f;
+            instanceBuf[i].time_offset = RND(generator) * 100;
+        }
+    }
+    else
+    {
+        static float sum = 0;
+        float3 pos;
+        for (int i = 0; i < 16384; i++)
+        {
+            int type = i % (numBinaryPlants);
+            while (sum < 1)
+            {
+                pos = { RND(generator) * instanceArea[type], 1000.f, RND(generator) * instanceArea[type] };
+                float noise = perlin.octave2D_01(pos.x / 2.f + type, pos.z / 2.f, 3);
+                sum += pow(noise, 5);
+            }
+            sum -= 1;
+            
+            instanceBuf[i].plant_idx = type * 4;
+            instanceBuf[i].position = pos;
             instanceBuf[i].scale = 1.f + RND(generator) * 0.2f;
             instanceBuf[i].rotation = RND(generator) * 3.14f;
             instanceBuf[i].time_offset = RND(generator) * 100;

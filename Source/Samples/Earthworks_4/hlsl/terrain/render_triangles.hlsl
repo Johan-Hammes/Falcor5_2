@@ -97,7 +97,7 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
     //float3 vPos = float3(R.pos.x * plant.rotation.x + R.pos.z * plant.rotation.y, R.pos.y, R.pos.x * plant.rotation.y - R.pos.z * plant.rotation.x);
     //output.pos = mul( float4(plant.position + vPos * plant.scale*40.4, 1), viewproj );
-    float3 vPos = R.pos *25000 + eye;
+    float3 vPos = R.pos *1800 + eye;
     output.pos = mul(float4(vPos, 1), viewproj);
     output.texCoords = float2(R.u, R.v);
     output.N = R.norm;
@@ -172,8 +172,8 @@ float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
         texSize.x = 2550;
         texSize.y = 1440;
-        texSize.x = 4096;
-        texSize.y = 2160;
+        //texSize.x = 4096;
+        //texSize.y = 2160;
     
         float2 atmosphereUV;
         atmosphereUV = vOut.pos.xy / texSize.xy;
