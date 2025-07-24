@@ -2896,6 +2896,8 @@ void quadtree_tile::set(uint _lod, uint _x, uint _y, float _size, float4 _origin
 
 
 
+    
+
 terrainManager::terrainManager()
 {
 
@@ -2988,7 +2990,9 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         }
     }
 
+
     terrafectorSystem::pEcotopes = &mEcosystem;
+    ecotopeSystem::pVegetation = &plants_Root;
 
 
     fprintf(_logfile, "terrain.onLoad()\n");
@@ -3145,8 +3149,14 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainSpiteShader.Vars()->setBuffer("instanceBuffer", split.buffer_instance_quads);        // WHY BOTH
         terrainSpiteShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
         terrainSpiteShader.Vars()->setSampler("gSmpLinearClamp", sampler_Clamp);
-        terrainSpiteShader.Vars()->setTexture("gAlbedo", spriteTexture);
-        terrainSpiteShader.Vars()->setTexture("gNorm", spriteNormalsTexture);
+        //terrainSpiteShader.Vars()->setTexture("gAlbedo", spriteTexture);
+        //terrainSpiteShader.Vars()->setTexture("gNorm", spriteNormalsTexture);
+        //terrainSpiteShader.Vars()->setTexture("gEnv", );
+        //terrainSpiteShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
+
+        
+
+        
 
 
 
@@ -3164,7 +3174,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
         ribbonDataVegBuilder = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
 
-        _plantMaterial::static_materials_veg.sb_vegetation_Materials = Buffer::createStructured(sizeof(sprite_material), 1024 * 8);      // just a lot
+        
 
 
 
@@ -3591,12 +3601,15 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     mRoadNetwork.rootPath = settings.dirRoot + "/";
 
 
-    vegetation.ROOT.onLoad();
-    vegetation.ROOT.vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
-    vegetation.ROOT.billboardShader.Vars()->setTexture("gEnv", vegetation.envTexture);
-    vegetation.ROOT.vegetationShader.Vars()->setTexture("gDappledLight", vegetation.dappledLightTexture);
+    _plantMaterial::static_materials_veg.sb_vegetation_Materials = Buffer::createStructured(sizeof(sprite_material), 1024 * 8);      // just a lot
+    plants_Root.onLoad();
+    plants_Root.vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
+    plants_Root.billboardShader.Vars()->setTexture("gEnv", vegetation.envTexture);
+    plants_Root.vegetationShader.Vars()->setTexture("gDappledLight", vegetation.dappledLightTexture);
 
-
+    
+    terrainSpiteShader.Vars()->setBuffer("plant_buffer", plants_Root.plantData);
+    terrainSpiteShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
 
 
     std::cout << "      paraglider\n";
@@ -3661,6 +3674,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 }
+
+
 
 
 void terrainManager::init_TopdownRender()
@@ -4704,7 +4719,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
             ImGui::Text("%d inst x %d x 2 = %3.1f M tris", ribbonInstanceNumber * ribbonInstanceNumber, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber * groveTree.numBranchRibbons * 2.0f / 1000000.0f);
             groveTree.renderGui(_gui);
-            vegetation.ROOT.renderGui(_gui);
+            plants_Root.renderGui(_gui);
             if (ImGui::Button("Bake Billboard")) { bakeVegetation(); }
 
             ImGui::PushFont(_gui->getFont("roboto_26"));
@@ -8000,7 +8015,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
                 clip[j][i] = cameraViews[CameraType_Main_Center].frustumMatrix[j][i];
             }
         }
-        vegetation.ROOT.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip);
+        plants_Root.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip);
 
 
         /*
@@ -8259,10 +8274,17 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         terrainSpiteShader.Vars()["gConstantBuffer"]["right"] = R;
         terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 0;
 
+        terrainSpiteShader.Vars()->setTexture("gEnv", vegetation.envTexture);
+        terrainSpiteShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
+
+        // FIXME need a way to do only on change
+        auto& blockBB = terrainSpiteShader.Vars()->getParameterBlock("textures");
+        ShaderVar varBBTextures = blockBB->findMember("T");
+        _plantMaterial::static_materials_veg.setTextures(varBBTextures);
         //terrainSpiteShader.State()->setRasterizerState(split.rasterstateSplines);
         //terrainSpiteShader.State()->setBlendState(split.blendstateSplines);
 
-        //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
+        terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
 
         //terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
         //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);

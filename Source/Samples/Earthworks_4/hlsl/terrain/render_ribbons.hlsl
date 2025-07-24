@@ -316,48 +316,6 @@ float twist(float D, float strength, float variance)
     return strength + (value * variance);
 }
 
-void windAnimate(inout PSIn vertex, float3 plantRoot, int _rotate)
-{
-    float3 root = float3(0, 0, 0);
-    float3 dir = float3(0, 1, 0);
-    float dirL = 0.8f;
-
-    float3 relative = vertex.pos.xyz - plantRoot - root;
-    float dL = saturate(dot(relative, dir) / dirL);
-    float dL2 = pow(dL, 1.5);
-
-    float3 windDir = float3(1, 0, 0);
-    float3 windRight = normalize(cross(windDir, dir));
-    float windStrength = windstrength(dot(windDir, vertex.pos.xyz), dot(windRight, vertex.pos.xyz), 0.2, 0.1); // already converted to radians - figure out how
-
-    float W = windStrength * dL2 * 1 * sway(rand_1_05(plantRoot.xz), 0.6, 0.093);
-    float3x3 rot = mul(AngleAxis3x3(-W, windRight), AngleAxis3x3(-W * 2, dir));
-
-    float Wside = windStrength * dL2 * sway(rand_1_05(plantRoot.xz), 0.0, 0.043);
-    rot = mul(rot, AngleAxis3x3(Wside, windDir));
-
-    
-    float3 newV = mul(rot, relative);
-
-    float scale = pow(rcp(abs(1 + W)), 0.2);
-    vertex.pos.xyz = plantRoot + root + newV * scale;
-
-    vertex.binormal = mul(rot, vertex.binormal);
-    vertex.normal = mul(rot, vertex.normal );
-    /*
-    if (_rotate)
-    {
-        vertex.tangent = mul(rot, vertex.tangent);
-    }
-    else
-    {
-        vertex.tangent = normalize(cross(vertex.binormal, vertex.eye));
-    }
-    */
-    vertex.tangent = normalize(cross(vertex.binormal, vertex.eye));
-    
-
-}
 
 
 PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
@@ -407,7 +365,6 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     // Now do wind animation
     // maybe before lighting, although for now it doesnt seem to matter
     // --------------------------------------------------------------------------------------------------------
-    //windAnimate(output, rootPosition, v.a >> 31);
 
     //output.diffuseLight = lighting(output.normal, output.eye, output.colour, output.lighting, output.flags.x);
 

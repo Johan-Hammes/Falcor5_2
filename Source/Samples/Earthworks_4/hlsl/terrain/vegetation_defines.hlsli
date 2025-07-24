@@ -49,18 +49,20 @@ struct _plant_anim_pivot
     float3 extent;  // vector towards the tip but lenght = 1/length - dot product with actual vertex is already on 0..1
     float stiffness;
 
-    float3 relative;    // for the solve
-    float shift; // shifts the ben towards the root abort tip
+    float3 relative;    // for the solve DEPRECATED
+    float shift; // shifts the ben towards the root abort tip DEPRECATED - new bezier doesnt allow for this
 
     //???
     //??? should bwe add a pow factor to shift the bend more towards or awasy from teh origin, could be extremely poiwerful, test first
 
-    int offset;
-    // ??? can we pack this tighter
+    int offset; // time offset
+
+
     /*
-    half3   root, extent
-    half frequency
-    8/8 stiffness and shift    128bits 16 bytes   vs 36 bytes badly aligned 
+        can we pack this tighter
+        half3   root, extent
+        16  frequency
+        8/8 stiffness and offset    128bits 16 bytes   vs 36 bytes badly aligned 
     */
 };
 

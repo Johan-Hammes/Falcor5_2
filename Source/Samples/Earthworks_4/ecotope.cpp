@@ -9,7 +9,7 @@
 
 //#pragma optimize("", off)
 
-
+#include "vegetationBuilder.h"
 
 /*
 uint spriteCache::find_insert_plant(const std::filesystem::path _path)
@@ -32,6 +32,8 @@ void spriteCache::rebuildStructuredBuffer()
 std::string ecotopeSystem::resPath;
 
 float ecotopeSystem::terrainSize;
+_rootPlant* ecotopeSystem::pVegetation;
+
 
 ecotope::ecotope() {
     for (int j = 0; j < 6; j++)
@@ -168,7 +170,8 @@ void ecotope::addPlant()
     //std::string filename, fullpath;
     //if (openFileDialog("Supported Formats\0*.fbx;\0\0", filename))		//??? format
     std::filesystem::path path;
-    FileDialogFilterVec filters = { {"plant"}, {"sprite"}, {"fbx"}, {"png"}, {"someEVoFormat"} };
+    //FileDialogFilterVec filters = { {"plant"}, {"sprite"}, {"fbx"}, {"png"}, {"someEVoFormat"} };
+    FileDialogFilterVec filters = { {"binary"} };
     if (openFileDialog(filters, path))
     {
         {
@@ -176,14 +179,19 @@ void ecotope::addPlant()
             P.path = path.string();
             P.name = P.path.substr(P.path.find_last_of("/\\") + 1);
             selectedPlant = plants.size();
-
+            /*
             if (path.string().find("sprite") != std::string::npos)
             {
                 const std::string I = P.name.substr(0, P.name.find_last_of("_"));
                 P.index = std::stoi(I);
             }
-
-            plants.push_back(P);
+            */
+            int idx = ecotopeSystem::pVegetation->importBinary(path);   // return vlaue still wronf since we load 4 variations
+            if (idx >= 0)
+            {
+                P.index = idx;
+                plants.push_back(P);
+            }
         }
     }
 }
@@ -464,8 +472,16 @@ void ecotopeSystem::rebuildRuntime() {
             for (auto& P : ecotopes[ect].plants)
             {
                 if (P.lod == lod) {
-                    const std::string I = P.name.substr(0, P.name.find_last_of("_"));
-                    P.index = std::stoi(I);
+                    //const std::string I = P.name.substr(0, P.name.find_last_of("_"));
+                    //P.index = std::stoi(I);
+                    // FIXME importBinary must not load the same one again needs a cache if I am going to use it like this
+                    /*
+                    int idx = ecotopeSystem::pVegetation->importBinary(P.path);   // return vlaue still wronf since we load 4 variations
+                    if (idx >= 0)
+                    {
+                        P.index = idx;
+                    }
+                    */
                     P.percentageOfLodTotalInt = (int)(P.density / ecotopes[ect].totalPlantDensity[lod] * 64.0f);
                     int to = __min(64, slotCount + P.percentageOfLodTotalInt);
                     for (int j = slotCount; j < to; j++) {

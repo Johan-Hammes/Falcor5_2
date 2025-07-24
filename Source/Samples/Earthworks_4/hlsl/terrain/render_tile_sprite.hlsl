@@ -1,44 +1,32 @@
 
 #include "groundcover_defines.hlsli"
 #include "groundcover_functions.hlsli"		
+#include "vegetation_defines.hlsli"
+#include "../render_Common.hlsli"
 
-
-static const float size[256] = {
-    20, 30, 30, 30, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    20, 30, 40, 30, 30, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0.1f, 1, 1, 1, 1, 1,
-    0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
 
 
 SamplerState gSampler;
-SamplerState gSmpLinearClamp;
+//SamplerState gSmpLinearClamp;
 
-Texture2D gAlbedo : register(t0);
-Texture2D gNorm : register(t1);
-//Texture2DArray gNorm : register(t1);
-//Texture2DArray gTranclucent : register(t2);
-//TextureCube gCube;
+TextureCube gEnv : register(t1);
+Texture2D gHalfBuffer : register(t2);
 
-Texture3D gAtmosphereInscatter;
-Texture3D gAtmosphereOutscatter;
-Texture2D SunInAtmosphere;
+struct ribbonTextures
+{
+    Texture2D<float4> T[4096];
+};
+ParameterBlock<ribbonTextures>  textures;
+
+
 
 StructuredBuffer<instance_PLANT>        instanceBuffer;
 RWStructuredBuffer<gpuTile> 			tiles;
 StructuredBuffer<tileLookupStruct>		tileLookup;
+
+StructuredBuffer<sprite_material> materials;
+StructuredBuffer<plant> plant_buffer;
+
 
 
 cbuffer gConstantBuffer
@@ -48,7 +36,7 @@ cbuffer gConstantBuffer
 	float3 	right;
 	int		alpha_pass;
     
-    float3 sunDirection;
+    float3 sunDirection_OLD;
     float padd001;
 
     float2 screenSize;
@@ -74,6 +62,7 @@ float4 sunLight(float3 posKm)
 }
 
 
+/*
 struct VSOut
 {
     float4 rootPos : ANCHOR;
@@ -85,24 +74,24 @@ struct VSOut
     float3 worldPos : TEXCOORD5;
     float3 eye : TEXCOORD6;
 };
-
+*/
 struct GSOut
 {
     float4 pos : SV_POSITION;
-    float3 texCoords : TEXCOORD;
+    float2 uv : TEXCOORD;
+    float scale : TEXCOORD1;
     float3 sunlight : TEXCOORD2;
     float3 inscatter : TEXCOORD3;
     float3 outscatter : TEXCOORD4;
     float3 worldPos : TEXCOORD5;
     float3 eye : TEXCOORD6;
-    //float3 sun : TEXCOORD1;
-    //float4 ambientOcclusion : TEXCOORD2;
+    uint index : TEXCOORD7;
 };
 
 
-VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
+GSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
-    VSOut output = (VSOut)0;
+    GSOut output = (GSOut) 0;
 
     
     uint tileIDX = tileLookup[iId].tile & 0xffff;
@@ -115,25 +104,26 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         uint newID = tileLookup[iId].offset + blockID;
         instance_PLANT plant = instanceBuffer[newID];
 
-        output.rootPos = float4(unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024), 1);
-        output.scale = SCALE(plant.s_r_idx) * 0.4;
-        output.index = PLANT_INDEX(plant.s_r_idx);
-        output.sunlight = sunLight(output.rootPos.xyz * 0.001).rgb;
+        output.pos = float4(unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024), 1);
+        output.scale = 2;//        SCALE(plant.s_r_idx) * 0.4;
+        output.index = PLANT_INDEX(plant.s_r_idx) * 4;
+        output.sunlight = sunLight(output.pos.xyz * 0.001).rgb;
 
         // Now for my atmospeher code --------------------------------------------------------------------------------------------------------
 
         float3 atmosphereUV;
-        float4 pos = mul(output.rootPos, viewproj);
+        float4 pos = mul(output.pos, viewproj);
         atmosphereUV.xy = pos.xy / pos.w / screenSize;
-        atmosphereUV.z = log(length(output.rootPos.xyz - eye.xyz) / fog_far_Start) * fog_far_log_F + fog_far_one_over_k;
+        atmosphereUV.z = log(length(output.pos.xyz - eye.xyz) / fog_far_Start) * fog_far_log_F + fog_far_one_over_k;
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);
         output.outscatter = gAtmosphereOutscatter.SampleLevel(gSmpLinearClamp, atmosphereUV, 0 ).rgb;
         output.inscatter = gAtmosphereInscatter.SampleLevel(gSmpLinearClamp, atmosphereUV, 0).rgb;
 
 
-        output.worldPos = output.rootPos.xyz;
-        output.eye = output.rootPos.xyz - eye.xyz;
+        output.worldPos = output.pos.xyz;
+        output.eye = output.pos.xyz - eye.xyz;
+        output.uv = float2(0, 0);
 
        //output.rootPos.xyz -= normalize(output.eye) * 100.f;
         //output.rootPos.y += 300;
@@ -146,57 +136,54 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 
 [maxvertexcount(4)]
-void gsMain(point VSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
+void gsMain(point GSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
 {
-    GSOut v;
+    GSOut v = sprite[0];
 
-    
+
+    const plant PLANT = plant_buffer[sprite[0].index];
+    //const plant PLANT = plant_buffer[4];
+
     uint I = sprite[0].index;
     int dx = I & 0xf;
     int dy = I >> 4;
-    float SZ =     sprite[0].scale * size[I];
-
+    //float SZ = plant.size.x; //    sprite[0].scale * size[I];
+    
     
     //create sprite quad
     //--------------------------------------------
     float3 texRoot = float3(dx, dy, 0) * 0.0625;
 
-    v.sunlight = sprite[0].sunlight;
-    v.inscatter = sprite[0].inscatter;
-    v.outscatter = sprite[0].outscatter;
-    v.worldPos = sprite[0].worldPos;
-    v.eye = sprite[0].eye;
-
-    v.pos = mul(sprite[0].rootPos, viewproj);
-    v.texCoords = float3(0, 0, 0);
-
+    v.pos = mul(sprite[0].pos, viewproj);
+    
     float X = abs(v.pos.x / v.pos.z);
     float Y = abs(v.pos.y / v.pos.z);
-    if (v.pos.z < 0 || X > 1.3 || Y > 2.1)
+    if (v.pos.z < 1 || X > 1.3 || Y > 2.1)
     {
     
-        OutputStream.Append(v);
+        //OutputStream.Append(v);
     }
     else
     {
-    //bottom left
-        v.pos = mul(sprite[0].rootPos - float4(right, 0) * 0.5 * SZ, viewproj);
-        v.texCoords = texRoot + float3(0.1, 0.9, 0) * 0.0625;
+        // add back in       float scale = 1 - pt[0].lineScale.z;
+        float X = PLANT.size.x * 0.8;
+        float Y = PLANT.size.y;
+        float scale = 1 - 0.8;
+
+        v.uv = float2(0.5, 1.1);
+        v.pos = mul(sprite[0].pos + float4(0, -Y * 0.1, 0, 0), viewproj);
         OutputStream.Append(v);
 
-    //top left
-        v.pos = mul(sprite[0].rootPos - float4(right, 0) * 0.5 * SZ + float4(0, SZ, 0, 0), viewproj);
-        v.texCoords = texRoot + float3(0.1, 0.1, 0) * 0.0625;
+        v.uv = float2(1.0 - scale / 2, 0.5);
+        v.pos = mul(sprite[0].pos - float4(right, 0)  * X + float4(0, Y * 0.5, 0, 0), viewproj);
+        OutputStream.Append(v);
+        
+        v.uv = float2(0.0 + scale / 2, 0.5);
+        v.pos = mul(sprite[0].pos + float4(right, 0)  * X + float4(0, Y * 0.5, 0, 0), viewproj);
         OutputStream.Append(v);
 
-    //bottom right
-        v.pos = mul(sprite[0].rootPos + float4(right, 0) * 0.5 * SZ, viewproj);
-        v.texCoords = texRoot + float3(0.9, 0.9, 0) * 0.0625;
-        OutputStream.Append(v);
-
-    //top right
-        v.pos = mul(sprite[0].rootPos + float4(right, 0) * 0.5 * SZ + float4(0, SZ, 0, 0), viewproj);
-        v.texCoords = texRoot + float3(0.9, 0.1, 0) * 0.0625;
+        v.uv = float2(0.5, -0.1);
+        v.pos = mul(sprite[0].pos + float4(0, Y * 1.1, 0, 0), viewproj);
         OutputStream.Append(v);
     }
  
@@ -206,37 +193,29 @@ void gsMain(point VSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
 
 float4 psMain(GSOut vOut) : SV_TARGET
 {
-    
-    
-    float4 samp = gAlbedo.Sample(gSampler, vOut.texCoords.xy);
-    float3 norm = gNorm.Sample(gSampler, vOut.texCoords.xy).rgb;
-    //samp.a = saturate(samp.a * 2);
-    
-    //if (alpha_pass == 0)
+    clip(vOut.uv.y);
+
+    const plant PLANT = plant_buffer[vOut.index];
+    const sprite_material MAT = materials[PLANT.billboardMaterialIndex];
+
+    float4 samp = 1;
+
+    float4 albedo = textures.T[MAT.albedoTexture].Sample(gSmpLinearClamp, vOut.uv.xy);
+    albedo.rgb *= MAT.albedoScale[0] * 2.f;
+    float alpha = pow(albedo.a, MAT.alphaPow);
+    clip(alpha - 0.5);
+    alpha = smoothstep(0.5, 0.8, alpha);
+/*
+    float3 N = vOut.normal;
+    if (MAT.normalTexture >= 0)
     {
-        clip(samp.a - 0.4);
-        samp.a = 1;
+        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
     }
-//    else
- //   {
-  //      clip(samp.a - 0.1); // all the trabnsparent stuff
-   //     clip(0.6 - samp.a);
-    //}
-    samp.rgb *=  0.02;//    saturate(dot(norm, -sunDirection)) * vOut.sunlight;
-    //samp.rgb *= vOut.outscatter;
-    //samp.rgb += vOut.inscatter;
-	
-    {
-    
-        float3 atmosphereUV;
-        atmosphereUV.xy = vOut.pos.xy / screenSize;
-        atmosphereUV.z = log(length(vOut.eye.xyz) / fog_far_Start) * fog_far_log_F + fog_far_one_over_k;
-        atmosphereUV.z = max(0.01, atmosphereUV.z);
-        atmosphereUV.z = min(0.99, atmosphereUV.z);
-        samp.rgb *= gAtmosphereOutscatter.Sample(gSmpLinearClamp, atmosphereUV).rgb;
-        samp.rgb += gAtmosphereInscatter.Sample(gSmpLinearClamp, atmosphereUV).rgb;
-    }
-   
-    
+    N *= flipNormal;
+    float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
+    float ndots = dot(N, sunDirection);
+*/
+    samp = albedo;
     return samp;
 }

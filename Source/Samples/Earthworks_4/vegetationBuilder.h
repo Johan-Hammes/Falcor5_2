@@ -884,6 +884,7 @@ CEREAL_CLASS_VERSION(_clumpBuilder, 100);
 class binaryPlantOnDisk
 {
 public:
+    _vegMaterial    billboardMaterial;
     std::map<int, _vegMaterial> materials;
     std::vector<plant> plantData;           // for laoding onlt
     std::vector<ribbonVertex8> vertexData;
@@ -898,6 +899,7 @@ public:
     template<class Archive>
     void serialize(Archive& archive)
     {
+        archive(billboardMaterial);
         archive(materials);
         archive(numP);
         archive(numV);
@@ -919,6 +921,7 @@ public:
     void build(bool _updateExtents = false, uint pivotOffset = 0);
     void loadMaterials();
     void reloadMaterials();
+    int importBinary(std::filesystem::path filepath);       // FIXME this needs a cache
     void importBinary();
 
     void remapMaterials();

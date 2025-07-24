@@ -82,7 +82,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
 				uint numPlants = min(totalQuads, 64);  // number of plants on this block
 				totalQuads -= 64;
 				tileLookup[numQuadLookupBlocks + i].tile = t + (numPlants << 16);
-				tileLookup[numQuadLookupBlocks + i].offset = (t * numQuadsPerTile) + (i * 16);
+				tileLookup[numQuadLookupBlocks + i].offset = (t * numQuadsPerTile) + (i * 64);
 			}
 		}
 		

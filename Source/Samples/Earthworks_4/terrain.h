@@ -58,8 +58,8 @@
 #include "../../external/openJPH/include/openjph/ojph_message.h"
 
 #include "vegetationBuilder.h"
-//#include"hlsl/terrain/vegetation_defines.hlsli"
-//#pragma optimize("", off)
+ //#include"hlsl/terrain/vegetation_defines.hlsli"
+ //#pragma optimize("", off)
 
 #include "glider.h"
 #include "cfd.h"
@@ -104,7 +104,7 @@ struct _leaf
     void load();
     void save();
     void reloadMaterials();
-    
+
 
     // going to do all this in mm
     float2  stem_length = { 0.f, 0.3f };
@@ -154,7 +154,7 @@ struct _leaf
         archive_float2(stem_curve);
         archive(CEREAL_NVP(integrate_stem));
         archive(CEREAL_NVP(cameraFacing));
-        
+
         archive_float2(leaf_length);
         archive_float2(leaf_width);
         archive_float2(stemtoleaf_curve);
@@ -196,7 +196,7 @@ struct _twigLod
 
     bool rotateLeaves;
     int leaf_lod;       // ??? just this 0 is rotated
-    
+
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
@@ -265,7 +265,7 @@ struct _twig
         archive(CEREAL_NVP(has_stem));
         archive(CEREAL_NVP(numSegments));
         archive(CEREAL_NVP(startSegment));
-        
+
         archive_float2(stem_length);
         archive(CEREAL_NVP(stem_width));
         archive_float2(stem_curve);
@@ -333,7 +333,7 @@ struct _weedLight
     float bDepth = 10.0f;
     float bScale = 0.5f;
 
-    float4 lightVertex(float3 _pos, float * depth);
+    float4 lightVertex(float3 _pos, float* depth);
     void renderGui(Gui* _gui);
 
     template<class Archive>
@@ -373,13 +373,13 @@ struct _weed
     bool changed = false;
     bool changedForSaving = false;
 
-    ribbonVertex     ribbon[16384]; 
+    ribbonVertex     ribbon[16384];
     uint    ribbonLength;
     float2  extents;        // cylinder
     int     lod = 3;
     int visibleTwig = -1;
 
-   _weedLight L;
+    _weedLight L;
 
     template<class Archive>
     void serialize(Archive& archive, std::uint32_t const _version)
@@ -443,7 +443,7 @@ struct _cubemap
 
     float4 light(float3 p, float* _depth);
 
-    _data data[6][cubeHalfSize*2 + 2][cubeHalfSize*2 + 2];
+    _data data[6][cubeHalfSize * 2 + 2][cubeHalfSize * 2 + 2];
 };
 
 struct _branchnode
@@ -465,7 +465,7 @@ CEREAL_CLASS_VERSION(_branchnode, 100);
 
 struct _GroveBranch
 {
-    
+
     std::vector<_branchnode> nodes;
     std::vector <_leafNode> leaves;
     std::vector<int> sideBranches;
@@ -473,7 +473,7 @@ struct _GroveBranch
     int sideNode = 0;
     bool isVisible = true;
     bool isDead = false;
-    
+
 
     template<class Archive>
     void serialize(Archive& _archive, std::uint32_t const _version)
@@ -508,7 +508,7 @@ struct _GroveTree
     std::vector<_GroveBranch> branches;
     std::vector<_leafNode> endLeaves;
     std::vector<_leafNode> branchLeaves;
-    
+
     // lodding stuff
     FILE* objfile;
     float3 verts[100];
@@ -541,7 +541,7 @@ struct _GroveTree
     void rebuildVisibility();
     treeVis vis;        // expand for lods so we can save it
 
-    
+
 
     _weedLight L;
     void calcLight();
@@ -549,7 +549,7 @@ struct _GroveTree
     float treeHeight = 0.f;
 
 
-    ribbonVertex branchRibbons[1024*1024*10];
+    ribbonVertex branchRibbons[1024 * 1024 * 10];
     float2  extents;        // cylinder
     ribbonVertex8 packedRibbons[1024 * 1024 * 10];
     int numBranchRibbons;
@@ -563,8 +563,8 @@ struct _GroveTree
     float stepFactor = 15.0f;
     float bendFactor = 0.95f;
 
-    float getScale() {    return objectSize / 16384.0f;    }
-    float3 getOffset() {  return objectOffset * objectSize;  }
+    float getScale() { return objectSize / 16384.0f; }
+    float3 getOffset() { return objectOffset * objectSize; }
     float objectSize = 32.0f;  //0.002 for trees  // 32meter block 2mm presision * 16384 to get actual size in meters
     float radiusScale = 1.0f;//  so biggest radius now objectScale / 2.0f;
     float3 objectOffset = float3(0.5, 0.1f, 0.5f);
@@ -585,7 +585,7 @@ struct _GroveTree
     _twig twigBuilder;
     _weed weedBuilder;
 
-    enum _mode {mode_grove, mode_weed, mode_twig, mode_leaf};
+    enum _mode { mode_grove, mode_weed, mode_twig, mode_leaf };
     _mode rootMode = mode_twig;
 
     // twigs
@@ -628,7 +628,7 @@ struct _GroveTree
 
             _archive(CEREAL_NVP(objectSize));
             _archive(CEREAL_NVP(radiusScale));
-            archive_float3(objectOffset);            
+            archive_float3(objectOffset);
         }
 
         reloadMaterials();
@@ -857,9 +857,9 @@ struct heightMap {
 
 struct jp2Map {
     void set(uint lod, uint y, uint x, float wSize = 40000.f, float wOffset = -20000.f);
-    void save(std::ofstream &_os);
-    void saveBinary(std::ofstream &_os);
-    void loadBinary(std::ifstream &_is);
+    void save(std::ofstream& _os);
+    void saveBinary(std::ofstream& _os);
+    void loadBinary(std::ifstream& _is);
 
     uint lod;
     uint y;
@@ -896,9 +896,9 @@ struct jp2Map {
 
 struct jp2File
 {
-    void save(std::ofstream &_os);
-    void saveBinary(std::ofstream &_os);
-    void loadBinary(std::ifstream &_is);
+    void save(std::ofstream& _os);
+    void saveBinary(std::ofstream& _os);
+    void loadBinary(std::ifstream& _is);
     std::string filename;
     std::vector<jp2Map> tiles;
     uint sizeInBytes;
@@ -961,7 +961,7 @@ public:
     void onLoad(RenderContext* _renderContext, FILE* _logfile);
     void onShutdown();
     void onGuiRender(Gui* pGui, fogAtmosphericParams* pAtmosphere);
-    void onGuiRenderParaglider(Gui::Window &_window, Gui* pGui, float2 _screen, fogAtmosphericParams *pAtmosphere);
+    void onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, float2 _screen, fogAtmosphericParams* pAtmosphere);
     void onGuiRendercfd(Gui::Window& _window, Gui* pGui, float2 _screen);
     void onGuiRendercfd_params(Gui::Window& _window, Gui* pGui, float2 _screen);
     void onGuiRendercfd_skewT(Gui::Window& _window, Gui* pGui, float2 _screen);
@@ -985,8 +985,8 @@ public:
     void bil_to_jp2(std::string file, const uint size, FILE* summary, uint _lod, uint _y, uint _x, float _xstart, float _ystart, float _size);
 
     void generateGdalPhotos();
-    void writeGdal(jp2Map _map, std::ofstream &_gdal, std::string _input);
-    void writeGdalClear(std::ofstream &_gdal);
+    void writeGdal(jp2Map _map, std::ofstream& _gdal, std::string _input);
+    void writeGdalClear(std::ofstream& _gdal);
     void bil_to_jp2Photos();
     void bil_to_jp2Photos(std::string file, const uint size, uint _lod, uint _y, uint _x);
     uint bil_to_jp2PhotosMemory(std::ofstream& _file, std::string filename, const uint size, uint _lod, uint _y, uint _x);
@@ -1056,7 +1056,7 @@ public:
     _terrainSettings settings;
 
 private:
-    
+
     Texture::SharedPtr	  spriteTexture = nullptr;
     Texture::SharedPtr	  spriteNormalsTexture = nullptr;
 
@@ -1069,7 +1069,7 @@ private:
     Buffer::SharedPtr       ribbonData[2];  // also paraglider  - split these into seperate block at least, not true groveTree.bChanged writes to this, so duplicate maybe
     uint bufferidx = 0;
     //std::vector< Texture::SharedPtr> ribbonTextures;        // remove becomes part of the cache
-    
+
     Buffer::SharedPtr       triangleData;
     Fbo::SharedPtr		bakeFbo_plants;
     GraphicsState::Viewport     viewportVegbake;
@@ -1088,7 +1088,7 @@ private:
 
     pixelShader cfdSliceShader;
 
-    public:
+public:
     pixelShader         rappersvilleShader;
     Buffer::SharedPtr   rappersvilleData;
     //Buffer::SharedPtr   drawArgs_rappersville;
@@ -1102,10 +1102,10 @@ private:
     bool useFreeCamWhileGliding = false;
     bool GliderDebugVisuals = false;
 
-    
-    
+
+
     _terrainMode terrainMode = _terrainMode::vegetation;
-    private:
+private:
     bool hasChanged = false;
 
     bool requestPopupSettings = false;
@@ -1128,17 +1128,22 @@ private:
     };
     LRUCache<uint32_t, textureCacheElement> elevationCache;
 
-    jp2Dir imageDirectory;  
+    jp2Dir imageDirectory;
     //std::map<uint32_t, heightMap> imageTileHashmap;
     LRUCache<uint32_t, textureCacheElement> imageCache; // move t indese jp2 calss
 
     terrafectorSystem		terrafectors;
     ecotopeSystem			mEcosystem;
+
     roadNetwork			    mRoadNetwork;
     splineTest			    splineTest;
     spriteRender			mSpriteRenderer;
 
-    
+public:
+    _rootPlant       plants_Root;
+private:
+
+
     stampCollection         mRoadStampCollection;   // all of teh terrafector stamps going over roads
     stamp                   mCurrentStamp;
     int                     stampEditPosisiton = 0;
@@ -1148,7 +1153,7 @@ private:
         if (!is.fail()) {
             cereal::BinaryInputArchive archive(is);
             archive(mRoadStampCollection);
-            
+
 
             mRoadStampCollection.reloadMaterials();
             terrafectorEditorMaterial::static_materials.rebuildAll();
@@ -1167,7 +1172,7 @@ private:
     void currentStamp_to_Bezier();
     void allStamps_to_Bezier();
     void allStamps_to_Terrafector();
-    
+
 
     bool bSplineAsTerrafector = false;
     bool showRoadOverlay = true;
@@ -1194,7 +1199,7 @@ private:
     }gis_overlay;
 
 
-    
+
 
 
     struct {
@@ -1344,10 +1349,10 @@ private:
 
     bool requestPopupTree = false;
     _GroveTree groveTree;
-//public:
-    //static materialCache_plants    vegetationMaterialCache;
+    //public:
+        //static materialCache_plants    vegetationMaterialCache;
 
-    public:
+public:
     struct
     {
         bool show = false;
@@ -1370,13 +1375,13 @@ private:
 
 
 
-        _rootPlant ROOT;
+        //_rootPlant ROOT;
 
     }vegetation;
-    private:
+private:
     bool showGUI = true;
 
-    
+
 
 
     _gliderBuilder paraBuilder;
@@ -1385,8 +1390,8 @@ private:
     _airSim AirSim;
     //_cfd CFD;
     //_cfdClipmap cfdClip;
-    public:
-    
+public:
+
 
     void cfdStart();
     void cfdThread();

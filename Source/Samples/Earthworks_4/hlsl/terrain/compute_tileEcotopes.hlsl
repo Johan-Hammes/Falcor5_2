@@ -7,7 +7,7 @@
 #include "groundcover_functions.hlsli"		
 
 
-SamplerState linearSampler;		// for noise adnd colours
+SamplerState linearSampler; // for noise adnd colours
 
 cbuffer gConstants
 {
@@ -23,7 +23,7 @@ cbuffer gConstants
     int2 tileXY;
     float2 padd2;
 
-    float4 ect[12][5];	  // 16		2560
+    float4 ect[12][5]; // 16		2560
     float4 texScales[12]; // texture size, displacement scale, pixSize, 0
     //uint4 totalDensity[12][16];
     //uint4 plantIndex[12][64];  // 2576	5648        // u16 better but not in constant buffer
@@ -50,19 +50,20 @@ Texture2D<float4> gInEct_3 : register(t5);
 //Texture2D<float3> gPBR[12] : register(t30);
 //Texture2D<float3> gECTNoise[12] : register(t42);
 
-Texture2D<uint> 	gNoise : register(t54);
+Texture2D<uint> gNoise : register(t54);
 
 // for plants
-RWStructuredBuffer<gpuTile> 		tiles;
-RWStructuredBuffer<instance_PLANT> 	quad_instance;
-RWStructuredBuffer<GC_feedback>		feedback;
+RWStructuredBuffer<gpuTile> tiles;
+RWStructuredBuffer<instance_PLANT> quad_instance;
+RWStructuredBuffer<GC_feedback> feedback;
 
 
 struct myTextures
 {
     Texture2D<float4> T[256];
 };
-ParameterBlock<myTextures> gmyTextures;
+ParameterBlock<myTextures>
+gmyTextures;
 
 
 
@@ -71,11 +72,12 @@ void main(int2 crd : SV_DispatchThreadId)
 {
 
     gpuTile tile = tiles[tileIndex];
-    float OH = gHeight[uint2(128, 128)].r - (tile.scale_1024 * 2048);	// Its corner origin rather than middle
+    float OH = gHeight[uint2(128, 128)].r - (tile.scale_1024 * 2048); // Its corner origin rather than middle
     tile.origin.y = OH;
 
     float3 permanence = gInPermanence[crd];
-    if (any(permanence)) {
+    if (any(permanence))
+    {
     //if (permanence.b > 0.0)   {
 
         // calculate the normal
@@ -110,7 +112,8 @@ void main(int2 crd : SV_DispatchThreadId)
         weights[10] = inEct4.g + 0.001;
         weights[11] = inEct4.b + 0.001;
 
-        if (debug < numEcotopes) {
+        if (debug < numEcotopes)
+        {
             //weights[debug] = 1;
         }
 
@@ -125,7 +128,8 @@ void main(int2 crd : SV_DispatchThreadId)
         float hgt_1 = 0;
         float hgt_2 = 0;
 
-        if (permanence.b > 0.0 || (debug < numEcotopes) ) {
+        if (permanence.b > 0.0 || (debug < numEcotopes))
+        {
 
             for (i = 0; i < numEcotopes; i++) // ecotope weights calculation -----------------------------------------------------------------------------------
             {
@@ -152,7 +156,7 @@ void main(int2 crd : SV_DispatchThreadId)
 
 
                 // texture
-                float txWeight = 4 * gmyTextures.T[12+i].SampleLevel(linearSampler, UV2, 0).r;
+                float txWeight = 4 * gmyTextures.T[12 + i].SampleLevel(linearSampler, UV2, 0).r;
                 weights[i] *= lerp(1, txWeight, ect[i][4].r);
                 
                 // also scale by the weighs, and offset around 0.5
@@ -162,7 +166,8 @@ void main(int2 crd : SV_DispatchThreadId)
                 ectWsum += weights[i];
             }
         }
-        else {
+        else
+        {
             for (i = 0; i < numEcotopes; i++) // ecotope weights calculation -----------------------------------------------------------------------------------
             {
                 ectWsum += weights[i];
@@ -172,7 +177,8 @@ void main(int2 crd : SV_DispatchThreadId)
         for (i = 0; i < numEcotopes; i++) // normalize the weights --------------------------------------------------------------------------------------
         {
             weights[i] /= ectWsum;
-            if (debug  == i) {
+            if (debug == i)
+            {
                 gAlbedo[crd] = float3(lerp(0.0, 1.0, saturate((weights[i] * 2) - 1)), lerp(1.0, 0.0, abs(0.5 - weights[i]) * 2), lerp(0.3, 0.0, saturate(weights[i] * 2)));
             }
             
@@ -184,7 +190,7 @@ void main(int2 crd : SV_DispatchThreadId)
         {
             //float2 UV = frac(World / texScales[i].x);
             float2 UV = frac(World / 2);
-            float MIP = log2(pixelSize / 0.001f);  // There is a BUG in here I assume with the 0.005
+            float MIP = log2(pixelSize / 0.001f); // There is a BUG in here I assume with the 0.005
 
             col_new += weights[i] * gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).rgb;
             float hgtTex = gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).a;
@@ -204,6 +210,7 @@ void main(int2 crd : SV_DispatchThreadId)
         int ecotopeForPlants = 20;
         // FIXME, This shoudl be done with some interlocked add function on a wider tile bases but per plant
         // problem wiuth that is that its not repeatble, order of writes matter
+
         for (i = 0; i < numEcotopes; i++)
         {
             uint density = plantIndex.Load(i * (16 * 65) + (lod * 65));
@@ -214,30 +221,40 @@ void main(int2 crd : SV_DispatchThreadId)
                 break;
             }
         }
-        if (crd.x < 4)ecotopeForPlants = 20;;
-        if (crd.x >= 252)ecotopeForPlants = 20;;
-        if (crd.y < 4)ecotopeForPlants = 20;;
-        if (crd.y >= 252)ecotopeForPlants = 20;;
+
+//        if (lod == 13 && weights[3] > 0.4 && !(crd.x % 3) && !(crd.y % 3))
+//        {
+//            ecotopeForPlants = 3;
+ //       }
+
+        if (crd.x < 4)
+            ecotopeForPlants = 20;
+        if (crd.x > 252)
+            ecotopeForPlants = 20;
+        if (crd.y < 4)
+            ecotopeForPlants = 20;
+        if (crd.y > 252)
+            ecotopeForPlants = 20;      //??? ??? I need to check we now only drop 3 at the far side, maybe not enough
 
 
         
         int offset = rnd & 0x3ff;
-        if(ecotopeForPlants < numEcotopes)
+        if (ecotopeForPlants < numEcotopes)
         {
-            const int thisplantIndex = plantIndex.Load(ecotopeForPlants * (16 * 65) + (lod * 65) + 1 + (offset >> 4));
+            const int thisplantIndex =  plantIndex.Load(ecotopeForPlants * (16 * 65) + (lod * 65) + 1 + (offset >> 4));
             //const int thisplantIndex = plantIndex[ecotopeForPlants][offset >> 4].x;
             uint uHgt = (gHeight[crd].r - OH) / tile.scale_1024;
 
             uint slot = 0;
             InterlockedAdd(tiles[tileIndex].numQuads, 1, slot);
             feedback[0].plants_culled = slot;
-
-            quad_instance[tileIndex * numQuadsPerTile + slot].xyz = pack_pos(crd.x-4, crd.y-4, uHgt, rnd);				// FIXME - redelik seker die is verkeerd -ek dink ek pak 2 extra sub pixel bits 
-            quad_instance[tileIndex * numQuadsPerTile + slot].s_r_idx = pack_SRTI(1, rnd, tileIndex, thisplantIndex);			    //(1 << 31) + (child_idx << 11) + (0);
+            quad_instance[tileIndex * numQuadsPerTile + slot].xyz = pack_pos(crd.x - 4, crd.y - 4, uHgt, rnd); // FIXME - redelik seker die is verkeerd -ek dink ek pak 2 extra sub pixel bits 
+            quad_instance[tileIndex * numQuadsPerTile + slot].s_r_idx = pack_SRTI(1, rnd, tileIndex, thisplantIndex); //(1 << 31) + (child_idx << 11) + (0);
         }
         
         // write final colours
-        if (debug > 12) {
+        if (debug > 12)
+        {
             //gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
   //          gAlbedo[crd] = lerp(gAlbedo[crd], col_new *2, permanence.g);
             //gAlbedo[crd] = gInEct[1][crd].rgb;

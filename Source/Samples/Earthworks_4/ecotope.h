@@ -13,6 +13,8 @@ using namespace Falcor;
 #include "cereal/types/array.hpp"
 #include "cereal/types/string.hpp"
 
+//#include "vegetationBuilder.h"
+class _rootPlant;   // forward declaration
 
 
 /*
@@ -218,5 +220,6 @@ public:
 
     bool change = false;
     static float terrainSize;
+    static _rootPlant *pVegetation;
 };
 

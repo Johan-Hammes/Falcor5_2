@@ -114,13 +114,9 @@ struct PSIn
     float4 colour : TEXCOORD4;
     float3 lineScale : TEXCOORD5; // its w and h for boillboard
     float3 sunUV : TEXCOORD6;
-
     float4 viewTangent : TEXCOORD7;
     float4 viewBinormal : TEXCOORD8;
-
     float3 debugColour : TEXCOORD9;
-
-    //uint shadingRate : SV_ShadingRate; VSR is not useful for alpha CUTOUTS as it limits clip() to the shadingrate
 };
 
 
@@ -194,16 +190,56 @@ float3x3 AngleAxis3x3(float angle, float3 axis)
 
 
 
-// seriously look at half3
-float3x3 singlePivot(const float3 _position, const _plant_anim_pivot _pivot, const float3 _windDir, const float _windStrengthNormalized, float instanceScale, float _pivotShift)
-{
-    float3 windRight = normalize(cross(_pivot.extent, _windDir));
-    float3 windNorm = normalize(cross(windRight, _pivot.extent));
-    float swayStrength = 0; //    0.15 * sin(time / _pivot.frequency * instanceScale * 6 + _pivot.offset);
-    float bendStrength = abs(dot(_windDir, windNorm));
-    float total = _windStrengthNormalized / _pivot.stiffness * _pivotShift * bendStrength * (1 + swayStrength); //??? pow to normalize a little
 
-    return AngleAxis3x3(-total, windRight);
+
+void bezierLeaf(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm, inout float3 tangent, float3 wind, float freq_scale, float tIn)
+{
+    const float3 rel = pos - PVT.root;
+    const float S = length(rel);
+    const float3 right = normalize(cross(rel, wind));
+
+    wind /= PVT.stiffness; //??? pow() to scale effect better, sane for wind as well
+    
+    //  now ossilate
+    float swayStrength = 0.15 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
+    float sideStrength = 0.20 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
+    float3 c = normalize(rel) + tIn * (wind * (1 + swayStrength)) + tIn * (right * length(wind) * sideStrength);
+    binorm += c - normalize(rel);
+    binorm = normalize(binorm);
+
+    pos = PVT.root + normalize(c) * S;
+
+    float flutterStrength = length(wind) * 0.5 * PVT.shift * sin(time / PVT.frequency * 4.283 * freq_scale);
+    float3 N = cross(binorm, tangent);
+    tangent = normalize(tangent + N * flutterStrength);
+}
+
+
+void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm, float3 wind, float freq_scale)
+{
+    const float S = 1.f / length(PVT.extent);
+    const float3 rel = pos - PVT.root;
+    const float3 b = normalize(rel) * 0.5; // feel like I should combine these two
+    const float t = length(rel) / S;
+    const float3 right = normalize(cross(rel, wind));
+
+    wind /= PVT.stiffness;  //??? pow() to scale effect better, sane for wind as well
+    
+    //  now ossilate
+    float swayStrength = 0.15 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
+    float sideStrength = 0.20 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
+    float3 c = b * 2 + (wind * (1 + swayStrength)) + (right * length(wind) * sideStrength);
+    
+    float3 bc = normalize(c - b) * 0.5;
+    c = b + bc;
+    float scale = (1 / length(c) + 2.5) / 3.5 * S;
+
+    float3 f = b * t;
+    float3 g = lerp(b, c, t);
+    binorm += normalize(g - f) - (b * 2);
+    binorm = normalize(binorm);
+
+    pos = PVT.root + lerp(f, g, t) * scale;
 }
 
 
@@ -212,369 +248,6 @@ float3x3 singlePivot(const float3 _position, const _plant_anim_pivot _pivot, con
 #define C ((_v.g >> 8) & 0xff)
 #define D (_v.g & 0xff)
 #define F (_v.h & 0xff)
-
-
-void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm, float3 wind, float freq_scale)
-{
-    float3 R = PVT.root;
-    float S = 1.f / length(PVT.extent);
-    float3 rel = pos - R;
-    float t = length(rel) / S;
-
-    float3 right = normalize(cross(rel, wind));
-
-    wind /= PVT.stiffness;
-
-    float3 end = normalize(rel);
-    float3 c = end;
-    float3 b = c * 0.5;
-
-    //  now ossilate
-    float swayStrength =     0.15 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset); // FIXME instanceScale
-    float sideStrength =     0.3 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1); // FIXME instanceScale
-    float flutterStrength = 0; //    0.3 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1); // FIXME instanceScale
-    float dW = length(wind);
-
-    c += wind * (1 + swayStrength);
-    c += right * dW * sideStrength;
-    // and then make the wind sway stronger
-    
-    float3 bc = normalize(c - b) * 0.5;
-    c = b + bc;
-    float scale = (1 / length(c) + 2.5) / 3.5 * S;
-
-    float3 f = b * t;
-    float3 g = lerp(b, c, t);
-    binorm += normalize(g - f) - end;
-    binorm = normalize(binorm);
-
-    pos = R + lerp(f, g, t) * scale;
-}
-
-
-
-struct relData
-{
-    float3 position;
-    float3 binormal;
-    float3 postobase;
-};
-
-// damn this is nice and clean
-float3 bezierPivot(inout _plant_anim_pivot PVT, inout relData relative, inout float3x3 Base, float3 Wind, float i_scale)
-{
-    Wind = Wind / PVT.stiffness;
-    float t = saturate(dot(relative.position, PVT.extent)); // DO NOT saturate, it breaks some of my randomness, allow to go slightly over
-    //t = max(0, t);
-    //float3 b = Base[1] * 0.5;
-    //float3 c = normalize(Base[1]); // FIXME we need to scale wind with length and stiffness., or do in normalized space and only stiffness
-    float3 c = normalize(mul(relative.postobase, Base)); // FIXME we need to scale wind with length and stiffness., or do in normalized space and only stiffness
-    float3 b = c * 0.5;
-
-    if (t < 0.001)
-        return 0;
-
-    //  now ossilate
-    float swayStrength = 0; //    0.15 * sin(time / PVT.frequency * 6.283 * i_scale + PVT.offset); // FIXME instanceScale
-    float sideStrength = 0; //    0.3 * sin(time / PVT.frequency * 4.283 * i_scale + PVT.offset + 1); // FIXME instanceScale
-    float dW = length(Wind);
-
-    c += Wind * (1 + swayStrength);
-    c += Base[0] * dW * sideStrength;
-    // and then make the wind sway stronger
-    
-    float3 bc = normalize(c - b) * 0.5;
-    c = b + bc;
-    float scale = (1 / length(c) + 2.5) / 3.5;
-
-    float3 f = b * t;
-    float3 g = lerp(b, c, t);
-    float3 binorm = normalize(g - f); // in wind basis
-
-    float3 answer = lerp(f, g, t) * scale - (t * normalize(relative.position));
-    //answer = mul(Base, answer);
-
-    Base[1] = binorm;
-    Base[0] = normalize(cross(Base[1], Wind));
-    Base[2] = cross(Base[0], Base[1]); // Can we avoid saving this
-
-    return answer;
-}
-
-
-
-
-float3 allPivots(inout float3 _position, inout float3 _binormal, inout float3 _tangent, ribbonVertex8 _v, uint _vId,
-                const plant _plant, const plant_instance _instance)
-{
-    
-    // WIND ################################################################################################################
-    float dx = dot(_instance.position.xz, windDir.xz) * 0.4; // so repeat roughly every 100m
-    float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 0.025), 1)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
-    newWindStrenth = windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
-    float ss = 0; //    sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
-    float3x3 rot = AngleAxis3x3(ss * 0.3, float3(0, 1, 0));
-    float3 NewWindDir = normalize(mul(windDir, rot));
-
-    //newWindStrenth += 0.00000001;
-    newWindStrenth = windStrength * 10; // * sin(time * 0.5);
-    NewWindDir = rot_xz(NewWindDir, -_instance.rotation) * newWindStrenth * 0.01;
-    NewWindDir.y = 0;
-    
-
-    if (newWindStrenth < 0.00000001)
-        return 0;
-
-    uint pivotOffset = _instance.plant_idx * 256;
-    _plant_anim_pivot PVT[5];
-    relData relative[5];
-    uint numPvt = 0;
-
-    if (A < 255)
-    {
-        PVT[numPvt] = plant_pivot_buffer[A + pivotOffset];
-        numPvt++;
-    }
-    if (B < 255)
-    {
-        PVT[numPvt] = plant_pivot_buffer[B + pivotOffset];
-        numPvt++;
-    }
-    if (C < 255)
-    {
-        PVT[numPvt] = plant_pivot_buffer[C + pivotOffset];
-        numPvt++;
-    }
-    if (D < 255)
-    {
-        PVT[numPvt] = plant_pivot_buffer[D + pivotOffset];
-        numPvt++;
-    }
-    if (F > 0)
-    {
-        ribbonVertex8 vRoot = vertex_buffer[_vId - F];
-        PVT[numPvt].root = float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset;
-        //PVT[numPvt].extent = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, 0);
-        PVT[numPvt].extent = _position - PVT[numPvt].root;
-        float L = length(PVT[numPvt].extent);
-        PVT[numPvt].extent /= L * L;
-        PVT[numPvt].stiffness = 0.1 / (((_v.h >> 16) & 0xff) * 0.004);
-        PVT[numPvt].frequency = ((_v.h >> 8) & 0xff) * 0.004 * 16;
-        PVT[numPvt].shift = ((_v.h >> 24) & 0xff) * 0.004;
-        PVT[numPvt].offset = 0; //        _vId - F;
-        numPvt++;
-    }
-    uint LAST = numPvt - 1;
-
-    
-
-    float3x3 Rotation, Base;
-    float3 offset;
-    
-    Base[1] = normalize(PVT[0].extent);
-    Base[0] = normalize(cross(Base[1], NewWindDir));
-    Base[2] = cross(Base[0], Base[1]);
-
-    // now project all data into wind relative space.
-    // position is in plant space still but tangent and binromal is shifted
-    float3 pn;
-    for (int i = 0; i < numPvt - 1; i++)
-    {
-        relative[i].position = PVT[i + 1].root - PVT[i].root;
-        float3 BN = normalize(PVT[i + 1].extent);
-        relative[i].binormal.x = dot(BN, Base[0]); // FIXME sure this is a mul() but unsure of oder
-        relative[i].binormal.y = dot(BN, Base[1]);
-        relative[i].binormal.z = dot(BN, Base[2]);
-
-        pn = normalize(relative[i].position);
-        relative[i].postobase.x = dot(pn, Base[0]);
-        relative[i].postobase.y = dot(pn, Base[1]);
-        relative[i].postobase.z = dot(pn, Base[2]);
-    }
-    relative[LAST].position = _position - PVT[LAST].root;
-
-    relative[LAST].binormal.x = dot(_binormal, Base[0]);
-    relative[LAST].binormal.y = dot(_binormal, Base[1]);
-    relative[LAST].binormal.z = dot(_binormal, Base[2]);
-
-    pn = normalize(relative[LAST].position);
-    relative[LAST].postobase.x = dot(pn, Base[0]);
-    relative[LAST].postobase.y = dot(pn, Base[1]);
-    relative[LAST].postobase.z = dot(pn, Base[2]);
-
-
-    // Now SOLVE --------------------------------------------------------------------------------------------------------------------------
-    for (int i = 0; i < numPvt; i++)
-    {
-        // I dont like this but for the very first vertex (for each PIVOT), the overlaps with the pivot->root calculating base breaks, so vahe to avoid it
-        offset = 0;
-
-        //if (length(relative[i].position) > 0.01)
-        {
-            offset = bezierPivot(PVT[i], relative[i], Base, NewWindDir, _instance.scale);
-        }
-        float L = 1.f / length(PVT[i].extent);
-       // if (i == LAST)            L = 0.0;
-        relative[i].position += PVT[i].root + offset * L;
-
-        pn = normalize(relative[i].position);
-        //relative[i].postobase.x = dot(pn, Base[0]);
-        //relative[i].postobase.y = dot(pn, Base[1]);
-        //relative[i].postobase.z = dot(pn, Base[2]);
-   
-        if (i < LAST)
-        {
-            PVT[i + 1].root += offset * L;
-            PVT[i + 2].root += offset * L; // FIXME
-            //relative[i].position += PVT[i].root ;
-        }
-        
-    }
-
-    _position = relative[LAST].position;
-    _binormal = mul(relative[LAST].binormal, Base);
-    //_tangent = mul(relative[LAST].tangent, Base);
-
-#if defined(_DEBUG_PIVOTS)
-    {
-        float3 debugColours = 1;
-        if (A < 255)
-            debugColours = float3(1, 0, 1.5);
-        if (B < 255)
-            debugColours = float3(0, 0, 10.0);
-        if (C < 255)
-            debugColours = float3(0.5, 0, 0.5);
-        if (D < 255)
-            debugColours = float3(1, 0, 0);
-
-        if (F > 0)
-            debugColours.g = 2;
-        return debugColours;
-    }
-#endif
-
-    return 0;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // solve all root pivots
-    _plant_anim_pivot pivots[5];
-    uint numPivots = 0;
-
-    //float SS, CC;
-    //sincos(_instance.rotation, SS, CC);
-
-    if (A < 255)
-    {
-        pivots[numPivots] = plant_pivot_buffer[A];
-        numPivots++;
-    }
-    if (B < 255)
-    {
-        pivots[numPivots] = plant_pivot_buffer[B];
-        numPivots++;
-    }
-    if (C < 255)
-    {
-        pivots[numPivots] = plant_pivot_buffer[C];
-        numPivots++;
-    }
-    if (D < 255)
-    {
-        pivots[numPivots] = plant_pivot_buffer[D];
-        numPivots++;
-    }
-    if (F > 0)
-    {
-        ribbonVertex8 vRoot = vertex_buffer[_vId - F];
-        //pivots[numPivots].root = rot_xz(float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset, _instance.rotation);
-        pivots[numPivots].root = float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset;
-        pivots[numPivots].extent = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, _instance.rotation);
-        pivots[numPivots].stiffness = 0.1 / (((_v.h >> 16) & 0xff) * 0.004);
-        pivots[numPivots].frequency = ((_v.h >> 8) & 0xff) * 0.004 * 6;
-        pivots[numPivots].shift = ((_v.h >> 24) & 0xff) * 0.004;
-        pivots[numPivots].offset = _vId - F;
-        numPivots++;
-    }
-
-    if (numPivots == 0)
-        return 0;
-
-    for (int i = 0; i < numPivots - 1; i++)
-    {
-        float pivotShift = pow(abs(dot((pivots[i + 1].root - pivots[i].root), pivots[i].extent)), pivots[i].shift);
-        rot = singlePivot(pivots[i + 1].root, pivots[i], NewWindDir, newWindStrenth, _instance.scale, pivotShift);
-        for (int j = i + 1; j < numPivots; j++)
-        {
-            float3 rel = pivots[j].root - pivots[i].root;
-            pivots[j].root = pivots[i].root + mul(rel, rot);
-            pivots[j].extent = mul(pivots[j].extent, rot);
-        }
-
-        float3 rel = _position - pivots[i].root; // and lastly the vertex itself
-        _position = pivots[i].root + mul(rel, rot);
-        _binormal = mul(_binormal, rot);
-        _tangent = mul(_tangent, rot);
-    }
-
-    // last pivot to vertex
-    {
-        uint LAST = numPivots - 1;
-        float pivotShift = 1;
-        if (F > 0)
-        {
-            pivotShift = pow((_v.h >> 24) * 0.004, pivots[numPivots - 1].shift);
-        }
-        else
-        {
-            // this one bends the stem
-            pivotShift = pow(abs(dot((_position - pivots[LAST].root), pivots[LAST].extent)), pivots[LAST].shift);
-        }
-
-        rot = singlePivot(_position, pivots[LAST], NewWindDir, newWindStrenth, _instance.scale, pivotShift);
-        float3 rel = _position - pivots[LAST].root; // and lastly the vertex itself
-        _position = pivots[LAST].root + mul(rel, rot);
-        _binormal = mul(_binormal, rot);
-        _tangent = mul(_tangent, rot);
-    }
-
-#if defined(_DEBUG_PIVOTS)
-    {
-        float3 debugColours = 1;
-        if (A < 255)
-            debugColours = float3(3, 0, 1.5);
-        if (B < 255)
-            debugColours = float3(0, 0, 10.0);
-        if (C < 255)
-            debugColours = float3(0.5, 0, 0.5);
-        if (D < 255)
-            debugColours = float3(1, 0, 0);
-
-        if (F > 0)
-            debugColours.g = 10;
-        return debugColours;
-    }
-#endif
-
-    return 0;
-}
-
-
-
-//void bezierPivotSum(inout _plant_anim_pivot PVT, float3 end, inout float3 pos, inout float3 binorm, float3 wind, float freq_scale, float t)
-
-
 
 float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3 _tangent, ribbonVertex8 _v, uint _vId,
                     const plant _plant, const plant_instance _instance)
@@ -597,41 +270,30 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
     if (newWindStrenth < 0.00000001)
         return 0;
 
-    uint pivotOffset = _instance.plant_idx * 256;
+    const uint pivotOffset = _instance.plant_idx * 256;
 
-// plus ordermight actually matter and look very different
-// also, do the all flutter
 
-    
-    if (B < 255)
-    {
-    }
-    if (C < 255)
-    {
-    }
-    if (D < 255)
-    {
-    }
     if (F > 0)
     {
         _plant_anim_pivot PVT;
         ribbonVertex8 vRoot = vertex_buffer[_vId - F];
         //pivots[numPivots].root = rot_xz(float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset, _instance.rotation);
         PVT.root = float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset;
-        PVT.extent = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, _instance.rotation);
-        PVT.extent = normalize(PVT.extent) * 20.01;
+        //PVT.extent = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, 0);
+        //PVT.extent = normalize(PVT.extent) * 20.01;
         //PVT.extent = PVT.root + float3(0, 0.1, 0);
-        PVT.stiffness = 10.1 / (((_v.h >> 16) & 0xff) * 0.004);
-        PVT.frequency = ((_v.h >> 8) & 0xff) * 0.004 * 6 * 2;
+        PVT.stiffness = 1 / (((_v.h >> 16) & 0xff) * 0.004);
+        PVT.frequency = ((_v.h >> 8) & 0xff) * 0.004;
         PVT.shift = ((_v.h >> 24) & 0xff) * 0.004;
         PVT.offset = _vId - F;
-        bezierPivotSum(PVT, _position, _binormal, NewWindDir, _instance.scale);
+        //bezierPivotSum(PVT, _position, _binormal, NewWindDir, _instance.scale);
+        bezierLeaf(PVT, _position, _binormal, _tangent, NewWindDir, _instance.scale, PVT.shift);
 
-        float flutterStrength = newWindStrenth * 0.01 * PVT.shift * sin(time / PVT.frequency * 4.283 * _instance.scale * 6.3 + PVT.offset);// / PVT.stiffness;
+        //float flutterStrength = newWindStrenth * 0.005 * PVT.shift * sin(time / PVT.frequency * 4.283 * _instance.scale) / PVT.stiffness;
 
-        float3 N = cross(_binormal, _tangent);
+        //float3 N = cross(_binormal, _tangent);
 
-        _tangent = normalize(_tangent + N * flutterStrength);
+        //_tangent = normalize(_tangent + N * flutterStrength);
 
     }
 
@@ -646,6 +308,7 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
     }
 
 
+    // FIXME add debug colours again, both _t and pivotpoitns
     return 0;
 }
 
@@ -1138,7 +801,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
     
     // environment cube light
-    color += 1.39 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 0.39 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.001;

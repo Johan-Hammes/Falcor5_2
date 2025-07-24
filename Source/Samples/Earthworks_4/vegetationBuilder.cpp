@@ -3701,6 +3701,13 @@ void _rootPlant::buildAllLods()
         OnDisk.materials[idx] = M;
     }
 
+    lodBake* lodZero = root->getBakeInfo(0);
+    if (lodZero)
+    {
+        OnDisk.billboardMaterial = lodZero->material;
+    }
+    
+
     std::string resource = terrafectorEditorMaterial::rootFolder;
     std::ofstream os(resource + root->path + ".binary");
     cereal::JSONOutputArchive archive(os);
@@ -3742,6 +3749,7 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
         indexLookup[M.first] = _plantMaterial::static_materials_veg.find_insert_material(std::filesystem::path(resource + M.second.path), false); //terrafectorEditorMaterial::rootFolder + 
     }
 
+    int billboardIndex = _plantMaterial::static_materials_veg.find_insert_material(std::filesystem::path(resource + billboardMaterial.path), false);
     
         for (auto& V : vertexData)
         {
@@ -3752,6 +3760,7 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
 
         for (auto& P : plantData)
         {
+            P.billboardMaterialIndex = billboardIndex;
             for (int i = 0; i <= P.numLods; i++)
             {
                 P.lods[i].startVertex += vOffset;
@@ -3762,35 +3771,42 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
         
 }
 
+int _rootPlant::importBinary(std::filesystem::path filepath)
+{
+    binaryPlantOnDisk OnDisk;
+    std::ifstream os(filepath);
+    cereal::JSONInputArchive archive(os);
+    archive(OnDisk);
+
+    OnDisk.onLoad(filepath.string(), binVertexOffset / sizeof(ribbonVertex8));
+
+    plantData->setBlob(OnDisk.plantData.data(), binPlantOffset, OnDisk.numP * sizeof(plant));
+
+    int numV = __min(65536 * 8, OnDisk.numV);
+    vertexData->setBlob(OnDisk.vertexData.data(), binVertexOffset, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+
+    plantpivotData->setBlob(OnDisk.pivotData.data(), binPivotOffset, OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
+
+    binVertexOffset += numV * sizeof(ribbonVertex8);
+    binPlantOffset += OnDisk.numP * sizeof(plant);
+    binPivotOffset += OnDisk.numP * 256 * sizeof(_plant_anim_pivot);
+    numBinaryPlants++;
+
+    displayModeSinglePlant = false;
+    ribbonVertex::packed.resize(OnDisk.numV);
+    tempUpdateRender = true;
+    _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
+
+    return numBinaryPlants - 1; // Bit wrong since we load 4 variations
+}
+
 void _rootPlant::importBinary()
 {
     FileDialogFilterVec filters = { {"binary"} };
     std::filesystem::path filepath;
     if (openFileDialog(filters, filepath))
     {
-        binaryPlantOnDisk OnDisk;
-        std::ifstream os(filepath);
-        cereal::JSONInputArchive archive(os);
-        archive(OnDisk);
-
-        OnDisk.onLoad(filepath.string(), binVertexOffset / sizeof(ribbonVertex8));
-
-        plantData->setBlob(OnDisk.plantData.data(), binPlantOffset, OnDisk.numP * sizeof(plant));
-
-        int numV = __min(65536 * 8, OnDisk.numV);
-        vertexData->setBlob(OnDisk.vertexData.data(), binVertexOffset, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
-
-        plantpivotData->setBlob(OnDisk.pivotData.data(), binPivotOffset, OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
-
-        binVertexOffset += numV * sizeof(ribbonVertex8);
-        binPlantOffset += OnDisk.numP * sizeof(plant);
-        binPivotOffset += OnDisk.numP * 256 * sizeof(_plant_anim_pivot);
-        numBinaryPlants++;
-
-        displayModeSinglePlant = false;
-        ribbonVertex::packed.resize(OnDisk.numV);
-        tempUpdateRender = true;
-        _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
+        importBinary(filepath);
     }
 }
 
