@@ -123,6 +123,8 @@ struct vegetation_feedback
     // plant zero
     float plantZero_pixeSize;
     uint plantZeroLod;
+    uint numBillboard;
+    uint numPlant;
 
     uint numLod[32];
     uint numBlocks;

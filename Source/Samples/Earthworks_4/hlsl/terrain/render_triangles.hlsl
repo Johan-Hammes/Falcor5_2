@@ -99,6 +99,8 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     //output.pos = mul( float4(plant.position + vPos * plant.scale*40.4, 1), viewproj );
     float3 vPos = R.pos *18000 + eye;
     output.pos = mul(float4(vPos, 1), viewproj);
+    output.pos.z = 1;
+    output.pos.w = 1.000002;
     output.texCoords = float2(R.u, R.v);
     output.N = R.norm;
     //output.world = normalize(eye - plant.position);
@@ -113,7 +115,8 @@ VSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 float4 psMain(VSOut vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    
+
+
     float3 dir = normalize(vOut.world.xyz);
 
     //return float4(dir, 1);

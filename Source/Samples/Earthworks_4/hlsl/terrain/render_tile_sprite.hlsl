@@ -78,6 +78,13 @@ struct VSOut
 struct GSOut
 {
     float4 pos : SV_POSITION;
+
+    float3 normal : NORMAL;
+    float3 tangent : TANGENT;
+    float3 binormal : BINORMAL;
+    
+    float3 diffuseLight : COLOR;
+
     float2 uv : TEXCOORD;
     float scale : TEXCOORD1;
     float3 sunlight : TEXCOORD2;
@@ -105,7 +112,7 @@ GSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         instance_PLANT plant = instanceBuffer[newID];
 
         output.pos = float4(unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024), 1);
-        output.scale = 2;//        SCALE(plant.s_r_idx) * 0.4;
+        output.scale = SCALE(plant.s_r_idx);
         output.index = PLANT_INDEX(plant.s_r_idx) * 4;
         output.sunlight = sunLight(output.pos.xyz * 0.001).rgb;
 
@@ -122,9 +129,16 @@ GSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 
         output.worldPos = output.pos.xyz;
-        output.eye = output.pos.xyz - eye.xyz;
+        output.eye = normalize(output.pos.xyz - eye.xyz);
         output.uv = float2(0, 0);
 
+        output.pos.xyz -= output.eye * 0.2f;
+
+        output.binormal = float3(0, 1, 0);
+        output.tangent = normalize(cross(output.binormal, -output.eye));
+        output.normal = cross(output.binormal, output.tangent);
+
+        output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb;
        //output.rootPos.xyz -= normalize(output.eye) * 100.f;
         //output.rootPos.y += 300;
         //output.rootPos.x += 7000;
@@ -166,8 +180,8 @@ void gsMain(point GSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
     else
     {
         // add back in       float scale = 1 - pt[0].lineScale.z;
-        float X = PLANT.size.x * 0.8;
-        float Y = PLANT.size.y;
+        float X = PLANT.size.x * 0.8 * sprite[0].scale;
+        float Y = PLANT.size.y * sprite[0].scale;
         float scale = 1 - 0.8;
 
         v.uv = float2(0.5, 1.1);
@@ -175,11 +189,11 @@ void gsMain(point GSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
         OutputStream.Append(v);
 
         v.uv = float2(1.0 - scale / 2, 0.5);
-        v.pos = mul(sprite[0].pos - float4(right, 0)  * X + float4(0, Y * 0.5, 0, 0), viewproj);
+        v.pos = mul(sprite[0].pos + (float4(v.tangent, 0) * X) + float4(0, Y * 0.5, 0, 0), viewproj);
         OutputStream.Append(v);
         
         v.uv = float2(0.0 + scale / 2, 0.5);
-        v.pos = mul(sprite[0].pos + float4(right, 0)  * X + float4(0, Y * 0.5, 0, 0), viewproj);
+        v.pos = mul(sprite[0].pos - (float4(v.tangent, 0) * X) + float4(0, Y * 0.5, 0, 0), viewproj);
         OutputStream.Append(v);
 
         v.uv = float2(0.5, -0.1);
@@ -204,18 +218,54 @@ float4 psMain(GSOut vOut) : SV_TARGET
     albedo.rgb *= MAT.albedoScale[0] * 2.f;
     float alpha = pow(albedo.a, MAT.alphaPow);
     clip(alpha - 0.5);
-    alpha = smoothstep(0.5, 0.8, alpha);
-/*
+    alpha = smoothstep(0.3, 0.8, alpha);
+
+    float Shadow = pow(shadow(vOut.worldPos, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
+
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
-        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSmpLinearClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
         N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
     }
-    N *= flipNormal;
+    //N *= flipNormal;
     float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
     float ndots = dot(N, sunDirection);
-*/
-    samp = albedo;
+
+    float dappled = 1; // 1 - vOut.Shadow;
+
+    // sunlight
+    float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled * Shadow;
+
+    
+    // environment cube light
+    color += 0.939 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb;// * pow(vOut.AmbietOcclusion, 0.3);
+
+ // specular sunlight
+    float RGH = MAT.roughness[0] + 0.001;
+    float pw = 15.f / RGH;
+    color += pow(ndoth, pw) * 1.6 * dappled * vOut.diffuseLight * (1 - RGH) * Shadow;
+
+// translucent light    
+    float3 TN = vOut.normal;
+    float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye)) * MAT.translucency * dappled;
+    {
+        if (MAT.translucencyTexture >= 0)
+        {
+            float t = textures.T[MAT.translucencyTexture].Sample(gSampler, vOut.uv.xy).r;
+            trans *= pow(t, 2);
+        }
+    }
+    color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight * Shadow;
+
+    // apply JHFAA to edges    
+    if (alpha < 0.9)
+    {
+        float2 uv = vOut.pos.xy / screenSize; //        float2(2560, 1440);
+        float3 prev = gHalfBuffer.Sample(gSmpLinearClamp, uv).rgb;
+        color = lerp(prev, color, alpha);
+    }
+
+    samp.rgb = color;
     return samp;
 }

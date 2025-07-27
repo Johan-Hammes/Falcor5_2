@@ -241,7 +241,7 @@ void main(int2 crd : SV_DispatchThreadId)
         int offset = rnd & 0x3ff;
         if (ecotopeForPlants < numEcotopes)
         {
-            const int thisplantIndex =  plantIndex.Load(ecotopeForPlants * (16 * 65) + (lod * 65) + 1 + (offset >> 4));
+            const int thisplantIndex = plantIndex.Load(ecotopeForPlants * (16 * 65) + (lod * 65) + 1 + (offset >> 4));
             //const int thisplantIndex = plantIndex[ecotopeForPlants][offset >> 4].x;
             uint uHgt = (gHeight[crd].r - OH) / tile.scale_1024;
 

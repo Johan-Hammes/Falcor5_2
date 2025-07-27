@@ -237,13 +237,15 @@ void ecotope::GuiPlants(Gui* _pGui)
 
 
 void ecotope::renderGUI(Gui* _pGui) {
-    ImGui::PushFont(_pGui->getFont("roboto_32"));
+    ImGui::PushFont(_pGui->getFont("header1"));
     ImGui::Text(name.c_str());
     ImGui::PopFont();
     ImGui::NewLine();
 
-    ImGui::PushFont(_pGui->getFont("roboto_20"));
+    ImGui::PushFont(_pGui->getFont("default"));
     {
+        //Feedback
+        
         GuiTextures(_pGui);
 
         ImGui::Columns(3);
@@ -342,7 +344,7 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
 
 
     change = false;
-    ImGui::PushFont(_pGui->getFont("roboto_26"));
+    ImGui::PushFont(_pGui->getFont("default"));
     if (ImGui::DragInt("debug", &constantbuffer.debug, 1, 0, 999)) {
         change = true;
     }
@@ -356,17 +358,13 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
 
         if (i == selectedEcotope) {
             style.Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-            //_pGui->pushFont(3);
             {
-                //ImGui::NewLine();
-                //ImGui::SameLine(40);
                 char nameEdit[1024];
                 sprintf(nameEdit, "%s", ecotopes[i].name.c_str());
                 if (ImGui::InputText("", nameEdit, 1024)) {
                     ecotopes[i].name = nameEdit;
                 }
             }
-            //_pGui->popFont();
         }
         else {
             style.Colors[ImGuiCol_Text] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
@@ -378,10 +376,6 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
         }
     }
     ImGui::PopFont();
-
-
-
-    //_pGui->popFont();
     style = oldStyle;
 
 
@@ -475,17 +469,18 @@ void ecotopeSystem::rebuildRuntime() {
                     //const std::string I = P.name.substr(0, P.name.find_last_of("_"));
                     //P.index = std::stoi(I);
                     // FIXME importBinary must not load the same one again needs a cache if I am going to use it like this
-                    /*
+                    
                     int idx = ecotopeSystem::pVegetation->importBinary(P.path);   // return vlaue still wronf since we load 4 variations
                     if (idx >= 0)
                     {
                         P.index = idx;
                     }
-                    */
+                    // FISME use of (int) allows this to round down to fewer than 64 spots and that last 0 will cause trouble
                     P.percentageOfLodTotalInt = (int)(P.density / ecotopes[ect].totalPlantDensity[lod] * 64.0f);
                     int to = __min(64, slotCount + P.percentageOfLodTotalInt);
                     for (int j = slotCount; j < to; j++) {
                         plantIndex[ect][lod][j+1] = P.index;
+                        slotCount++;
                     }
                 }
             }

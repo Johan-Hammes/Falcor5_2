@@ -35,7 +35,7 @@ using namespace Assimp;
 #include <chrono>
 using namespace std::chrono;
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -3468,6 +3468,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("output", split.buffer_clippedloddedplants);
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("drawArgs_Plants", split.drawArgs_clippedloddedplants);
         split.compute_clipLodAnimatePlants.Vars()->setBuffer("feedback", split.buffer_feedback);
+        
+        
 
         // split merge
         split.compute_tileSplitMerge.load("Samples/Earthworks_4/hlsl/terrain/compute_tileSplitMerge.hlsl");
@@ -3488,7 +3490,7 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         // passthrough
         split.compute_tilePassthrough.load("Samples/Earthworks_4/hlsl/terrain/compute_tilePassthrough.hlsl");
         split.compute_tilePassthrough.Vars()->setBuffer("quad_instance", split.buffer_instance_quads);
-        split.compute_tilePassthrough.Vars()->setBuffer("plant_instance", split.buffer_instance_plants);
+        split.compute_tilePassthrough.Vars()->setBuffer("plant_i", split.buffer_instance_plants);
         split.compute_tilePassthrough.Vars()->setBuffer("feedback", split.buffer_feedback);
         split.compute_tilePassthrough.Vars()->setBuffer("tiles", split.buffer_tiles);
         split.compute_tilePassthrough.Vars()->setTexture("gHgt", split.tileFbo->getColorTexture(0));
@@ -3594,11 +3596,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
     mSpriteRenderer.onLoad();
 
-    mEcosystem.terrainSize = settings.size;
-    mEcosystem.load(settings.dirRoot + "/ecosystem/steg.ecosystem", settings.dirResource + "/");    // FIXME MOVE To lastFILE
+
     terrafectorEditorMaterial::rootFolder = settings.dirResource + "/";
-    terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
-    mRoadNetwork.rootPath = settings.dirRoot + "/";
 
 
     _plantMaterial::static_materials_veg.sb_vegetation_Materials = Buffer::createStructured(sizeof(sprite_material), 1024 * 8);      // just a lot
@@ -3607,10 +3606,26 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     plants_Root.billboardShader.Vars()->setTexture("gEnv", vegetation.envTexture);
     plants_Root.vegetationShader.Vars()->setTexture("gDappledLight", vegetation.dappledLightTexture);
 
+
     
     terrainSpiteShader.Vars()->setBuffer("plant_buffer", plants_Root.plantData);
     terrainSpiteShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
 
+    
+    split.compute_clipLodAnimatePlants.Vars()->setBuffer("block_buffer", plants_Root.plantData);
+    split.compute_clipLodAnimatePlants.Vars()->setBuffer("plant_buffer", plants_Root.plantData);
+    split.compute_clipLodAnimatePlants.Vars()->setBuffer("drawArgs_Plants", plants_Root.drawArgs_vegetation);
+    split.compute_clipLodAnimatePlants.Vars()->setBuffer("feedback_Veg", plants_Root.buffer_feedback);
+
+    split.compute_tilePassthrough.Vars()->setBuffer("plant_buffer", plants_Root.plantData);
+    split.compute_tilePassthrough.Vars()->setBuffer("feedback_Veg", plants_Root.buffer_feedback);
+
+
+    mEcosystem.terrainSize = settings.size;
+    mEcosystem.load(settings.dirRoot + "/ecosystem/steg.ecosystem", settings.dirResource + "/");    // FIXME MOVE To lastFILE
+    
+    terrafectors.loadPath(settings.dirRoot + "/terrafectors", settings.dirRoot + "/bake", false);
+    mRoadNetwork.rootPath = settings.dirRoot + "/";
 
     std::cout << "      paraglider\n";
 
@@ -4753,6 +4768,8 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
         case _terrainMode::ecotope:
         {
+            
+
             mEcosystem.renderGUI(_gui);
             if (ImGui::BeginPopupContextWindow(false))
             {
@@ -4760,8 +4777,63 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
                 if (ImGui::Selectable("Load")) { mEcosystem.load(); }
                 if (ImGui::Selectable("Save")) { mEcosystem.save(); }
                 ImGui::EndPopup();
+            }
+
+            ImGui::NewLine();
+            ImGui::NewLine();
+            ImGui::Separator();
+            ImGui::Text("feedback");
+            ImGui::Text("%d plants loaded", plants_Root.importPathVector.size());
+            //if (ImGui::IsItemHovered()) { ImGui::SetTooltip(x); }
+            ImGui::Text("%d tex, %2.2f Mb", _plantMaterial::static_materials_veg.textureVector.size(), _plantMaterial::static_materials_veg.texMb);
+            
+            // do billobard as well
+            ImGui::Text("billboards");
+            ImGui::Text("%d instance ", plants_Root.feedback.numBillboard);
+
+            ImGui::Text("plants");
+            float numTri = (float)plants_Root.feedback.numBlocks * VEG_BLOCK_SIZE * 2.f / 1000000.f;
+            ImGui::Text("%d plants ", plants_Root.feedback.numPlant);
+            ImGui::Text("%d %d %d %d ", plants_Root.feedback.numLod[0], plants_Root.feedback.numLod[1], plants_Root.feedback.numLod[2], plants_Root.feedback.numLod[3]);
+            ImGui::Text("%2.2f M tri ", numTri);
+            ImGui::Text("gpu %1.3fms", plants_Root.gputime);
+
+            ImGui::NewLine();
+            ImGui::NewLine();
+            ImGui::Separator();
+            ImGui::Text("T     %1.1fms", stream.terrainCacheTime);
+            ImGui::Text("T tex %1.1fms", stream.terrainCacheJPHTime);
+            ImGui::Text("I     %1.1fms", stream.imageCacheTime);
+            ImGui::Text("I tex %1.1fms", stream.imageCacheJPHTime);
+            ImGui::Text("I io  %1.1fms", stream.imageCacheIOTime);
+            
+            
+            // FIXME make a unified function that I cann call from multiple spots, maybe even the menu
+            ImGui::PushFont(_gui->getFont("default"));
+            {
+                ImGui::Text("Time of day");
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("angle", &shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
+                if (ImGui::Button("change"))
+                {
+                    shadowEdges.requestNewShadow = true;
+                }
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("haze turbidity", &pAtmosphere->haze_Turbidity, 0.01f, 1.f, 15.f, "%1.2f");
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("fog turbidity", &pAtmosphere->fog_Turbidity, 0.01f, 1.f, 125.f, "%1.2f");
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("fog base", &pAtmosphere->fog_BaseAltitudeKm, 0.001f, 0.f, 1.f, "%1.2fkm");
+
+                ImGui::SetNextItemWidth(300);
+                ImGui::DragFloat("fog height", &pAtmosphere->fog_AltitudeKm, 0.001f, 0.05f, 1.f, "%1.2f");
+
 
             }
+            ImGui::PopFont();
         }
         break;
 
@@ -5953,7 +6025,7 @@ void terrainManager::generateGdalPhotos()
         }
         */
 }
-#pragma optimize("", off)
+//#pragma optimize("", off)
 void terrainManager::bil_to_jp2Photos()
 {
     float leftT, topT, size;
@@ -7055,7 +7127,16 @@ bool terrainManager::update(RenderContext* _renderContext)
 
 
 
-void terrainManager::hashAndCache(quadtree_tile* pTile)
+
+void terrainManager::hashAndCache_Thread(quadtree_tile* pTile)
+{
+}
+
+void terrainManager::hashAndCacheImages_Thread(quadtree_tile* pTile)
+{
+}
+
+bool terrainManager::hashAndCache(quadtree_tile* pTile)
 {
 
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
@@ -7070,6 +7151,8 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
 
         if (!elevationCache.get(pTile->elevationHash, map))
         {
+            auto start = high_resolution_clock::now();
+
             std::array<unsigned short, 1048576> data;
 
             auto hashelement = elevationTileHashmap[pTile->elevationHash];
@@ -7082,6 +7165,8 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
             codestream.create();
             int next_comp;
 
+            
+
             for (int i = 0; i < 1024; ++i)
             {
                 ojph::line_buf* line = codestream.pull(next_comp);
@@ -7092,12 +7177,20 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
                 }
             }
             codestream.close();
-
+            auto start_b = high_resolution_clock::now();
             map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::R16Unorm, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
             elevationCache.set(pTile->elevationHash, map);
-        }
 
-        split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
+            auto stop = high_resolution_clock::now();
+            stream.terrainCacheTime = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
+            stream.terrainCacheJPHTime = (double)duration_cast<microseconds>(stop - start_b).count() / 1000.;
+            return false;
+        }
+        else
+        {
+            return true;
+            split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
+        }
     }
 
 
@@ -7106,14 +7199,18 @@ void terrainManager::hashAndCache(quadtree_tile* pTile)
 
 /*  The weird carsh comes from my cache being too small, so tiles gets deleted tehn needed at another resolution
 */
-void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
+bool terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 {
 
 
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
 
     // First load the JP2 Data, BUT 0,0,0 IS  PRELOADED, thisis n own thread so should look like no time
+    auto start_c = high_resolution_clock::now();
     imageDirectory.cacheHash(hash);
+    auto stop_c = high_resolution_clock::now();
+    double time = (double)duration_cast<microseconds>(stop_c - start_c).count() / 1000.;
+    if (time > 1.f)     stream.imageCacheIOTime = time;
     //std::thread T0(&jp2Dir::cacheHash, &imageDirectory, hash);
 
 
@@ -7137,6 +7234,8 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
             {
                 bool CM = true;
             }
+
+            auto start = high_resolution_clock::now();
 
             std::array<unsigned char, 1024 * 1024 * 4> data;
             std::shared_ptr<std::vector<unsigned char>> dataCache;
@@ -7184,6 +7283,8 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
             codestream.create();
             int next_comp;
 
+            
+
             for (int i = 0; i < 1024; ++i)
             {
                 for (int j = 0; j < 3; j++)
@@ -7196,9 +7297,14 @@ void terrainManager::hashAndCacheImages(quadtree_tile* pTile)
                 }
             }
             codestream.close();
-
+            auto start_b = high_resolution_clock::now();
             map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
             imageCache.set(pTile->imageHash, map);
+
+            auto stop = high_resolution_clock::now();
+            stream.imageCacheTime = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
+            stream.imageCacheJPHTime = (double)duration_cast<microseconds>(stop - start_b).count() / 1000.;
+            
         }
 
         split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
@@ -7234,12 +7340,19 @@ void terrainManager::splitOne(RenderContext* _renderContext)
     {
         if (tile->forSplit)
         {
-            hasChanged = true;
-            hashAndCache(tile);
+            bool dataReady = true;
+            {
+                FALCOR_PROFILE("hashAndCache");
+                hasChanged = true;
+                dataReady |= hashAndCache(tile);
+            }
 
-            hashAndCacheImages(tile);
+            {
+                FALCOR_PROFILE("hashAndCacheImages");
+                dataReady |= hashAndCacheImages(tile);
+            }
 
-            if (true)	// antani, check for hashAndCache() return value is it ready
+            if (dataReady)	// antani, check for hashAndCache() return value is it ready
             {
 
                 FALCOR_PROFILE("split");
@@ -8288,6 +8401,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         //terrainSpiteShader.Vars()["gConstantBuffer"]["alpha_pass"] = 1;
         //terrainSpiteShader.renderIndirect(_renderContext, split.drawArgs_quads);
+    }
+    {
+        rmcv::mat4 clip;
+        //rmcv::mat4 view, clip;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                clip[j][i] = cameraViews[CameraType_Main_Center].frustumMatrix[j][i];
+            }
+        }
+        plants_Root.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip, true);
     }
 
     {

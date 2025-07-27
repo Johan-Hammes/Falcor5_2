@@ -1004,8 +1004,11 @@ private:
     bool testFrustum(quadtree_tile* _tile);
     void markChildrenForRemove(quadtree_tile* _tile);
 
-    void hashAndCache(quadtree_tile* pTile);
-    void hashAndCacheImages(quadtree_tile* pTile);
+
+    void hashAndCache_Thread(quadtree_tile* pTile);
+    void hashAndCacheImages_Thread(quadtree_tile* pTile);
+    bool hashAndCache(quadtree_tile* pTile);
+    bool hashAndCacheImages(quadtree_tile* pTile);
     void setChild(quadtree_tile* pTile, int y, int x);
     void splitOne(RenderContext* _renderContext);
     void splitChild(quadtree_tile* _pTile, RenderContext* _renderContext);
@@ -1027,6 +1030,8 @@ private:
     void updateDynamicStamp();
 
     void bezierRoadstoLOD(uint _lod);
+
+    
 
     uint                        numTiles = 997;
     std::vector<quadtree_tile>	m_tiles;
@@ -1102,9 +1107,19 @@ public:
     bool useFreeCamWhileGliding = false;
     bool GliderDebugVisuals = false;
 
+    
+    struct
+    {
+        //void cacheTerrain();
+        //void cacheImage();
+        double terrainCacheTime;
+        double terrainCacheJPHTime;
+        double imageCacheTime;
+        double imageCacheJPHTime;
+        double imageCacheIOTime;
+    } stream;   // IO and feedback
 
-
-    _terrainMode terrainMode = _terrainMode::vegetation;
+    _terrainMode terrainMode = _terrainMode::ecotope;
 private:
     bool hasChanged = false;
 

@@ -3773,6 +3773,17 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
 
 int _rootPlant::importBinary(std::filesystem::path filepath)
 {
+    if (std::filesystem::exists(filepath))
+    {
+        for (uint i = 0; i < importPathVector.size(); i++)
+        {
+            if (importPathVector[i].compare(filepath.string()) == 0)
+            {
+                return i;
+            }
+        }
+    }
+
     binaryPlantOnDisk OnDisk;
     std::ifstream os(filepath);
     cereal::JSONInputArchive archive(os);
@@ -3797,7 +3808,8 @@ int _rootPlant::importBinary(std::filesystem::path filepath)
     tempUpdateRender = true;
     _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
 
-    return numBinaryPlants - 1; // Bit wrong since we load 4 variations
+    importPathVector.push_back(filepath.string());
+    return importPathVector.size() - 1; // Bit wrong since we load 4 variations
 }
 
 void _rootPlant::importBinary()
@@ -4116,7 +4128,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
 
 
 void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
-    rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum)
+    rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, bool terrainMode)
 {
     FALCOR_PROFILE("vegetation");
     renderContext = _renderContext;
@@ -4151,7 +4163,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         _plantMaterial::static_materials_veg.setTextures(varBBTextures);
     }
 
-    if (ribbonVertex::packed.size() > 1 && !displayModeSinglePlant)
+    if (!terrainMode && ribbonVertex::packed.size() > 1 && !displayModeSinglePlant)
     {
         FALCOR_PROFILE("compute_veg_lods");
         compute_clearBuffers.dispatch(_renderContext, 1, 1);
@@ -4165,6 +4177,9 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         compute_calulate_lod.Vars()["gConstantBuffer"]["lastLod"] = lastLod;
         compute_calulate_lod.dispatch(_renderContext, 16384 / 256, 1);
 
+    }
+
+    {
         _renderContext->copyResource(buffer_feedback_read.get(), buffer_feedback.get());
 
         const uint8_t* pData = (uint8_t*)buffer_feedback_read->map(Buffer::MapType::Read);
@@ -4173,7 +4188,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
     }
 
 
-    if (ribbonVertex::packed.size() > 1 && !displayModeSinglePlant)
+    if (!terrainMode && ribbonVertex::packed.size() > 1 && !displayModeSinglePlant)
     {
         FALCOR_PROFILE("billboards");
 
@@ -4195,7 +4210,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         gputimeBB = eventBB->getGpuTimeAverage();
     }
 
-    if (ribbonVertex::packed.size() > 1)
+    if (terrainMode || ribbonVertex::packed.size() > 1)
     {
         FALCOR_PROFILE("ribbonShader");
 
@@ -4255,24 +4270,31 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         }
 
         //vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
-        if (displayModeSinglePlant)
+        if (terrainMode)
         {
-            // single plant
-            if (showDebugInShader)
-                vegetationShader_DEBUG_PIXELS.drawInstanced(_renderContext, 32, totalBlocksToRender);
-            else if (showNumPivots)
-                vegetationShader_DEBUG_PIVOTS.drawInstanced(_renderContext, 32, totalBlocksToRender);
-            else
-                vegetationShader.drawInstanced(_renderContext, 32, totalBlocksToRender);
+            vegetationShader.renderIndirect(_renderContext, drawArgs_vegetation);
         }
         else
         {
-            if (showDebugInShader)
-                vegetationShader_DEBUG_PIXELS.renderIndirect(_renderContext, drawArgs_vegetation);
-            else if (showNumPivots)
-                vegetationShader_DEBUG_PIVOTS.renderIndirect(_renderContext, drawArgs_vegetation);
+            if (displayModeSinglePlant)
+            {
+                // single plant
+                if (showDebugInShader)
+                    vegetationShader_DEBUG_PIXELS.drawInstanced(_renderContext, 32, totalBlocksToRender);
+                else if (showNumPivots)
+                    vegetationShader_DEBUG_PIVOTS.drawInstanced(_renderContext, 32, totalBlocksToRender);
+                else
+                    vegetationShader.drawInstanced(_renderContext, 32, totalBlocksToRender);
+            }
             else
-                vegetationShader.renderIndirect(_renderContext, drawArgs_vegetation);
+            {
+                if (showDebugInShader)
+                    vegetationShader_DEBUG_PIXELS.renderIndirect(_renderContext, drawArgs_vegetation);
+                else if (showNumPivots)
+                    vegetationShader_DEBUG_PIVOTS.renderIndirect(_renderContext, drawArgs_vegetation);
+                else
+                    vegetationShader.renderIndirect(_renderContext, drawArgs_vegetation);
+            }
         }
 
         auto& profiler = Profiler::instance();

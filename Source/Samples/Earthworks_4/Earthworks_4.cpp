@@ -465,6 +465,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         terrain.terrainShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.rappersvilleShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.gliderwingShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
 
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
@@ -523,6 +524,9 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
             //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_log_F"] = gis_overlay.strenght;
             //terrain.terrainShader.Vars()["PerFrameCB"]["fog_near_one_over_k"] = gis_overlay.strenght;
 
+            terrain.terrainSpiteShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
+            terrain.terrainSpiteShader.Vars()["LightsCB"]["sunRightVector"] = sunRight; // should come from somewehere else common
+            terrain.terrainSpiteShader.Vars()["LightsCB"]["sunUpVector"] = sunUp; // should come from somewehere else common
             terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["screenSize"] = screenSize;
             terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
             terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;

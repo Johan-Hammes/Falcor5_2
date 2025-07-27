@@ -24,9 +24,6 @@
 using namespace Falcor;
 
 
-
-
-
 class _plantMaterial;
 
 class materialCache_plants {
@@ -923,6 +920,7 @@ public:
     void reloadMaterials();
     int importBinary(std::filesystem::path filepath);       // FIXME this needs a cache
     void importBinary();
+    std::vector<std::string>	importPathVector;
 
     void remapMaterials();
     void import();
@@ -931,7 +929,7 @@ public:
     void bake(std::string _path, std::string _seed, lodBake* _info);
     int bake_Reload_Count = 0;
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
-        rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum);
+        rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, bool terrainMode = false);
 
     RenderContext* renderContext;
 

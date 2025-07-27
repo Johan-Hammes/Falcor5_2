@@ -2,6 +2,7 @@
 #include "groundcover_defines.hlsli"
 #include "groundcover_functions.hlsli"	
 #include "terrainDefines.hlsli"
+#include "vegetation_defines.hlsli"
 			
 
 
@@ -13,7 +14,7 @@ Texture2D<uint> 	gNoise;
 
 
 RWStructuredBuffer<instance_PLANT> 		quad_instance;			// input / output
-RWStructuredBuffer<instance_PLANT> 		plant_instance;			// output
+RWStructuredBuffer<instance_PLANT> 		plant_i;			// output
 
 
 
@@ -25,6 +26,9 @@ RWStructuredBuffer<gpuTile> 			tiles;
 //StructuredBuffer<tileExtract>			tileInfo;				// FIXME DOES NTO EXIST ANY MOR EMAKE SURE WE GET THE INDEX
 RWStructuredBuffer<GC_feedback>			feedback;
 
+// new
+StructuredBuffer<plant> plant_buffer;
+RWStructuredBuffer<vegetation_feedback> feedback_Veg;
 
 
 cbuffer gConstants			// ??? wonder if this just works here, then we can skip structured buffer for it
@@ -45,7 +49,10 @@ void main(uint dispatchId : SV_DispatchThreadId)
 
     //float OH = gHgt[uint2(128, 128)].r - (tile.scale_1024 * 2048);	// Its corner origin rather than middle
     //tile.origin.y = OH;
-	
+
+    feedback_Veg[0].numBillboard = 999;
+    feedback_Veg[0].numPlant = 123;
+
 	if(dispatchId < tile.numQuads )
 	{
 		gpuTile tileC = tiles[child_index];
@@ -54,6 +61,8 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		uint SRTI = quad_instance[parent_index * numQuadsPerTile + dispatchId].s_r_idx;
 		//uint cx = XYZ >> 31;
 		//uint cy = (XYZ >> 21) & 0x1;
+
+        const float plantY = plant_buffer[PLANT_INDEX(SRTI) * 4].size.y * SCALE(SRTI);;
 
         uint x10 = ((XYZ >> 22) & 0x3ff);
         uint y10 = ((XYZ >> 12) & 0x3ff);   // 10 bit values
@@ -80,22 +89,24 @@ void main(uint dispatchId : SV_DispatchThreadId)
             float OH = gHgt[uint2(128, 128)].r - (tileC.scale_1024 * 2048);	// Its corner origin rather than middle
 			uint uHgt = (height - OH) / tileC.scale_1024;
 			
+			// Needs to scale with HFov as well tanV ?
+            float FACTOR = plantY / tile.scale_1024 / 2.0f; // FIXME we need plant sizes in the GPU ecotope desc
 			
-			float FACTOR = 0.5f / tile.scale_1024 / 2.0f;		// FIXME we need plant sizes in teh GPU ecotipe desc
-			
-			if (FACTOR > 1000.0)	
+			if (FACTOR > 15.0)	
 			{
 				// *** its large pack into the plant structure
 				uint slot = 0;
 				InterlockedAdd( tiles[child_index].numPlants, 1, slot );
+                feedback_Veg[0].numPlant = slot; // not acurate but good enouigh
 				
-				plant_instance[child_index * numPlantsPerTile + slot].xyz =  repack_pos(x, y, uHgt, rnd);
-				plant_instance[child_index * numPlantsPerTile + slot].s_r_idx = repack_SRTI( SRTI, child_index);
-			}
+                plant_i[child_index * numPlantsPerTile + slot].xyz = repack_pos(x, y, uHgt, rnd);
+                plant_i[child_index * numPlantsPerTile + slot].s_r_idx = repack_SRTI(SRTI, child_index);
+            }
 			else
 			{
 				uint slot = 0;
 				InterlockedAdd( tiles[child_index].numQuads, 1, slot );
+                feedback_Veg[0].numBillboard = slot;
 				
 				quad_instance[child_index * numQuadsPerTile + slot].xyz =  repack_pos(x, y, uHgt, rnd);
 				quad_instance[child_index * numQuadsPerTile + slot].s_r_idx = repack_SRTI( SRTI, child_index);

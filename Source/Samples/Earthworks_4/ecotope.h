@@ -161,7 +161,7 @@ public:
 struct ecotopeGpuConstants
 {
     int numEcotopes = 0;
-    int debug = 90;
+    int debug = -1;
     float pixelSize;
     int lod;
 
