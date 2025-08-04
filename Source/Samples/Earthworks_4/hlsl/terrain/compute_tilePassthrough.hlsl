@@ -28,7 +28,7 @@ RWStructuredBuffer<GC_feedback>			feedback;
 
 // new
 StructuredBuffer<plant> plant_buffer;
-RWStructuredBuffer<vegetation_feedback> feedback_Veg;
+
 
 
 cbuffer gConstants			// ??? wonder if this just works here, then we can skip structured buffer for it
@@ -50,8 +50,7 @@ void main(uint dispatchId : SV_DispatchThreadId)
     //float OH = gHgt[uint2(128, 128)].r - (tile.scale_1024 * 2048);	// Its corner origin rather than middle
     //tile.origin.y = OH;
 
-    feedback_Veg[0].numBillboard = 999;
-    feedback_Veg[0].numPlant = 123;
+    
 
 	if(dispatchId < tile.numQuads )
 	{
@@ -97,17 +96,15 @@ void main(uint dispatchId : SV_DispatchThreadId)
 				// *** its large pack into the plant structure
 				uint slot = 0;
 				InterlockedAdd( tiles[child_index].numPlants, 1, slot );
-                feedback_Veg[0].numPlant = slot; // not acurate but good enouigh
-				
+                
                 plant_i[child_index * numPlantsPerTile + slot].xyz = repack_pos(x, y, uHgt, rnd);
                 plant_i[child_index * numPlantsPerTile + slot].s_r_idx = repack_SRTI(SRTI, child_index);
             }
 			else
 			{
 				uint slot = 0;
-				InterlockedAdd( tiles[child_index].numQuads, 1, slot );
-                feedback_Veg[0].numBillboard = slot;
-				
+                InterlockedAdd(tiles[child_index].numQuads, 1, slot);                
+ 				
 				quad_instance[child_index * numQuadsPerTile + slot].xyz =  repack_pos(x, y, uHgt, rnd);
 				quad_instance[child_index * numQuadsPerTile + slot].s_r_idx = repack_SRTI( SRTI, child_index);
 			}

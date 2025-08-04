@@ -35,7 +35,7 @@ using namespace Assimp;
 #include <chrono>
 using namespace std::chrono;
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -3612,14 +3612,17 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
     terrainSpiteShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
 
     
-    split.compute_clipLodAnimatePlants.Vars()->setBuffer("block_buffer", plants_Root.plantData);
+    split.compute_clipLodAnimatePlants.Vars()->setBuffer("block_buffer", plants_Root.blockData);
     split.compute_clipLodAnimatePlants.Vars()->setBuffer("plant_buffer", plants_Root.plantData);
     split.compute_clipLodAnimatePlants.Vars()->setBuffer("drawArgs_Plants", plants_Root.drawArgs_vegetation);
     split.compute_clipLodAnimatePlants.Vars()->setBuffer("feedback_Veg", plants_Root.buffer_feedback);
+    split.compute_clipLodAnimatePlants.Vars()->setBuffer("instance_out", plants_Root.instanceData);
 
     split.compute_tilePassthrough.Vars()->setBuffer("plant_buffer", plants_Root.plantData);
-    split.compute_tilePassthrough.Vars()->setBuffer("feedback_Veg", plants_Root.buffer_feedback);
 
+    split.compute_tileClear.Vars()->setBuffer("feedback_Veg", plants_Root.buffer_feedback);
+    split.compute_tileClear.Vars()->setBuffer("DrawArgs_Plants", plants_Root.drawArgs_vegetation);
+    
 
     mEcosystem.terrainSize = settings.size;
     mEcosystem.load(settings.dirRoot + "/ecosystem/steg.ecosystem", settings.dirResource + "/");    // FIXME MOVE To lastFILE
@@ -4768,8 +4771,6 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
         case _terrainMode::ecotope:
         {
-            
-
             mEcosystem.renderGUI(_gui);
             if (ImGui::BeginPopupContextWindow(false))
             {
@@ -4782,21 +4783,25 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
             ImGui::NewLine();
             ImGui::NewLine();
             ImGui::Separator();
-            ImGui::Text("feedback");
-            ImGui::Text("%d plants loaded", plants_Root.importPathVector.size());
-            //if (ImGui::IsItemHovered()) { ImGui::SetTooltip(x); }
-            ImGui::Text("%d tex, %2.2f Mb", _plantMaterial::static_materials_veg.textureVector.size(), _plantMaterial::static_materials_veg.texMb);
+            ImGui::Text("%d plants, %d tex, %2.2f Mb", plants_Root.importPathVector.size(), _plantMaterial::static_materials_veg.textureVector.size(), _plantMaterial::static_materials_veg.texMb);
             
             // do billobard as well
-            ImGui::Text("billboards");
-            ImGui::Text("%d instance ", plants_Root.feedback.numBillboard);
+            ImGui::NewLine();
+            ImGui::Text("billboards %d", plants_Root.feedback.numBillboard);
+            auto& profiler = Profiler::instance();
+            auto event = profiler.getEvent("/onFrameUpdate/update/update_dirty/clip_lod_animate");
+            billboardGpuTime = event->getGpuTimeAverage();
+            ImGui::Text("gpu %1.3fms", billboardGpuTime);
 
-            ImGui::Text("plants");
+            ImGui::NewLine();
             float numTri = (float)plants_Root.feedback.numBlocks * VEG_BLOCK_SIZE * 2.f / 1000000.f;
-            ImGui::Text("%d plants ", plants_Root.feedback.numPlant);
-            ImGui::Text("%d %d %d %d ", plants_Root.feedback.numLod[0], plants_Root.feedback.numLod[1], plants_Root.feedback.numLod[2], plants_Root.feedback.numLod[3]);
-            ImGui::Text("%2.2f M tri ", numTri);
+            ImGui::Text("plants %d in, %d out ", plants_Root.feedback.numPlant, plants_Root.feedback.numFrustDiscard);
+            ImGui::Text("%d, %d, %d, %d ", plants_Root.feedback.numLod[0], plants_Root.feedback.numLod[1], plants_Root.feedback.numLod[2], plants_Root.feedback.numLod[3]);
+            ImGui::Text("%2.2f M tri, %d blocks", numTri, plants_Root.feedback.numBlocks);
             ImGui::Text("gpu %1.3fms", plants_Root.gputime);
+            ImGui::Text("clipLOD %d inst", plants_Root.feedback.numInstanceAddedComputeClipLod);
+            
+            
 
             ImGui::NewLine();
             ImGui::NewLine();
@@ -4809,31 +4814,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
             
             
             // FIXME make a unified function that I cann call from multiple spots, maybe even the menu
-            ImGui::PushFont(_gui->getFont("default"));
-            {
-                ImGui::Text("Time of day");
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("angle", &shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
-                if (ImGui::Button("change"))
-                {
-                    shadowEdges.requestNewShadow = true;
-                }
-
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("haze turbidity", &pAtmosphere->haze_Turbidity, 0.01f, 1.f, 15.f, "%1.2f");
-
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("fog turbidity", &pAtmosphere->fog_Turbidity, 0.01f, 1.f, 125.f, "%1.2f");
-
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("fog base", &pAtmosphere->fog_BaseAltitudeKm, 0.001f, 0.f, 1.f, "%1.2fkm");
-
-                ImGui::SetNextItemWidth(300);
-                ImGui::DragFloat("fog height", &pAtmosphere->fog_AltitudeKm, 0.001f, 0.05f, 1.f, "%1.2f");
-
-
-            }
-            ImGui::PopFont();
+            
         }
         break;
 
@@ -5431,6 +5412,8 @@ void jp2Dir::cacheHash(uint32_t hash)
             }
             auto share = std::make_shared<std::vector<unsigned char>>(dataRoot);
             cache.set(hash, share);
+
+            fprintf(terrafectorSystem::_logfile, "cacheHash()   %s   %s \n", path.c_str(), files[idx].filename.c_str());
         }
     }
 }
@@ -7130,14 +7113,57 @@ bool terrainManager::update(RenderContext* _renderContext)
 
 void terrainManager::hashAndCache_Thread(quadtree_tile* pTile)
 {
+    auto start = high_resolution_clock::now();
+
+    if (jphData.size() < 1048576) jphData.resize(1048576);
+    //std::array<unsigned short, 1048576> data;
+
+    auto hashelement = elevationTileHashmap[pTile->elevationHash];
+    ojph::codestream codestream;
+    ojph::j2c_infile j2c_file;
+    j2c_file.open(elevationTileHashmap[pTile->elevationHash].filename.c_str());
+    codestream.enable_resilience();
+    codestream.set_planar(false);
+    codestream.read_headers(&j2c_file);
+    codestream.create();
+    int next_comp;
+
+
+
+    for (int i = 0; i < 1024; ++i)
+    {
+        ojph::line_buf* line = codestream.pull(next_comp);
+        int32_t* dp = line->i32;
+        for (int j = 0; j < 1024; j++) {
+            int16_t val = (int16_t)*dp++;
+            jphData[i * 1024 + j] = val;
+        }
+    }
+    codestream.close();
+    auto start_b = high_resolution_clock::now();
+    //textureCacheElement map;
+   // cacheTexture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::R16Unorm, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
+    //elevationCache.set(pTile->elevationHash, map);
+
+    auto stop = high_resolution_clock::now();
+    stream.terrainCacheTime = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
+    stream.terrainCacheJPHTime = (double)duration_cast<microseconds>(stop - start_b).count() / 1000.;
+    hashCount = 2;
+    cacheHash = pTile->elevationHash;
 }
 
-void terrainManager::hashAndCacheImages_Thread(quadtree_tile* pTile)
-{
-}
+
 
 bool terrainManager::hashAndCache(quadtree_tile* pTile)
 {
+    if (hashCount == 2)
+    {
+        textureCacheElement map;
+        map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::R16Unorm, 1, 1, jphData.data(), Resource::BindFlags::ShaderResource);;
+        elevationCache.set(cacheHash, map);
+        cacheTexture.reset();
+        hashCount = 0;
+    }
 
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
     std::map<uint32_t, heightMap>::iterator it = elevationTileHashmap.find(hash);
@@ -7151,57 +7177,125 @@ bool terrainManager::hashAndCache(quadtree_tile* pTile)
 
         if (!elevationCache.get(pTile->elevationHash, map))
         {
-            auto start = high_resolution_clock::now();
-
-            std::array<unsigned short, 1048576> data;
-
-            auto hashelement = elevationTileHashmap[pTile->elevationHash];
-            ojph::codestream codestream;
-            ojph::j2c_infile j2c_file;
-            j2c_file.open(elevationTileHashmap[pTile->elevationHash].filename.c_str());
-            codestream.enable_resilience();
-            codestream.set_planar(false);
-            codestream.read_headers(&j2c_file);
-            codestream.create();
-            int next_comp;
-
-            
-
-            for (int i = 0; i < 1024; ++i)
+            if (hashCount == 0)
             {
-                ojph::line_buf* line = codestream.pull(next_comp);
-                int32_t* dp = line->i32;
-                for (int j = 0; j < 1024; j++) {
-                    int16_t val = (int16_t)*dp++;
-                    data[i * 1024 + j] = val;
-                }
+                hashCount++;
+                hashFuture = std::async(std::launch::async, &terrainManager::hashAndCache_Thread, this, pTile);
             }
-            codestream.close();
-            auto start_b = high_resolution_clock::now();
-            map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::R16Unorm, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
-            elevationCache.set(pTile->elevationHash, map);
-
-            auto stop = high_resolution_clock::now();
-            stream.terrainCacheTime = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
-            stream.terrainCacheJPHTime = (double)duration_cast<microseconds>(stop - start_b).count() / 1000.;
+            //hashFuture.wait();
+            //elevationCache.get(pTile->elevationHash, map);
+            //split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
             return false;
         }
         else
         {
-            return true;
+            
             split.compute_tileBicubic.Vars()->setTexture("gInput", map.texture);
+            return true;
         }
     }
 
-
+    return true;
 }
 
+
+
+void terrainManager::hashAndCacheImages_Thread(quadtree_tile* pTile)
+{
+    if (pTile->imageHash == 0)
+    {
+        bool CM = true;
+    }
+
+    auto start = high_resolution_clock::now();
+
+    if (jphImageData.size() < 1024 * 1024 * 4) jphImageData.resize(1024 * 1024 * 4);
+    //std::array<unsigned char, 1024 * 1024 * 4> data;
+    std::shared_ptr<std::vector<unsigned char>> dataCache;
+
+    ojph::codestream codestream;
+    ojph::mem_infile j2c_file;
+    //j2c_file.open(imageTileHashmap[pTile->imageHash].filename.c_str());
+    std::map<uint32_t, uint2>::iterator itH = imageDirectory.tileHash.find(pTile->imageHash);
+    if (itH == imageDirectory.tileHash.end()) {
+        fprintf(terrafectorSystem::_logfile, "FAILED tileHash.find\n");
+        fflush(terrafectorSystem::_logfile);
+    }
+    jp2File& file = imageDirectory.files[itH->second.x];
+    jp2Map& mapTile = imageDirectory.files[itH->second.x].tiles[itH->second.y];
+
+    if (itH->second.x == 0)
+    {
+        j2c_file.open(&imageDirectory.dataRoot[mapTile.fileOffset], mapTile.sizeInBytes);
+    }
+    else
+    {
+        if (imageDirectory.cache.get(file.hash, dataCache))
+        {
+            j2c_file.open(dataCache->data() + mapTile.fileOffset, mapTile.sizeInBytes);
+        }
+        else
+        {
+
+            bool bCM = true;
+            fprintf(terrafectorSystem::_logfile, "FIX imageCache.resize(55);  its still too small\n");
+            fprintf(terrafectorSystem::_logfile, "offset %d, lod %d, %s\n", mapTile.fileOffset, mapTile.lod, file.filename.c_str());
+            fprintf(terrafectorSystem::_logfile, "itH file %d, tile %d\n", itH->second.x, itH->second.y);
+            fprintf(terrafectorSystem::_logfile, "Bug is liekly here at teh ned void jp2Dir::load(std::string _name). The thing that changed is that I changed FOV, so diffirent amount fo tiles vissible\n");
+
+
+            fflush(terrafectorSystem::_logfile);
+            // should never get here but handle it somehow
+            // split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
+            // I think it was with very fast movement, not sure how that was possible
+        }
+    }
+    codestream.enable_resilience();
+    codestream.set_planar(false);
+    codestream.read_headers(&j2c_file);
+    codestream.create();
+    int next_comp;
+
+
+
+    for (int i = 0; i < 1024; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            ojph::line_buf* line = codestream.pull(next_comp);
+            int32_t* dp = line->i32;
+            for (int k = 0; k < 1024; k++) {
+                jphImageData[(i * 1024 * 4) + (k * 4) + next_comp] = (unsigned char)*dp++;
+            }
+        }
+    }
+    codestream.close();
+    auto start_b = high_resolution_clock::now();
+    //textureCacheElement map;
+    //cacheTextureImage = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, jphImageData.data(), Resource::BindFlags::ShaderResource);
+    //cacheTextureImage = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1,nullptr, Resource::BindFlags::ShaderResource);
+    //imageCache.set(pTile->imageHash, map);
+
+    auto stop = high_resolution_clock::now();
+    stream.imageCacheTime = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
+    stream.imageCacheJPHTime = (double)duration_cast<microseconds>(stop - start_b).count() / 1000.;
+    hashCountImage = 2;
+    cacheHashImage = pTile->imageHash;
+}
 
 /*  The weird carsh comes from my cache being too small, so tiles gets deleted tehn needed at another resolution
 */
 bool terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 {
-
+    if (hashCountImage == 2)
+    {
+        textureCacheElement map;
+        map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, jphImageData.data(), Resource::BindFlags::ShaderResource);;
+        //map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, nullptr, Resource::BindFlags::ShaderResource);;
+        imageCache.set(cacheHashImage, map);
+        cacheTextureImage.reset();
+        hashCountImage = 0;
+    }
 
     uint32_t hash = getHashFromTileCoords(pTile->lod, pTile->y, pTile->x);
 
@@ -7211,18 +7305,16 @@ bool terrainManager::hashAndCacheImages(quadtree_tile* pTile)
     auto stop_c = high_resolution_clock::now();
     double time = (double)duration_cast<microseconds>(stop_c - start_c).count() / 1000.;
     if (time > 1.f)     stream.imageCacheIOTime = time;
-    //std::thread T0(&jp2Dir::cacheHash, &imageDirectory, hash);
-
 
     std::map<uint32_t, uint2>::iterator it = imageDirectory.tileHash.find(hash);
     if (it != imageDirectory.tileHash.end()) {
         pTile->imageHash = hash;
     }
-    else
-    {
+//    else
+//    {
         //fprintf(terrafectorSystem::_logfile, "FAILED %d %d %d   imageDirectory.tileHash.find(hash);\n", pTile->lod, pTile->y, pTile->x);
         //fflush(terrafectorSystem::_logfile);
-    }
+  //  }
 
     //if (pTile->imageHash > 0)
     {
@@ -7230,85 +7322,21 @@ bool terrainManager::hashAndCacheImages(quadtree_tile* pTile)
 
         if (!imageCache.get(pTile->imageHash, map))     // so we dont have teh image on GPU
         {
-            if (pTile->imageHash == 0)
+            if (hashCountImage == 0)
             {
-                bool CM = true;
+                hashCountImage++;
+                hashIFuture = std::async(std::launch::async, &terrainManager::hashAndCacheImages_Thread, this, pTile);
             }
-
-            auto start = high_resolution_clock::now();
-
-            std::array<unsigned char, 1024 * 1024 * 4> data;
-            std::shared_ptr<std::vector<unsigned char>> dataCache;
-
-            ojph::codestream codestream;
-            ojph::mem_infile j2c_file;
-            //j2c_file.open(imageTileHashmap[pTile->imageHash].filename.c_str());
-            std::map<uint32_t, uint2>::iterator itH = imageDirectory.tileHash.find(pTile->imageHash);
-            if (itH == imageDirectory.tileHash.end()) {
-                fprintf(terrafectorSystem::_logfile, "FAILED tileHash.find\n");
-                fflush(terrafectorSystem::_logfile);
-            }
-            jp2File& file = imageDirectory.files[itH->second.x];
-            jp2Map& mapTile = imageDirectory.files[itH->second.x].tiles[itH->second.y];
-
-            if (itH->second.x == 0)
-            {
-                j2c_file.open(&imageDirectory.dataRoot[mapTile.fileOffset], mapTile.sizeInBytes);
-            }
-            else
-            {
-                if (imageDirectory.cache.get(file.hash, dataCache))
-                {
-                    j2c_file.open(dataCache->data() + mapTile.fileOffset, mapTile.sizeInBytes);
-                }
-                else
-                {
-
-                    bool bCM = true;
-                    fprintf(terrafectorSystem::_logfile, "FIX imageCache.resize(55);  its still too small\n");
-                    fprintf(terrafectorSystem::_logfile, "offset %d, lod %d, %s\n", mapTile.fileOffset, mapTile.lod, file.filename.c_str());
-                    fprintf(terrafectorSystem::_logfile, "itH file %d, tile %d\n", itH->second.x, itH->second.y);
-                    fprintf(terrafectorSystem::_logfile, "Bug is liekly here at teh ned void jp2Dir::load(std::string _name). The thing that changed is that I changed FOV, so diffirent amount fo tiles vissible\n");
-
-
-                    fflush(terrafectorSystem::_logfile);
-                    // should never get here but handle it somehow
-                    // split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
-                    // I think it was with very fast movement, not sure how that was possible
-                }
-            }
-            codestream.enable_resilience();
-            codestream.set_planar(false);
-            codestream.read_headers(&j2c_file);
-            codestream.create();
-            int next_comp;
-
-            
-
-            for (int i = 0; i < 1024; ++i)
-            {
-                for (int j = 0; j < 3; j++)
-                {
-                    ojph::line_buf* line = codestream.pull(next_comp);
-                    int32_t* dp = line->i32;
-                    for (int j = 0; j < 1024; j++) {
-                        data[(i * 1024 * 4) + (j * 4) + next_comp] = (unsigned char)*dp++;
-                    }
-                }
-            }
-            codestream.close();
-            auto start_b = high_resolution_clock::now();
-            map.texture = Texture::create2D(1024, 1024, Falcor::ResourceFormat::RGBA8UnormSrgb, 1, 1, data.data(), Resource::BindFlags::ShaderResource);
-            imageCache.set(pTile->imageHash, map);
-
-            auto stop = high_resolution_clock::now();
-            stream.imageCacheTime = (double)duration_cast<microseconds>(stop - start).count() / 1000.;
-            stream.imageCacheJPHTime = (double)duration_cast<microseconds>(stop - start_b).count() / 1000.;
-            
+            return false;
         }
-
-        split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
+        else
+        {
+            split.compute_tileBicubic.Vars()->setTexture("gInputAlbedo", map.texture);
+            return true;
+        }
     }
+
+    return true;
 }
 
 
@@ -7342,17 +7370,17 @@ void terrainManager::splitOne(RenderContext* _renderContext)
         {
             bool dataReady = true;
             {
-                FALCOR_PROFILE("hashAndCache");
+                //FALCOR_PROFILE("hashAndCache");
                 hasChanged = true;
-                dataReady |= hashAndCache(tile);
+                dataReady &= hashAndCache(tile);
             }
 
             {
-                FALCOR_PROFILE("hashAndCacheImages");
-                dataReady |= hashAndCacheImages(tile);
+                //FALCOR_PROFILE("hashAndCacheImages");
+                dataReady &= hashAndCacheImages(tile);
             }
 
-            if (dataReady)	// antani, check for hashAndCache() return value is it ready
+            if (dataReady)
             {
 
                 FALCOR_PROFILE("split");
@@ -7407,36 +7435,36 @@ void terrainManager::splitOne(RenderContext* _renderContext)
         {
             FALCOR_PROFILE("extract_all");
             {
-                FALCOR_PROFILE("bicubic");
+                //FALCOR_PROFILE("bicubic");
             }
             {
-                FALCOR_PROFILE("renderTopdown");
+                //FALCOR_PROFILE("renderTopdown");
             }
             {
-                FALCOR_PROFILE("compute");
+                //FALCOR_PROFILE("compute");
                 {
-                    FALCOR_PROFILE("copy_VERT");
+                   // FALCOR_PROFILE("copy_VERT");
                 }
                 {
-                    FALCOR_PROFILE("compress_copy_Albedo");
+                    //FALCOR_PROFILE("compress_copy_Albedo");
                 }
                 {
-                    FALCOR_PROFILE("normals");
+                    //FALCOR_PROFILE("normals");
                 }
                 {
-                    FALCOR_PROFILE("verticies");
+                    //FALCOR_PROFILE("verticies");
                 }
                 {
-                    FALCOR_PROFILE("copy normals");
+                    //FALCOR_PROFILE("copy normals");
                 }
                 {
-                    FALCOR_PROFILE("jumpflood");
+                    //FALCOR_PROFILE("jumpflood");
                 }
                 {
-                    FALCOR_PROFILE("copy_PBR");
+                    //FALCOR_PROFILE("copy_PBR");
                 }
                 {
-                    FALCOR_PROFILE("delaunay");
+                    //FALCOR_PROFILE("delaunay");
                 }
             }
         }
@@ -7467,7 +7495,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
 
     {
-        FALCOR_PROFILE("bicubic");
+        //FALCOR_PROFILE("bicubic");
         heightMap& elevationMap = elevationTileHashmap[_tile->elevationHash];
 
         float2 bicubicOffset = (origin - elevationMap.origin) / elevationMap.size;
@@ -7508,10 +7536,10 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
     }
 
     {
-        FALCOR_PROFILE("compute");
+        //FALCOR_PROFILE("compute");
 
         {
-            FALCOR_PROFILE("ecotope");
+            //FALCOR_PROFILE("ecotope");
 
             heightMap& elevationMap = elevationTileHashmap[0];
             split.compute_tileEcotopes.Vars()->setTexture("gLowresHgt", split.rootElevation);
@@ -7548,7 +7576,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         }
 
         {
-            FALCOR_PROFILE("passthrough");
+            //FALCOR_PROFILE("passthrough");
             uint cnt = (numQuadsPerTile) >> 8;	  // FIXME - hiesdie oordoen is es dan stadig - dit behoort Compute indoirect te wees  en die regte getal te gebruik
             split.compute_tilePassthrough.Vars()["gConstants"]["parent_index"] = _tile->parent->index;
             split.compute_tilePassthrough.Vars()["gConstants"]["child_index"] = _tile->index;
@@ -7559,14 +7587,14 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
         {
             // Do this early to avoid stalls
-            FALCOR_PROFILE("copy_VERT");
+            //FALCOR_PROFILE("copy_VERT");
             _renderContext->copyResource(split.vertex_B_texture.get(), split.vertex_clear.get());			// not 100% sure this clear is needed
             _renderContext->copyResource(split.vertex_A_texture.get(), split.vertex_preload.get());
         }
 
         {
             // compress and copy colour data
-            FALCOR_PROFILE("compress_copy_Albedo");
+            //FALCOR_PROFILE("compress_copy_Albedo");
             //split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(1));
             //split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
             //_renderContext->copySubresource(compressed_Albedo_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
@@ -7575,13 +7603,13 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         }
 
         {
-            FALCOR_PROFILE("normals");
+            //FALCOR_PROFILE("normals");
             split.compute_tileNormals.Vars()["gConstants"]["pixSize"] = pixelSize;
             split.compute_tileNormals.dispatch(_renderContext, cs_w, cs_w);
         }
 
         {
-            FALCOR_PROFILE("verticies");
+            //FALCOR_PROFILE("verticies");
             float scale = 1.0f;
             if (_tile->lod < 7)  scale = 1.3f;
             if (_tile->lod == 13)  scale = 1.2f;
@@ -7596,7 +7624,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         }
 
         {
-            FALCOR_PROFILE("copy normals");
+            //FALCOR_PROFILE("copy normals");
             _renderContext->copySubresource(compressed_Normals_Array.get(), _tile->index, split.normals_texture.get(), 0);
             /*
             PROFILE(normalsBC6H);
@@ -7629,7 +7657,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         // jumpflood algorithm (1+JFA+1) tp build voroinoi diagram ------------------------------------------------------------------------
         // ek weet 32 en 6 loops is goed
         {
-            FALCOR_PROFILE("jumpflood");
+            //FALCOR_PROFILE("jumpflood");
 
             uint step = 4;
             for (int j = 0; j < 3; j++) {
@@ -7654,7 +7682,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         }
 
         {
-            FALCOR_PROFILE("copy_PBR");
+            //FALCOR_PROFILE("copy_PBR");
             split.compute_bc6h.Vars()->setTexture("gSource", split.tileFbo->getColorTexture(2));
             split.compute_bc6h.dispatch(_renderContext, cs_w / 4, cs_w / 4);
             _renderContext->copySubresource(compressed_PBR_Array.get(), _tile->index, split.bc6h_texture.get(), 0);
@@ -7662,7 +7690,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
 
         {
-            FALCOR_PROFILE("delaunay");
+            //FALCOR_PROFILE("delaunay");
             uint32_t firstVertex = _tile->index * numVertPerTile;
             uint32_t zero = 0;
             split.buffer_terrain->getUAVCounter()->setBlob(&zero, 0, sizeof(uint32_t));	// damn, I misuse increment, count in 1's but write in 3's
@@ -7680,7 +7708,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
 
 void terrainManager::splitRenderTopdown(quadtree_tile* _pTile, RenderContext* _renderContext)
 {
-    FALCOR_PROFILE("renderTopdown");
+    //FALCOR_PROFILE("renderTopdown");
 
     // set up the camera -----------------------
     float s = _pTile->size / 2.0f;
@@ -8109,7 +8137,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     if (terrainMode == _terrainMode::vegetation)
     {
         {
-            FALCOR_PROFILE("skydome");
+            //FALCOR_PROFILE("skydome");
 
             triangleShader.State()->setFbo(_fbo);
             triangleShader.State()->setViewport(0, _viewport, true);
@@ -8476,7 +8504,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
 
     {
-        FALCOR_PROFILE("glider wing");
+        //FALCOR_PROFILE("glider wing");
         gliderwingShader.State()->setFbo(_fbo);
         gliderwingShader.State()->setViewport(0, _viewport, true);
         gliderwingShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
@@ -8488,7 +8516,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     {
 
-        FALCOR_PROFILE("ribbonShader");
+        //FALCOR_PROFILE("ribbonShader");
 
         ribbonShader.State()->setFbo(_fbo);
         ribbonShader.State()->setViewport(0, _viewport, true);
@@ -8539,7 +8567,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
     if ((splines.numStaticSplines || splines.numDynamicSplines) && showRoadSpline && !bSplineAsTerrafector)
     {
-        FALCOR_PROFILE("splines");
+        //FALCOR_PROFILE("splines");
 
         split.shader_spline3D.State()->setFbo(_fbo);
         split.shader_spline3D.State()->setRasterizerState(split.rasterstateSplines);
@@ -8583,7 +8611,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
-        FALCOR_PROFILE("sprites");
+        //FALCOR_PROFILE("sprites");
         if (showRoadOverlay) {
             mSpriteRenderer.onRender(_camera, _renderContext, _fbo, _viewport, nullptr);
         }
@@ -8591,7 +8619,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
-        FALCOR_PROFILE("terrain_under_mouse");
+        //FALCOR_PROFILE("terrain_under_mouse");
         compute_TerrainUnderMouse.Vars()["gConstants"]["mousePos"] = mousePosition;
         compute_TerrainUnderMouse.Vars()["gConstants"]["mouseDir"] = mouseDirection;
         compute_TerrainUnderMouse.Vars()["gConstants"]["mouseCoords"] = mouseCoord;
@@ -8608,11 +8636,21 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         mouse.hit = false;
         if (split.feedback.tum_idx > 0)
         {
-            mouse.hit = true;
-            mouse.terrain = split.feedback.tum_Position;
-            mouse.cameraHeight = split.feedback.heightUnderCamera;
-            mouse.toGround = mouse.terrain - _camera->getPosition();
-            mouse.mouseToHeightRatio = glm::length(mouse.toGround) / (_camera->getPosition().y - mouse.cameraHeight);
+            if (ImGui::IsMouseDown(1))  // pan
+            {
+            }
+            else if (ImGui::IsMouseDown(2)) // orbit
+            {
+            }
+            else
+            {
+                mouse.hit = true;
+                mouse.terrain = split.feedback.tum_Position;
+                mouse.cameraHeight = split.feedback.heightUnderCamera;
+                mouse.toGround = mouse.terrain - _camera->getPosition();
+                mouse.mouseToHeightRatio = glm::length(mouse.toGround) / (_camera->getPosition().y - mouse.cameraHeight);
+            }
+
             if (!ImGui::IsMouseDown(1)) {
                 mouse.pan = mouse.terrain;
                 mouse.panDistance = glm::length(mouse.toGround);
@@ -8661,7 +8699,8 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
         for (uint L = 0; L < 18; L++)
         {
-            sprintf(debugTxt, "%3d %5d %5d %5d %5d", L, split.feedback.numTiles[L], split.feedback.numSprite[L], split.feedback.numPlantsLOD[L], split.feedback.numTris[L]);
+            float numBB = (float)split.feedback.numSprite[L] / 1000000.f;
+            sprintf(debugTxt, "%3d %5d %5.2f %5d %5d", L, split.feedback.numTiles[L], numBB, split.feedback.numPlantsLOD[L], split.feedback.numTris[L]);
             TextRenderer::render(_renderContext, debugTxt, _fbo, { 100, 450 + L * 20 });
         }
 

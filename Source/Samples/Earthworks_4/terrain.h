@@ -63,6 +63,9 @@
 
 #include "glider.h"
 #include "cfd.h"
+#include <future> // Required for std::async and std::future
+#include <thread> // Required for std::this_thread::sleep_for
+
 using namespace Falcor;
 
 
@@ -1004,9 +1007,22 @@ private:
     bool testFrustum(quadtree_tile* _tile);
     void markChildrenForRemove(quadtree_tile* _tile);
 
+public:
+    int hashCount = 0;
+    Texture::SharedPtr cacheTexture;
+    uint cacheHash;
+    std::future<void> hashFuture;
+    std::vector<unsigned short> jphData;
+
+    int hashCountImage = 0;
+    Texture::SharedPtr cacheTextureImage;
+    uint cacheHashImage;
+    std::future<void> hashIFuture;
+    std::vector<unsigned char> jphImageData;
 
     void hashAndCache_Thread(quadtree_tile* pTile);
     void hashAndCacheImages_Thread(quadtree_tile* pTile);
+private:
     bool hashAndCache(quadtree_tile* pTile);
     bool hashAndCacheImages(quadtree_tile* pTile);
     void setChild(quadtree_tile* pTile, int y, int x);
@@ -1156,6 +1172,7 @@ private:
 
 public:
     _rootPlant       plants_Root;
+    float               billboardGpuTime;
 private:
 
 

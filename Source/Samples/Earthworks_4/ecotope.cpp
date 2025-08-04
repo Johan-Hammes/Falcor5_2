@@ -331,8 +331,8 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
     auto& style = ImGui::GetStyle();
     ImGuiStyle oldStyle = style;
     style.ButtonTextAlign = ImVec2(0, 0);
-    style.Colors[ImGuiCol_Button] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.0f, 0.7f, 0.9f, 0.7f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.0f, 0.0f, 0.0f, 0.9f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.1f, 0.3f, 0.2f, 0.7f);
     style.Colors[ImGuiCol_Border] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -344,13 +344,9 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
 
 
     change = false;
-    ImGui::PushFont(_pGui->getFont("default"));
-    if (ImGui::DragInt("debug", &constantbuffer.debug, 1, 0, 999)) {
-        change = true;
-    }
-    if (ImGui::Button("rebuild GPU buffers")) {
-        change = true;
-    }
+    ImGui::PushFont(_pGui->getFont("bold"));
+    
+    
 
     for (int i = 0; i < ecotopes.size(); i++) {
 
@@ -370,12 +366,33 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
             style.Colors[ImGuiCol_Text] = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
             char nameEdit[1024];
             sprintf(nameEdit, "%s", ecotopes[i].name.c_str());
-            if (ImGui::Button(nameEdit, ImVec2(W - 20, 30))) {
+            if (ImGui::Button(nameEdit, ImVec2(W - 10, 30))) {
                 selectedEcotope = i;
+                constantbuffer.debug = selectedEcotope;
+                if (showDebug) change = true;
             }
         }
     }
     ImGui::PopFont();
+
+    ImGui::NewLine();
+    if (ImGui::Button("rebuild GPU buffers")) {
+        change = true;
+    }
+    //if (ImGui::DragInt("debug", &constantbuffer.debug, 1, 0, 999)) {
+    //    change = true;
+    //}
+    if (ImGui::Checkbox("show debug", &showDebug))
+    {
+        if (showDebug) {
+            constantbuffer.debug = selectedEcotope;
+        }
+        else {
+            constantbuffer.debug = -1;
+        }
+        change = true;
+    }
+
     style = oldStyle;
 
 
@@ -479,7 +496,7 @@ void ecotopeSystem::rebuildRuntime() {
                     P.percentageOfLodTotalInt = (int)(P.density / ecotopes[ect].totalPlantDensity[lod] * 64.0f);
                     int to = __min(64, slotCount + P.percentageOfLodTotalInt);
                     for (int j = slotCount; j < to; j++) {
-                        plantIndex[ect][lod][j+1] = P.index;
+                        plantIndex[ect][lod][j+1] = P.index + 1;
                         slotCount++;
                     }
                 }

@@ -2924,9 +2924,9 @@ void _rootPlant::onLoad()
 {
     plantData = Buffer::createStructured(sizeof(plant), 256);
     plantpivotData = Buffer::createStructured(sizeof(_plant_anim_pivot), 256 * 256);
-    instanceData = Buffer::createStructured(sizeof(plant_instance), 16384);
-    instanceData_Billboards = Buffer::createStructured(sizeof(plant_instance), 16384, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
-    blockData = Buffer::createStructured(sizeof(block_data), 16384 * 32, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);        // big enough to house inatnces * blocks per instance   8 Mb for now
+    instanceData = Buffer::createStructured(sizeof(plant_instance), 16384 * 4);
+    instanceData_Billboards = Buffer::createStructured(sizeof(plant_instance), 16384 * 4, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+    blockData = Buffer::createStructured(sizeof(block_data), 16384 * 128, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);        // big enough to house inatnces * blocks per instance   8 Mb for now
     vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 65536 * 8);
     drawArgs_vegetation = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
     drawArgs_billboards = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);

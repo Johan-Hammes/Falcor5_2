@@ -255,8 +255,8 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
     
     // WIND ################################################################################################################
     float dx = dot(_instance.position.xz, windDir.xz) * 0.4; // so repeat roughly every 100m
-    float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 0.025), 1)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
-    newWindStrenth = windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
+    float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 1 * 0.025), 3)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
+    newWindStrenth = 3 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
     float ss = 0; //    sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
     float3x3 rot = AngleAxis3x3(ss * 0.3, float3(0, 1, 0));
     float3 NewWindDir = normalize(mul(windDir, rot));
@@ -386,6 +386,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractTangent(output, v, 1.57079632679);
 #endif
 
+    float SS = pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
 
     extractTangent(output, v, INSTANCE.rotation); // Likely only after animate, do only once
     extractUVRibbon(output, v);
@@ -399,7 +400,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float sunCone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
         float sunDepth = (v.e & 0xff) * 0.00784; //depth8   // sulight % how deep inside this plant 0..1 sun..shadow
         float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), sunDirection)); // - sunCone * 0 sunCosTheta sunCone biasess this bigger or smaller 0 is 180 degrees
-        output.Shadow = saturate(a * (sunDepth) + sunDepth); // darker to middle
+        //output.Shadow = saturate(a * (sunDepth) + sunDepth) * SS; // darker to middle
+        output.Shadow = SS; // darker to middle
         output.AmbietOcclusion = pow(((v.f >> 24) / 255.f), 3);
 
         if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
@@ -759,7 +761,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
 #endif
     clip(alpha - rnd);
-    alpha = smoothstep(rnd, 0.8, alpha);
+    alpha = smoothstep(rnd / 2, 0.8, alpha);
     
     
 
@@ -794,14 +796,17 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #else
     dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * PLANT.shadowUVScale)).r;
     dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
+    dappled = 1;
 #endif
 
-    
+    //float Shadow= pow(shadow(vOut.worldPos, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
+    dappled *= vOut.Shadow;
+
     // sunlight
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
     
     // environment cube light
-    color += 0.39 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 0.939 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.001;
@@ -818,7 +823,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= pow(t, 2);
         }
     }
-    color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight;
+    color += trans * pow(albedo.rgb, 1.5) * 15 * vOut.diffuseLight * dappled;
 
     
     // apply JHFAA to edges    

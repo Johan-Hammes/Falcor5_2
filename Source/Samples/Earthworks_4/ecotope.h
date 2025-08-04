@@ -206,6 +206,7 @@ public:
 	std::vector<ecotope>	ecotopes;		// FIXME LIST
 
 	int selectedEcotope = 0;
+    bool showDebug = false;
 
 	// runtime
     //Buffer::SharedPtr constantBuffer;

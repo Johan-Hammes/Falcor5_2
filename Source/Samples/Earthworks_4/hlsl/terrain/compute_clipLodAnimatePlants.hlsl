@@ -12,6 +12,8 @@ RWStructuredBuffer<xformed_PLANT>   output;
 RWStructuredBuffer<t_DrawArguments> drawArgs_Plants;
 RWStructuredBuffer<GC_feedback>		feedback;
 
+RWStructuredBuffer<plant_instance> instance_out;
+
 // new
 StructuredBuffer<plant> plant_buffer;
 RWStructuredBuffer<block_data> block_buffer;
@@ -35,21 +37,36 @@ void main(uint plantId : SV_GroupThreadID, uint blockId : SV_GroupID)
     {
         // clip
         instance_PLANT instance = plantBuffer[tileLookup[blockId].offset + plantId];
-        const uint idx = PLANT_INDEX(instance.s_r_idx);
+        const uint idx = PLANT_INDEX(instance.s_r_idx) * 4;
         const plant PLANT = plant_buffer[idx];
         float3 position = unpack_pos(instance.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024);
         float scale = SCALE(instance.s_r_idx);
-        float4 viewBS = mul( float4(position, 1), view);
-        float4 test = saturate( mul(clip, viewBS ) + 0.05 * float4(4, 4, 4, 4));
+        float4 viewBS = mul(float4(position + float3(0, PLANT.size.y * 0.5, 0), 1), view);
+        float radius = 1 * (PLANT.size.x + PLANT.size.y); // or something like that, or precalc radius
+        float4 test = saturate(mul(clip, viewBS) + float4(radius, radius, radius, radius));
         bool inFrust = all(test);
         // FIXME move middle upwards, expand on thsi a bit, as well as teh 4 4 4 4 above
 
+        
+        feedback_Veg[0].numBillboard = feedback[0].numQuads;
         // extract and save
-        inFrust = false;
+        
         if (inFrust)
         {
+            uint slot = 0;
+            InterlockedAdd(feedback_Veg[0].numPlant, 1, slot);
+
+            uint slotInst;
+            InterlockedAdd(feedback_Veg[0].numInstanceAddedComputeClipLod, 1, slotInst);
+            instance_out[slotInst].position = position;
+            instance_out[slotInst].scale = scale;
+            instance_out[slotInst].rotation = ROTATION(instance.s_r_idx);
+            instance_out[slotInst].plant_idx = idx;
+
+
+
             float distance = length(viewBS.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-            float pix = 3 * PLANT.size.y * scale / distance * 1080; // And add a user controlled scale in as well
+            float pix = 1 * PLANT.size.y * scale / distance * 1080; // And add a user controlled scale in as well
             //lodBias
 
             int lod = 0;
@@ -65,9 +82,10 @@ void main(uint plantId : SV_GroupThreadID, uint blockId : SV_GroupID)
             //if (firstLod < 0 || lod == firstLod)
             {
 
-                uint slot = 0;
-                InterlockedAdd(feedback[0].numPostClippedPlants, 1, slot);
-                //InterlockedAdd(feedback[0].numLod[lod + 1], 1, slot);
+                //uint slot = 0;
+                InterlockedAdd(feedback_Veg[0].numLod[lod + 1], 1, slot);
+                InterlockedAdd(feedback[0].numPostClippedPlants, 1, slot); // duplicates numInstanceAddedComputeClipLod just for feedback
+                
             
                 if (idx == 0)
                 {
@@ -77,20 +95,22 @@ void main(uint plantId : SV_GroupThreadID, uint blockId : SV_GroupID)
             
 
             
-                //InterlockedAdd(feedback[0].numBlocks, PLANT.lods[lod].numBlocks, slot);
+                InterlockedAdd(feedback_Veg[0].numBlocks, PLANT.lods[lod].numBlocks, slot);
                 InterlockedAdd(drawArgs_Plants[0].instanceCount, PLANT.lods[lod].numBlocks, slot);
-                drawArgs_Plants[0].vertexCountPerInstance = VEG_BLOCK_SIZE;
+                drawArgs_Plants[0].vertexCountPerInstance = VEG_BLOCK_SIZE; // FIXME move to a clear shader once
             
  
             
                 for (int i = 0; i < PLANT.lods[lod].numBlocks; i++)
                 {
-                    block_buffer[slot + i].instance_idx = idx;  // Pretty sure this is wrong, and we need more data for rendering
+                    block_buffer[slot + i].instance_idx = slotInst;
                     block_buffer[slot + i].plant_idx = idx;
                     block_buffer[slot + i].section_idx = 0; // FIXME add later
                     block_buffer[slot + i].vertex_offset = PLANT.lods[lod].startVertex + (i * VEG_BLOCK_SIZE);
                 }
+
             }
+
 /*
 old code
             uint slot = 0;
@@ -103,6 +123,10 @@ old code
 
             InterlockedAdd(feedback[0].numPostClippedPlants, 1, slot);
 */
+        }
+        else
+        {
+            InterlockedAdd(feedback_Veg[0].numFrustDiscard, 1);
         }
     }
 

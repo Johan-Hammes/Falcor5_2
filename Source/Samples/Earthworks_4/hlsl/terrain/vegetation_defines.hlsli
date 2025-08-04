@@ -13,12 +13,14 @@ struct block_data
 
 struct plant_instance
 {
-    uint plant_idx;
-    float time_offset;  // for animation
-    float scale;
-    float rotation;
-
     float3 position;
+    float scale;
+
+    float rotation;
+    float time_offset; // for animation but not being used for now
+    uint plant_idx;
+    
+    
 
     // lights
     
@@ -127,5 +129,8 @@ struct vegetation_feedback
     uint numPlant;
 
     uint numLod[32];
+
     uint numBlocks;
+    uint numInstanceAddedComputeClipLod;
+    uint numFrustDiscard;
 };

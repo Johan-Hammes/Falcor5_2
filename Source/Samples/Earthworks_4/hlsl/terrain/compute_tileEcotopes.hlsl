@@ -35,7 +35,7 @@ Buffer<uint> plantIndex;
 
 
 
-Texture2D gHeight : register(u0);
+RWTexture2D gHeight : register(u0);
 RWTexture2D<float3> gAlbedo : register(u1);
 
 Texture2D<float> gLowresHgt : register(t0);
@@ -134,7 +134,7 @@ void main(int2 crd : SV_DispatchThreadId)
             for (i = 0; i < numEcotopes; i++) // ecotope weights calculation -----------------------------------------------------------------------------------
             {
                 float2 UV = World / texScales[i].x;
-                float2 UV2 = frac(World / 248.0f);
+                float2 UV2 = frac(World / 248.0f / 2 );
                 float MIP = log2(pixelSize / 0.005f);
                 
                 //height
@@ -193,8 +193,8 @@ void main(int2 crd : SV_DispatchThreadId)
             float MIP = log2(pixelSize / 0.001f); // There is a BUG in here I assume with the 0.005
 
             col_new += weights[i] * gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).rgb;
-            float hgtTex = gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).a;
-            //hgt_2 += weights[i] * (hgtTex - 0.5) * texScales[i].g * 0.1;
+            float hgtTex = gmyTextures.T[i].SampleLevel(linearSampler, UV, MIP).g;
+            hgt_2 += weights[i] * (hgtTex - 0.5) * texScales[i].g * 0.4;
         }
 
 
@@ -242,22 +242,27 @@ void main(int2 crd : SV_DispatchThreadId)
         if (ecotopeForPlants < numEcotopes)
         {
             const int thisplantIndex = plantIndex.Load(ecotopeForPlants * (16 * 65) + (lod * 65) + 1 + (offset >> 4));
+            if (thisplantIndex > 0)
+            {
             //const int thisplantIndex = plantIndex[ecotopeForPlants][offset >> 4].x;
-            uint uHgt = (gHeight[crd].r - OH) / tile.scale_1024;
+                uint uHgt = (gHeight[crd].r - OH) / tile.scale_1024;
 
-            uint slot = 0;
-            InterlockedAdd(tiles[tileIndex].numQuads, 1, slot);
-            feedback[0].plants_culled = slot;
-            quad_instance[tileIndex * numQuadsPerTile + slot].xyz = pack_pos(crd.x - 4, crd.y - 4, uHgt, rnd); // FIXME - redelik seker die is verkeerd -ek dink ek pak 2 extra sub pixel bits 
-            quad_instance[tileIndex * numQuadsPerTile + slot].s_r_idx = pack_SRTI(1, rnd, tileIndex, thisplantIndex); //(1 << 31) + (child_idx << 11) + (0);
+                uint slot = 0;
+                InterlockedAdd(tiles[tileIndex].numQuads, 1, slot);
+                feedback[0].plants_culled = slot;
+                quad_instance[tileIndex * numQuadsPerTile + slot].xyz = pack_pos(crd.x - 4, crd.y - 4, uHgt, rnd); // FIXME - redelik seker die is verkeerd -ek dink ek pak 2 extra sub pixel bits 
+                quad_instance[tileIndex * numQuadsPerTile + slot].s_r_idx = pack_SRTI(1, rnd, tileIndex, thisplantIndex - 1); //(1 << 31) + (child_idx << 11) + (0);
+            }
         }
         
         // write final colours
-        if (debug > 12)
+        if (debug < 0)
         {
-            //gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
-  //          gAlbedo[crd] = lerp(gAlbedo[crd], col_new *2, permanence.g);
-            //gAlbedo[crd] = gInEct[1][crd].rgb;
+            gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
+            float l = saturate((lod - 7.f) / 10.f);
+
+            gAlbedo[crd] = lerp(gAlbedo[crd], col_new * 2, l); //permanence.g
+  //          gAlbedo[crd] = gInEct[1][crd].rgb;
         }
     }
 

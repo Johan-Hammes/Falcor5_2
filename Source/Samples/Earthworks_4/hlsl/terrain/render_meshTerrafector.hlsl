@@ -5,13 +5,14 @@
 #include "materials.hlsli"
 
 
-struct  triVertex {
-    float3      pos;
-    float       alpha;      // might have to be full float4 colour   but look at float16
+struct triVertex
+{
+    float3 pos;
+    float alpha; // might have to be full float4 colour   but look at float16
 
-    float2      uv;         // might have to add second UV
-    uint        material;
-    float       buffer;         // now 32
+    float2 uv; // might have to add second UV
+    uint material;
+    float buffer; // now 32
 };
 
 
@@ -25,7 +26,8 @@ struct myTextures
 {
     Texture2D<float4> T[4096];
 };
-ParameterBlock<myTextures> gmyTextures;
+ParameterBlock<myTextures>
+gmyTextures;
 
 
 
@@ -54,16 +56,19 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 {
     splineVSOut vsOut;
 
-        uint idx = (iId * 128 * 3) + vId;
+    uint idx = (iId * 128 * 3) + vId;
         //uint idx = vId;
-        triVertex V = vertexData[indexData[idx]];
+    triVertex V = vertexData[indexData[idx]];
         //triVertex V = vertexData[vId];
 
-        vsOut.pos = mul(float4(V.pos, 1), viewproj);
-        vsOut.posW = V.pos;
-        vsOut.flags.y = V.material;
-        vsOut.colour = V.alpha;
-        vsOut.texCoords = float3(V.uv, 0);
+    vsOut.pos = mul(float4(V.pos, 1), viewproj);
+    vsOut.posW = V.pos;
+    vsOut.flags.y = V.material;
+    vsOut.colour = V.alpha;
+    vsOut.texCoords = float3(V.uv, 0);
+    //vsOut.texCoords.y = 0;
+    //if (vId%3 ==  2)
+      //  vsOut.texCoords.y = 1;
 
     return vsOut;
 }
@@ -80,31 +85,31 @@ splineVSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
 PS_OUTPUT_Terrafector fixedMaterials(const uint material, const float2 uv, const float4 color, const uint4 flags, const float height)
 {
-    PS_OUTPUT_Terrafector output = (PS_OUTPUT_Terrafector)0;
+    PS_OUTPUT_Terrafector output = (PS_OUTPUT_Terrafector) 0;
 
     switch (material)
     {
-    case MATERIAL_BLEND:
+        case MATERIAL_BLEND:
     {
-        output.Elevation.a = color.a * smoothstep(0, 1, color.r);
-        output.Elevation.r = height * output.Elevation.a;
-        return output;
-    }
-    break;
-    case MATERIAL_SOLID:
+                output.Elevation.a = color.a * smoothstep(0, 1, color.r);
+                output.Elevation.r = height * output.Elevation.a;
+                return output;
+            }
+            break;
+        case MATERIAL_SOLID:
     {
-        output.Elevation.a = color.a;
-        output.Elevation.r = color.a * height;
-        return output;
-    }
-    break;
-    case MATERIAL_CURVATURE:
+                output.Elevation.a = color.a;
+                output.Elevation.r = color.a * height;
+                return output;
+            }
+            break;
+        case MATERIAL_CURVATURE:
     {
-        output.Elevation.a = 0;
-        output.Elevation.r = 0.1 * cos((abs(uv.x)) * 1.57079632679);
-        return output;
-    }
-    break;
+                output.Elevation.a = 0;
+                output.Elevation.r = 0.1 * cos((abs(uv.x)) * 1.57079632679);
+                return output;
+            }
+            break;
     }
 
     return output;
@@ -118,11 +123,12 @@ PS_OUTPUT_Terrafector fixedMaterials(const uint material, const float2 uv, const
 
 PS_OUTPUT_Terrafector psMain(splineVSOut vIn) : SV_TARGET
 {
-    PS_OUTPUT_Terrafector output = (PS_OUTPUT_Terrafector)0;
+    PS_OUTPUT_Terrafector output = (PS_OUTPUT_Terrafector) 0;
     uint material = vIn.flags.y;
     TF_material MAT = materials[material];
 
-    if (material > 2030) {
+    if (material > 2030)
+    {
         return fixedMaterials(material, vIn.texCoords.xz, vIn.colour, vIn.flags, vIn.posW.y);
     }
 
@@ -152,7 +158,7 @@ PS_OUTPUT_Terrafector psMain(splineVSOut vIn) : SV_TARGET
                 solveUV(materials[subMat], vIn.posW.xz, vIn.texCoords.xy, uvSub);
                 float alphaSub = alphaSubA * alpha * solveAlpha(materials[subMat], uvSub, 1);
 
-                PS_OUTPUT_Terrafector subOutput = (PS_OUTPUT_Terrafector)0;
+                PS_OUTPUT_Terrafector subOutput = (PS_OUTPUT_Terrafector) 0;
                 solveElevationColour(subOutput, materials[subMat], uvSub, alphaSub, vIn.posW.y);
 
                 // blend

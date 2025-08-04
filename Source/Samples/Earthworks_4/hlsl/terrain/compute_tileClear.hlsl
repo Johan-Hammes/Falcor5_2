@@ -1,4 +1,5 @@
 #include "groundcover_defines.hlsli"
+#include "vegetation_defines.hlsli"
 
 
 RWStructuredBuffer<GC_feedback>			feedback;
@@ -8,6 +9,8 @@ RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Terrain;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_Plants;
 RWStructuredBuffer<t_DrawArguments> 	DrawArgs_ClippedLoddedPlants;
 RWStructuredBuffer<t_DispatchArguments> DispatchArgs_Plants;
+
+RWStructuredBuffer<vegetation_feedback> feedback_Veg;
 
 
 
@@ -66,5 +69,28 @@ void main(uint dispatchId : SV_DispatchThreadId)
         feedback[0].numPlantsLOD[j] = 0;
         feedback[0].numTris[j] = 0;
     }
-    
+
+// veg feedback
+    feedback_Veg[0].numInstanceAddedComputeClipLod = 0; // since passtherough is before clipLod, bur dedicated is betetrfeedback_Veg[0].numBillboard
+    feedback_Veg[0].numFrustDiscard = 0;
+    feedback_Veg[0].numBillboard = 13;
+    feedback_Veg[0].numPlant = 33;
+    feedback_Veg[0].numBlocks = 0;
+    feedback_Veg[0].numLod[0] = 0;
+    feedback_Veg[0].numLod[1] = 0;
+    feedback_Veg[0].numLod[2] = 0;
+    feedback_Veg[0].numLod[3] = 0;
+    feedback_Veg[0].numLod[4] = 0;
+    feedback_Veg[0].numLod[5] = 0;
+    feedback_Veg[0].numLod[6] = 0;
+    feedback_Veg[0].numLod[7] = 0;
+    feedback_Veg[0].numLod[8] = 0;
+    feedback_Veg[0].numLod[9] = 0;
+    feedback_Veg[0].numLod[10] = 0;
+    feedback_Veg[0].numLod[11] = 0;
+    feedback_Veg[0].numLod[12] = 0;
+    feedback_Veg[0].numLod[13] = 0;
+    feedback_Veg[0].numLod[14] = 0;
+    feedback_Veg[0].numLod[15] = 0;
+
 }

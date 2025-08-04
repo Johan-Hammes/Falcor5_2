@@ -42,9 +42,9 @@ VSQuadOut vsMain(uint vId : SV_VertexID)
 
 float4 psMain(VSQuadOut vIn) : SV_TARGET0
 {
-    float4 aces = float4(ACESFilm(hdr[vIn.position.xy] * 1.4), 1);
+    float4 aces = float4(ACESFilm(hdr[vIn.position.xy] * 1.73), 1);
     float3 cc = cube.SampleLevel(linearSampler, aces.rgb * 1.0, 0);
     //if (vIn.position.x > 1300)
-    aces.rgb = lerp(aces.rgb, cc, 0.005);
+    aces.rgb = lerp(aces.rgb, cc, 0.2);
     return aces;
 }

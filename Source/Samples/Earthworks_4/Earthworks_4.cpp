@@ -84,6 +84,27 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
             }
 
             ImGui::Separator();
+            ImGui::Text("Time of day");
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragFloat("angle", &terrain.shadowEdges.sunAngle, 0.01f, 0, 3.14f, "%1.2f");
+            if (ImGui::Button("change"))
+            {
+                terrain.shadowEdges.requestNewShadow = true;
+            }
+
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragFloat("haze turbidity", &atmosphere.params.haze_Turbidity, 0.01f, 1.f, 15.f, "%1.2f");
+
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragFloat("fog turbidity", &atmosphere.params.fog_Turbidity, 0.01f, 1.f, 125.f, "%1.2f");
+
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragFloat("fog base", &atmosphere.params.fog_BaseAltitudeKm, 0.001f, 0.f, 1.f, "%1.2fkm");
+
+            ImGui::SetNextItemWidth(300);
+            ImGui::DragFloat("fog height", &atmosphere.params.fog_AltitudeKm, 0.001f, 0.05f, 1.f, "%1.2f");
+
+            ImGui::Separator();
             ImGui::Checkbox("vsync", &refresh.vsync);
             ImGui::Checkbox("only on change", &refresh.minimal);
             TOOLTIP("ultimate low power - only refresh on changes");
@@ -361,6 +382,9 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.plants_Root.billboardShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
 
 
+    
+
+
 
     std::cout << "  cfd\n";
     fprintf(logFile, "terrain.cfdStart()\n");
@@ -466,6 +490,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         terrain.rappersvilleShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.gliderwingShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
+        
 
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
@@ -502,6 +527,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
             terrain.plants_Root.vegetationShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
             terrain.plants_Root.vegetationShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
             terrain.plants_Root.vegetationShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+            terrain.plants_Root.vegetationShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
 
             terrain.plants_Root.billboardShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
             terrain.plants_Root.billboardShader.Vars()["LightsCB"]["sunRightVector"] = sunRight; // should come from somewehere else common
