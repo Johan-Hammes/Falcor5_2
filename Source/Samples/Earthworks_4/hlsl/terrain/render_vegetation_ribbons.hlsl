@@ -811,7 +811,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.001;
     float pw = 15.f / RGH;
-    color += pow(ndoth, pw) * 1.6 * dappled * vOut.diffuseLight * (1 - RGH);
+    color += pow(ndoth, pw) * 0.6 * dappled * vOut.diffuseLight * (1 - RGH);
 
     // translucent light    
     float3 TN = vOut.normal * flipNormal;

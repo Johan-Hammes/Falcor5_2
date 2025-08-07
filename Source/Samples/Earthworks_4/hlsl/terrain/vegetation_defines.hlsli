@@ -6,7 +6,7 @@ struct block_data
 {
     uint instance_idx;          // -> plant     20 bits at least
     uint section_idx;           // -> plant_section - xpbd sim
-    uint vertex_offset;             // -> ribbonVertex8 data in 32 vertex blocks for now
+    uint vertex_offset;         // -> ribbonVertex8 data in 32 vertex blocks for now
     uint plant_idx;             // can find this via instance but likely faster and keeps us aligned    16 bits enough
 };
 
