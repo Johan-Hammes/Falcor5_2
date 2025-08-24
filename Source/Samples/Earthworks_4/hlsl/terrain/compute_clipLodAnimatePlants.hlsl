@@ -66,7 +66,7 @@ void main(uint plantId : SV_GroupThreadID, uint blockId : SV_GroupID)
 
 
             float distance = length(viewBS.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-            float pix = 1 * PLANT.size.y * scale / distance * 1080; // And add a user controlled scale in as well
+            float pix = 0.5 * PLANT.size.y * scale / distance * 1080; // And add a user controlled scale in as well
             //lodBias
 
             int lod = 0;

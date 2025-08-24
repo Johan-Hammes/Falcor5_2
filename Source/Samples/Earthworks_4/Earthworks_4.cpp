@@ -117,7 +117,7 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
             ImGui::EndMenu();
         }
 
-    
+
 
         ImGui::EndMainMenuBar();
     }
@@ -138,6 +138,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
         float scale = 1.f;
         if (screenSize.y > 1600.f) scale = 0.8f;
+        _gui->addFont("header0", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 20);
         _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 40);
         _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 55);
         _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 65);
@@ -148,6 +149,21 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         guiStyle();
         first = false;
     }
+
+    //ImGui::NewLine();
+    //ImGui::SameLine(30, 0);
+    //ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
+    Gui::Window fpsA(_gui, "##fps", { 500, 200 }, { 100, 200 }, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
+    {
+        ImGui::PushFont(_gui->getFont("header0"));
+        {
+            ImGui::Text("%3.0f", 1.37f * 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+        }ImGui::PopFont();
+    }
+
+    fpsA.release();
+    ImGui::PopStyleColor();
 
 
     if (showEditGui)
@@ -382,7 +398,7 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     terrain.plants_Root.billboardShader.Vars()->setTexture("SunInAtmosphere", atmosphere.sunlightTexture);
 
 
-    
+
 
 
 
@@ -490,7 +506,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
         terrain.rappersvilleShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.gliderwingShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
-        
+
 
         //terrain.terrainSpiteShader.Vars()->setTexture("terrainShadow", terrain.terrainShadowTexture);
         atmosphere.setTerrainShadow(terrain.terrainShadowTexture);
@@ -517,7 +533,7 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 
 
         {
-            float3 sunUp = {0, 1, 0};
+            float3 sunUp = { 0, 1, 0 };
             float3 sunRight = glm::normalize(glm::cross(sunUp, global_sun_direction));
             sunUp = glm::normalize(glm::cross(global_sun_direction, sunRight));
             terrain.plants_Root.vegetationShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
@@ -717,7 +733,7 @@ bool Earthworks_4::onKeyEvent(const KeyboardEvent& _keyEvent)
         {
             hideGui = !hideGui;
         }
-        
+
     }
 
     return false;

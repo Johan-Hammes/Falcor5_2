@@ -8450,7 +8450,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         rappersvilleShader.Vars()["PerFrameCB"]["view"] = view;
         rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
-        rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
+        //rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
 
     }
 

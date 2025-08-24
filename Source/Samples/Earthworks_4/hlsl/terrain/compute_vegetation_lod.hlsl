@@ -50,7 +50,7 @@ void main(uint idx : SV_DispatchThreadId)
         if (all(test))
         {
             float distance = length(viewPos.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-            float pix = 3 * lodBias * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
+            float pix = 0 * lodBias * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
 
 /*
         if (pix < 12 && pix > 2)        // do billboards
@@ -75,6 +75,7 @@ void main(uint idx : SV_DispatchThreadId)
                     if (pix >= size)           lod = i;
                 }
 
+                lod = 0;
 
                 if (firstLod < 0 || lod == firstLod)
                 {

@@ -158,6 +158,7 @@ struct buildSetting
     float       node_age = -1.f; // dont use for root    // this one is a node age, like 12, good for building twigs
     float       normalized_age = 1.f;  // this one is a 0..1 age useful for leaves etc
     bool        forcePhototropy = false;    // for billboard baking
+    bool        doNotAddPivot = false;  // for replacement stems
 
     // PIVOT POIUTNS
     uint    pivotIndex[4];
@@ -557,7 +558,7 @@ public:
 template <class T> class randomVector
 {
 public:
-    randomVector() { data.resize(1); }      // minimum size has to be one, otherwise get() is dangerous
+    randomVector() { data.resize(1); }      // minimum size has to be one, otherwise get() is dangerous, does not explain clear()
     std::vector<T> data;
 
     void renderGui(char* name, uint& gui_id);
@@ -590,6 +591,7 @@ private:
     float2  stem_width = { 4.f, 0.f };
     float2  stem_curve = { 0.0f, 0.3f };      // radian bend over lenth
     float2  stem_to_leaf = { 0.0f, 0.2f };      // radian bend over lenth
+    float2  stem_to_leaf_Roll = { 0.0f, 0.0f };      // radian bend over lenth
     int2    stemVerts = { 2, 4 };
 
     bool    cameraFacing = false;
@@ -649,9 +651,15 @@ public:
         archive(CEREAL_NVP(pivotType));
         archive(CEREAL_NVP(useTwoVertDiamond));
         archive(CEREAL_NVP(leafLengthSplit));
+
+        if (_version >= 102)
+        {
+            archive_float2(stem_to_leaf_Roll);
+        }
+        
     }
 };
-CEREAL_CLASS_VERSION(_leafBuilder, 101);
+CEREAL_CLASS_VERSION(_leafBuilder, 102);
 
 
 
@@ -714,7 +722,9 @@ public:
     _vegMaterial stem_Material;
     bool    bake2_replaces_stem = false;    // deprecated
     float   nodeLengthSplit = 32.f;
-
+    randomVector<_plantRND> stemReplacement;    // If set this replaces the stem completely
+    bool roll_horizontal = false;
+    float rollOffset = 0.f;
 
 
     // branches, can be leavea
@@ -729,6 +739,8 @@ public:
     bool unique_tip;
     randomVector<_plantRND> tip;
     float2  tip_age = float2(-1.f, 0.f);
+
+    bool leaf_age_override = false; // If set false we pass in -1 and teh leaf can set its own age, if true we set the age
 
     // feedback
     uint numLeavesBuilt = 0;
@@ -782,9 +794,27 @@ public:
         archive(CEREAL_NVP(bake2_replaces_stem));
         archive_float2(tip_age);
         archive(CEREAL_NVP(nodeLengthSplit));
+
+        if (_version >= 101)
+        {
+            archive(CEREAL_NVP(leaf_age_override));
+            archive(stemReplacement.data);
+            for (auto& M : stemReplacement.data) M.reload();
+        }
+
+        if (_version >= 102)
+        {
+            archive(roll_horizontal);
+        }
+
+        if (_version >= 103)
+        {
+            archive(rollOffset);
+        }
+        
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 100);
+CEREAL_CLASS_VERSION(_stemBuilder, 103);
 
 
 
@@ -944,6 +974,7 @@ public:
 
     _plantBuilder* root = nullptr;
     buildSetting settings;
+    float rootPitch = 1.0f; // so we can go sideways to test brancges
     packSettings vertex_pack_Settings;
     float2 extents;
 

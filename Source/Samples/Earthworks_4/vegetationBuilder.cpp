@@ -1159,10 +1159,13 @@ void _leafBuilder::renderGui()
         if (stem_length.x > 0 && stem_width.x > 0)
         {
             R_CURVE("curve", stem_curve, "stem curvature", "random");
-            R_CURVE("angle", stem_to_leaf, "stem to leaf angle in radians", "random");
+            
             R_VERTS("num verts", stemVerts);
             stem_Material.renderGui(gui_id);
         }
+        R_CURVE("angle", stem_to_leaf, "stem to leaf angle in radians", "random");
+        R_CURVE("roll", stem_to_leaf_Roll, "roll like ferns to make them all face one side", "random");
+        
 
         ImGui::TreePop();
     }
@@ -1315,6 +1318,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
 
     // rotation from stem to leaf
+    ROLL(node, RND_CRV(stem_to_leaf_Roll));
     PITCH(node, RND_CRV(stem_to_leaf));
 
 
@@ -1595,7 +1599,13 @@ void _stemBuilder::renderGui()
         //style.FrameBorderSize = 0;
         //CHECKBOX("bake-2 replaces stem", &bake2_replaces_stem, "Stem will only be used in baking but replaced by bake-2 in final detail");
         R_FLOAT("length split", nodeLengthSplit, 0.1f, 4.f, 100.f, "Number of pixels to insert a new node in this leaf, pusg it higher for very curved leaves");
+        
+        stemReplacement.renderGui("stem override", gui_id);
+        CHECKBOX("roll_horizontal", &roll_horizontal, "roll the branch do that the first leaf exists horizontally like many pine and fir trees");
+        R_FLOAT("rollOffset", rollOffset, 0.01f, 0.f, 6.4f, "in itial roll angle");
+        
 
+        
         ImGui::TreePop();
     }
 
@@ -1618,6 +1628,7 @@ void _stemBuilder::renderGui()
         //if (ImGui::Checkbox("twistAway", &twistAway)) changed = true; TOOLTIP("does trh stalk try t0 twis awat from a single leaf");
         //style.FrameBorderSize = 0;
         CHECKBOX("twistAway", &twistAway, "does the stalk try to twis away from a single leaf");
+        CHECKBOX("age override", &leaf_age_override, " If set false we pass in -1 and the leaf can set its own age, if true we set the age");
         //ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
         style.Colors[ImGuiCol_Header] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
         leaves.renderGui("leaves", gui_id);
@@ -1782,7 +1793,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
                     d = fabs(d);
                     float3 rel2 = all[iN + 1][3] - node[3];
                     float d2 = fabs(glm::dot(rel2, (float3)node[1]));
-                    float total = d + d2;
+                    float total = d + d2 + 0.0000001;   // add a samll bit for when we have no tip and this becomes zero
 
                     CURRENT[3] = glm::lerp(all[iN][3], all[iN + 1][3], d / total);
                     break;
@@ -1881,6 +1892,17 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
         _settings.normalized_age = 1;
         // add new force tip age, and set that here instead
 
+        if (roll_horizontal)
+        {
+            //lets creep up on it inasead
+            //while (fabs(node[2][1]) > 0.01f && (node[0][1] >= 0))
+            while (fabs(node[2][1]) > 0.01f)
+            {
+                ROLL(node, 0.01f);
+            }
+            ROLL(node, -1.570796326f);
+        }
+
         if (unique_tip && tip.get().plantPtr)
         {
             std::uniform_real_distribution<> distrib(-1.f, 1.f);
@@ -1890,7 +1912,11 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
         else
         {
             _plantRND LEAF = leaves.get();
-            if (LEAF.plantPtr) tip_NODE = LEAF.plantPtr->build(_settings, _addVerts);
+            //if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
+            //if (LEAF.plantPtr) tip_NODE = LEAF.plantPtr->build(_settings, _addVerts);
+            //NODES.push_back( NODES.back() );
+
+            //tip_NODE = NODES.back();
         }
     }
 }
@@ -1913,7 +1939,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
     uint end = NODES.size() - 1; // - WE NEVER INCLUDE THE TIP HERE, always just add that in build_tip()
 
 
-    for (int i = 0; i < end; i++)
+    for (int i = 0; i <= end; i++)
     {
         if (i >= firstLiveSegment)
         {
@@ -1931,16 +1957,48 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
             {
                 numLeavesBuilt++;
                 glm::mat4 node = NODES[i];
-                float A = leaf_angle.x + leaf_angle.y * leafAge + DDD(MT) * RND_B(leaf_rnd);
-                float nodeTwist = rndRoll + 6.283185307f / (float)numL * (float)j;
+                float A = leaf_angle.x + leaf_angle.y * leafAge;// +RND_B(leaf_rnd);   // +DDD(MT)
+                float nodeTwist = 1.570796326f +   rndRoll * leaf_rnd.x + 6.283185307f / (float)numL * (float)j;
+
+                if (roll_horizontal)
+                {
+                    //lets creep up on it inasead
+                    //while (fabs(node[2][1]) > 0.01f && (node[0][1] >= 0))
+                    
+                    while (fabs(node[2][1]) > 0.01f)
+                    {
+                        ROLL(node, 0.01f);
+                    }
+                    ROLL(node , -1.570796326f);
+                }
+
+
+                ROLL(node, rollOffset);
 
                 ROLL(node, nodeTwist);
+                if ((numL == 1) && (i & 0x1))  ROLL(node, 3.14f);
                 PITCH(node, -A);
                 GROW(node, W * 0.35f);   // 70% out, has to make up for alpha etcDman I want to grow here to some % of branch width
 
+
+                if (roll_horizontal)
+                {
+                    //lets creep up on it inasead
+                    //while (fabs(node[2][1]) > 0.01f && (node[0][1] >= 0))
+
+                    while (fabs(node[2][1]) > 0.01f)
+                    {
+                        ROLL(node, 0.01f);
+                    }
+                    ROLL(node , -1.570796326f);
+                }
+
+                // And now rotate upwards again.
+
                 _settings.seed = oldSeed + i;
                 _settings.root = node;
-                _settings.node_age = age - i + 1;
+                if (leaf_age_override)  _settings.node_age = age - i + 1;
+                else                    _settings.node_age = -1;
                 _settings.normalized_age = t_live;
                 _plantRND LEAF = leaves.get();
                 if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
@@ -1952,6 +2010,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
 #pragma optimize("", off)
 void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 {
+
     //std::mt19937 gen(_settings.seed);
     //std::mt19937 MT();
     _rootPlant::generator.seed(_settings.seed + 33);
@@ -1962,6 +2021,9 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
     NODES.clear();
     NODES.push_back(node);
+
+    
+
 
     R_verts.startRibbon(true, _settings.pivotIndex);
     age = RND_B(numSegments);
@@ -1991,48 +2053,74 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
     for (int i = 0; i < iAge; i++)
     {
-        float nodeAge = glm::clamp((age - i) / numLiveNodes, 0.f, 1.f);
-        float L = RND_B(stem_length) * 0.001f / 100.f;
-        float C = RND_CRV(stem_curve) / 100.f;
-        float P = RND_CRV(stem_phototropism) / 100.f;
-        if (_settings.forcePhototropy) {
-            P = 5.0f / 100;
-        }
-
-        float t = (float)i / age;
-        float W = root_width - dR * pow(t, rootPow);
-        float nodePixels = (L * 100) / _settings.pixelSize;
-        int nodeNumSegments = glm::clamp((int)(nodePixels / nodeLengthSplit), 1, 20);     // 1 for every 8 pixels, clampped
-        float segStep = 99.f / (float)nodeNumSegments;
-
-        float cnt = 0;
-        for (int j = 0; j < 100; j++)
+        if (stemReplacement.get().plantPtr)
         {
-            PITCH(node, C);
-            // Phototropy
-            float cos_dX = glm::dot((glm::vec3)node[1], glm::vec3(1, 0, 0));
-            float cos_dZ = glm::dot((glm::vec3)node[1], glm::vec3(0, 0, 1));
-            PITCH(node, -P * asin(cos_dZ));
-            YAW(node, P * asin(cos_dX));
-
-            GROW(node, L);
-            cnt++;
-
-            float t = (float)i / age + ((float)j / 100.f * (1.f / age));
-            float W = root_width - dR * pow(t, rootPow);
-            visible = W > pixRandFoViz;
-            if (_addVerts && visible && cnt >= segStep)
-            {
-                R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 1.f, 1.f);
-                cnt -= segStep;
-            }
+            _settings.doNotAddPivot = true;
+            _settings.root = stemReplacement.get().plantPtr->build(_settings, _addVerts);
+            NODES.push_back(_settings.root);
+            _settings.doNotAddPivot = false;
         }
-        NODES.push_back(node);
+        else
+        {
 
-        // now rotate for teh next segment
-        ROLL(node, RND_CRV(node_rotation));
-        PITCH(node, RND_CRV(node_angle));
-        YAW(node, RND_CRV(node_angle));
+            float nodeAge = glm::clamp((age - i) / numLiveNodes, 0.f, 1.f);
+            float L = RND_B(stem_length) * 0.001f / 100.f;
+            float C = RND_CRV(stem_curve) / 100.f / age;
+            float P = RND_CRV(stem_phototropism) / 100.f / age;
+            if (_settings.forcePhototropy) {
+                P = 5.0f / 100;
+            }
+
+            float t = (float)i / age;
+            float W = root_width - dR * pow(t, rootPow);
+            float nodePixels = (L * 100) / _settings.pixelSize;
+            int nodeNumSegments = glm::clamp((int)(nodePixels / nodeLengthSplit), 1, 20);     // 1 for every 8 pixels, clampped
+            float segStep = 99.f / (float)nodeNumSegments;
+
+            float cnt = 0;
+            for (int j = 0; j < 100; j++)
+            {
+                PITCH(node, C);
+                // Phototropy
+                /*
+                float cos_dX = glm::dot((glm::vec3)node[1], glm::vec3(1, 0, 0));
+                float cos_dZ = glm::dot((glm::vec3)node[1], glm::vec3(0, 0, 1));
+                PITCH(node, -P * asin(cos_dZ));
+                YAW(node, P * asin(cos_dX));
+                */
+
+                // Phototropy - custom axis
+                float pScale = 1.f - fabs(node[1][1]);
+                if (pScale > 0.05f)
+                {
+                    float3 axis = glm::cross(float3(0, 1, 0), (glm::vec3)node[1]);
+                    glm::mat4 pRot = glm::mat4(1.0);
+                    float3 XX = float3(0, 0, 0);
+                    XX.x = glm::dot(axis, (glm::vec3)node[0]);
+                    XX.z = glm::dot(axis, (glm::vec3)node[2]);
+                    node = glm::rotate(node, -P * pScale, glm::normalize(XX));
+                    //fprintf(terrafectorSystem::_logfile, "phototropy %2.2f : (%2.2f, %2.2f, %2.2f)\n", pScale, axis.x, axis.y, axis.z);
+                }
+
+                GROW(node, L);
+                cnt++;
+
+                float t = (float)i / age + ((float)j / 100.f * (1.f / age));
+                float W = root_width - dR * pow(t, rootPow);
+                visible = W > pixRandFoViz;
+                if (_addVerts && visible && cnt >= segStep)
+                {
+                    R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 1.f, 1.f);
+                    cnt -= segStep;
+                }
+            }
+            NODES.push_back(node);
+
+            // now rotate for teh next segment
+            ROLL(node, RND_CRV(node_rotation) / age);
+            //PITCH(node, RND_CRV(node_angle) / age);   // What was I thinking here
+            YAW(node, RND_CRV(node_angle) / age);
+        }
     }
 }
 #pragma optimize("", on)
@@ -2064,7 +2152,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
     tip_NODE = NODES.back();    // just in case build tip adds nothing
     build_tip(_settings, false);
 
-    if (_addVerts)
+    if (!_settings.doNotAddPivot && _addVerts)
     {
         std::uniform_int_distribution<> DDD(0, 255);
         ribbonVertex R;
@@ -2091,9 +2179,12 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
             }
         }
 
-        if (lod.bakeType == BAKE_DIAMOND)       build_2(_settings, lod.bakeIndex, true);
-        if (lod.bakeType == BAKE_4)             build_4(_settings, lod.bakeIndex, true);
-        if (lod.bakeType == BAKE_N)             build_n(_settings, lod.bakeIndex, true);    // FIXME
+        if (!_settings.forcePhototropy) // so do not use any of these during a bake
+        {
+            if (lod.bakeType == BAKE_DIAMOND)       build_2(_settings, lod.bakeIndex, true);
+            if (lod.bakeType == BAKE_4)             build_4(_settings, lod.bakeIndex, true);
+            if (lod.bakeType == BAKE_N)             build_n(_settings, lod.bakeIndex, true);    // FIXME
+        }
 
         if (lod.useGeometry || _settings.forcePhototropy)
         {
@@ -2102,7 +2193,10 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
             build_tip(_settings, true);
             tipVerts = ribbonVertex::ribbons.size();
 
-            build_NODES(_settings, true);
+            if (lod.bakeType == BAKE_NONE || _settings.forcePhototropy)      // Only build nodes if we dont use the core bake at all, or we are Baking
+            {
+                build_NODES(_settings, true);
+            }
 
             leafVerts = ribbonVertex::ribbons.size();
             build_leaves(_settings, 100000, true);
@@ -3267,6 +3361,7 @@ void _rootPlant::renderGui(Gui* _gui)
                 FONT_TEXT("header1", root->name.c_str());
 
                 root->treeView();
+                style.FrameBorderSize = 0;
             }
 
 
@@ -3832,6 +3927,12 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
 
         settings.parentStemDir = { 0, 1, 0 };
         settings.root = glm::mat4(1.0);
+        if (!settings.forcePhototropy)
+        {
+            PITCH(settings.root, rootPitch);    // FIXME remove for baking, etst but likely correct settings.forcePhototropy
+            ROLL(settings.root, 3.14f);
+        }
+        
         settings.node_age = -1;
         settings.normalized_age = 1;
 

@@ -201,7 +201,7 @@ void bezierLeaf(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm, in
     wind /= PVT.stiffness; //??? pow() to scale effect better, sane for wind as well
     
     //  now ossilate
-    float swayStrength = 0.15 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
+    float swayStrength = 0.25 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
     float sideStrength = 0.20 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
     float3 c = normalize(rel) + tIn * (wind * (1 + swayStrength)) + tIn * (right * length(wind) * sideStrength);
     binorm += c - normalize(rel);
@@ -226,8 +226,8 @@ void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm
     wind /= PVT.stiffness;  //??? pow() to scale effect better, sane for wind as well
     
     //  now ossilate
-    float swayStrength = 0.15 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
-    float sideStrength = 0.20 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
+    float swayStrength = 0.36 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
+    float sideStrength = 0.36 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
     float3 c = b * 2 + (wind * (1 + swayStrength)) + (right * length(wind) * sideStrength);
     
     float3 bc = normalize(c - b) * 0.5;
@@ -255,12 +255,14 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
     
     // WIND ################################################################################################################
     float dx = dot(_instance.position.xz, windDir.xz) * 0.4; // so repeat roughly every 100m
-    float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 1 * 0.025), 3)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
-    newWindStrenth = 3 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
+    float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 1 * 0.025), 13)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
+    newWindStrenth = windStrength;//    13 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
     float ss = 0; //    sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
     float3x3 rot = AngleAxis3x3(ss * 0.3, float3(0, 1, 0));
     float3 NewWindDir = normalize(mul(windDir, rot));
 
+    //newWindStrenth = 10 * (1.2 + sin(time * 0.3));
+    //NewWindDir = float3(-0.0, 0, -1);
     //newWindStrenth += 0.00000001;
     //newWindStrenth = windStrength * 10; // * sin(time * 0.5);
     NewWindDir = rot_xz(NewWindDir, -_instance.rotation) * newWindStrenth * 0.01;
@@ -297,9 +299,14 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
 
     }
 
+    if (C < 255)
+    {
+        bezierPivotSum(plant_pivot_buffer[C + pivotOffset], _position, _binormal, NewWindDir, _instance.scale);
+    }
+
     if (B < 255)
     {
-        //bezierPivotSum(plant_pivot_buffer[B + pivotOffset], _position, _binormal, NewWindDir, _instance.scale);
+        bezierPivotSum(plant_pivot_buffer[B + pivotOffset], _position, _binormal, NewWindDir, _instance.scale);
     }
 
     if (A < 255)
@@ -806,7 +813,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
     
     // environment cube light
-    color += 0.939 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 0.9 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.001;
@@ -843,7 +850,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #endif
     }
 
-    return float4(color, 1);
+    return float4(saturate(color), 1);
     
 }
 
