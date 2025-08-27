@@ -9772,6 +9772,10 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
 
         switch (terrainMode)
         {
+        case 0:
+            plants_Root.onKeyEvent(keyEvent);
+            break;
+
         case 2:
             // Terrafector - placinf stamps in here
             if (keyPressed)

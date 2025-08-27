@@ -249,7 +249,7 @@ struct ribbonVertex
 
         leafStiffness = _stiff;
         leafFrequency = _freq;
-        leafIndex = _index;
+        leafIndex = _index;         // also deprected, since BEzier
 
         diamond = _diamond;
 
@@ -514,7 +514,7 @@ public:
     // ossilations
     float ossilation_stiffness = 1.f;   // this affects how far it bends for certain wind types, but also
     float ossilation_constant_sqrt = 10.f;     //freq = (1 / 2π) * √(g / L). so this is g/L per meter, we scale by a furher √(1/L)
-    float ossilation_power = 1.f;       // shifts the bend towards the root or the tip
+    float ossilation_power = 1.f;       // DE{RECATED shifts the bend towards the root or the tip
     float rootFrequency() { return 0.1591549430f * ossilation_constant_sqrt * sqrt(1.f / ossilation_stiffness); }
     int     deepest_pivot_pack_level = 3;
 };
@@ -725,6 +725,9 @@ public:
     randomVector<_plantRND> stemReplacement;    // If set this replaces the stem completely
     bool roll_horizontal = false;
     float rollOffset = 0.f;
+    float2  perlinCurve = { 0.f, 4.0f };
+    float2  perlinTwist = { 0.f, 4.0f };
+    bool    hasPivot = true;
 
 
     // branches, can be leavea
@@ -732,7 +735,7 @@ public:
     float2  leaf_angle = float2(0.5f, 0.3f);   // angle that the leaves come out of
     float2  leaf_rnd = float2(0.3f, 0.3f);
     float   leaf_age_power = 2.f;
-    bool    twistAway = false;      // if single leaf, activelt twist stem to the other side
+    bool    twistAway = false;      // I think deprecated, cant  do in rameworkif single leaf, activelt twist stem to the other side
     randomVector<_plantRND> leaves;
 
     // tip
@@ -811,10 +814,19 @@ public:
         {
             archive(rollOffset);
         }
-        
+
+        if (_version >= 104)
+        {
+            archive_float2(perlinCurve);
+            archive_float2(perlinTwist);
+        }
+        if (_version >= 105)
+        {
+            archive(hasPivot);
+        }
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 103);
+CEREAL_CLASS_VERSION(_stemBuilder, 105);
 
 
 
@@ -940,6 +952,7 @@ class _rootPlant
 {
 public:
     void onLoad();
+    bool onKeyEvent(const KeyboardEvent& keyEvent);
     void renderGui_perf(Gui* _gui);
     void renderGui_lodbake(Gui* _gui);
     void renderGui_other(Gui* _gui);
@@ -975,6 +988,8 @@ public:
     _plantBuilder* root = nullptr;
     buildSetting settings;
     float rootPitch = 1.0f; // so we can go sideways to test brancges
+    float rootYaw = 0.0f; // so we can go sideways to test brancges
+    float rootRoll = 0.0f; // so we can go sideways to test brancges
     packSettings vertex_pack_Settings;
     float2 extents;
 

@@ -221,14 +221,16 @@ void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm
     const float3 rel = pos - PVT.root;
     const float3 b = normalize(rel) * 0.5; // feel like I should combine these two
     const float t = length(rel) / S;
-    const float3 right = normalize(cross(rel, wind));
+    const float3 right = cross(rel, wind);
+
+    const float pushScale = 1.f    -abs(dot(normalize(PVT.extent), normalize(wind)));
 
     wind /= PVT.stiffness;  //??? pow() to scale effect better, sane for wind as well
     
     //  now ossilate
-    float swayStrength = 0.36 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
-    float sideStrength = 0.36 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
-    float3 c = b * 2 + (wind * (1 + swayStrength)) + (right * length(wind) * sideStrength);
+    float swayStrength = 0.5 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
+    float sideStrength = 0.5 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
+    float3 c = b * 2 + (wind * (pushScale + swayStrength)) + (right * length(wind) * sideStrength);
     
     float3 bc = normalize(c - b) * 0.5;
     c = b + bc;
@@ -256,9 +258,10 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
     // WIND ################################################################################################################
     float dx = dot(_instance.position.xz, windDir.xz) * 0.4; // so repeat roughly every 100m
     float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 1 * 0.025), 13)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
-    newWindStrenth = windStrength;//    13 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
-    float ss = 0; //    sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
-    float3x3 rot = AngleAxis3x3(ss * 0.3, float3(0, 1, 0));
+   newWindStrenth = windStrength;//    13 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
+    float ss = 0;//
+    sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
+    float3x3 rot = AngleAxis3x3(ss * 1.3, float3(0, 1, 0));
     float3 NewWindDir = normalize(mul(windDir, rot));
 
     //newWindStrenth = 10 * (1.2 + sin(time * 0.3));
@@ -393,7 +396,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractTangent(output, v, 1.57079632679);
 #endif
 
-    float SS = pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
+    float SS = 1;//    pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
 
     extractTangent(output, v, INSTANCE.rotation); // Likely only after animate, do only once
     extractUVRibbon(output, v);
@@ -407,8 +410,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float sunCone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
         float sunDepth = (v.e & 0xff) * 0.00784; //depth8   // sulight % how deep inside this plant 0..1 sun..shadow
         float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), sunDirection)); // - sunCone * 0 sunCosTheta sunCone biasess this bigger or smaller 0 is 180 degrees
-        //output.Shadow = saturate(a * (sunDepth) + sunDepth) * SS; // darker to middle
-        output.Shadow = SS; // darker to middle
+        output.Shadow = saturate(a * (sunDepth) + sunDepth) * SS; // darker to middle
+        //output.Shadow = SS; // darker to middle
         output.AmbietOcclusion = pow(((v.f >> 24) / 255.f), 3);
 
         if ((dot(output.pos.xyz, sunRightVector)) > 5 && (dot(output.pos.xyz, sunRightVector)) < 8)
@@ -803,11 +806,11 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #else
     dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * PLANT.shadowUVScale)).r;
     dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
-    dappled = 1;
+    dappled = 1;///    vOut.Shadow;
 #endif
 
     //float Shadow= pow(shadow(vOut.worldPos, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
-    dappled *= vOut.Shadow;
+    //dappled *= vOut.Shadow;
 
     // sunlight
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
