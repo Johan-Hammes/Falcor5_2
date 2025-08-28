@@ -963,6 +963,7 @@ public:
     void reloadMaterials();
     int importBinary(std::filesystem::path filepath);       // FIXME this needs a cache
     void importBinary();
+    void buildFullResolution();
     std::vector<std::string>	importPathVector;
 
     void remapMaterials();
@@ -1038,6 +1039,7 @@ public:
     bool tempUpdateRender = false;
     float gputime;
     float gputimeBB;   // GPU time
+    float buildTime = 0;
 
 
     Buffer::SharedPtr  buffer_feedback;

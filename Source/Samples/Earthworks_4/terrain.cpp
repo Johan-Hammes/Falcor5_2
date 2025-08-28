@@ -4715,7 +4715,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
     Gui::Window rightPanel(_gui, "##rightPanel", { 200, 200 }, { 100, 100 });
     {
-        ImGui::PushFont(_gui->getFont("roboto_20"));
+        ImGui::PushFont(_gui->getFont("default"));
 
         ImGui::PushItemWidth(ImGui::GetWindowWidth() - 20);
         if (ImGui::Combo("###modeSelector", (int*)&terrainMode, "Vegetation\0Ecotope\0Terrafector\0Bezier road network\0Glider Builder\0")) { ; }
@@ -4740,7 +4740,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
             plants_Root.renderGui(_gui);
             if (ImGui::Button("Bake Billboard")) { bakeVegetation(); }
 
-            ImGui::PushFont(_gui->getFont("roboto_26"));
+            ImGui::PushFont(_gui->getFont("header2"));
             {
                 ImGui::Text("Time of day");
                 ImGui::SetNextItemWidth(300);
@@ -5047,29 +5047,31 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
     {
     case _terrainMode::vegetation:
     {
-        Gui::Window vegmatPanel(_gui, "Vegetation material##tfPanel", { 900, 900 }, { 100, 100 });
+        ImGui::PushFont(_gui->getFont("header2"));
         {
+            Gui::Window vegmatPanel(_gui, "Vegetation material##tfPanel", { 900, 900 }, { 100, 100 });
+            {
 
-            if (_plantMaterial::static_materials_veg.renderGuiSelect(_gui)) {
-                reset(true);
+                if (_plantMaterial::static_materials_veg.renderGuiSelect(_gui)) {
+                    reset(true);
+                }
             }
+            vegmatPanel.release();
+
+            Gui::Window vegcachePanel(_gui, "Vegetation cache##tfPanel", { 900, 900 }, { 100, 100 });
+            {
+                _plantMaterial::static_materials_veg.renderGui(_gui, vegcachePanel);
+            }
+            vegcachePanel.release();
+
+
+            Gui::Window vegtexPanel(_gui, "Vegetation textures##tfPanel", { 900, 900 }, { 100, 100 });
+            {
+                _plantMaterial::static_materials_veg.renderGuiTextures(_gui, vegtexPanel);
+            }
+            vegtexPanel.release();
         }
-        vegmatPanel.release();
-
-        Gui::Window vegcachePanel(_gui, "Vegetation cache##tfPanel", { 900, 900 }, { 100, 100 });
-        {
-            _plantMaterial::static_materials_veg.renderGui(_gui, vegcachePanel);
-        }
-        vegcachePanel.release();
-
-
-        Gui::Window vegtexPanel(_gui, "Vegetation textures##tfPanel", { 900, 900 }, { 100, 100 });
-        {
-            _plantMaterial::static_materials_veg.renderGuiTextures(_gui, vegtexPanel);
-        }
-        vegtexPanel.release();
-
-
+        ImGui::PopFont();
     }
     break;
     case _terrainMode::ecotope:

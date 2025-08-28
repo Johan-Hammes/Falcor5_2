@@ -264,6 +264,11 @@ namespace Falcor
         blitData.pFbo->attachColorTarget(pSharedTex, 0, pDst->getViewInfo().mostDetailedMip, pDst->getViewInfo().firstArraySlice, pDst->getViewInfo().arraySize);
         blitData.pPass->getVars()->setSrv(blitData.texBindLoc, pSrc);
         blitData.pPass->getState()->setViewport(0, dstViewport);
+        BlendState::Desc blendDesc;
+        blendDesc.setRtBlend(0, true);
+        blendDesc.setRtParams(0, BlendState::BlendOp::Subtract, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
+        BlendState::SharedPtr blendstate = BlendState::create(blendDesc);
+        blitData.pPass->getState()->setBlendState(blendstate);
         blitData.pPass->execute(this, blitData.pFbo, false);
 
         // Release the resources we bound
