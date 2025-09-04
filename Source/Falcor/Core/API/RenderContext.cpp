@@ -102,15 +102,15 @@ namespace Falcor
         mpLastBoundGraphicsVars = nullptr;
     }
 
-    void RenderContext::blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect, uint4 dstRect, Sampler::Filter filter)
+    void RenderContext::blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect, uint4 dstRect, Sampler::Filter filter, BlendState::SharedPtr blendstate)
     {
         const Sampler::ReductionMode componentsReduction[] = { Sampler::ReductionMode::Standard, Sampler::ReductionMode::Standard, Sampler::ReductionMode::Standard, Sampler::ReductionMode::Standard };
         const float4 componentsTransform[] = { float4(1.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 1.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 1.0f, 0.0f), float4(0.0f, 0.0f, 0.0f, 1.0f) };
 
-        blit(pSrc, pDst, srcRect, dstRect, filter, componentsReduction, componentsTransform);
+        blit(pSrc, pDst, srcRect, dstRect, filter, componentsReduction, componentsTransform, blendstate);
     }
 
-    void RenderContext::blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect, uint4 dstRect, Sampler::Filter filter, const Sampler::ReductionMode componentsReduction[4], const float4 componentsTransform[4])
+    void RenderContext::blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect, uint4 dstRect, Sampler::Filter filter, const Sampler::ReductionMode componentsReduction[4], const float4 componentsTransform[4], BlendState::SharedPtr blendstate)
     {
         auto& blitData = getBlitContext();
 
@@ -264,12 +264,24 @@ namespace Falcor
         blitData.pFbo->attachColorTarget(pSharedTex, 0, pDst->getViewInfo().mostDetailedMip, pDst->getViewInfo().firstArraySlice, pDst->getViewInfo().arraySize);
         blitData.pPass->getVars()->setSrv(blitData.texBindLoc, pSrc);
         blitData.pPass->getState()->setViewport(0, dstViewport);
+        /*
         BlendState::Desc blendDesc;
         blendDesc.setRtBlend(0, true);
         blendDesc.setRtParams(0, BlendState::BlendOp::Subtract, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
         BlendState::SharedPtr blendstate = BlendState::create(blendDesc);
         blitData.pPass->getState()->setBlendState(blendstate);
+        */
+        BlendState::SharedPtr oldBlendState = blitData.pPass->getState()->getBlendState();
+        if (blendstate)
+        {            
+            blitData.pPass->getState()->setBlendState(blendstate);
+        }
         blitData.pPass->execute(this, blitData.pFbo, false);
+
+        if (blendstate)
+        {
+            blitData.pPass->getState()->setBlendState(oldBlendState);
+        }
 
         // Release the resources we bound
         blitData.pPass->getVars()->setSrv(blitData.texBindLoc, nullptr);

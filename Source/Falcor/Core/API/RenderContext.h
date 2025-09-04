@@ -31,6 +31,7 @@
 #include "FBO.h"
 #include "Sampler.h"
 #include "Texture.h"
+#include "BlendState.h"
 #include "RtAccelerationStructure.h"
 #include "RtAccelerationStructurePostBuildInfoPool.h"
 #include "Core/Macros.h"
@@ -195,7 +196,7 @@ namespace Falcor
             \param[in] srcRect Source rectangle to blit from, specified by [left, up, right, down].
             \param[in] dstRect Target rectangle to blit to, specified by [left, up, right, down].
         */
-        void blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect = kMaxRect, uint4 dstRect = kMaxRect, Sampler::Filter = Sampler::Filter::Linear);
+        void blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect = kMaxRect, uint4 dstRect = kMaxRect, Sampler::Filter = Sampler::Filter::Linear, BlendState::SharedPtr blendstate = nullptr);
 
         /** Complex blits (low-level copy) an SRV into an RTV.
             The source and destination rectangles get clamped to the dimensions of the view.
@@ -207,7 +208,7 @@ namespace Falcor
             \param[in] componentsReduction Reduction mode for each of the input components (Standard, Min, Max). Comparison reduction mode is not supported.
             \param[in] componentsTransform Linear combination factors of the input components for each output component.
         */
-        void blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect, uint4 dstRect, Sampler::Filter filter, const Sampler::ReductionMode componentsReduction[4], const float4 componentsTransform[4]);
+        void blit(const ShaderResourceView::SharedPtr& pSrc, const RenderTargetView::SharedPtr& pDst, uint4 srcRect, uint4 dstRect, Sampler::Filter filter, const Sampler::ReductionMode componentsReduction[4], const float4 componentsTransform[4], BlendState::SharedPtr blendstate = nullptr);
 
         /** Submit the command list
         */
