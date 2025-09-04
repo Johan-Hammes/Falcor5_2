@@ -79,6 +79,7 @@ private:
     int slowTimer = 0;      // this is used to alow donw framerate
     bool showEditGui = true;
     bool hideGui = false;
+    BlendState::SharedPtr overlayBlendstate;
         
 
     struct {

@@ -385,13 +385,14 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 #if defined(_BAKE)
     float3 rootPos = float3(0, 0, 0);
     float3 p = unpackPosition() * PLANT.scale - PLANT.offset;
-    output.pos =  float4(rot_xz(p, 1.57079632679), 1);        // because of clumps we want to rotate to catch their side, for symmetrical it doesnt matter
+    output.pos =  float4(p, 1);//float4(rot_xz(p, 1.57079632679), 1);        // because of clumps we want to rotate to catch their side, for symmetrical it doesnt matter
         
     p.y = 0;
     float R = length(p);
     if (R > 0.3f)      output.colour.a = 0;
-    output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
-    output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
+    //output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
+    //output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
+    output.colour.a = 1;
 
     extractTangent(output, v, 1.57079632679);
 #endif

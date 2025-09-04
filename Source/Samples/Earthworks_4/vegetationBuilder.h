@@ -489,7 +489,8 @@ public:
     virtual void incrementLods() { ; }
     virtual void decrementLods() { ; }
     virtual glm::mat4 build(buildSetting _settings, bool _addVerts) { return glm::mat4(1.f); }
-    virtual void calculate_extents(buildSetting _settings) { ; }
+    virtual void calculate_extents(buildSetting _settings, glm::mat4 view) { ; }
+    virtual glm::mat4 getTip(bool includeChildren = true) { return glm::mat4(1.f); }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
     virtual levelOfDetail* getLodInfo(uint i) { return nullptr; }    // so does nothing if not implimented
 
@@ -687,7 +688,8 @@ public:
     void build_leaves(buildSetting _settings, uint _max, bool _addVerts);
     void build_tip(buildSetting _settings, bool _addVerts);
     //void build_extents(buildSetting _settings);
-    void calculate_extents(buildSetting _settings);
+    void calculate_extents(buildSetting _settings, glm::mat4 view);
+    glm::mat4 getTip(bool includeChildren = true);
     void build_NODES(buildSetting _settings, bool _addVerts);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     void clear_build_info();
@@ -847,7 +849,8 @@ public:
     levelOfDetail* getLodInfo(uint i);
 
     void clear_build_info();
-    void calculate_extents(buildSetting _settings);
+    void calculate_extents(buildSetting _settings, glm::mat4 view);
+    glm::mat4 getTip(bool includeChildren = true);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     glm::mat4 buildChildren(buildSetting _settings, bool _addVerts);
     glm::mat4 build_lod_0(buildSetting _settings);
@@ -970,7 +973,7 @@ public:
     void import();
     void eXport();
 
-    void bake(std::string _path, std::string _seed, lodBake* _info);
+    void bake(std::string _path, std::string _seed, lodBake* _info, glm::mat4 VIEW);
     int bake_Reload_Count = 0;
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
         rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, bool terrainMode = false);
@@ -991,6 +994,7 @@ public:
     float rootPitch = 1.0f; // so we can go sideways to test brancges
     float rootYaw = 0.0f; // so we can go sideways to test brancges
     float rootRoll = 0.0f; // so we can go sideways to test brancges
+    glm::mat4 bakeViewMatrix, bakeViewAdjusted;
     packSettings vertex_pack_Settings;
     float2 extents;
 

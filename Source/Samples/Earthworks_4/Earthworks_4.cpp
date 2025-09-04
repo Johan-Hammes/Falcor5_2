@@ -440,6 +440,11 @@ void Earthworks_4::onLoad(RenderContext* _renderContext)
     //loadColorCube("F:/terrains/colorcubes/K_TONE Vintage_KODACHROME.cube");
     loadColorCube(terrain.settings.dirResource + "/colorcubes/ColdChrome.cube");
 
+    BlendState::Desc blendDesc;
+    blendDesc.setRtBlend(0, true);
+    blendDesc.setRtParams(0, BlendState::BlendOp::Subtract, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
+    overlayBlendstate = BlendState::create(blendDesc);
+
 }
 
 
@@ -671,6 +676,8 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
 void Earthworks_4::onRenderOverlay(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
+    
+
     Texture::SharedPtr tex = terrafectorEditorMaterial::static_materials.getDisplayTexture();
     if (!tex) tex = _plantMaterial::static_materials_veg.getDisplayTexture();
     if (!tex) {
@@ -683,7 +690,7 @@ void Earthworks_4::onRenderOverlay(RenderContext* _renderContext, const Fbo::Sha
         uint scale = __min(8, __max(1, 1024 / h));
         glm::vec4 srcRect = glm::vec4(0, 0, w, h);
         glm::vec4 dstRect = glm::vec4(1000, 30, 1000, 30) + glm::vec4(0, 0, w * scale, h * scale);
-        _renderContext->blit(tex->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point);
+        _renderContext->blit(tex->getSRV(0, 1, 0, 1), pTargetFbo->getColorTexture(0)->getRTV(), srcRect, dstRect, Sampler::Filter::Point, overlayBlendstate);
         terrafectorEditorMaterial::static_materials.dispTexIndex = -1;
         _plantMaterial::static_materials_veg.dispTexIndex = -1;
     }
@@ -853,12 +860,12 @@ int main(int argc, char** argv)
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
     config.windowDesc.resizableWindow = false;
-    config.windowDesc.mode = Window::WindowMode::Fullscreen;
+    config.windowDesc.mode = Window::WindowMode::Normal;
     if (allScreens) {
         //config.windowDesc.mode = Window::WindowMode::AllScreens;
     }
     config.windowDesc.width = 2560;
-    config.windowDesc.height = 1140;
+    config.windowDesc.height = 1440;
     config.windowDesc.monitor = 1;
 
     // HDR

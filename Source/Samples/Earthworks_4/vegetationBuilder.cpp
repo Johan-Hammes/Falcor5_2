@@ -2304,18 +2304,65 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 }
 
 
-void _stemBuilder::calculate_extents(buildSetting _settings)
+glm::mat4 _stemBuilder::getTip(bool includeChildren)
+{
+    return NODES.back();    // since its only direction test with this
+    //if (includeChildren)    return tip_NODE;
+    //else                    return NODES.back();
+}
+
+void _stemBuilder::calculate_extents(buildSetting _settings, glm::mat4 view)
 {
     float2 extents = float2(0, 0);
+    float2 X = float2(0, 0);
+    float2 Y = float2(0, 0);
+    float2 Z = float2(0, 0);
+    float2 xX = float2(0, 0);
+    float2 xY = float2(0, 0);
+    float2 xZ = float2(0, 0);
     for (auto& R : ribbonVertex::ribbons)
     {
-        float2 XZ = R.position.xz;
+        float3 xform;
+        xform.x = glm::dot(R.position, (float3)view[0]);
+        xform.y = glm::dot(R.position, (float3)view[1]);
+        xform.z = glm::dot(R.position, (float3)view[2]);
+        float2 XZ = xform.xz;
+
         float r = glm::length(XZ);
         //extents.x = __max(extents.x, r);
         //extents.y = __max(extents.y, abs(R.position.y));    // addign radius breaks down when we start to use lod-0 for sub elements
-        extents.x = __max(extents.x, r + R.radius);
-        extents.y = __max(extents.y, abs(R.position.y));    // + R.radius
+        //extents.x = __max(extents.x, r + R.radius);
+        extents.x = __max(extents.x, fabs(xform.x));
+        extents.y = __max(extents.y, fabs(xform.y));    // + R.radius
+
+        X.x = __min(X.x, R.position.x);
+        X.y = __max(X.y, R.position.x);
+
+        Y.x = __min(Y.x, R.position.y);
+        Y.y = __max(Y.y, R.position.y);
+
+        Z.x = __min(Z.x, R.position.z);
+        Z.y = __max(Z.y, R.position.z);
+
+        xX.x = __min(xX.x, xform.x);
+        xX.y = __max(xX.y, xform.x);
+
+        xY.x = __min(xY.x, xform.y);
+        xY.y = __max(xY.y, xform.y);
+
+        xZ.x = __min(xZ.x, xform.z);
+        xZ.y = __max(xZ.y, xform.z);
     }
+    extents.x = __max(-xX.x, xX.y);
+    extents.y = xY.y;
+    fprintf(terrafectorSystem::_logfile, "extents {%2.2f, %2.2f}\n", extents.x, extents.y);
+    fprintf(terrafectorSystem::_logfile, "X {%2.2f, %2.2f}\n", X.x, X.y);
+    fprintf(terrafectorSystem::_logfile, "Y {%2.2f, %2.2f}\n", Y.x, Y.y);
+    fprintf(terrafectorSystem::_logfile, "Z {%2.2f, %2.2f}\n", Z.x, Z.y);
+    fprintf(terrafectorSystem::_logfile, "xX {%2.2f, %2.2f}\n", xX.x, xX.y);
+    fprintf(terrafectorSystem::_logfile, "xY {%2.2f, %2.2f}\n", xY.x, xY.y);
+    fprintf(terrafectorSystem::_logfile, "xZ {%2.2f, %2.2f}\n", xZ.x, xZ.y);
+    fflush(terrafectorSystem::_logfile);
 
     // du
     float du6[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -2323,9 +2370,14 @@ void _stemBuilder::calculate_extents(buildSetting _settings)
     float step = extents.y / 9.f;
     for (auto& R : ribbonVertex::ribbons)
     {
-        float2 XZ = R.position.xz;
-        float r = glm::length(XZ) + R.radius;
-        float y = __max(0, R.position.y);   // only positive
+        float3 xform;
+        xform.x = glm::dot(R.position, (float3)view[0]);
+        xform.y = glm::dot(R.position, (float3)view[1]);
+        xform.z = glm::dot(R.position, (float3)view[2]);
+        float2 XZ = xform.xz;
+
+        float r = xform.x;// glm::length(XZ) + R.radius;
+        float y = __max(0, xform.y);   // only positive
         uint bucket = (uint)glm::clamp(y / step, 0.f, 8.f);
         du6[bucket] = __max(r, du6[bucket]);
         cnt[bucket]++;
@@ -2625,7 +2677,12 @@ void _clumpBuilder::clear_build_info()
     }
 }
 
-void _clumpBuilder::calculate_extents(buildSetting _settings)
+glm::mat4 _clumpBuilder::getTip(bool includeChildren)
+{
+    return TIP_CENTER;
+}
+
+void _clumpBuilder::calculate_extents(buildSetting _settings, glm::mat4 view)
 {
     float2 extents = float2(0, 0);
     for (auto& R : ribbonVertex::ribbons)
@@ -3395,7 +3452,7 @@ void _rootPlant::renderGui(Gui* _gui)
                             displayModeSinglePlant = true;
                             anyChange = true;
                             selectedPart->changed = true;
-                            selectedPart->calculate_extents(settings);
+                            selectedPart->calculate_extents(settings, bakeViewAdjusted);
                         }
                     }
                     
@@ -3517,17 +3574,56 @@ void _rootPlant::renderGui(Gui* _gui)
                     {
                         settings.seed = seed;
                         settings.pixelSize = 0.0001f;
-                        settings.forcePhototropy = true;
+                        settings.forcePhototropy = false;    //??????
                         ribbonVertex::packed.clear();
                         build(true);
                         settings.forcePhototropy = false;
-                        selectedPart->calculate_extents(settings);
+
+                        glm::mat4 tip = selectedPart->getTip(true); // FIXME later bool for stem length only
+                        bakeViewAdjusted = bakeViewMatrix;
+                        float3 u = glm::normalize((float3)tip[3] - (float3)bakeViewMatrix[3]);
+
+                        float3 d = glm::cross((float3)bakeViewAdjusted[0], u);
+                        float3 r = glm::cross(u, d);
+                        
+                        // now its tilted so tip is int eh middle
+                        bakeViewAdjusted[0][0] = r.x;
+                        bakeViewAdjusted[0][1] = r.y;
+                        bakeViewAdjusted[0][2] = r.z;
+
+                        bakeViewAdjusted[1][0] = u.x;
+                        bakeViewAdjusted[1][1] = u.y;
+                        bakeViewAdjusted[1][2] = u.z;
+
+                        bakeViewAdjusted[2][0] = d.x;
+                        bakeViewAdjusted[2][1] = d.y;
+                        bakeViewAdjusted[2][2] = d.z;
+
+                        fprintf(terrafectorSystem::_logfile, "\n\nBAKE\n");
+                        
+                        fprintf(terrafectorSystem::_logfile, "right {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[0][0], bakeViewMatrix[0][1], bakeViewMatrix[0][2]);
+                        fprintf(terrafectorSystem::_logfile, "up    {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[1][0], bakeViewMatrix[1][1], bakeViewMatrix[1][2]);
+                        fprintf(terrafectorSystem::_logfile, "dir   {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[2][0], bakeViewMatrix[2][1], bakeViewMatrix[2][2]);
+                        fprintf(terrafectorSystem::_logfile, "rud\n");
+                        fprintf(terrafectorSystem::_logfile, "r {% 5.3f, % 5.3f, % 5.3f}\n", r.x, r.y, r.z);
+                        fprintf(terrafectorSystem::_logfile, "u {% 5.3f, % 5.3f, % 5.3f}\n", u.x, u.y, u.z);
+                        fprintf(terrafectorSystem::_logfile, "d {% 5.3f, % 5.3f, % 5.3f}\n", d.x, d.y, d.z);
+                        fprintf(terrafectorSystem::_logfile, "adjusted\n");
+                        fprintf(terrafectorSystem::_logfile, "right {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewAdjusted[0][0], bakeViewAdjusted[0][1], bakeViewAdjusted[0][2]);
+                        fprintf(terrafectorSystem::_logfile, "up    {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewAdjusted[1][0], bakeViewAdjusted[1][1], bakeViewAdjusted[1][2]);
+                        fprintf(terrafectorSystem::_logfile, "dir   {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewAdjusted[2][0], bakeViewAdjusted[2][1], bakeViewAdjusted[2][2]);
+
+                        fprintf(terrafectorSystem::_logfile, "RoU  % 5.3f\n", glm::dot((float3)bakeViewAdjusted[0], (float3)bakeViewAdjusted[1]));
+                        fprintf(terrafectorSystem::_logfile, "UoD  % 5.3f\n", glm::dot((float3)bakeViewAdjusted[1], (float3)bakeViewAdjusted[2]));
+                        fprintf(terrafectorSystem::_logfile, "DoR  % 5.3f\n", glm::dot((float3)bakeViewAdjusted[2], (float3)bakeViewAdjusted[0]));
+
+                        selectedPart->calculate_extents(settings, bakeViewAdjusted);
 
                         for (int i = 0; i < 10; i++)
                         {
                             if (selectedPart->getBakeInfo(i) && (selectedPart->getBakeInfo(i)->pixHeight > 0))
                             {
-                                bake(selectedPart->path, std::to_string(settings.seed), selectedPart->getBakeInfo(i));
+                                bake(selectedPart->path, std::to_string(settings.seed), selectedPart->getBakeInfo(i), bakeViewAdjusted);
                                 selectedPart->getBakeInfo(i)->material.reload();
                                 selectedPart->changed = true;
                             }
@@ -3938,13 +4034,24 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
 
         settings.parentStemDir = { 0, 1, 0 };
         settings.root = glm::mat4(1.0);
-        if (!settings.forcePhototropy)
+        //if (!settings.forcePhototropy)
         {
             ROLL(settings.root, rootYaw);
             PITCH(settings.root, rootPitch);    // FIXME remove for baking, etst but likely correct settings.forcePhototropy
-            ROLL(settings.root, 3.14f);
+            //ROLL(settings.root, 3.14f);
             ROLL(settings.root, rootRoll);
+
+            // now for bake matrix
+            bakeViewMatrix = settings.root;
+            /*
+            fprintf(terrafectorSystem::_logfile, "\n\build\n");
+            fprintf(terrafectorSystem::_logfile, "right % 5.3f, % 5.3f, % 5.3f\n", bakeViewMatrix[0][0], bakeViewMatrix[0][1], bakeViewMatrix[0][2]);
+            fprintf(terrafectorSystem::_logfile, "up    % 5.3f, % 5.3f, % 5.3f\n", bakeViewMatrix[1][0], bakeViewMatrix[1][1], bakeViewMatrix[1][2]);
+            fprintf(terrafectorSystem::_logfile, "dir   % 5.3f, % 5.3f, % 5.3f\n", bakeViewMatrix[2][0], bakeViewMatrix[2][1], bakeViewMatrix[2][2]);
+            fprintf(terrafectorSystem::_logfile, "\n");
+            */
         }
+        
 
         settings.node_age = -1;
         settings.normalized_age = 1;
@@ -4072,7 +4179,7 @@ void _rootPlant::eXport()
 
 
 
-void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
+void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm::mat4 VIEW)
 {
     if (!root) return;
 
@@ -4082,7 +4189,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     std::string newDir = resource + newRelative;
 
 
-    int superSample = 4;
+    int superSample = 8;
 
     float W = _info->extents.x * _info->bakeWidth;      // this is half width
     float H = _info->extents.y;
@@ -4090,7 +4197,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     float H1 = _info->extents.y * _info->bake_V.y;
     float delH = H1 - H0;
 
-    int iW = 4 * (int)(_info->pixHeight * W * 2.f / delH / 4) * superSample;      // *4  /4 is to keep blocks of 4
+    int iW = 4 * (int)(_info->pixHeight * W * 2.f / delH / 4.f + 1) * superSample;      // *4  /4 is to keep blocks of 4
     iW = __max(4, iW);
     int iH = _info->pixHeight * superSample;
 
@@ -4119,7 +4226,28 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     bakeShader.State()->setBlendState(blendstateBake);
 
     glm::mat4 V, VP;
-    V = { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, W, 1} };
+    //V = { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, W, 1} };
+
+    VIEW[3] -= VIEW[2] * W;
+    V = glm::inverse(VIEW);
+
+    
+    fprintf(terrafectorSystem::_logfile, "VIEW\n");
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            fprintf(terrafectorSystem::_logfile, "% 4.2f, ", VIEW[i][j]);
+        }
+        fprintf(terrafectorSystem::_logfile, "\n");
+    }
+    fprintf(terrafectorSystem::_logfile, "inverse\n");
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            fprintf(terrafectorSystem::_logfile, "% 4.2f, ", V[i][j]);
+        }
+        fprintf(terrafectorSystem::_logfile, "\n");
+    }
+    fflush(terrafectorSystem::_logfile);
+
     VP = glm::orthoLH(-W, W, H0, H1, -1000.0f, 1000.0f) * V;
     rmcv::mat4 viewproj;
     for (int i = 0; i < 4; i++) {
@@ -4129,7 +4257,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
     }
 
     bakeShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-    bakeShader.Vars()["gConstantBuffer"]["eyePos"] = float3(0, 0, 100000);  // just very far sort of parallel
+    bakeShader.Vars()["gConstantBuffer"]["eyePos"] = -(float3)VIEW[2] * 10000.f;// float3(0, 0, 100000);  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_radius_alpha"] = W;  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_height_alpha"] = H1;  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_AoToAlbedo"] = _info->bakeAOToAlbedo;
@@ -4177,9 +4305,10 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info)
         fbo->getColorTexture(3).get()->generateMips(renderContext);
         fbo->getColorTexture(4).get()->generateMips(renderContext);
 
-        fbo->getColorTexture(0).get()->captureToFile(2, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
-        fbo->getColorTexture(2).get()->captureToFile(2, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
-        fbo->getColorTexture(4).get()->captureToFile(2, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        //fbo->getColorTexture(0).get()->captureToFile(0, 0, newDir + "_albedo_RAW.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(0).get()->captureToFile(3, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(3, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+        fbo->getColorTexture(4).get()->captureToFile(3, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
         //fbo->getColorTexture(0).get()->captureToFile(2, 0, resource + Mat.albedoPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
         //fbo->getColorTexture(2).get()->captureToFile(2, 0, resource + Mat.normalPath, Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
