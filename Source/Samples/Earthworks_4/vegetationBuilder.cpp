@@ -457,7 +457,7 @@ void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
             rebuildStructuredBuffer();
         }
 
-        
+
         ImVec2 rootPos = ImGui::GetCursorPos();
 
         struct sortDisplay
@@ -531,7 +531,7 @@ void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
                         _plantMaterial::static_materials_veg.dispTexIndex = material._constData.albedoTexture;
                     }
                     TOOLTIP((material.fullPath.string() + "\n" + std::to_string(displaySortMap[cnt].index)).c_str());
-                    columnCount++;                    
+                    columnCount++;
                 }
                 ImGui::PopID();
                 subCount++;
@@ -540,7 +540,7 @@ void materialCache_plants::renderGui(Gui* mpGui, Gui::Window& _window)
         style = oldStyle;
     }
     ImGui::PopFont();
-    
+
 }
 
 
@@ -756,7 +756,7 @@ void _plantMaterial::renderGui(Gui* _gui)
         //ImGui::NewLine();
         //ImGui::Text("index a, alpha, trans, norm(%d, %d, %d, %d) rgb", _constData.albedoTexture, _constData.alphaTexture, _constData.translucencyTexture, _constData.normalTexture);
     }
-    
+
 
     if (changed)
     {
@@ -980,7 +980,7 @@ template <class T>     T randomVector<T>::get()
 template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
 {
     bool first = true;
-    
+
     //if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed )) //
     {
         ImGui::Text(name);
@@ -1662,8 +1662,8 @@ void _stemBuilder::renderGui()
         R_FLOAT("length split", nodeLengthSplit, 0.1f, 4.f, 100.f, "Number of pixels to insert a new node in this leaf, pusg it higher for very curved leaves");
 
         stemReplacement.renderGui("stem override", gui_id);
-        
-        
+
+
 
 
         ImGui::TreePop();
@@ -1712,7 +1712,7 @@ void _stemBuilder::renderGui()
     style.Colors[ImGuiCol_Header] = ImVec4(0.01f, 0.01f, 0.01f, 1.f);
     //if (ImGui::TreeNodeEx("tip", flags))
     {
-        
+
 
         //ImGui::TreePop();
     }
@@ -1798,7 +1798,7 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         GROW(last, -totalLenght * (1 - lB.bake_V.y));
 
         ribbonVertex R_verts;
-        _faceCamera |= lB.faceCamera;
+        _faceCamera = lB.faceCamera;
         R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
         R_verts.set(node, w * 0.99f, mat, float2(0.99f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
         R_verts.set(last, w * 0.99f, mat, float2(0.99f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
@@ -1815,8 +1815,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
 
     glm::mat4 node = NODES.front();
     glm::mat4 last = NODES.back();
-    //float tipLength = glm::length(tip_NODE[3] - last[3]);
-    float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
+    float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);     // Grow it to the tip, this is good
     GROW(last, tipLength);
 
     glm::vec4 step = (last[3] - node[3]);
@@ -1824,43 +1823,44 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
 
     node[3] += step * lB.bake_V.x;
     node[1] += binorm_step * lB.bake_V.x;
-    step *= (lB.bake_V.y - lB.bake_V.x);
-    binorm_step *= (lB.bake_V.y - lB.bake_V.x);
-    step /= 3.f;
-    binorm_step /= 3.f;
+    step *= (lB.bake_V.y - lB.bake_V.x) / 3.f;
+    binorm_step *= (lB.bake_V.y - lB.bake_V.x) / 3.f;
 
     ribbonVertex R_verts;
-    _faceCamera |= lB.faceCamera;
-    R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
+    R_verts.startRibbon(lB.faceCamera, _settings.pivotIndex);
 
     std::vector<glm::mat4> all = NODES;
-    all.push_back(tip_NODE);
+    //all.push_back(tip_NODE);
 
     for (int i = 0; i < 4; i++)
     {
         glm::mat4 CURRENT = node;
 
-        if (all.size() > 4)
+        if (all.size() > 3)
         {
             int currentIdx = 0;
-            for (int iN = 0; iN < NODES.size(); iN++)   // dont test tip so use NODES.size
+            for (int iN = 0; iN < NODES.size() - 1; iN++)
             {
                 float3 rel = all[iN][3] - node[3];
+                float3 rel2 = all[iN + 1][3] - node[3];
                 float d = glm::dot(rel, (float3)node[1]);
-                if (d >= 0)
-                {
-                    d = fabs(d);
-                    float3 rel2 = all[iN + 1][3] - node[3];
-                    float d2 = fabs(glm::dot(rel2, (float3)node[1]));
-                    float total = d + d2 + 0.0000001;   // add a samll bit for when we have no tip and this becomes zero
+                float d2 = glm::dot(rel2, (float3)node[1]);
 
-                    CURRENT[3] = glm::lerp(all[iN][3], all[iN + 1][3], d / total);
+                //fprintf(terrafectorSystem::_logfile, "node4 %d, %2.3f, %2.3f\n", i, d, d2);
+
+                if (d <= 0 && d2 > 0)
+                {
+                    float total = (d2 - d) + 0.0000001;   // add a samll bit for when we have no tip and this becomes zero
+
+                    CURRENT[3] = glm::lerp(all[iN][3], all[iN + 1][3], -d / total);
+                    //fprintf(terrafectorSystem::_logfile, "found\n");
                     break;
                 }
             }
         }
 
         R_verts.set(CURRENT, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
+        //R_verts.set(CURRENT, w , mat, float2(1.f, 1.f - (0.3333333f * i)), 1.f, 1.f);
         node[3] += step;
         node[1] += binorm_step;
     }
@@ -1985,7 +1985,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
     numLeavesBuilt = 0;
     std::uniform_real_distribution<> distrib(-1.f, 1.f);
     // reset teh seed so all lods build teh same here
-    //_rootPlant::generator.seed(_settings.seed + 999);
+    _rootPlant::generator.seed(_settings.seed + 999);
 
 
     int oldSeed = _settings.seed;
@@ -2003,7 +2003,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
             float leafAge = 1.f - pow(i / age, leaf_age_power);
             int numL = (int)RND_B(numLeaves);
 
-            
+
 
             float t = (float)i / age;
             float t_live = glm::clamp((i - firstLiveSegment) / (age - firstLiveSegment), 0.f, 1.f);
@@ -2022,11 +2022,11 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
                 if (roll_horizontal)
                 {
                     while (fabs(node[2][1]) > 0.04f || (node[0][1] >= 0))
-                    //while (fabs(node[2][1]) > 0.04f)
+                        //while (fabs(node[2][1]) > 0.04f)
                     {
                         ROLL(node, 0.03f);
                     }
-                    if (j%2)    ROLL(node, rollOffset);
+                    if (j % 2)    ROLL(node, rollOffset);
                     else        ROLL(node, -rollOffset);
                 }
                 else
@@ -2035,7 +2035,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
                 }
 
 
-                
+
 
                 ROLL(node, nodeTwist);
                 if ((numL == 1) && (i & 0x1))  ROLL(node, 3.14f);
@@ -2056,14 +2056,18 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
                 }*/
 
                 // And now rotate upwards again.
-
-                _settings.seed = oldSeed + i * (j *99);
+                // ZERO is not acceptable for an age, if true, dont acll anything
+                _settings.seed = oldSeed + i * (j * 99);
                 _settings.root = node;
                 if (leaf_age_override)  _settings.node_age = age - i + 1;
                 else                    _settings.node_age = -leafAge;
                 _settings.normalized_age = t_live;
-                _plantRND LEAF = leaves.get();
-                if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
+                if (_settings.normalized_age > 0.05f)
+                {
+                    _rootPlant::generator.seed(_settings.seed + 999 + i);
+                    _plantRND LEAF = leaves.get();
+                    if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
+                }
             }
         }
     }
@@ -2141,9 +2145,9 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
             float L = RND_B(stem_length) * 0.001f / 20.f;
             float C = RND_CRV(stem_curve) / 20.f / age;
             float P = RND_CRV(stem_phototropism) / 20.f / age;
-            if (_settings.forcePhototropy) {
-                P = 5.0f / 20.f;
-            }
+            //if (_settings.forcePhototropy) {
+            //    P = 5.0f / 20.f;
+            //}
 
             float t = (float)i / age;
             float W = root_width - dR * pow(t, rootPow);
@@ -2154,39 +2158,53 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
             float cnt = 0;
             for (int j = 0; j < 20; j++)
             {
-                PITCH(node, C);
-
-                
-
-                // Phototropy - custom axis
-                float pScale = 1.f - fabs(node[1][1]);
-                if (pScale > 0.05f)
+                if (!_settings.forcePhototropy)
                 {
-                    float3 axis = glm::cross(float3(0, 1, 0), (glm::vec3)node[1]);
-                    glm::mat4 pRot = glm::mat4(1.0);
-                    float3 XX = float3(0, 0, 0);
-                    XX.x = glm::dot(axis, (glm::vec3)node[0]);
-                    XX.z = glm::dot(axis, (glm::vec3)node[2]);
-                    node = glm::rotate(node, -P * pScale, glm::normalize(XX));
+
+                    PITCH(node, C);
+
+
+
+                    // Phototropy - custom axis
+                    float pScale = 1.f - fabs(node[1][1]);
+                    if (pScale > 0.05f)
+                    {
+                        float3 axis = glm::cross(float3(0, 1, 0), (glm::vec3)node[1]);
+                        //glm::mat4 pRot = glm::mat4(1.0);
+                        float3 XX = float3(0, 0, 0);
+                        XX.x = glm::dot(axis, (glm::vec3)node[0]);
+                        XX.z = glm::dot(axis, (glm::vec3)node[2]);
+                        node = glm::rotate(node, -P * pScale, glm::normalize(XX));
+                    }
+
+
+
+
+                    {
+                        //perlinData
+                        float step = ((float)i + (j * 0.05f)) / age;
+                        float perlinScale = 10.f * glm::smoothstep(0.f, 0.3f, step);
+                        step *= 1024.f;
+
+                        float noise = perlinData[(int)(step * perlinCurve.y + _settings.seed) % 1024];// (float)perlin.normalizedOctave1D(perlinCurve.y * step, 4, 0.7);
+                        //PITCH(node, noise * perlinCurve.x * perlinScale * 0.01f);
+                        PITCH(node, perlinScale * noise * perlinCurve.x * 0.01f);
+
+                        noise = perlinData[(int)(step * perlinTwist.y + _settings.seed + 400) % 1024];// (float)perlinTWST.normalizedOctave1D(perlinTwist.y * step, 4, 0.7);
+                        YAW(node, perlinScale * noise * perlinTwist.x * 0.01f);
+                    }
+
+                    // Force root straigth if baking
+                    //if (pScale < 0.995f && _settings.forcePhototropy && _settings.pivotDepth == 1)
+                    //if (pScale > 0.05f && _settings.pivotDepth == 0)
+
+
                 }
 
-                
-                {
-                    //perlinData
-                    float step = ((float)i + (j * 0.05f)) / age;
-                    float perlinScale = 10.f * glm::smoothstep(0.f, 0.3f, step);
-                    step *= 1024.f;
 
-                    float noise = perlinData[(int)(step * perlinCurve.y + _settings.seed) % 1024];// (float)perlin.normalizedOctave1D(perlinCurve.y * step, 4, 0.7);
-                    //PITCH(node, noise * perlinCurve.x * perlinScale * 0.01f);
-                    PITCH(node, perlinScale * noise * perlinCurve.x * 0.01f);
-
-                    noise = perlinData[(int)(step * perlinTwist.y + _settings.seed + 400) % 1024];// (float)perlinTWST.normalizedOctave1D(perlinTwist.y * step, 4, 0.7);
-                    YAW(node, perlinScale * noise * perlinTwist.x  * 0.01f);
-                }
-                
                 GROW(node, L);
                 cnt++;
+
 
                 float t = (float)i / age + ((float)j / 20.f * (1.f / age));
                 float W = root_width - dR * pow(t, rootPow);
@@ -2237,6 +2255,9 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
     uint startVerts = ribbonVertex::ribbons.size();
     uint leafVerts = ribbonVertex::ribbons.size();
     uint tipVerts = ribbonVertex::ribbons.size();
+
+    if (_settings.pivotDepth == 0) firstLevel = true;
+    else firstLevel = false;
 
     build_NODES(_settings, false);
     tip_NODE = NODES.back();    // just in case build tip adds nothing
@@ -3203,7 +3224,7 @@ void _rootPlant::onLoad()
     for (int i = 0; i < 1024; i++)
     {
         perlinData[i] = (float)perlin.normalizedOctave1D((float)i / 8.f, 4, 0.5);
-        fprintf(terrafectorSystem::_logfile, "%f, ",perlinData[i]);
+        fprintf(terrafectorSystem::_logfile, "%f, ", perlinData[i]);
         sum += perlinData[i];
     }
     fprintf(terrafectorSystem::_logfile, "\n sum %f, \n\n", sum);
@@ -3403,7 +3424,7 @@ void _rootPlant::renderGui(Gui* _gui)
 
 
             ImGui::NewLine();
-            
+
 
 
             if (root)
@@ -3414,7 +3435,7 @@ void _rootPlant::renderGui(Gui* _gui)
                 ImGui::Text("build time %2.2f ms", buildTime);
                 ImGui::Text("stem %2.2f ms", timeStem);
                 ImGui::Text("node %2.1f micro s   {%2.1fms}", timeStemNodes, timeStemNodesTotal / 1000.f);
-                
+
                 ImGui::NewLine();
 
                 root->treeView();
@@ -3455,13 +3476,13 @@ void _rootPlant::renderGui(Gui* _gui)
                             selectedPart->calculate_extents(settings, bakeViewAdjusted);
                         }
                     }
-                    
+
                     ImGui::SameLine(columnWidth / 2, 0);
                     if (ImGui::Button("Build all lods", ImVec2(columnWidth / 2 - 10, 0)))
                     {
                         buildAllLods();
                     }
-                    
+
                     {
                         if (ImGui::Button("   -   ")) { selectedPart->decrementLods(); }
                         ImGui::SameLine(0, 50);
@@ -3485,7 +3506,7 @@ void _rootPlant::renderGui(Gui* _gui)
                             ImGui::BeginChildFrame(5678 + lod, ImVec2(columnWidth - 40, 85));
                             {
                                 ImGui::Text("%d)", lod);
-                                
+
                                 ImGui::SameLine(0, 20);
                                 ImGui::SetNextItemWidth(60);
                                 if (ImGui::DragInt("##numPix", &(lodInfo->numPixels), 0.1f, 8, 2000))
@@ -3518,17 +3539,17 @@ void _rootPlant::renderGui(Gui* _gui)
                                 if (ImGui::Checkbox("geo", &lodInfo->useGeometry)) { selectedPart->changed = true; }
                                 TOOLTIP("Use 3d geometry, or only baked billboards")
 
-                                ImGui::SameLine(0, 10);
+                                    ImGui::SameLine(0, 10);
                                 ImGui::SetNextItemWidth(60);
                                 if (ImGui::Combo("type", &lodInfo->bakeType, "none\0diamond\0'4'\0N\0")) { selectedPart->changed = true; }
                                 TOOLTIP("Type of baked content to use \nnone \ndianmond - 2 triangles in diamond pattern\n4 - 6 triangle ribbon using 4 verts \nN - not currently used")
 
-                                ImGui::SameLine(0, 10);
+                                    ImGui::SameLine(0, 10);
                                 ImGui::SetNextItemWidth(60);
                                 if (ImGui::DragInt("##bakeIdx", &(lodInfo->bakeIndex), 0.1f, 0, 2)) { selectedPart->changed = true; }
                                 TOOLTIP("Which bake to use here")
 
-                                ImGui::Text("%d: verts", lodInfo->numVerts);
+                                    ImGui::Text("%d: verts", lodInfo->numVerts);
                                 ImGui::SameLine(0, 30);
                                 ImGui::SetNextItemWidth(60);
                                 if (ImGui::DragFloat("scale", &lodInfo->geometryPixelScale, 0.01f, 0.1f, 10)) { selectedPart->changed = true; }
@@ -3540,9 +3561,9 @@ void _rootPlant::renderGui(Gui* _gui)
                         }
                     }
 
-                    
 
-                    
+
+
                 }
                 ImGui::TreePop();
             }
@@ -3574,7 +3595,7 @@ void _rootPlant::renderGui(Gui* _gui)
                     {
                         settings.seed = seed;
                         settings.pixelSize = 0.0001f;
-                        settings.forcePhototropy = false;    //??????
+                        settings.forcePhototropy = true;    //??????
                         ribbonVertex::packed.clear();
                         build(true);
                         settings.forcePhototropy = false;
@@ -3585,7 +3606,7 @@ void _rootPlant::renderGui(Gui* _gui)
 
                         float3 d = glm::cross((float3)bakeViewAdjusted[0], u);
                         float3 r = glm::cross(u, d);
-                        
+
                         // now its tilted so tip is int eh middle
                         bakeViewAdjusted[0][0] = r.x;
                         bakeViewAdjusted[0][1] = r.y;
@@ -3600,7 +3621,7 @@ void _rootPlant::renderGui(Gui* _gui)
                         bakeViewAdjusted[2][2] = d.z;
 
                         fprintf(terrafectorSystem::_logfile, "\n\nBAKE\n");
-                        
+
                         fprintf(terrafectorSystem::_logfile, "right {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[0][0], bakeViewMatrix[0][1], bakeViewMatrix[0][2]);
                         fprintf(terrafectorSystem::_logfile, "up    {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[1][0], bakeViewMatrix[1][1], bakeViewMatrix[1][2]);
                         fprintf(terrafectorSystem::_logfile, "dir   {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[2][0], bakeViewMatrix[2][1], bakeViewMatrix[2][2]);
@@ -4032,12 +4053,13 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
         ribbonVertex::radiusScale = vertex_pack_Settings.radiusScale;
         ribbonVertex::objectOffset = vertex_pack_Settings.getOffset();
 
+        settings.forcePhototropy = false;
         settings.parentStemDir = { 0, 1, 0 };
         settings.root = glm::mat4(1.0);
         //if (!settings.forcePhototropy)
         {
             ROLL(settings.root, rootYaw);
-            PITCH(settings.root, rootPitch);    // FIXME remove for baking, etst but likely correct settings.forcePhototropy
+            PITCH(settings.root, -rootPitch);    // FIXME remove for baking, etst but likely correct settings.forcePhototropy
             //ROLL(settings.root, 3.14f);
             ROLL(settings.root, rootRoll);
 
@@ -4051,7 +4073,7 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
             fprintf(terrafectorSystem::_logfile, "\n");
             */
         }
-        
+
 
         settings.node_age = -1;
         settings.normalized_age = 1;
@@ -4231,7 +4253,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
     VIEW[3] -= VIEW[2] * W;
     V = glm::inverse(VIEW);
 
-    
+
     fprintf(terrafectorSystem::_logfile, "VIEW\n");
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -4249,13 +4271,15 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
     fflush(terrafectorSystem::_logfile);
 
     VP = glm::orthoLH(-W, W, H0, H1, -1000.0f, 1000.0f) * V;
-    rmcv::mat4 viewproj;
+    rmcv::mat4 viewproj, view;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             viewproj[j][i] = VP[j][i];
+            view[j][i] = VIEW[j][i];
         }
     }
 
+    bakeShader.Vars()["gConstantBuffer"]["view"] = view;
     bakeShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
     bakeShader.Vars()["gConstantBuffer"]["eyePos"] = -(float3)VIEW[2] * 10000.f;// float3(0, 0, 100000);  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_radius_alpha"] = W;  // just very far sort of parallel
@@ -4307,6 +4331,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
 
         //fbo->getColorTexture(0).get()->captureToFile(0, 0, newDir + "_albedo_RAW.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
         fbo->getColorTexture(0).get()->captureToFile(3, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(1).get()->captureToFile(3, 0, newDir + "_normal_float16.pfm", Bitmap::FileFormat::PfmFile, Bitmap::ExportFlags::None);
         fbo->getColorTexture(2).get()->captureToFile(3, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
         fbo->getColorTexture(4).get()->captureToFile(3, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 

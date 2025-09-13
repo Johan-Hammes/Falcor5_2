@@ -235,7 +235,7 @@ struct ribbonVertex
         }
 
         position = _node[3];
-        if (fabs(position.x) > 2 || fabs(position.z) > 2)
+        if (fabs(position.x) > 200 || fabs(position.z) > 200)
         {
             bool bCM = true;
         }
@@ -694,6 +694,7 @@ public:
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     void clear_build_info();
 
+    bool firstLevel = false;
 
     //void build_Nodes(buildSetting& _settings);
     std::vector<glm::mat4> NODES;

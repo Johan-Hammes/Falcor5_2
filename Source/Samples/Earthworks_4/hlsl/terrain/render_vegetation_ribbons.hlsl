@@ -36,6 +36,7 @@ StructuredBuffer<ribbonVertex8> vertex_buffer;
 
 cbuffer gConstantBuffer
 {
+    float4x4 view;
     float4x4 viewproj;
     float3 eyePos;
     
@@ -429,7 +430,8 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     root.y = 0;
     output.pos.xyz += root;
 
-    output.eye = float3(0, 0, -1);
+    //output.eye = float3(0, 0, -1);
+    output.eye = normalize(output.pos.xyz - eyePos);
 #else
     output.debugColour = allPivotsSum(output.pos.xyz, output.binormal, output.tangent, v, BLOCK.vertex_offset + vId, PLANT, INSTANCE);
 
@@ -549,8 +551,17 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         const bool diamond = (L[0].flags.y >> 1);
         if (diamond)
         {
+            // All opf this just makes it a little more acurate but seems wasted in my opinion
+            //float3 eye = L[0].eye + L[1].eye;
+            //float3 binormal = normalize(L[1].pos.xyz - L[0].pos.xyz);
+            //float3 tangent = normalize(cross(binormal, -eye));
+            //float3 normal = cross(binormal, tangent);
+
             PSIn v = L[0];
             float scale = 0; //            1 - L[0].lineScale.z;
+            //v.binormal = binormal;
+            //v.tangent = tangent;
+            //v.normal = normal;
 
             v.uv = float2(0.5, 1.1);
             // first one is correct v.pos = pt[0].pos - pt[0].viewBinormal * 0.1;
@@ -567,6 +578,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
         
+            
             v.uv = float2(0.0 - scale / 2, 0.5);
             v.pos = (L[0].pos + L[1].pos) * 0.5 - float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
@@ -575,8 +587,12 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             OutputStream.Append(v);
 
             v = L[1];
+            //v.binormal = binormal;
+            //v.tangent = tangent;
+            //v.normal = normal;
+
             v.uv = float2(0.5, -0.1);
-            v.pos = L[1].pos + 0.1 * (L[1].pos - L[0].pos);
+            v.pos = L[1].pos + 0.1 * (L[1].pos - L[0].pos);//            +float4(v.binormal, 0);
             // last one is correct v.pos = pt[0].pos + pt[0].viewBinormal * 1.1;
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -587,7 +603,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
         else
         {
             v = L[0];
-            v.uv.x = 0.5 + L[0].uv.x;
+            v.uv.x = 0.5 - L[0].uv.x;
             v.pos = L[0].pos - float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -596,7 +612,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
 
-            v.uv.x = 0.5 - L[0].uv.x;
+            v.uv.x = 0.5 + L[0].uv.x;
             v.pos = L[0].pos + float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -606,7 +622,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             OutputStream.Append(v);
 
             v = L[1];
-            v.uv.x = 0.5 + L[1].uv.x;
+            v.uv.x = 0.5 - L[1].uv.x;
             v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -614,7 +630,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
 
-            v.uv.x = 0.5 - L[1].uv.x;
+            v.uv.x = 0.5 + L[1].uv.x;
             v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -683,19 +699,30 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     
 //lighting.rgb
-    float3 NAdjusted = N;
-    NAdjusted = normalize(vOut.lighting.rgb);
+    float3 NAdjusted;
 
     float3 NCone =vOut.lighting.rbg;
     NCone.r *= -1;
     NCone.b *= -1;
 
    // N = normalize(NCone + N * 0.3);
-    
+    //NAdjusted = mul(float4(NAdjusted, 0), view).xyz;
 
-    NAdjusted.r = -N.r * 0.5 + 0.5;
-    NAdjusted.g = N.g * 0.5 + 0.5;
-    NAdjusted.b = -N.b * 0.5 + 0.5;  //fixme -
+    //N = float3(0, 0, -1);
+    
+    //NAdjusted.r = -N.r * 0.5 + 0.5;
+    //NAdjusted.g = N.g * 0.5 + 0.5;
+    //NAdjusted.b = -N.b * 0.5 + 0.5;  //fixme -
+
+    //N = vOut.normal;
+
+    NAdjusted.r = dot(N, view[0].xyz);
+    NAdjusted.g = dot(N, view[1].xyz);
+    NAdjusted.b = -dot(N, view[2].xyz);
+
+    NAdjusted *= 0.5;
+    NAdjusted += 0.5;
+
 
 //NAdjusted = vOut.lighting.xyz * 0.5 + 0.5;
 //NAdjusted.b = 1 - NAdjusted.b;
@@ -703,6 +730,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 //float instance_PLANT = saturate(dot(vOut.lighting.xyz, normalize(float3(0.8, 0.4, 0.4))));
 //output.albedo *= instance_PLANT * 0.3 + 0.7;
+
 
     output.normal = float4(NAdjusted, 1);       // FIXME has to convert to camera space, cant eb too hard , uprigthmaybe, and 0-1 space
     output.normal_8 = float4(NAdjusted, 1);
@@ -788,12 +816,20 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 N = vOut.normal;
     if (MAT.normalTexture >= 0)
     {
+        /*float3 nTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb));
+        if (nTex.r < 0.5)
+            return float4(0, 0, 1, 1);
+            return float4(nTex, 1);
+*/
         float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
-        N = (normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal);
+        N = normalize((normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal * flipNormal));
         //albedo.rgb = normalTex;
 
+        //if (normalTex.r < 0)            return 1;
+
     }
-    N *= flipNormal;
+    // ??? is it all channels or just the normal that shouldd flip
+    //N *= flipNormal;
     float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
     float ndots = dot(N, sunDirection);
 
