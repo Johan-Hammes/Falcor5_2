@@ -137,7 +137,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         _gui->addFont("H2", "Framework/Fonts/Sienthas.otf", screenSize.y / 17);
 
         float scale = 1.f;
-        if (screenSize.y > 1600.f) scale = 0.8f;
+        if (screenSize.y > 1600.f) scale = 0.9f;
         _gui->addFont("header0", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 20);
         _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 40);
         _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 55);
@@ -676,7 +676,7 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
 void Earthworks_4::onRenderOverlay(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
-    
+
 
     Texture::SharedPtr tex = terrafectorEditorMaterial::static_materials.getDisplayTexture();
     if (!tex) tex = _plantMaterial::static_materials_veg.getDisplayTexture();

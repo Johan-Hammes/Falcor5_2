@@ -27,6 +27,7 @@ cbuffer gConstantBuffer
     int lastLod = 100;
 
     float lodBias;
+    float halfAngle_to_Pixels;
 };
 
 
@@ -35,64 +36,57 @@ cbuffer gConstantBuffer
 [numthreads(256, 1, 1)]
 void main(uint idx : SV_DispatchThreadId)
 {
+    uint slot = 0;
     const plant_instance INSTANCE = instance_buffer[idx];
-    const plant PLANT = plant_buffer[INSTANCE.plant_idx];
+    //const plant PLANT = plant_buffer[INSTANCE.plant_idx];
+    const plant PLANT = plant_buffer[0];
 
     if (INSTANCE.plant_idx >= firstPlant && INSTANCE.plant_idx < lastPlant)
     {
-    
         float radius = 1 * (PLANT.size.x + PLANT.size.y); // or something like that, or precalc radius
-        float4 viewPos = mul(float4(INSTANCE.position + float3(0, PLANT.size.y*0.5, 0), 1), view); //??? maak seker
-
+        float4 viewPos = mul(float4(INSTANCE.position + float3(0, PLANT.size.y * 0.5, 0), 1), view); //??? maak seker
         float4 test = saturate(mul(frustum, viewPos) + float4(radius, radius, radius, radius));
-        uint slot = 0;
-    
+        
         if (all(test))
         {
             float distance = length(viewPos.xyz); // can use view.z but that causes lod changes on rotation and is less good, although mnore acurate
-            float pix = 0 * lodBias * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
-
-/*
-        if (pix < 12 && pix > 2)        // do billboards
-        //if (pix < PLANT.lods[0].pixSize)        // do billboards
-        {
+            //float pix = 1 * lodBias * PLANT.size.y * INSTANCE.scale / distance * 1080; // And add a user controlled scale in as well
+            float pix = lodBias * halfAngle_to_Pixels * PLANT.size.y * INSTANCE.scale / distance;
             
-            uint slot = 0;
-            //InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
-            //instance_buffer_billboard[slot] = INSTANCE;
-            //InterlockedAdd(feedback[0].numLod[0], 1, slot);
 
-        }
-        else if (pix >= 32)
-*/
-            if (pix >= PLANT.lods[0].pixSize / 2)
+            if (idx == 0)
             {
-                int lod = 0; //            PLANT.numLods - 1;
+                feedback[0].plantZero_pixeSize = pix;
+            }
+
+            if (pix < PLANT.lods[0].pixSize)        // do billboards
+            {
+                InterlockedAdd(DrawArgs_Quads[0].vertexCountPerInstance, 1, slot);
+                instance_buffer_billboard[slot] = INSTANCE;
+                InterlockedAdd(feedback[0].numLod[0], 1, slot);
+            }
+            else
+            {
+                int lod = 0;
             
-                for (int i = 0; i <= PLANT.numLods; i++)
+                for (int i = 0; i < PLANT.numLods; i++)
                 {
-                    float size = PLANT.lods[i].pixSize;
-                    if (pix >= size)           lod = i;
+                    if (pix >= PLANT.lods[i].pixSize)        lod = i;
                 }
 
-                lod = 0;
-
-                if (firstLod < 0 || lod == firstLod)
+                if (idx == 0)
                 {
-            
+                    feedback[0].plantZeroLod = lod;
+                }
+                //if (firstLod < 0 || lod == firstLod)
+                //if (lod >=6)
+                {
                     InterlockedAdd(feedback[0].numLod[lod + 1], 1, slot);
             
-                    if (idx == 0)
-                    {
-                        feedback[0].plantZero_pixeSize = pix;
-                        feedback[0].plantZeroLod = lod;
-                    }
-            
-
+                    
             
                     InterlockedAdd(feedback[0].numBlocks, PLANT.lods[lod].numBlocks, slot);
                     InterlockedAdd(DrawArgs_Plants[0].instanceCount, PLANT.lods[lod].numBlocks, slot);
-            
  
             
                     for (int i = 0; i < PLANT.lods[lod].numBlocks; i++)

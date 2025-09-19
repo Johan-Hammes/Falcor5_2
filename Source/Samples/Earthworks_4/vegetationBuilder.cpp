@@ -90,6 +90,10 @@ std::array<std::string, 77> resourceString =
 };
 
 
+float GLOBAL_RND_SIZE = 0.3f;
+std::map<int, int> pivotMap;
+bool LOGTHEBUILD = false;
+
 float timeStem;
 float timeStemNodes;
 float timeStemNodesTotal;
@@ -1800,6 +1804,11 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         ribbonVertex R_verts;
         _faceCamera = lB.faceCamera;
         R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
+
+        // ROTATE node and last so axis lines up
+        float4 tangent = glm::normalize(last[3] - node[3]);
+        node[1] = tangent;
+        last[1] = tangent;
         R_verts.set(node, w * 0.99f, mat, float2(0.99f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
         R_verts.set(last, w * 0.99f, mat, float2(0.99f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
     }
@@ -1940,22 +1949,24 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 {
     _settings.forcePhototropy = false;
     // reset teh seed so all lods build teh same here
+
+    _settings.seed = (_settings.seed % 5000) + 30001;
     _rootPlant::generator.seed(_settings.seed + 1999);
     //if ()
     {
         // walk the tip back ever so slightly
         glm::mat4 node = NODES.back();
         GROW(node, -tip_width * 0.5f);  //???
-
+        
         if (roll_horizontal)
         {
-            while (fabs(node[2][1]) > 0.01f)
+            while (fabs(node[2][1]) > 0.05f)
             {
                 ROLL(node, 0.01f);
             }
             ROLL(node, -1.570796326f);
         }
-
+        
         _settings.root = node;
         _settings.node_age = 1.f;
         _settings.normalized_age = 1;
@@ -1988,7 +1999,8 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
     _rootPlant::generator.seed(_settings.seed + 999);
 
 
-    int oldSeed = _settings.seed;
+    //int oldSeed = (_settings.seed % 1000) + 10001 + (_settings.callDepth * 100000);
+    int oldSeed = _settings.seed * 10 + 1;//
     std::mt19937 MT(_settings.seed + 999);
     std::uniform_real_distribution<> DDD(-1.f, 1.f);
 
@@ -2057,14 +2069,14 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
 
                 // And now rotate upwards again.
                 // ZERO is not acceptable for an age, if true, dont acll anything
-                _settings.seed = oldSeed + i * (j * 99);
+                _settings.seed = oldSeed + (i * 100) +  j;
                 _settings.root = node;
                 if (leaf_age_override)  _settings.node_age = age - i + 1;
                 else                    _settings.node_age = -leafAge;
                 _settings.normalized_age = t_live;
                 if (_settings.normalized_age > 0.05f)
                 {
-                    _rootPlant::generator.seed(_settings.seed + 999 + i);
+                    _rootPlant::generator.seed(_settings.seed);
                     _plantRND LEAF = leaves.get();
                     if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
                 }
@@ -2092,6 +2104,15 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
     const siv::PerlinNoise perlin{ (uint)_settings.seed + 101 };
     //const siv::PerlinNoise::seed_type seedT = distPerlin(_rootPlant::generator);
     const siv::PerlinNoise perlinTWST{ (uint)_settings.seed + 99 };
+
+    if (roll_horizontal)
+    {
+        while (fabs(node[0][1]) > 0.04f || (node[2][1] >= 0))
+        {
+            ROLL(node, 0.03f);
+        }
+    }
+
 
     NODES.clear();
     NODES.push_back(node);
@@ -2250,11 +2271,17 @@ void _stemBuilder::clear_build_info()
 
 glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 {
+    _settings.callDepth++;
+
     auto start = high_resolution_clock::now();
 
     uint startVerts = ribbonVertex::ribbons.size();
     uint leafVerts = ribbonVertex::ribbons.size();
     uint tipVerts = ribbonVertex::ribbons.size();
+
+    
+    //fprintf(terrafectorSystem::_logfile, "build - start = %d\n", startVerts);
+    //fflush(terrafectorSystem::_logfile);
 
     if (_settings.pivotDepth == 0) firstLevel = true;
     else firstLevel = false;
@@ -2270,9 +2297,40 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
         float3 extent = (float3)tip_NODE[3] - (float3)NODES.front()[3];
         float ext_L = glm::length(extent);
         extent = glm::normalize(extent) / ext_L;
-        _settings.pivotIndex[_settings.pivotDepth] = (int)ribbonVertex::pivotPoints.size();
-        _settings.pivotDepth += 1;
-        R.pushPivot((float3)NODES.front()[3], extent, rootFrequency() * sqrt(ext_L), ossilation_stiffness, ossilation_power, DDD(_rootPlant::generator));
+
+        
+        // search the map
+        auto it = pivotMap.find(_settings.seed);
+        if (it != pivotMap.end())
+        {
+            _settings.pivotIndex[_settings.pivotDepth] = it->second;
+            _settings.pivotDepth += 1;
+
+            if (LOGTHEBUILD)
+            {
+                fprintf(terrafectorSystem::_logfile, "PIVOT %d - found  %d\n", _settings.seed, it->second);
+            }
+        }
+        else
+        {
+            _settings.pivotIndex[_settings.pivotDepth] = (int)ribbonVertex::pivotPoints.size();
+            _settings.pivotDepth += 1;
+            pivotMap[_settings.seed] = (int)ribbonVertex::pivotPoints.size();
+            R.pushPivot((float3)NODES.front()[3], extent, rootFrequency() * sqrt(ext_L), ossilation_stiffness, ossilation_power, DDD(_rootPlant::generator));
+
+            if (LOGTHEBUILD)
+            {
+                fprintf(terrafectorSystem::_logfile, "PIVOT %d - %d,", _settings.seed, _settings.callDepth);
+                for (int i = 0; i < _settings.callDepth; i++)
+                {
+                    fprintf(terrafectorSystem::_logfile, "    ");
+                }
+                fprintf(terrafectorSystem::_logfile, "  %s\n", name.c_str());
+            }
+        }        
+        
+        
+        
 
         // FIXME, Shoul dnot happen on bluid-2 and build4 - They should set leaf pivots if at all
 
@@ -2281,14 +2339,19 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 
     if (_addVerts)
     {
-        levelOfDetail lod = lodInfo.back();             // no parent can push us past this, similar when I do sun Parts, there will be a lod set for that add
-        for (int i = lodInfo.size() - 1; i >= 0; i--)
+        levelOfDetail lod = lodInfo.front();             // no parent can push us past this, similar when I do sun Parts, there will be a lod set for that add
+        std::uniform_real_distribution<> distrib(-1.f, 1.f);
+        for (int i = 0; i<lodInfo.size() - 1; i++)
         {
-            if (_settings.pixelSize >= lodInfo[i].pixelSize)
+            // FIXME we want random pixelSize here for smoother crossovers
+
+            GLOBAL_RND_SIZE = 0;
+            if (_settings.pixelSize * RND_B(float2(1.f, GLOBAL_RND_SIZE)) <= lodInfo[i].pixelSize)
             {
                 lod = lodInfo[i];
             }
         }
+
 
         if (!_settings.forcePhototropy) // so do not use any of these during a bake
         {
@@ -2299,7 +2362,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 
         if (lod.useGeometry || _settings.forcePhototropy)
         {
-            _settings.pixelSize *= lod.geometryPixelScale;
+            //_settings.pixelSize *= lod.geometryPixelScale;
 
             build_tip(_settings, true);
             tipVerts = ribbonVertex::ribbons.size();
@@ -2321,6 +2384,7 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
     timeStem = (float)duration_cast<microseconds>(stop - start).count() / 1000.f;
 
 
+    _settings.callDepth--; 
     return tip_NODE;
 }
 
@@ -2402,6 +2466,10 @@ void _stemBuilder::calculate_extents(buildSetting _settings, glm::mat4 view)
         uint bucket = (uint)glm::clamp(y / step, 0.f, 8.f);
         du6[bucket] = __max(r, du6[bucket]);
         cnt[bucket]++;
+    }
+    for (int i = 0; i < 6; i++)
+    {
+        fprintf(terrafectorSystem::_logfile, "dU %d    %2.2f\n", i, du6[i]);
     }
     std::array<float, 4> du;
     du[0] = du6[0];
@@ -2931,7 +2999,7 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
 
         if (lod.useGeometry || _settings.forcePhototropy)
         {
-            _settings.pixelSize *= lod.geometryPixelScale;
+            //_settings.pixelSize *= lod.geometryPixelScale;
 
             buildChildren(_settings, true);
         }
@@ -3043,13 +3111,45 @@ bool _rootPlant::onKeyEvent(const KeyboardEvent& keyEvent)
     {
         if (keyEvent.key == Input::Key::Space)
         {
-            root->loadPath();
             anyChange = true;       // SPACE
         }
         if (keyEvent.key == Input::Key::Enter)
         {
+            root->loadPath();
             anyChange = true;       // ENTER
         }
+
+
+        if (keyEvent.key == Input::Key::Up)
+        {
+            currentLOD++;       // ENTER
+            //??? clamh how
+            anyChange = true;
+            levelOfDetail* lodInfo = selectedPart->getLodInfo(currentLOD);
+            if (lodInfo)
+            {
+                //lodInfo->pixelSize = extents.y / lodInfo->numPixels;
+                settings.pixelSize = lodInfo->pixelSize;
+            }
+            else
+            {
+                currentLOD--;
+            }
+        }
+        if (keyEvent.key == Input::Key::Down)
+        {
+            currentLOD--;       // ENTER
+            if (currentLOD < 0) currentLOD = 0;
+            anyChange = true;
+            levelOfDetail* lodInfo = selectedPart->getLodInfo(currentLOD);
+            //lodInfo->pixelSize = extents.y / lodInfo->numPixels;
+            settings.pixelSize = lodInfo->pixelSize;
+        }
+        if (keyEvent.key == Input::Key::Z)
+        {
+            showDebugInShader = !showDebugInShader;
+        }
+
         return true;
     }
     return false;
@@ -3274,6 +3374,26 @@ void _rootPlant::renderGui_perf(Gui* _gui)
         R_FLOAT("lod Bias", loddingBias, 0.01f, 0.1f, 10.f, "");
         ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
 
+        {
+            ImGui::Text("billboard %6d", feedback.numLod[0]);
+            for (int i = 1; i < 10; i++)
+            {
+                if (root->getLodInfo(i))
+                {
+                    ImGui::Text("%2d:", i);
+                    ImGui::SameLine(30);
+                    ImGui::Text("%6d", feedback.numLod[i]);
+                    ImGui::SameLine(130);
+                    ImGui::Text("%3d", root->getLodInfo(i)->numBlocks);
+                    ImGui::SameLine(200);
+                    ImGui::Text("%3d", root->getLodInfo(i)->numVerts);
+                    ImGui::SameLine(300);
+                    ImGui::Text("%2.2f", feedback.numLod[i] * root->getLodInfo(i)->numVerts * 2 / 1000000.f);
+                }
+            }
+        }
+
+        /*
         ImGui::PushFont(_gui->getFont("small"));
         {
 
@@ -3321,6 +3441,7 @@ void _rootPlant::renderGui_perf(Gui* _gui)
             }
         }
         ImGui::PopFont();
+        */
 
 
     }
@@ -3353,14 +3474,120 @@ void _rootPlant::buildFullResolution()
     for (uint lod = 0; lod < 100; lod++)
     {
         levelOfDetail* lodInfo = selectedPart->getLodInfo(lod);
-        if (lodInfo)    lodInfo->pixelSize = extents.y / lodInfo->numPixels;
+        //if (lodInfo)    lodInfo->pixelSize = extents.y / lodInfo->numPixels;
     }
+}
+
+
+
+
+void _rootPlant::renderGui_rightPanel(Gui* _gui)
+{
+    renderGui_load(_gui);
+
+    if (root)
+    {
+        pixelmm = extents.y / pixelSize;
+        for (uint lod = 0; lod < 100; lod++)   // backwards since it fixes abug in build()
+        {
+            levelOfDetail* lodInfo = root->getLodInfo(lod);
+            if (lodInfo && (pixelmm < lodInfo->pixelSize) )
+            {
+                expectedLod = lod;
+            }
+        }
+
+
+        
+
+
+        FONT_TEXT("header1", root->name.c_str());
+        ImGui::Text("( %3.2f, %3.2f )m", extents.x, extents.y);
+        ImGui::Text("%d pix,  %3.1f mm/pixel", (int)pixelSize, 1000.f * pixelmm);
+        ImGui::Text("lod %d  {exp - %d}", currentLOD, expectedLod);
+
+        //ImGui::Text("v - %d, b - %d, u - %d, %d rejected", totalBlocksToRender * VEG_BLOCK_SIZE, totalBlocksToRender, unusedVerts, ribbonVertex::totalRejectedVerts);
+        ImGui::PushFont(_gui->getFont("header2"));
+        {
+            ImGui::Text("%d verts", totalBlocksToRender * VEG_BLOCK_SIZE);
+        }
+        ImGui::PopFont();
+
+        ImGui::Text("build time %2.2f ms", buildTime);
+        //ImGui::Text("stem %2.2f ms", timeStem);
+        //ImGui::Text("node %2.1f micro s   {%2.1fms}", timeStemNodes, timeStemNodesTotal / 1000.f);
+
+        ImGui::NewLine();
+        
+
+    }
+    ImGui::NewLine();
+    renderGui_perf(_gui);
+
+    ImGui::NewLine();
+    ImGui::Text("recent ...");
+
+}
+
+void _rootPlant::renderGui_load(Gui* _gui)
+{
+    ImGui::PushFont(_gui->getFont("header2"));
+    {
+        if (ImGui::Button("Load")) {
+            std::filesystem::path filepath;
+            FileDialogFilterVec filters = { {"leaf"}, {"stem"}, {"clump"} };
+            if (openFileDialog(filters, filepath))
+            {
+                _rootPlant::selectedMaterial = nullptr;
+                if (root) delete root;
+                if (filepath.string().find(".leaf") != std::string::npos) { root = new _leafBuilder;  _rootPlant::selectedPart = root; }
+                if (filepath.string().find(".stem") != std::string::npos) { root = new _stemBuilder;  _rootPlant::selectedPart = root; }
+                if (filepath.string().find(".clump") != std::string::npos) { root = new _clumpBuilder;  _rootPlant::selectedPart = root; }
+
+                if (root)
+                {
+                    root->path = materialCache::getRelative(filepath.string());
+                    root->name = filepath.filename().string();
+                    root->loadPath();
+                    fprintf(terrafectorSystem::_logfile, "expand compete about to build\n");
+                    fflush(terrafectorSystem::_logfile);
+                    build(true);    //to get extetns
+                    buildFullResolution();
+                }
+            }
+        }
+        ImGui::SameLine(0, 30);
+        if (ImGui::Button("import"))
+        {
+            importBinary();
+        }
+        ImGui::SameLine(0, 30);
+        if (ImGui::Button("clearBinary"))
+        {
+            numBinaryPlants = 0;
+            binVertexOffset = 0;
+            binPlantOffset = 0;
+            binPivotOffset = 0;
+        }
+    }
+    ImGui::PopFont();
+
+    if (ImGui::Button("new Stem")) { if (root) delete root; root = new _stemBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
+    ImGui::SameLine(0, 10);
+    if (ImGui::Button("new Clump")) { if (root) delete root; root = new _clumpBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
+    ImGui::SameLine(0, 10);
+    if (ImGui::Button("new Leaf")) { if (root) delete root; root = new _leafBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
+
+
+    ImGui::NewLine();
 }
 
 void _rootPlant::renderGui(Gui* _gui)
 {
     uint gui_id = 99994;
     _plantBuilder::_gui = _gui;
+
+    renderGui_rightPanel(_gui);
 
     Gui::Window builderPanel(_gui, "vegetation builder", { 900, 900 }, { 100, 100 });
     {
@@ -3375,73 +3602,25 @@ void _rootPlant::renderGui(Gui* _gui)
 
         ImGui::PushFont(_gui->getFont("default"));
         {
-            ImGui::PushFont(_gui->getFont("header2"));
-            {
-                if (ImGui::Button("Load")) {
-                    std::filesystem::path filepath;
-                    FileDialogFilterVec filters = { {"leaf"}, {"stem"}, {"clump"} };
-                    if (openFileDialog(filters, filepath))
-                    {
-                        _rootPlant::selectedMaterial = nullptr;
-                        if (root) delete root;
-                        if (filepath.string().find(".leaf") != std::string::npos) { root = new _leafBuilder;  _rootPlant::selectedPart = root; }
-                        if (filepath.string().find(".stem") != std::string::npos) { root = new _stemBuilder;  _rootPlant::selectedPart = root; }
-                        if (filepath.string().find(".clump") != std::string::npos) { root = new _clumpBuilder;  _rootPlant::selectedPart = root; }
-
-                        if (root)
-                        {
-                            root->path = materialCache::getRelative(filepath.string());
-                            root->name = filepath.filename().string();
-                            root->loadPath();
-                            fprintf(terrafectorSystem::_logfile, "expand compete about to build\n");
-                            fflush(terrafectorSystem::_logfile);
-                            build(true);    //to get extetns
-                            buildFullResolution();
-                        }
-                    }
-                }
-                ImGui::SameLine(0, 30);
-                if (ImGui::Button("import"))
-                {
-                    importBinary();
-                }
-                ImGui::SameLine(0, 30);
-                if (ImGui::Button("clearBinary"))
-                {
-                    numBinaryPlants = 0;
-                    binVertexOffset = 0;
-                    binPlantOffset = 0;
-                    binPivotOffset = 0;
-                }
-            }
-            ImGui::PopFont();
-
-            if (ImGui::Button("new Stem")) { if (root) delete root; root = new _stemBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
-            ImGui::SameLine(0, 10);
-            if (ImGui::Button("new Clump")) { if (root) delete root; root = new _clumpBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
-            ImGui::SameLine(0, 10);
-            if (ImGui::Button("new Leaf")) { if (root) delete root; root = new _leafBuilder;  _rootPlant::selectedPart = root; _rootPlant::selectedMaterial = nullptr; }
-
-
-            ImGui::NewLine();
-
-
+            
 
             if (root)
             {
-                FONT_TEXT("header1", root->name.c_str());
-                ImGui::Text("size (%2.2f, %2.2f)m", extents.x, extents.y);
+                //FONT_TEXT("header1", root->name.c_str());
+                //ImGui::Text("size (%2.2f, %2.2f)m", extents.x, extents.y);
+                /*
                 ImGui::Text("v - %d, b - %d, u - %d, %d rejected", totalBlocksToRender * VEG_BLOCK_SIZE, totalBlocksToRender, unusedVerts, ribbonVertex::totalRejectedVerts);
                 ImGui::Text("build time %2.2f ms", buildTime);
                 ImGui::Text("stem %2.2f ms", timeStem);
                 ImGui::Text("node %2.1f micro s   {%2.1fms}", timeStemNodes, timeStemNodesTotal / 1000.f);
 
                 ImGui::NewLine();
-
+                */
                 root->treeView();
                 style.FrameBorderSize = 0;
             }
 
+            /*
             ImGui::NewLine();
             style.Colors[ImGuiCol_Header] = ImVec4(0.01f, 0.01f, 0.01f, 1.f);
             if (ImGui::TreeNodeEx("feedback", flags))
@@ -3449,6 +3628,7 @@ void _rootPlant::renderGui(Gui* _gui)
                 renderGui_perf(_gui);
                 ImGui::TreePop();
             }
+            */
 
             ImGui::NewLine();
             style.Colors[ImGuiCol_Header] = ImVec4(0.01f, 0.01f, 0.01f, 1.f);
@@ -3477,9 +3657,10 @@ void _rootPlant::renderGui(Gui* _gui)
                         }
                     }
 
-                    ImGui::SameLine(columnWidth / 2, 0);
-                    if (ImGui::Button("Build all lods", ImVec2(columnWidth / 2 - 10, 0)))
+                    //ImGui::SameLine(columnWidth / 2, 0);
+                    if (ImGui::Button("Build.all lods", ImVec2(columnWidth / 2 - 10, 0)))
                     {
+                        fprintf(terrafectorSystem::_logfile, "about to buildAllLods();\n");
                         buildAllLods();
                     }
 
@@ -3503,7 +3684,7 @@ void _rootPlant::renderGui(Gui* _gui)
                                 ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.5f));
                             }
 
-                            ImGui::BeginChildFrame(5678 + lod, ImVec2(columnWidth - 40, 85));
+                            ImGui::BeginChildFrame(5678 + lod, ImVec2(columnWidth - 40, 95));
                             {
                                 ImGui::Text("%d)", lod);
 
@@ -3512,13 +3693,20 @@ void _rootPlant::renderGui(Gui* _gui)
                                 if (ImGui::DragInt("##numPix", &(lodInfo->numPixels), 0.1f, 8, 2000))
                                 {
                                     anyChange = true;
-                                    lodInfo->pixelSize = extents.y / lodInfo->numPixels;
+                                    //lodInfo->pixelSize = extents.y / lodInfo->numPixels;// *lodInfo->geometryPixelScale;;
                                     settings.pixelSize = lodInfo->pixelSize;
                                     selectedPart->changed = true;
                                 }
 
                                 ImGui::SameLine(0, 10);
-                                ImGui::Text("%5.1fmm", lodInfo->pixelSize * 1000.f);
+                                ImGui::SetNextItemWidth(100);
+                                //ImGui::Text("%5.1fmm", lodInfo->pixelSize * 1000.f);
+                                if (ImGui::DragFloat("##pixelSize", &(lodInfo->pixelSize), 0.0001f, 0.001f, 1.f, "%1.3fm"))
+                                {
+                                    anyChange = true;
+                                    settings.pixelSize = lodInfo->pixelSize;
+                                    selectedPart->changed = true;
+                                }
 
                                 ImGui::SameLine(columnWidth - 40 - 60, 0);
                                 //if (ImGui::Button("build", ImVec2(60, 0)));
@@ -3526,7 +3714,7 @@ void _rootPlant::renderGui(Gui* _gui)
                                 {
                                     displayModeSinglePlant = true;
                                     anyChange = true;
-                                    lodInfo->pixelSize = extents.y / lodInfo->numPixels;
+                                    //lodInfo->pixelSize = extents.y / lodInfo->numPixels;// *lodInfo->geometryPixelScale;;
                                     settings.pixelSize = lodInfo->pixelSize;
                                     currentLOD = lod;
                                 }
@@ -3550,11 +3738,11 @@ void _rootPlant::renderGui(Gui* _gui)
                                 TOOLTIP("Which bake to use here")
 
                                     ImGui::Text("%d: verts", lodInfo->numVerts);
-                                ImGui::SameLine(0, 30);
+                                /*ImGui::SameLine(0, 30);
                                 ImGui::SetNextItemWidth(60);
                                 if (ImGui::DragFloat("scale", &lodInfo->geometryPixelScale, 0.01f, 0.1f, 10)) { selectedPart->changed = true; }
                                 TOOLTIP("Not used but will add extra scaling to geometry to help select whats added, seperates what we add with the distance we split at")
-
+                                */
                             }
                             ImGui::EndChildFrame();
                             ImGui::PopStyleColor();
@@ -3578,6 +3766,7 @@ void _rootPlant::renderGui(Gui* _gui)
             {
                 if (ImGui::Button(" Bake materials "))
                 {
+                    fprintf(terrafectorSystem::_logfile, "\n New bake started - %s \n", root->name.c_str());
 
                     std::filesystem::path PT = selectedPart->path;
                     std::string resource = terrafectorEditorMaterial::rootFolder;
@@ -3593,12 +3782,24 @@ void _rootPlant::renderGui(Gui* _gui)
 
                     for (int seed = 1000; seed < 1001; seed++)
                     {
+                        for (int j = 0; j < 100; j++)
+                        {
+                            levelOfDetail *lod = root->getLodInfo(j);
+                            if (lod)
+                            {
+                                settings.pixelSize = lod->pixelSize;
+                                fprintf(terrafectorSystem::_logfile, "lod found - %d, %2.2fmm \n", j, lod->pixelSize * 1000.f);
+                            }
+                        }
+
+                        fflush(terrafectorSystem::_logfile);
                         settings.seed = seed;
-                        settings.pixelSize = 0.0001f;
+                        //settings.pixelSize = 0.01f;
                         settings.forcePhototropy = true;    //??????
                         ribbonVertex::packed.clear();
                         build(true);
                         settings.forcePhototropy = false;
+                        fprintf(terrafectorSystem::_logfile, "build done - %d verts \n", (int)ribbonVertex::packed.size());
 
                         glm::mat4 tip = selectedPart->getTip(true); // FIXME later bool for stem length only
                         bakeViewAdjusted = bakeViewMatrix;
@@ -3706,7 +3907,7 @@ void _rootPlant::renderGui(Gui* _gui)
 
 
             ImGui::NewLine();
-            ImGui::DragFloat("pitch", &rootPitch, 0.01f, 0.f, 3.f, "%3.2fm");
+            ImGui::DragFloat("pitch", &rootPitch, 0.01f, 0.01f, 3.f, "%3.2fm");
             ImGui::DragFloat("yaw", &rootYaw, 0.01f, 0.f, 6.f, "%3.2fm");
             ImGui::DragFloat("roll", &rootRoll, 0.01f, -3.f, 3.f, "%3.2fm");
 
@@ -3771,7 +3972,7 @@ void _rootPlant::renderGui(Gui* _gui)
                 }
                 else
                 {
-                    buildAllLods();
+                    //buildAllLods();
                 }
                 anyChange = false;
             }
@@ -3814,19 +4015,28 @@ void _rootPlant::renderGui(Gui* _gui)
 
 void _rootPlant::buildAllLods()
 {
+    ribbonVertex::pivotPoints.clear();
+    pivotMap.clear();
+    LOGTHEBUILD = true;
+    if (LOGTHEBUILD)
+    {
+        fprintf(terrafectorSystem::_logfile, "\nbuildAllLods()n");
+    }
+
     displayModeSinglePlant = false;
     tempUpdateRender = true;
 
     uint start = 0;
-    settings.pixelSize = 0.001f;    // 1mm just tiny
-    build(true); // this is just to generate extents    .. Should generate all of teh pivot data as well
+    //settings.pixelSize = 0.001f;    // 1mm just tiny
+    //build(true); // this is just to generate extents    .. Should generate all of teh pivot data as well
     float Y = extents.y;
+    fprintf(terrafectorSystem::_logfile, "buildAllLods() Y = %2.2fm\n", Y);
 
     ribbonVertex::packed.clear();
 
     uint startBlock[16][16];
     uint numBlocks[16][16];
-    for (int pIndex = 0; pIndex < 4; pIndex++)
+    for (int pIndex = 0; pIndex < 1; pIndex++)
     {
         plantBuf[pIndex].radiusScale = ribbonVertex::radiusScale;
         plantBuf[pIndex].scale = ribbonVertex::objectScale;
@@ -3852,14 +4062,14 @@ void _rootPlant::buildAllLods()
         }
 
         plantBuf[pIndex].numLods = 0;
-        for (uint lod = 100; lod >= 1; lod--)   // backwards since it fixes abug in build()
+        for (uint lod = 100; lod >= 1; lod--)   // backwards since it fixes a bug in build() ??? is it still tehere
         {
             levelOfDetail* lodInfo = root->getLodInfo(lod);
             if (lodInfo)
             {
+                fprintf(terrafectorSystem::_logfile, "lod %d : pixelSize = %2.2fm\n", lod, lodInfo->pixelSize);
 
-
-                lodInfo->pixelSize = Y / lodInfo->numPixels;
+                //lodInfo->pixelSize = Y / lodInfo->numPixels;// *lodInfo->geometryPixelScale;
                 settings.pixelSize = lodInfo->pixelSize;
                 settings.seed = 1000 + pIndex;
                 build(false, pIndex * 256 * sizeof(_plant_anim_pivot));
@@ -3872,7 +4082,7 @@ void _rootPlant::buildAllLods()
                 numBlocks[pIndex][lod] = lodInfo->numBlocks;
 
 
-                plantBuf[pIndex].numLods = __max(plantBuf[pIndex].numLods, lod - 1);    // omdat ons nou agteruit gaan
+                plantBuf[pIndex].numLods = __max(plantBuf[pIndex].numLods, lod);    // omdat ons nou agteruit gaan
                 plantBuf[pIndex].lods[lod - 1].pixSize = (float)lodInfo->numPixels;
                 plantBuf[pIndex].lods[lod - 1].numBlocks = lodInfo->numBlocks;
                 plantBuf[pIndex].lods[lod - 1].startVertex = start * VEG_BLOCK_SIZE;
@@ -3881,14 +4091,25 @@ void _rootPlant::buildAllLods()
 
                 start += lodInfo->numBlocks;
 
-                fprintf(terrafectorSystem::_logfile, "plant lod : %d, %fm, %d\n", lod, (float)lodInfo->numPixels, lodInfo->numBlocks);
+                fprintf(terrafectorSystem::_logfile, "plant lod : %d, %fmm, %d blocks\n", lod, (float)lodInfo->pixelSize * 1000.f, lodInfo->numBlocks);
             }
         }
         // need to make a copy of the pivot data here after most detailed build I guess
         //plantpivotData->setBlob(ribbonVertex::pivotPoints.data(), , ribbonVertex::pivotPoints.size() * sizeof(_plant_anim_pivot));
     }
 
-    plantData->setBlob(plantBuf.data(), 0, 4 * sizeof(plant));
+    // Now log this
+    fprintf(terrafectorSystem::_logfile, "\nbuildAllLods() : %s\n", root->name.c_str());
+    fprintf(terrafectorSystem::_logfile, "  size : %2.2f, %2.2f\n", plantBuf[0].size.x, plantBuf[0].size.y );
+    for (int i = 0; i < plantBuf[0].numLods; i++)
+    {
+        fprintf(terrafectorSystem::_logfile, "  %d : %d, %d, %2.2f\n", i, plantBuf[0].lods[i].numBlocks, plantBuf[0].lods[i].startVertex, plantBuf[0].lods[i].pixSize);
+    }
+    
+
+    plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
+    numBinaryPlants = 1;
+    builInstanceBuffer();
 
     int numV = __min(65536 * 8, ribbonVertex::packed.size());
     vertexData->setBlob(ribbonVertex::packed.data(), 0, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
@@ -4044,8 +4265,16 @@ void _rootPlant::importBinary()
 
 void _rootPlant::build(bool _updateExtents, uint pivotOffset)
 {
+    if (displayModeSinglePlant == true)
+    {
+        pivotMap.clear();
+        ribbonVertex::pivotPoints.clear();
+    }
+
     auto start = high_resolution_clock::now();
     timeStemNodesTotal = 0;
+
+    //fprintf(terrafectorSystem::_logfile, "build \n");
 
     if (root)
     {
@@ -4053,25 +4282,16 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
         ribbonVertex::radiusScale = vertex_pack_Settings.radiusScale;
         ribbonVertex::objectOffset = vertex_pack_Settings.getOffset();
 
-        settings.forcePhototropy = false;
+        //settings.forcePhototropy = false;
         settings.parentStemDir = { 0, 1, 0 };
         settings.root = glm::mat4(1.0);
-        //if (!settings.forcePhototropy)
         {
             ROLL(settings.root, rootYaw);
             PITCH(settings.root, -rootPitch);    // FIXME remove for baking, etst but likely correct settings.forcePhototropy
-            //ROLL(settings.root, 3.14f);
             ROLL(settings.root, rootRoll);
 
             // now for bake matrix
             bakeViewMatrix = settings.root;
-            /*
-            fprintf(terrafectorSystem::_logfile, "\n\build\n");
-            fprintf(terrafectorSystem::_logfile, "right % 5.3f, % 5.3f, % 5.3f\n", bakeViewMatrix[0][0], bakeViewMatrix[0][1], bakeViewMatrix[0][2]);
-            fprintf(terrafectorSystem::_logfile, "up    % 5.3f, % 5.3f, % 5.3f\n", bakeViewMatrix[1][0], bakeViewMatrix[1][1], bakeViewMatrix[1][2]);
-            fprintf(terrafectorSystem::_logfile, "dir   % 5.3f, % 5.3f, % 5.3f\n", bakeViewMatrix[2][0], bakeViewMatrix[2][1], bakeViewMatrix[2][2]);
-            fprintf(terrafectorSystem::_logfile, "\n");
-            */
         }
 
 
@@ -4079,13 +4299,14 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
         settings.normalized_age = 1;
 
         ribbonVertex::ribbons.clear();
-        ribbonVertex::pivotPoints.clear();
+        
         ribbonVertex::clearStats(9999);     // just very large for now
         settings.pivotIndex[0] = 255;
         settings.pivotIndex[1] = 255;
         settings.pivotIndex[2] = 255;
         settings.pivotIndex[3] = 255;
         settings.pivotDepth = 0;
+        settings.callDepth = 0;
 
 
         generator.seed(settings.seed);
@@ -4097,14 +4318,19 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
         // now pack it
         if (_updateExtents)
         {
+            float3 dir = (float3)settings.root[1];
+
             extents = float2(0, 0);
             for (auto& R : ribbonVertex::ribbons)
             {
+                float y = glm::dot(dir, R.position);
+                float3 middle = y * dir;
+                float3 side = R.position - middle;
                 // can we do this earlier during set - to a global extents?
-                float2 XZ = R.position.xz;
-                float r = glm::length(XZ);
+                //float2 XZ = R.position.xz;
+                float r = glm::length(side);
                 extents.x = __max(extents.x, r + R.radius);
-                extents.y = __max(extents.y, abs(R.position.y) + R.radius);
+                extents.y = __max(extents.y, y);
             }
         }
 
@@ -4164,7 +4390,10 @@ void _rootPlant::build(bool _updateExtents, uint pivotOffset)
             // but pack other pivots as we step through the plant
 
             plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
-            plantpivotData->setBlob(ribbonVertex::pivotPoints.data(), pivotOffset, ribbonVertex::pivotPoints.size() * sizeof(_plant_anim_pivot));
+            if (ribbonVertex::pivotPoints.size() > 0)
+            {
+                plantpivotData->setBlob(ribbonVertex::pivotPoints.data(), pivotOffset, ribbonVertex::pivotPoints.size() * sizeof(_plant_anim_pivot));
+            }
         }
         tempUpdateRender = true;
         anyChange = false;
@@ -4281,7 +4510,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
 
     bakeShader.Vars()["gConstantBuffer"]["view"] = view;
     bakeShader.Vars()["gConstantBuffer"]["viewproj"] = viewproj;
-    bakeShader.Vars()["gConstantBuffer"]["eyePos"] = -(float3)VIEW[2] * 10000.f;// float3(0, 0, 100000);  // just very far sort of parallel
+    bakeShader.Vars()["gConstantBuffer"]["eyePos"] = (float3)VIEW[2] * 10000.f;// float3(0, 0, 100000);  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_radius_alpha"] = W;  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_height_alpha"] = H1;  // just very far sort of parallel
     bakeShader.Vars()["gConstantBuffer"]["bake_AoToAlbedo"] = _info->bakeAOToAlbedo;
@@ -4399,10 +4628,14 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
 
 
 void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
-    rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, bool terrainMode)
+    rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, float halfAngle_to_Pixels, bool terrainMode)
 {
     FALCOR_PROFILE("vegetation");
     renderContext = _renderContext;
+
+    camVector = (float3(0, 1000, 0) + (float3)settings.root[1] * extents.y / 2.f) - camPos;
+    m_halfAngle_to_Pixels = halfAngle_to_Pixels;
+    pixelSize = m_halfAngle_to_Pixels * extents.y / glm::length(camVector);
 
     //if (_plantMaterial::static_materials_veg.modified || _plantMaterial::static_materials_veg.modifiedData)
     //if (ribbonVertex::packed.size() > 1)
@@ -4442,6 +4675,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         compute_calulate_lod.Vars()["gConstantBuffer"]["view"] = _view;
         compute_calulate_lod.Vars()["gConstantBuffer"]["frustum"] = _clipFrustum;
         compute_calulate_lod.Vars()["gConstantBuffer"]["lodBias"] = loddingBias;
+        compute_calulate_lod.Vars()["gConstantBuffer"]["halfAngle_to_Pixels"] = halfAngle_to_Pixels;
         compute_calulate_lod.Vars()["gConstantBuffer"]["firstPlant"] = firstPlant;
         compute_calulate_lod.Vars()["gConstantBuffer"]["lastPlant"] = lastPlant;
         compute_calulate_lod.Vars()["gConstantBuffer"]["firstLod"] = firstLod;
@@ -4615,9 +4849,9 @@ void _rootPlant::builInstanceBuffer()
             }
             sum -= 1.f;
 
-            instanceBuf[i].plant_idx = i % 4;
+            instanceBuf[i].plant_idx = 0;
             instanceBuf[i].position = pos;
-            instanceBuf[i].scale = 1.f + RND(generator) * 0.2f;
+            instanceBuf[i].scale = 1.f + RND(generator) * 0.83f;
             instanceBuf[i].rotation = RND(generator) * 3.14f;
             instanceBuf[i].time_offset = RND(generator) * 100;
         }

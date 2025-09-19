@@ -165,6 +165,8 @@ struct buildSetting
     int     pivotDepth = 0;
 
     // new values for more complex builds
+    int max_verts = 1000000;
+    int callDepth = 0;
 
 };
 
@@ -399,9 +401,9 @@ public:
     levelOfDetail(uint _numPix) { numPixels = _numPix; }
 
     int numPixels = 100;        // this is the number of height pixels to use for this lod. Used to calculate pixel size
-    float pixelSize = 0.f;      // This is for plant on GPU - determines when to split
+    float pixelSize = 10.f;      // This is for plant on GPU - determines when to split
 
-    float geometryPixelScale = 1.f;    // Amount to scale but if I set numPixels correct might not be needed
+    float geometryPixelScale = 1.f;    // Deprecated
     bool useGeometry = true;
     int bakeIndex = 0;
     int bakeType = BAKE_NONE;
@@ -951,6 +953,35 @@ public:
 };
 CEREAL_CLASS_VERSION(binaryPlantOnDisk, 100);
 
+class recentFiles
+{
+    /*
+    struct
+    {
+        bool operator < (const _pathSort& pth) const
+        {
+            return (age < pth.age);
+        }
+
+        std::string path = "";
+        int age = 0;
+    }_pathSort;
+    //void get(std::string pth);
+    std::array<_pathSort, 10> paths;
+
+    
+    std::sort(paths.begin(), paths.end(), [](float3 a, float3 b) {
+        // Custom comparison logic 
+        return a.x > b.x; // this sorts in ascending order 
+        });
+        */
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+      //  archive(paths);
+    }
+};
+CEREAL_CLASS_VERSION(recentFiles, 100);
 
 class _rootPlant
 {
@@ -960,6 +991,8 @@ public:
     void renderGui_perf(Gui* _gui);
     void renderGui_lodbake(Gui* _gui);
     void renderGui_other(Gui* _gui);
+    void renderGui_rightPanel(Gui* _gui);
+    void renderGui_load(Gui* _gui);
     void renderGui(Gui* _gui);
     void buildAllLods();
     void build(bool _updateExtents = false, uint pivotOffset = 0);
@@ -977,7 +1010,7 @@ public:
     void bake(std::string _path, std::string _seed, lodBake* _info, glm::mat4 VIEW);
     int bake_Reload_Count = 0;
     void render(RenderContext* _renderContext, const Fbo::SharedPtr& _fbo, GraphicsState::Viewport _viewport, Texture::SharedPtr _hdrHalfCopy,
-        rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, bool terrainMode = false);
+        rmcv::mat4  _viewproj, float3 camPos, rmcv::mat4  _view, rmcv::mat4  _clipFrustum, float halfAngle_to_Pixels, bool terrainMode = false);
 
     RenderContext* renderContext;
 
@@ -992,7 +1025,7 @@ public:
 
     _plantBuilder* root = nullptr;
     buildSetting settings;
-    float rootPitch = 1.0f; // so we can go sideways to test brancges
+    float rootPitch = 0.01f; // so we can go sideways to test brancges
     float rootYaw = 0.0f; // so we can go sideways to test brancges
     float rootRoll = 0.0f; // so we can go sideways to test brancges
     glm::mat4 bakeViewMatrix, bakeViewAdjusted;
@@ -1058,6 +1091,11 @@ public:
     computeShader		compute_calulate_lod;
 
     int currentLOD = -1;
+    float3 camVector;
+    float pixelSize = 0.f;
+    float pixelmm = 0.f;
+    uint expectedLod = 0;
+    float m_halfAngle_to_Pixels;
 
     bool showDebugInShader = false;
     bool showNumPivots = false;

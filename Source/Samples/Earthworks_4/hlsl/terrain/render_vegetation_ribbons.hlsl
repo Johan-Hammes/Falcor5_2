@@ -224,9 +224,9 @@ void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm
     const float t = length(rel) / S;
     const float3 right = cross(rel, wind);
 
-    const float pushScale = 1.f    -abs(dot(normalize(PVT.extent), normalize(wind)));
+    const float pushScale = 1.f - abs(dot(normalize(PVT.extent), normalize(wind)));
 
-    wind /= PVT.stiffness;  //??? pow() to scale effect better, sane for wind as well
+    wind /= PVT.stiffness; //??? pow() to scale effect better, sane for wind as well
     
     //  now ossilate
     float swayStrength = 0.5 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
@@ -259,8 +259,8 @@ float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3
     // WIND ################################################################################################################
     float dx = dot(_instance.position.xz, windDir.xz) * 0.4; // so repeat roughly every 100m
     float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 1 * 0.025), 13)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
-   newWindStrenth = windStrength;//    13 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
-    float ss = 0;//
+    newWindStrenth = windStrength; //    13 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
+    float ss = 0; //
     sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
     float3x3 rot = AngleAxis3x3(ss * 1.3, float3(0, 1, 0));
     float3 NewWindDir = normalize(mul(windDir, rot));
@@ -358,7 +358,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.flags.x = PLANT.billboardMaterialIndex;
     output.PlantIdx = INSTANCE.plant_idx;
 
-    output.lineScale.xy = PLANT.size;// * INSTANCE.scale;
+    output.lineScale.xy = PLANT.size * INSTANCE.scale;
 
     output.lineScale.z = 0.6;
 
@@ -391,14 +391,20 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     p.y = 0;
     float R = length(p);
     if (R > 0.3f)      output.colour.a = 0;
-    //output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
-    //output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
+
+    
     output.colour.a = 1;
+    if(bake_radius_alpha < 0.95f)
+    {
+        //output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
+    }
+    //output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
+    
 
     extractTangent(output, v, 1.57079632679);
 #endif
 
-    float SS = 1;//    pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
+    float SS = 1; //    pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
 
     extractTangent(output, v, INSTANCE.rotation); // Likely only after animate, do only once
     extractUVRibbon(output, v);
@@ -430,8 +436,6 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     root.y = 0;
     output.pos.xyz += root;
 
-    //output.eye = float3(0, 0, -1);
-    output.eye = normalize(output.pos.xyz - eyePos);
 #else
     output.debugColour = allPivotsSum(output.pos.xyz, output.binormal, output.tangent, v, BLOCK.vertex_offset + vId, PLANT, INSTANCE);
 
@@ -443,18 +447,18 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     // Rotate teh binormal and tenegmt here
     output.binormal = rot_xz(output.binormal, INSTANCE.rotation);
     output.tangent = rot_xz(output.tangent, INSTANCE.rotation); // write sinlge rot_xz that can do all 4
-
-    output.eye = normalize(output.pos.xyz - eyePos);
 #endif
     
-    
+
+    output.eye = normalize(output.pos.xyz - eyePos);
+
     if (!isCameraFacing)
     {
         output.tangent = normalize(cross(output.binormal, -output.eye));
     }
     output.normal = cross(output.binormal, output.tangent);
     output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb; // should really happen lower but i guess its fast
-    output.lineScale.x = pow(output.flags.z / 255.f, 2) * PLANT.radiusScale;
+    output.lineScale.x = pow(output.flags.z / 255.f, 2) * PLANT.radiusScale * INSTANCE.scale;
     output.PlantIdx = INSTANCE.plant_idx;
 
 #if defined(_GOURAUD_SHADING)    
@@ -563,7 +567,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             //v.tangent = tangent;
             //v.normal = normal;
 
-            v.uv = float2(0.5, 1.1);
+            v.uv = float2(0.5, 1.0);
             // first one is correct v.pos = pt[0].pos - pt[0].viewBinormal * 0.1;
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -571,16 +575,16 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             OutputStream.Append(v);
 
             // we should really interpolate here, but use start fo now
-            v.uv = float2(1.0 + scale / 2, 0.5);
-            v.pos = (L[0].pos + L[1].pos) * 0.5 + float4(v.tangent * v.lineScale.x, 0);
+            v.uv = float2(1.0 + scale / 2, 0.6);
+            v.pos = L[0].pos + 0.4 * (L[1].pos - L[0].pos) + float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
         
             
-            v.uv = float2(0.0 - scale / 2, 0.5);
-            v.pos = (L[0].pos + L[1].pos) * 0.5 - float4(v.tangent * v.lineScale.x, 0);
+            v.uv = float2(0.0 - scale / 2, 0.6);
+            v.pos = L[0].pos + 0.4 * (L[1].pos - L[0].pos) - float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
             v.pos = mul(v.pos, viewproj);
@@ -592,7 +596,7 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             //v.normal = normal;
 
             v.uv = float2(0.5, -0.1);
-            v.pos = L[1].pos + 0.1 * (L[1].pos - L[0].pos);//            +float4(v.binormal, 0);
+            v.pos = L[1].pos + 0.1 * (L[1].pos - L[0].pos); //            +float4(v.binormal, 0);
             // last one is correct v.pos = pt[0].pos + pt[0].viewBinormal * 1.1;
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
@@ -681,6 +685,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
     int frontback = (int) !isFrontFace;
     color *= vOut.AlbedoScale  * MAT.albedoScale[frontback] * 2.f;
+
     if(bake_AoToAlbedo)
     {
         color = color * (0.9 + 0.1 * vOut.AmbietOcclusion);
@@ -754,6 +759,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
+    
 /*
     if (isFrontFace)
         return float4(frac(vOut.uv.x), 1, frac(vOut.uv.y), 1);
@@ -800,8 +806,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
 #endif
     clip(alpha - rnd);
-    alpha = smoothstep(rnd / 2, 0.8, alpha);
-    
+    alpha = smoothstep(rnd * 0.9, 0.6, alpha);
     
 
 #if defined(_DEBUG_PIVOTS)
@@ -821,8 +826,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             return float4(0, 0, 1, 1);
             return float4(nTex, 1);
 */
-        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
-        N = normalize((normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal * flipNormal));
+       float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        N = normalize(-(normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal * flipNormal));
         //albedo.rgb = normalTex;
 
         //if (normalTex.r < 0)            return 1;
@@ -843,7 +848,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #else
     dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * PLANT.shadowUVScale)).r;
     dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
-    dappled = 1;///    vOut.Shadow;
+    dappled = 1; ///    vOut.Shadow;
 #endif
 
     //float Shadow= pow(shadow(vOut.worldPos, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
@@ -870,7 +875,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= pow(t, 2);
         }
     }
-    color += trans * pow(albedo.rgb, 1.5) * 15 * vOut.diffuseLight * dappled;
+    color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight * dappled;
 
     
     // apply JHFAA to edges    
@@ -889,6 +894,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         }
 #endif
     }
+
 
     return float4(saturate(color), 1);
     

@@ -4713,6 +4713,9 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
         ImGui::EndPopup();
     }
 
+
+    
+
     Gui::Window rightPanel(_gui, "##rightPanel", { 200, 200 }, { 100, 100 });
     {
         ImGui::PushFont(_gui->getFont("default"));
@@ -4730,6 +4733,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
         {
         case _terrainMode::vegetation:
         {
+            /*
             ImGui::Text("test");
             ImGui::DragInt("# instances", &ribbonInstanceNumber, 1, 1, 1000);
             ImGui::DragFloat("spacing", &ribbonSpacing, 0.01f, 0.1f, 10);
@@ -4737,9 +4741,10 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
             ImGui::Text("%d inst x %d x 2 = %3.1f M tris", ribbonInstanceNumber * ribbonInstanceNumber, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber * groveTree.numBranchRibbons * 2.0f / 1000000.0f);
             groveTree.renderGui(_gui);
+            */
             plants_Root.renderGui(_gui);
-            if (ImGui::Button("Bake Billboard")) { bakeVegetation(); }
-
+           // if (ImGui::Button("Bake Billboard")) { bakeVegetation(); }
+            /*
             ImGui::PushFont(_gui->getFont("header2"));
             {
                 ImGui::Text("Time of day");
@@ -4766,6 +4771,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
             }
             ImGui::PopFont();
+            */
         }
         break;
 
@@ -8158,7 +8164,12 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
                 clip[j][i] = cameraViews[CameraType_Main_Center].frustumMatrix[j][i];
             }
         }
-        plants_Root.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip);
+
+        float fovscale = glm::length(cameraViews[CameraType_Main_Center].proj[1]);
+        float m_halfAngle_to_Pixels = cameraViews[CameraType_Main_Center].resolution * fovscale / 2.f;
+
+
+        plants_Root.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip, m_halfAngle_to_Pixels);
 
 
         /*
@@ -8440,7 +8451,9 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
                 clip[j][i] = cameraViews[CameraType_Main_Center].frustumMatrix[j][i];
             }
         }
-        plants_Root.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip, true);
+        float fovscale = glm::length(cameraViews[CameraType_Main_Center].proj[1]);
+        float m_halfAngle_to_Pixels = cameraViews[CameraType_Main_Center].resolution * fovscale / 2.f;
+        plants_Root.render(_renderContext, _fbo, _viewport, _hdrHalfCopy, viewproj, _camera->getPosition(), view, clip, m_halfAngle_to_Pixels, true);
     }
 
     {
