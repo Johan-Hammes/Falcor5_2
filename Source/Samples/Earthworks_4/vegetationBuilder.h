@@ -150,6 +150,19 @@ struct _vegetationMaterial {
 
 struct buildSetting
 {
+    void clear()
+    {
+        parentStemDir = { 0, 1, 0 };
+        node_age = -1;
+        normalized_age = 1;
+        pivotIndex[0] = 255;
+        pivotIndex[1] = 255;
+        pivotIndex[2] = 255;
+        pivotIndex[3] = 255;
+        pivotDepth = 0;
+        callDepth = 0;
+    }
+
     float3      parentStemDir = { 0, 1, 0 };
     glm::mat4   root; // expand for the root stem direction as well to avoid growing through
     float       numSegments;
@@ -157,7 +170,7 @@ struct buildSetting
     int         seed = 1000;
     float       node_age = -1.f; // dont use for root    // this one is a node age, like 12, good for building twigs
     float       normalized_age = 1.f;  // this one is a 0..1 age useful for leaves etc
-    bool        forcePhototropy = false;    // for billboard baking
+    bool        isBaking = false;    // for billboard baking
     bool        doNotAddPivot = false;  // for replacement stems
 
     // PIVOT POIUTNS
@@ -180,18 +193,18 @@ struct packSettings
 };
 
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 struct ribbonVertex
 {
-    static float objectScale;   //0.002 for trees  // 32meter block 2mm presision
+    static float objectScale;   //  0.002 for trees  // 32meter block 2mm presision
     static float radiusScale;   //  so biggest radius now objectScale / 2.0f;
     static float O;
     static float3 objectOffset;
 
-    static std::vector<ribbonVertex>    ribbons;
-    static std::vector<ribbonVertex8>    packed;
-    static std::vector <_plant_anim_pivot> pivotPoints;
+    static std::vector<ribbonVertex>        ribbons;
+    static std::vector<ribbonVertex8>       packed;
+    static std::vector<_plant_anim_pivot>   pivotPoints;
 
     static bool pushStart;
     static int lod_startBlock;   // This is the blok this lod started on
@@ -200,6 +213,7 @@ struct ribbonVertex
 
     static void setup(float scale, float radius, float3 offset);
     ribbonVertex8 pack();
+
 
     void    startRibbon(bool _cameraFacing, uint pv[4])
     {
@@ -491,7 +505,7 @@ public:
     virtual void incrementLods() { ; }
     virtual void decrementLods() { ; }
     virtual glm::mat4 build(buildSetting _settings, bool _addVerts) { return glm::mat4(1.f); }
-    virtual void calculate_extents(buildSetting _settings, glm::mat4 view) { ; }
+    virtual float2 calculate_extents(glm::mat4 view) { return float2(0, 0); }
     virtual glm::mat4 getTip(bool includeChildren = true) { return glm::mat4(1.f); }
     virtual lodBake* getBakeInfo(uint i) { return nullptr; }    // so does nothing if not implimented
     virtual levelOfDetail* getLodInfo(uint i) { return nullptr; }    // so does nothing if not implimented
@@ -690,13 +704,13 @@ public:
     void build_leaves(buildSetting _settings, uint _max, bool _addVerts);
     void build_tip(buildSetting _settings, bool _addVerts);
     //void build_extents(buildSetting _settings);
-    void calculate_extents(buildSetting _settings, glm::mat4 view);
+    float2 calculate_extents(glm::mat4 view);
     glm::mat4 getTip(bool includeChildren = true);
     void build_NODES(buildSetting _settings, bool _addVerts);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     void clear_build_info();
 
-    bool firstLevel = false;
+
 
     //void build_Nodes(buildSetting& _settings);
     std::vector<glm::mat4> NODES;
@@ -852,7 +866,7 @@ public:
     levelOfDetail* getLodInfo(uint i);
 
     void clear_build_info();
-    void calculate_extents(buildSetting _settings, glm::mat4 view);
+    float2 calculate_extents(glm::mat4 view);
     glm::mat4 getTip(bool includeChildren = true);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     glm::mat4 buildChildren(buildSetting _settings, bool _addVerts);
@@ -938,7 +952,6 @@ public:
     uint numP;
     uint numV;
 
-    void getMaterials();
     void onLoad(std::string path, uint vOffset);
 
     template<class Archive>
@@ -995,17 +1008,14 @@ public:
     void renderGui_load(Gui* _gui);
     void renderGui(Gui* _gui);
     void buildAllLods();
-    void build(bool _updateExtents = false, uint pivotOffset = 0);
+    void build(uint pivotOffset = 0);
     void loadMaterials();
-    void reloadMaterials();
     int importBinary(std::filesystem::path filepath);       // FIXME this needs a cache
     void importBinary();
     void buildFullResolution();
     std::vector<std::string>	importPathVector;
 
-    void remapMaterials();
-    void import();
-    void eXport();
+
 
     void bake(std::string _path, std::string _seed, lodBake* _info, glm::mat4 VIEW);
     int bake_Reload_Count = 0;
@@ -1074,7 +1084,7 @@ public:
     std::array<ribbonVertex8, 128 * 256> vertexBuf;
     uint totalBlocksToRender = 0;
     uint unusedVerts = 0;
-    bool tempUpdateRender = false;
+    void updateMaterialsAndTextures();
     float gputime;
     float gputimeBB;   // GPU time
     float buildTime = 0;
@@ -1126,6 +1136,16 @@ public:
     }
 };
 CEREAL_CLASS_VERSION(_rootPlant, 100);
+
+
+
+
+
+
+
+
+
+
 
 
 

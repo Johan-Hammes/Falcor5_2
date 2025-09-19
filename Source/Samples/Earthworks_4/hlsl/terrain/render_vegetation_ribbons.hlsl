@@ -848,7 +848,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #else
     dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * PLANT.shadowUVScale)).r;
     dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
-    dappled = 1; ///    vOut.Shadow;
+    //dappled = vOut.Shadow;
 #endif
 
     //float Shadow= pow(shadow(vOut.worldPos, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
