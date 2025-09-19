@@ -193,7 +193,7 @@ struct packSettings
 };
 
 
-//#pragma optimize("", off)
+
 
 struct ribbonVertex
 {
@@ -202,9 +202,13 @@ struct ribbonVertex
     static float O;
     static float3 objectOffset;
 
-    static std::vector<ribbonVertex>        ribbons;
+    static std::vector<ribbonVertex>        ribbons;        // can we get this non static
     static std::vector<ribbonVertex8>       packed;
-    static std::vector<_plant_anim_pivot>   pivotPoints;
+
+
+    std::vector<_plant_anim_pivot>   pivotPoints;
+    std::map<int, int> pivotMap;
+    int numPivots() { return pivotPoints.size(); }
 
     static bool pushStart;
     static int lod_startBlock;   // This is the blok this lod started on
@@ -234,7 +238,9 @@ struct ribbonVertex
         maxBlocks = _max;
     }
 
-    void pushPivot(float3 _root, float3 _extent, float _frequency, float _stiffness, float _shift, unsigned char _offset);
+    bool tooManyPivots = false;
+    void clearPivot();
+    uint pushPivot(uint _guid, _plant_anim_pivot _pivot);
 
 
     void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
@@ -698,9 +704,6 @@ public:
     glm::mat4  build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
     glm::mat4  build_4(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
     glm::mat4  build_n(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
-    glm::mat4  build_lod_0(buildSetting _settings);
-    glm::mat4  build_lod_1(buildSetting _settings, bool _buildLeaves);
-    glm::mat4  build_lod_2(buildSetting _settings, bool _buildLeaves);
     void build_leaves(buildSetting _settings, uint _max, bool _addVerts);
     void build_tip(buildSetting _settings, bool _addVerts);
     //void build_extents(buildSetting _settings);
@@ -870,9 +873,6 @@ public:
     glm::mat4 getTip(bool includeChildren = true);
     glm::mat4 build(buildSetting _settings, bool _addVerts);
     glm::mat4 buildChildren(buildSetting _settings, bool _addVerts);
-    glm::mat4 build_lod_0(buildSetting _settings);
-    glm::mat4 build_lod_1(buildSetting _settings);
-    glm::mat4 build_lod_2(buildSetting _settings);
     glm::mat4 build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
     glm::mat4 build_4(buildSetting _settings, uint _bakeIndex, bool _faceCamera);
 

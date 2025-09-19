@@ -21,7 +21,7 @@ std::array<std::string, 77> resourceString =
 
 
 float GLOBAL_RND_SIZE = 0.3f;
-std::map<int, int> pivotMap;
+
 bool LOGTHEBUILD = false;
 
 float timeStem;
@@ -34,6 +34,8 @@ materialCache_plants _plantMaterial::static_materials_veg;
 std::string materialCache_plants::lastFile;
 
 
+ribbonVertex ribbonVertices;
+
 float ribbonVertex::objectScale = 0.002f;  //0.002 for trees  // 32meter block 2mm presision
 float ribbonVertex::radiusScale = 5.0f;//  so biggest radius now objectScale / 2.0f;
 float ribbonVertex::O = 16384.0f * ribbonVertex::objectScale * 0.5f;
@@ -41,7 +43,7 @@ float3 ribbonVertex::objectOffset = float3(O, O * 0.5f, O);
 
 std::vector<ribbonVertex>    ribbonVertex::ribbons;
 std::vector<ribbonVertex8>    ribbonVertex::packed;
-std::vector <_plant_anim_pivot> ribbonVertex::pivotPoints;
+
 bool ribbonVertex::pushStart = false;
 int ribbonVertex::lod_startBlock;   // This is the blok this lod started on
 int ribbonVertex::maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
@@ -54,6 +56,7 @@ std::mt19937 _rootPlant::generator(100);
 std::uniform_real_distribution<> _rootPlant::rand_1(-1.f, 1.f);
 std::uniform_real_distribution<> _rootPlant::rand_01(0.f, 1.f);
 std::uniform_int_distribution<> _rootPlant::rand_int(0, 65535);
+std::uniform_int_distribution<> DD_0_255(0, 255);   // for pivot shifts
 
 
 
@@ -77,17 +80,39 @@ void ribbonVertex::setup(float scale, float radius, float3 offset)
 
 uint ribbonVertex::S_root = 0;
 
-void ribbonVertex::pushPivot(float3 _root, float3 _extent, float _frequency, float _stiffness, float _shift, unsigned char _offset)
+void ribbonVertex::clearPivot()
+{
+    tooManyPivots = false;
+    pivotMap.clear();
+    pivotPoints.clear();
+}
+
+
+uint ribbonVertex::pushPivot(uint _guid, _plant_anim_pivot _pivot)
 {
     // in future this function will do the packing when we pack _plant_anim_pivot tighter
-    _plant_anim_pivot p;
-    p.root = _root;
-    p.extent = _extent;
-    p.frequency = _frequency;
-    p.stiffness = _stiffness;
-    p.shift = _shift;           // DEPREcated since beaier
-    p.offset = _offset;
-    pivotPoints.push_back(p);
+    if (pivotPoints.size() < 255)
+    {
+        auto it = pivotMap.find(_guid);
+        if (it != pivotMap.end())
+        {
+            //if (LOGTHEBUILD) { fprintf(terrafectorSystem::_logfile, "PIVOT %d - found  %d\n", _guid, it->second); }
+            return it->second;
+        }
+        else
+        {
+            if (LOGTHEBUILD) { fprintf(terrafectorSystem::_logfile, "new pivot %d, ", _guid); }
+            pivotMap[_guid] = (int)ribbonVertex::pivotPoints.size();
+            pivotPoints.push_back(_pivot);
+            return pivotMap[_guid];
+        }
+    }
+    else
+    {
+        if (LOGTHEBUILD) { fprintf(terrafectorSystem::_logfile, "tooManyPivots\n"); }
+        tooManyPivots = true;
+        return 255; // so just turn it off
+    }
 }
 
 //#pragma optimize("", off)
@@ -1256,9 +1281,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
     const siv::PerlinNoise perlinTWST{ seedT };
 
     glm::mat4 node = _settings.root;
-    ribbonVertex R_verts;
     float age = pow(_settings.normalized_age, 1.f);
-    //age = saturate(_settings.age);
     bool stemVisible = false;
 
 
@@ -1283,8 +1306,8 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
         if (_addVerts && showStem)
         {
-            R_verts.startRibbon(true, _settings.pivotIndex);
-            R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
+            ribbonVertices.startRibbon(true, _settings.pivotIndex);
+            ribbonVertices.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
             stemVisible = true;
         }
 
@@ -1296,7 +1319,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
             cnt++;
             if (_addVerts && showStem && cnt >= step)
             {
-                R_verts.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
+                ribbonVertices.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
                 cnt -= step;
             }
         }
@@ -1394,14 +1417,14 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
             if (_addVerts && i == firstVis && showLeaf)
             {
-                int oldRoot = R_verts.S_root;
-                R_verts.startRibbon(cameraFacing || forceFacing, _settings.pivotIndex);
+                int oldRoot = ribbonVertices.S_root;
+                ribbonVertices.startRibbon(cameraFacing || forceFacing, _settings.pivotIndex);
                 if (stemVisible)
                 {
-                    R_verts.S_root = oldRoot;   // uglu but means that the two ribbons share the one root
+                    ribbonVertices.S_root = oldRoot;   // uglu but means that the two ribbons share the one root
                 }
 
-                R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
+                ribbonVertices.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
                 cnt = 0;
             }
             else if (i > firstVis)
@@ -1409,7 +1432,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
                 cnt++;
                 if (_addVerts && (i <= lastVis) && showLeaf && cnt >= step)
                 {
-                    R_verts.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
+                    ribbonVertices.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
                     cnt -= step;
                 }
             }
@@ -1673,9 +1696,8 @@ void _stemBuilder::treeView()
     TREE_LINE(name.c_str(), path.c_str(), flags)
     {
         if (ImGui::IsItemHovered()) {
-            if (ribbonVertex::pivotPoints.size() > 256)     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.f));
-            ImGui::SetTooltip("%d instances \n%d verts \n%d / %d pivots ", numInstancePacked, numVertsPacked, numPivots, ribbonVertex::pivotPoints.size());
-            if (ribbonVertex::pivotPoints.size() > 256)     ImGui::PopStyleColor();
+            if (ribbonVertices.tooManyPivots)     ImGui::SetTooltip("ERROR - more than 255 pivots");
+            else ImGui::SetTooltip("%d instances \n%d verts \n%d / %d pivots ", numInstancePacked, numVertsPacked, numPivots, ribbonVertices.numPivots());
         }
 
 
@@ -1730,16 +1752,15 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         GROW(node, totalLenght * lB.bake_V.x);
         GROW(last, -totalLenght * (1 - lB.bake_V.y));
 
-        ribbonVertex R_verts;
         _faceCamera = lB.faceCamera;
-        R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
+        ribbonVertices.startRibbon(_faceCamera, _settings.pivotIndex);
 
         // ROTATE node and last so axis lines up
         float4 tangent = glm::normalize(last[3] - node[3]);
         node[1] = tangent;
         last[1] = tangent;
-        R_verts.set(node, w * 0.99f, mat, float2(0.99f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
-        R_verts.set(last, w * 0.99f, mat, float2(0.99f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
+        ribbonVertices.set(node, w * 0.99f, mat, float2(0.99f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
+        ribbonVertices.set(last, w * 0.99f, mat, float2(0.99f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
     }
     return last;
 }
@@ -1764,8 +1785,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
     step *= (lB.bake_V.y - lB.bake_V.x) / 3.f;
     binorm_step *= (lB.bake_V.y - lB.bake_V.x) / 3.f;
 
-    ribbonVertex R_verts;
-    R_verts.startRibbon(lB.faceCamera, _settings.pivotIndex);
+    ribbonVertices.startRibbon(lB.faceCamera, _settings.pivotIndex);
 
     std::vector<glm::mat4> all = NODES;
     //all.push_back(tip_NODE);
@@ -1797,7 +1817,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
             }
         }
 
-        R_verts.set(CURRENT, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
+        ribbonVertices.set(CURRENT, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
         //R_verts.set(CURRENT, w , mat, float2(1.f, 1.f - (0.3333333f * i)), 1.f, 1.f);
         node[3] += step;
         node[1] += binorm_step;
@@ -1814,65 +1834,6 @@ glm::mat4  _stemBuilder::build_n(buildSetting _settings, uint _bakeIndex, bool _
     return NODES.front();
 }
 
-
-glm::mat4 _stemBuilder::build_lod_0(buildSetting _settings)
-{
-    if (NODES.size() < 2) return NODES.front();
-
-    float numPixX = lod_bakeInfo[0].extents.x / _settings.pixelSize;
-    float L = glm::length(tip_NODE[3] - NODES.front()[3]);
-    float numPixY = L / _settings.pixelSize;
-    // if (numPixX > 0.5f)
-    {
-        if (numPixY < 4)
-        {
-            return NODES.back();
-        }
-        if (numPixY < 8 || lod_bakeInfo[0].forceDiamond)
-        {
-            return build_2(_settings, 0, true);
-        }
-        else
-        {
-            return build_4(_settings, 0, true);
-        }
-    }
-    return NODES.back();
-}
-
-
-glm::mat4   _stemBuilder::build_lod_1(buildSetting _settings, bool _buildLeaves)
-{
-    if (NODES.size() < 2) return NODES.front();
-
-    float numPixX = lod_bakeInfo[1].extents.x / _settings.pixelSize;
-    float L = glm::length(tip_NODE[3] - NODES.front()[3]);
-    float numPixY = L / _settings.pixelSize;
-    //if (numPixX > 0.5f)
-    {
-        if (numPixY < 4)
-        {
-            return NODES.back();
-        }
-        if (numPixY < 8 || lod_bakeInfo[1].forceDiamond)
-        {
-            return build_2(_settings, 1, true);
-        }
-        else
-        {
-            return build_4(_settings, 1, true);
-        }
-    }
-    return NODES.back();
-}
-
-
-glm::mat4   _stemBuilder::build_lod_2(buildSetting _settings, bool _buildLeaves)
-{
-    if (NODES.size() < 2) return NODES.front();
-    return build_4(_settings, 2, true);
-}
-#pragma optimize("", on)
 
 void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 {
@@ -2026,7 +1987,6 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
     std::uniform_real_distribution<> distrib(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     glm::mat4 node = _settings.root;
-    ribbonVertex R_verts;
 
     //std::uniform_int_distribution<> distPerlin(1, 50000);
     //const siv::PerlinNoise::seed_type seed = distPerlin(_rootPlant::generator);
@@ -2049,7 +2009,7 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
 
 
-    R_verts.startRibbon(true, _settings.pivotIndex);
+    ribbonVertices.startRibbon(true, _settings.pivotIndex);
     age = RND_B(numSegments);
     if (_settings.node_age > 0.f)      // if passed in from root use that
     {
@@ -2076,7 +2036,7 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
     bool visible = root_width > pixRandFoViz;
     if (_addVerts && visible) {
-        R_verts.set(node, root_width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
+        ribbonVertices.set(node, root_width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
     }
 
     for (int i = 0; i < iAge; i++)
@@ -2161,7 +2121,7 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
                 visible = W > pixRandFoViz;
                 if (_addVerts && visible && cnt >= segStep)
                 {
-                    R_verts.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 1.f, 1.f);
+                    ribbonVertices.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 1.f, 1.f);
                     cnt -= segStep;
                 }
             }
@@ -2206,55 +2166,29 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
     uint leafVerts = ribbonVertex::ribbons.size();
     uint tipVerts = ribbonVertex::ribbons.size();
 
-
-    build_NODES(_settings, false);
-    tip_NODE = NODES.back();    // just in case build tip adds nothing
-    build_tip(_settings, false);
-
-    if (!_settings.doNotAddPivot && _addVerts && hasPivot)
+    // build the root spine and tip for extents to work from
     {
-        std::uniform_int_distribution<> DDD(0, 255);
-        ribbonVertex R;
-        float3 extent = (float3)tip_NODE[3] - (float3)NODES.front()[3];
+        build_NODES(_settings, false);
+        tip_NODE = NODES.back();    // just in case build tip adds nothing
+        build_tip(_settings, false);
+    }
+
+    if (hasPivot && _addVerts && !_settings.doNotAddPivot)
+    {
+        float3 extent = (float3)tip_NODE[3] - (float3)NODES.front()[3]; // do this above and save in stem
         float ext_L = glm::length(extent);
         extent = glm::normalize(extent) / ext_L;
 
+        _plant_anim_pivot p;
+        p.root = (float3)NODES.front()[3];
+        p.extent = extent;
+        p.frequency = rootFrequency() * sqrt(ext_L);
+        p.stiffness = ossilation_stiffness;
+        p.shift = ossilation_power;           // DEPRECATED
+        p.offset = DD_0_255(_rootPlant::generator);
 
-        // search the map
-        auto it = pivotMap.find(_settings.seed);
-        if (it != pivotMap.end())
-        {
-            _settings.pivotIndex[_settings.pivotDepth] = it->second;
-            _settings.pivotDepth += 1;
-
-            if (LOGTHEBUILD)
-            {
-                fprintf(terrafectorSystem::_logfile, "PIVOT %d - found  %d\n", _settings.seed, it->second);
-            }
-        }
-        else
-        {
-            _settings.pivotIndex[_settings.pivotDepth] = (int)ribbonVertex::pivotPoints.size();
-            _settings.pivotDepth += 1;
-            pivotMap[_settings.seed] = (int)ribbonVertex::pivotPoints.size();
-            R.pushPivot((float3)NODES.front()[3], extent, rootFrequency() * sqrt(ext_L), ossilation_stiffness, ossilation_power, DDD(_rootPlant::generator));
-
-            if (LOGTHEBUILD)
-            {
-                fprintf(terrafectorSystem::_logfile, "PIVOT %d - %d,", _settings.seed, _settings.callDepth);
-                for (int i = 0; i < _settings.callDepth; i++)
-                {
-                    fprintf(terrafectorSystem::_logfile, "    ");
-                }
-                fprintf(terrafectorSystem::_logfile, "  %s\n", name.c_str());
-            }
-        }
-
-
-
-
-        // FIXME, Shoul dnot happen on bluid-2 and build4 - They should set leaf pivots if at all
-
+        _settings.pivotIndex[_settings.pivotDepth] = ribbonVertices.pushPivot(_settings.seed, p);
+        _settings.pivotDepth += 1;
         numPivots++;
     }
 
@@ -2640,9 +2574,8 @@ void _clumpBuilder::treeView()
     TREE_LINE(name.c_str(), path.c_str(), flags)
     {
         if (ImGui::IsItemHovered()) {
-            if (ribbonVertex::pivotPoints.size() > 256)     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.f));
-            ImGui::SetTooltip("%d instances \n%d verts \n%d / %d pivots ", numInstancePacked, numVertsPacked, numPivots, ribbonVertex::pivotPoints.size());
-            if (ribbonVertex::pivotPoints.size() > 256)     ImGui::PopStyleColor();
+            if (ribbonVertices.tooManyPivots)     ImGui::SetTooltip("ERROR - more than 255 pivots");
+            else ImGui::SetTooltip("%d instances \n%d verts \n%d / %d pivots ", numInstancePacked, numVertsPacked, numPivots, ribbonVertices.numPivots());
         }
 
         style.FrameBorderSize = 0;
@@ -2783,8 +2716,7 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
     std::uniform_real_distribution<> DDD(-1.f, 1.f);
     _rootPlant::generator.seed(_settings.seed + 333);
 
-    ribbonVertex R_verts;
-    R_verts.startRibbon(true, _settings.pivotIndex);
+    ribbonVertices.startRibbon(true, _settings.pivotIndex);
 
     glm::mat4 nodeCENTERLINE = ORIGINAL;
     if (!radial)
@@ -2887,18 +2819,22 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
 
     if (_addVerts)
     {
-        std::uniform_int_distribution<> DDD(0, 255);
-
-        ribbonVertex R;
         float3 extent = (float3)TIP_CENTER[3] - (float3)START[3];
         float ext_L = glm::length(extent);
         extent = glm::normalize(extent) / ext_L;
 
-        _settings.pivotIndex[_settings.pivotDepth] = (int)ribbonVertex::pivotPoints.size();
-        //_settings.pivotDepth += 1;
-        R.pushPivot((float3)START[3], extent, rootFrequency() * sqrt(ext_L), ossilation_stiffness, ossilation_power, DDD(_rootPlant::generator));
-        numPivots++;
+        _plant_anim_pivot p;
+        p.root = (float3)START[3];
+        p.extent = extent;
+        p.frequency = rootFrequency() * sqrt(ext_L);
+        p.stiffness = ossilation_stiffness;
+        p.shift = ossilation_power;           // DEPRECATED
+        p.offset = DD_0_255(_rootPlant::generator);
+
         // clumps do not indent whne addign a pivot, all children are at the same level, saves us a silly level
+        _settings.pivotIndex[_settings.pivotDepth] = ribbonVertices.pushPivot(_settings.seed, p);
+        numPivots++;
+        
     }
 
 
@@ -2932,24 +2868,6 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
     return TIP_CENTER;
 }
 
-glm::mat4 _clumpBuilder::build_lod_0(buildSetting _settings)
-{
-    glm::mat4 M(1);
-    return M;
-}
-
-glm::mat4 _clumpBuilder::build_lod_1(buildSetting _settings)
-{
-    glm::mat4 M(1);
-    return M;
-}
-
-glm::mat4 _clumpBuilder::build_lod_2(buildSetting _settings)
-{
-    glm::mat4 M(1);
-    return M;
-}
-
 //#pragma optimize("", off)
 glm::mat4  _clumpBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera)
 {
@@ -2967,10 +2885,9 @@ glm::mat4  _clumpBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool 
         GROW(node, totalLenght * lB.bake_V.x);
         GROW(last, -totalLenght * (1 - lB.bake_V.y));
 
-        ribbonVertex R_verts;
-        R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
-        R_verts.set(node, w * 0.8f, mat, float2(0.8f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
-        R_verts.set(last, w * 0.8f, mat, float2(0.8f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
+        ribbonVertices.startRibbon(_faceCamera, _settings.pivotIndex);
+        ribbonVertices.set(node, w * 0.8f, mat, float2(0.8f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
+        ribbonVertices.set(last, w * 0.8f, mat, float2(0.8f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
     }
     return TIP_CENTER;
 }
@@ -3002,12 +2919,11 @@ glm::mat4  _clumpBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool 
         step /= 3.f;
         binorm_step /= 3.f;
 
-        ribbonVertex R_verts;
-        R_verts.startRibbon(_faceCamera, _settings.pivotIndex);
+        ribbonVertices.startRibbon(_faceCamera, _settings.pivotIndex);
 
         for (int i = 0; i < 4; i++)
         {
-            R_verts.set(node, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
+            ribbonVertices.set(node, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
             node[3] += step;
             node[1] += binorm_step;
         }
@@ -3907,8 +3823,9 @@ void _rootPlant::renderGui(Gui* _gui)
 
 void _rootPlant::buildAllLods()
 {
-    ribbonVertex::pivotPoints.clear();
-    pivotMap.clear();
+    ribbonVertices.clearPivot();
+    //ribbonVertex::pivotPoints.clear();
+    //ribbonVertices.pivotMap.clear();
     LOGTHEBUILD = true;
     if (LOGTHEBUILD)
     {
@@ -4009,7 +3926,7 @@ void _rootPlant::buildAllLods()
 
     binaryPlantOnDisk OnDisk;
 
-    OnDisk.numP = 4;
+    OnDisk.numP = 1;
     OnDisk.numV = numV;
     for (int i = 0; i < numV; i++)
     {
@@ -4034,9 +3951,9 @@ void _rootPlant::buildAllLods()
     archive(OnDisk);
 
     std::ofstream osData(resource + root->path + ".binaryData", std::ios::binary);
-    osData.write((const char*)plantBuf.data(), 4 * sizeof(plant));
+    osData.write((const char*)plantBuf.data(), OnDisk.numP * sizeof(plant));
     osData.write((const char*)ribbonVertex::packed.data(), numV * sizeof(ribbonVertex8));
-    osData.write((const char*)ribbonVertex::pivotPoints.data(), 4 * 256 * sizeof(_plant_anim_pivot));
+    osData.write((const char*)ribbonVertices.pivotPoints.data(), OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
 }
 
 
@@ -4048,7 +3965,7 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
     pivotData.resize(numP * 256);
 
     std::ifstream osData(path + "Data", std::ios::binary);
-    osData.read((char*)plantData.data(), 4 * sizeof(plant));
+    osData.read((char*)plantData.data(), numP * sizeof(plant));
     osData.read((char*)vertexData.data(), numV * sizeof(ribbonVertex8));
     osData.read((char*)pivotData.data(), numP * 256 * sizeof(_plant_anim_pivot));
 
@@ -4148,10 +4065,11 @@ void _rootPlant::build(uint pivotOffset)
     ribbonVertex::objectOffset = vertex_pack_Settings.getOffset();
     ribbonVertex::ribbons.clear();
     ribbonVertex::clearStats(9999);     // just very large for now
-    if (displayModeSinglePlant == true)
+    if (displayModeSinglePlant)
     {
-        pivotMap.clear();
-        ribbonVertex::pivotPoints.clear();
+        ribbonVertices.clearPivot();
+        //ribbonVertices.pivotMap.clear();
+        //ribbonVertex::pivotPoints.clear();
     }
 
     bakeViewMatrix = glm::mat4(1.0);
@@ -4217,9 +4135,9 @@ void _rootPlant::build(uint pivotOffset)
         plantBuf[0].rootPivot.shift = root->ossilation_power;
         plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
 
-        if (ribbonVertex::pivotPoints.size() > 0)
+        if (ribbonVertices.numPivots() > 0)
         {
-            plantpivotData->setBlob(ribbonVertex::pivotPoints.data(), pivotOffset, ribbonVertex::pivotPoints.size() * sizeof(_plant_anim_pivot));
+            plantpivotData->setBlob(ribbonVertices.pivotPoints.data(), pivotOffset, ribbonVertices.numPivots() * sizeof(_plant_anim_pivot));
         }
     }
 
