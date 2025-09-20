@@ -41,14 +41,7 @@ float ribbonVertex::radiusScale = 5.0f;//  so biggest radius now objectScale / 2
 float ribbonVertex::O = 16384.0f * ribbonVertex::objectScale * 0.5f;
 float3 ribbonVertex::objectOffset = float3(O, O * 0.5f, O);
 
-std::vector<ribbonVertex>    ribbonBuilder::ribbons;
-std::vector<ribbonVertex8>    ribbonBuilder::packed;
-ribbonVertex ribbonBuilder::mainVertex;    // used for packing since some things accumulate
 
-bool ribbonBuilder::pushStart = false;
-int ribbonBuilder::lod_startBlock;   // This is the blok this lod started on
-int ribbonBuilder::maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
-int ribbonBuilder::totalRejectedVerts;
 
 // _rootPlant
 _plantBuilder* _rootPlant::selectedPart = nullptr;
@@ -88,6 +81,8 @@ void ribbonBuilder::clearStats(int _max)
     lod_startBlock = 0;
     totalRejectedVerts = 0;
     maxBlocks = _max;
+
+    ribbons.clear();
 }
 
 void ribbonBuilder::set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot,
@@ -134,11 +129,11 @@ void ribbonBuilder::set(glm::mat4 _node, float _radius, int _material, float2 _u
 
     mainVertex.startBit = pushStart;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
 
-    uint idx = ribbonBuilder::ribbons.size();
+    uint idx = ribbons.size();
     if ((idx > 0) && (idx % VEG_BLOCK_SIZE == 0) && mainVertex.startBit == true)
     {
         // start of a new block, but we are in teh middle of a ribbon, repeat the last one as a start
-        ribbonVertex R = ribbonBuilder::ribbons.back();
+        ribbonVertex R = ribbons.back();
         R.startBit = false;
 
         if (_clearLeafRoot)
@@ -152,10 +147,10 @@ void ribbonBuilder::set(glm::mat4 _node, float _radius, int _material, float2 _u
             mainVertex.S_root = mainVertex.leafRoot + 1;
         }
 
-        ribbonBuilder::ribbons.push_back(R);
+        ribbons.push_back(R);
     }
 
-    ribbonBuilder::ribbons.push_back(mainVertex);
+    ribbons.push_back(mainVertex);
 
     pushStart = true;
 }
@@ -178,7 +173,7 @@ float3 ribbonBuilder::egg(float2 extents, float3 vector, float yOffset)
 
 void ribbonBuilder::lightBasic(float2 extents, float plantDepth, float yOffset)
 {
-    for (auto& R : ribbonBuilder::ribbons)
+    for (auto& R : ribbons)
     {
         float midHeight = yOffset * extents.y;
         float3 Ldir = R.position - float3(0, midHeight, 0);
@@ -208,24 +203,31 @@ void ribbonBuilder::lightBasic(float2 extents, float plantDepth, float yOffset)
 
 void ribbonBuilder::pack()
 {
-    for (auto& R : ribbonBuilder::ribbons)
+    for (auto& R : ribbons)
     {
-        ribbonVertex8 packed = R.pack();
-        ribbonBuilder::packed.push_back(packed);
+        ribbonVertex8 pck = R.pack();
+        packed.push_back(pck);
     }
 }
 
+void ribbonBuilder::clear()
+{
+    packed.clear();
+    ribbons.clear();
+}
 
 void ribbonBuilder::finalizeAndFillLastBlock()
 {
-    int last = ribbonBuilder::ribbons.size() % VEG_BLOCK_SIZE;
+    int last = ribbons.size() % VEG_BLOCK_SIZE;
     int unusedVerts = 0;
     if (last > 0) unusedVerts = VEG_BLOCK_SIZE - last;
     for (int i = 0; i < unusedVerts; i++)
     {
-        ribbonBuilder::packed.push_back(ribbonBuilder::packed.front());
+        packed.push_back(packed.front());
     }
 }
+
+
 
 void ribbonBuilder::setup(float scale, float radius, float3 offset)
 {
@@ -233,6 +235,39 @@ void ribbonBuilder::setup(float scale, float radius, float3 offset)
     ribbonVertex::radiusScale = radius;
     ribbonVertex::objectOffset = offset;
 }
+
+
+
+float2 ribbonBuilder::calculate_extents(glm::mat4 view)
+{
+    float2 extents = float2(0, 0);
+
+    for (auto& R : ribbons)
+    {
+        extents.x = __max(extents.x, fabs(glm::dot(R.position, (float3)view[0])));
+        extents.y = __max(extents.y, fabs(glm::dot(R.position, (float3)view[1])));
+    }
+
+    int cnt[8] = { 0, 0, 0, 0, 0, 0, 0, 0};
+    float step = extents.y / 9.f;
+    for (auto& R : ribbons)
+    {
+        uint bucket = (uint)glm::clamp(glm::dot(R.position, (float3)view[1]) / step, 0.f, 8.f);
+        buckets_8[bucket] = __max(glm::dot(R.position, (float3)view[0]), buckets_8[bucket]);
+        cnt[bucket]++;
+    }
+
+    dU[0] = __max(buckets_8[0], buckets_8[1]);
+    dU[1] = __max(buckets_8[2], buckets_8[3]);
+    dU[2] = __max(buckets_8[4], buckets_8[5]);
+    dU[3] = __max(buckets_8[6], buckets_8[6]);
+    dU /= extents.x;
+    dU += 0.05f;
+    glm::saturate(dU);
+
+    return extents;
+}
+
 
 uint ribbonVertex::S_root = 0;
 
@@ -242,6 +277,8 @@ void ribbonBuilder::clearPivot()
     pivotMap.clear();
     pivotPoints.clear();
 }
+
+
 
 
 uint ribbonBuilder::pushPivot(uint _guid, _plant_anim_pivot _pivot)
@@ -1423,7 +1460,7 @@ void _leafBuilder::clear_build_info()
 //#pragma optimize("", off)
 glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 {
-    uint startVerts = ribbonBuilder::ribbons.size();
+    uint startVerts = _ribbonBuilder.numVerts();
 
     std::uniform_real_distribution<> distrib(-1.f, 1.f);
     std::uniform_real_distribution<> d50(0.5f, 1.5f);
@@ -1572,12 +1609,12 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
             if (_addVerts && i == firstVis && showLeaf)
             {
-                uint oldRoot = ribbonBuilder::getRoot();
+                uint oldRoot = _ribbonBuilder.getRoot();
                 _ribbonBuilder.startRibbon(cameraFacing || forceFacing, _settings.pivotIndex);
                 if (stemVisible)
                 {
-                    ribbonBuilder::setRoot(oldRoot);
-                    // uglu but means that the two ribbons share the one root
+                    _ribbonBuilder.setRoot(oldRoot);
+                    // uglu but means that the two ribbon-s share the one root
                 }
 
                 _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
@@ -1596,7 +1633,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 
     }
 
-    uint numVerts = ribbonBuilder::ribbons.size() - startVerts;
+    uint numVerts = _ribbonBuilder.numVerts() - startVerts;
     if (numVerts > 0) numInstancePacked++;
     numVertsPacked += numVerts;
 
@@ -2318,9 +2355,9 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 {
     _settings.callDepth++;
 
-    uint startVerts = ribbonBuilder::ribbons.size();
-    uint leafVerts = ribbonBuilder::ribbons.size();
-    uint tipVerts = ribbonBuilder::ribbons.size();
+    uint startVerts = _ribbonBuilder.numVerts();
+    uint leafVerts = _ribbonBuilder.numVerts();
+    uint tipVerts = _ribbonBuilder.numVerts();
 
     // build the root spine and tip for extents to work from
     {
@@ -2374,18 +2411,18 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
         if (lod.useGeometry || _settings.isBaking)
         {
             build_tip(_settings, true);
-            tipVerts = ribbonBuilder::ribbons.size();
+            tipVerts = _ribbonBuilder.numVerts();
 
             if (lod.bakeType == BAKE_NONE || _settings.isBaking)      // Only build nodes if we dont use the core bake at all, or we are Baking
             {
                 build_NODES(_settings, true);
             }
 
-            leafVerts = ribbonBuilder::ribbons.size();
+            leafVerts = _ribbonBuilder.numVerts();
             build_leaves(_settings, 100000, true);
         }
 
-        if ((ribbonBuilder::ribbons.size() - startVerts) > 0) numInstancePacked++;
+        if ((_ribbonBuilder.numVerts() - startVerts) > 0) numInstancePacked++;
         numVertsPacked += leafVerts - tipVerts;
     }
 
@@ -2405,138 +2442,37 @@ glm::mat4 _stemBuilder::getTip(bool includeChildren)
 
 float2 _stemBuilder::calculate_extents(glm::mat4 view)
 {
-    float2 extents = float2(0, 0);
-    float2 X = float2(0, 0);
-    float2 Y = float2(0, 0);
-    float2 Z = float2(0, 0);
-    float2 xX = float2(0, 0);
-    float2 xY = float2(0, 0);
-    float2 xZ = float2(0, 0);
-    for (auto& R : ribbonBuilder::ribbons)
-    {
-        float3 xform;
-        xform.x = glm::dot(R.position, (float3)view[0]);
-        xform.y = glm::dot(R.position, (float3)view[1]);
-        xform.z = glm::dot(R.position, (float3)view[2]);
-        float2 XZ = xform.xz;
-
-        float r = glm::length(XZ);
-        //extents.x = __max(extents.x, r);
-        //extents.y = __max(extents.y, abs(R.position.y));    // addign radius breaks down when we start to use lod-0 for sub elements
-        //extents.x = __max(extents.x, r + R.radius);
-        extents.x = __max(extents.x, fabs(xform.x));
-        extents.y = __max(extents.y, fabs(xform.y));    // + R.radius
-
-        X.x = __min(X.x, R.position.x);
-        X.y = __max(X.y, R.position.x);
-
-        Y.x = __min(Y.x, R.position.y);
-        Y.y = __max(Y.y, R.position.y);
-
-        Z.x = __min(Z.x, R.position.z);
-        Z.y = __max(Z.y, R.position.z);
-
-        xX.x = __min(xX.x, xform.x);
-        xX.y = __max(xX.y, xform.x);
-
-        xY.x = __min(xY.x, xform.y);
-        xY.y = __max(xY.y, xform.y);
-
-        xZ.x = __min(xZ.x, xform.z);
-        xZ.y = __max(xZ.y, xform.z);
-    }
-    extents.x = __max(-xX.x, xX.y);
-    extents.y = xY.y;
-    fprintf(terrafectorSystem::_logfile, "extents {%2.2f, %2.2f}\n", extents.x, extents.y);
-    fprintf(terrafectorSystem::_logfile, "X {%2.2f, %2.2f}\n", X.x, X.y);
-    fprintf(terrafectorSystem::_logfile, "Y {%2.2f, %2.2f}\n", Y.x, Y.y);
-    fprintf(terrafectorSystem::_logfile, "Z {%2.2f, %2.2f}\n", Z.x, Z.y);
-    fprintf(terrafectorSystem::_logfile, "xX {%2.2f, %2.2f}\n", xX.x, xX.y);
-    fprintf(terrafectorSystem::_logfile, "xY {%2.2f, %2.2f}\n", xY.x, xY.y);
-    fprintf(terrafectorSystem::_logfile, "xZ {%2.2f, %2.2f}\n", xZ.x, xZ.y);
-    fflush(terrafectorSystem::_logfile);
-
-    // du
-    float du6[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    int cnt[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    float step = extents.y / 9.f;
-    for (auto& R : ribbonBuilder::ribbons)
-    {
-        float3 xform;
-        xform.x = glm::dot(R.position, (float3)view[0]);
-        xform.y = glm::dot(R.position, (float3)view[1]);
-        xform.z = glm::dot(R.position, (float3)view[2]);
-        float2 XZ = xform.xz;
-
-        float r = xform.x;// glm::length(XZ) + R.radius;
-        float y = __max(0, xform.y);   // only positive
-        uint bucket = (uint)glm::clamp(y / step, 0.f, 8.f);
-        du6[bucket] = __max(r, du6[bucket]);
-        cnt[bucket]++;
-    }
-    for (int i = 0; i < 6; i++)
-    {
-        fprintf(terrafectorSystem::_logfile, "dU %d    %2.2f\n", i, du6[i]);
-    }
-    std::array<float, 4> du;
-    du[0] = du6[0];
-    du[1] = __max(du6[2], du6[3]);
-    du[2] = __max(du6[5], du6[6]);
-    du[3] = du6[8];
-
-    du[0] /= extents.x;
-    du[1] /= extents.x;
-    du[2] /= extents.x;
-    du[3] /= extents.x;
-
-    du[0] += 0.05f;
-    du[1] += 0.05f;
-    du[2] += 0.05f;
-    du[3] += 0.05f;
-
-    du[0] = __min(1.f, du[0]);
-    du[1] = __min(1.f, du[1]);
-    du[2] = __min(1.f, du[2]);
-    du[3] = __min(1.f, du[3]);
+    float2 extents = _ribbonBuilder.calculate_extents(view);
 
     std::filesystem::path full_path = path;
 
     // lod 0
-    float dw = lod_bakeInfo[0].bakeWidth;
+    float4 dd0 = glm::saturate(_ribbonBuilder.dU / lod_bakeInfo[0].bakeWidth);
     lod_bakeInfo[0].extents = extents;
-    lod_bakeInfo[0].dU[0] = __min(1.f, du[0] / dw);
-    lod_bakeInfo[0].dU[1] = __min(1.f, du[1] / dw);
-    lod_bakeInfo[0].dU[2] = __min(1.f, du[2] / dw);
-    lod_bakeInfo[0].dU[3] = __min(1.f, du[3] / dw);
-    //lod_bakeInfo[0].material.name = full_path.stem().string() + "_billboard_lod0";
-    //lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[0].material.name + ".vegMaterial";
-
+    lod_bakeInfo[0].dU[0] = dd0[0];
+    lod_bakeInfo[0].dU[1] = dd0[1];
+    lod_bakeInfo[0].dU[2] = dd0[2];
+    lod_bakeInfo[0].dU[3] = dd0[3];
     lod_bakeInfo[0].material.name = "bake_0";
     lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[0].material.name + ".vegetationMaterial";;
 
     // lod 1
+    dd0 = glm::saturate(_ribbonBuilder.dU / lod_bakeInfo[1].bakeWidth);
     lod_bakeInfo[1].extents = extents;
-    dw = lod_bakeInfo[1].bakeWidth;
-    lod_bakeInfo[1].dU[0] = __min(1.f, du[0] / dw);
-    lod_bakeInfo[1].dU[1] = __min(1.f, du[1] / dw);
-    lod_bakeInfo[1].dU[2] = __min(1.f, du[2] / dw);
-    lod_bakeInfo[1].dU[3] = __min(1.f, du[3] / dw);
-    //lod_bakeInfo[1].material.name = full_path.stem().string() + "_billboard_lod1";
-    //lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[1].material.name + ".vegMaterial";
+    lod_bakeInfo[1].dU[0] = dd0[0];
+    lod_bakeInfo[1].dU[1] = dd0[1];
+    lod_bakeInfo[1].dU[2] = dd0[2];
+    lod_bakeInfo[1].dU[3] = dd0[3];
     lod_bakeInfo[1].material.name = "bake_1";
     lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[1].material.name + ".vegetationMaterial";;
 
     // lod 2
-    //extents.y = NODES.back()[3].y;   // last lod use NDOE end
-    //No, stop doing that bake it all
+    dd0 = glm::saturate(_ribbonBuilder.dU / lod_bakeInfo[2].bakeWidth);
     lod_bakeInfo[2].extents = extents;
-    float dw2 = lod_bakeInfo[2].bakeWidth;
-    lod_bakeInfo[2].dU[0] = __min(1.f, du[0] / dw2);
-    lod_bakeInfo[2].dU[1] = __min(1.f, du[1] / dw2);
-    lod_bakeInfo[2].dU[2] = __min(1.f, du[2] / dw2);
-    lod_bakeInfo[2].dU[3] = __min(1.f, du[3] / dw2);
-    //lod_bakeInfo[2].material.name = full_path.stem().string() + "_billboard_lod2";
-    //lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\" + lod_bakeInfo[2].material.name + ".vegMaterial";
+    lod_bakeInfo[2].dU[0] = dd0[0];
+    lod_bakeInfo[2].dU[1] = dd0[1];
+    lod_bakeInfo[2].dU[2] = dd0[2];
+    lod_bakeInfo[2].dU[3] = dd0[3];
     lod_bakeInfo[2].material.name = "bake_2";
     lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[2].material.name + ".vegetationMaterial";;
 
@@ -2780,81 +2716,37 @@ glm::mat4 _clumpBuilder::getTip(bool includeChildren)
 
 float2 _clumpBuilder::calculate_extents(glm::mat4 view)
 {
-    float2 extents = float2(0, 0);
-    for (auto& R : ribbonBuilder::ribbons)
-    {
-        float2 XZ = R.position.xz;
-        float r = glm::length(XZ);
-        //extents.x = __max(extents.x, r);
-        //extents.y = __max(extents.y, abs(R.position.y));    // addign radius breaks down when we start to use lod-0 for sub elements
-        extents.x = __max(extents.x, r + R.radius);
-        extents.y = __max(extents.y, abs(R.position.y));    // + R.radius
-    }
-
-    // du
-    float du6[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    int cnt[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    float step = extents.y / 9.f;
-    for (auto& R : ribbonBuilder::ribbons)
-    {
-        float2 XZ = R.position.xz;
-        float r = glm::length(XZ) + R.radius;
-        float y = __max(0, R.position.y);   // only positive
-        uint bucket = (uint)glm::clamp(y / step, 0.f, 8.f);
-        du6[bucket] = __max(r, du6[bucket]);
-        cnt[bucket]++;
-    }
-    std::array<float, 4> du;
-    du[0] = du6[0];
-    du[1] = __max(du6[2], du6[3]);
-    du[2] = __max(du6[5], du6[6]);
-    du[3] = du6[8];
-
-    du[0] /= extents.x;
-    du[1] /= extents.x;
-    du[2] /= extents.x;
-    du[3] /= extents.x;
-
-    du[0] += 0.05f;
-    du[1] += 0.05f;
-    du[2] += 0.05f;
-    du[3] += 0.05f;
-
-    du[0] = __min(1.f, du[0]);
-    du[1] = __min(1.f, du[1]);
-    du[2] = __min(1.f, du[2]);
-    du[3] = __min(1.f, du[3]);
+    float2 extents = _ribbonBuilder.calculate_extents(view);
 
     std::filesystem::path full_path = path;
 
     // lod 0
-    float dw = lod_bakeInfo[0].bakeWidth;
+    float4 dd0 = glm::saturate(_ribbonBuilder.dU / lod_bakeInfo[0].bakeWidth);
     lod_bakeInfo[0].extents = extents;
-    lod_bakeInfo[0].dU[0] = __min(1.f, du[0] / dw);
-    lod_bakeInfo[0].dU[1] = __min(1.f, du[1] / dw);
-    lod_bakeInfo[0].dU[2] = __min(1.f, du[2] / dw);
-    lod_bakeInfo[0].dU[3] = __min(1.f, du[3] / dw);
+    lod_bakeInfo[0].dU[0] = dd0[0];
+    lod_bakeInfo[0].dU[1] = dd0[1];
+    lod_bakeInfo[0].dU[2] = dd0[2];
+    lod_bakeInfo[0].dU[3] = dd0[3];
     lod_bakeInfo[0].material.name = "bake_0";
     lod_bakeInfo[0].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[0].material.name + ".vegetationMaterial";;
 
     // lod 1
+    dd0 = glm::saturate(_ribbonBuilder.dU / lod_bakeInfo[1].bakeWidth);
     lod_bakeInfo[1].extents = extents;
-    dw = lod_bakeInfo[1].bakeWidth;
-    lod_bakeInfo[1].dU[0] = __min(1.f, du[0] / dw);
-    lod_bakeInfo[1].dU[1] = __min(1.f, du[1] / dw);
-    lod_bakeInfo[1].dU[2] = __min(1.f, du[2] / dw);
-    lod_bakeInfo[1].dU[3] = __min(1.f, du[3] / dw);
+    lod_bakeInfo[1].dU[0] = dd0[0];
+    lod_bakeInfo[1].dU[1] = dd0[1];
+    lod_bakeInfo[1].dU[2] = dd0[2];
+    lod_bakeInfo[1].dU[3] = dd0[3];
     lod_bakeInfo[1].material.name = "bake_1";
     lod_bakeInfo[1].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[1].material.name + ".vegetationMaterial";;
 
     // lod 2
-    //extents.y = NODES.back()[3].y;   // last lod use NDOE end
+    dd0 = glm::saturate(_ribbonBuilder.dU / lod_bakeInfo[2].bakeWidth);
     lod_bakeInfo[2].extents = extents;
-    float dw2 = lod_bakeInfo[2].bakeWidth;
-    lod_bakeInfo[2].dU[0] = __min(1.f, du[0] / dw2);
-    lod_bakeInfo[2].dU[1] = __min(1.f, du[1] / dw2);
-    lod_bakeInfo[2].dU[2] = __min(1.f, du[2] / dw2);
-    lod_bakeInfo[2].dU[3] = __min(1.f, du[3] / dw2);
+    lod_bakeInfo[2].dU[0] = dd0[0];
+    lod_bakeInfo[2].dU[1] = dd0[1];
+    lod_bakeInfo[2].dU[2] = dd0[2];
+    lod_bakeInfo[2].dU[3] = dd0[3];
     lod_bakeInfo[2].material.name = "bake_2";
     lod_bakeInfo[2].material.path = full_path.parent_path().string() + "\\bake_" + full_path.stem().string() + "\\" + lod_bakeInfo[2].material.name + ".vegetationMaterial";;
 
@@ -2970,7 +2862,7 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
 
 glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
 {
-    uint startVerts = ribbonBuilder::ribbons.size();
+    uint startVerts = _ribbonBuilder.numVerts();
     buildChildren(_settings, false);
 
     if (_addVerts)
@@ -3016,7 +2908,7 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
             buildChildren(_settings, true);
         }
 
-        uint numVerts = ribbonBuilder::ribbons.size() - startVerts;
+        uint numVerts = _ribbonBuilder.numVerts() - startVerts;
         if (numVerts > 0) numInstancePacked++;
         numVertsPacked += numVerts;
     }
@@ -3760,10 +3652,10 @@ void _rootPlant::renderGui(Gui* _gui)
                         settings.seed = seed;
                         //settings.pixelSize = 0.01f;
                         settings.isBaking = true;    //??????
-                        ribbonBuilder::packed.clear();
+                        _ribbonBuilder.clear();     //??? Mayeb unnesesary, I think buiild will do thois
                         build(true);
                         settings.isBaking = false;
-                        fprintf(terrafectorSystem::_logfile, "build done - %d verts \n", (int)ribbonBuilder::packed.size());
+                        fprintf(terrafectorSystem::_logfile, "build done - %d verts \n", (int)_ribbonBuilder.numPacked());
 
                         glm::mat4 tip = selectedPart->getTip(true); // FIXME later bool for stem length only
                         bakeViewAdjusted = bakeViewMatrix;
@@ -3787,22 +3679,7 @@ void _rootPlant::renderGui(Gui* _gui)
 
                         fprintf(terrafectorSystem::_logfile, "\n\nBAKE\n");
 
-                        fprintf(terrafectorSystem::_logfile, "right {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[0][0], bakeViewMatrix[0][1], bakeViewMatrix[0][2]);
-                        fprintf(terrafectorSystem::_logfile, "up    {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[1][0], bakeViewMatrix[1][1], bakeViewMatrix[1][2]);
-                        fprintf(terrafectorSystem::_logfile, "dir   {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewMatrix[2][0], bakeViewMatrix[2][1], bakeViewMatrix[2][2]);
-                        fprintf(terrafectorSystem::_logfile, "rud\n");
-                        fprintf(terrafectorSystem::_logfile, "r {% 5.3f, % 5.3f, % 5.3f}\n", r.x, r.y, r.z);
-                        fprintf(terrafectorSystem::_logfile, "u {% 5.3f, % 5.3f, % 5.3f}\n", u.x, u.y, u.z);
-                        fprintf(terrafectorSystem::_logfile, "d {% 5.3f, % 5.3f, % 5.3f}\n", d.x, d.y, d.z);
-                        fprintf(terrafectorSystem::_logfile, "adjusted\n");
-                        fprintf(terrafectorSystem::_logfile, "right {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewAdjusted[0][0], bakeViewAdjusted[0][1], bakeViewAdjusted[0][2]);
-                        fprintf(terrafectorSystem::_logfile, "up    {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewAdjusted[1][0], bakeViewAdjusted[1][1], bakeViewAdjusted[1][2]);
-                        fprintf(terrafectorSystem::_logfile, "dir   {% 5.3f, % 5.3f, % 5.3f}\n", bakeViewAdjusted[2][0], bakeViewAdjusted[2][1], bakeViewAdjusted[2][2]);
-
-                        fprintf(terrafectorSystem::_logfile, "RoU  % 5.3f\n", glm::dot((float3)bakeViewAdjusted[0], (float3)bakeViewAdjusted[1]));
-                        fprintf(terrafectorSystem::_logfile, "UoD  % 5.3f\n", glm::dot((float3)bakeViewAdjusted[1], (float3)bakeViewAdjusted[2]));
-                        fprintf(terrafectorSystem::_logfile, "DoR  % 5.3f\n", glm::dot((float3)bakeViewAdjusted[2], (float3)bakeViewAdjusted[0]));
-
+                        
                         extents = selectedPart->calculate_extents(bakeViewAdjusted);
 
                         for (int i = 0; i < 10; i++)
@@ -3923,15 +3800,15 @@ void _rootPlant::renderGui(Gui* _gui)
                 ImGui::Text("re building...");
                 if (displayModeSinglePlant)
                 {
-                    ribbonBuilder::packed.clear();
+                    _ribbonBuilder.clear(); // why every ti,e just before a build - AH its to acommodate buildAll maybe
                     build(false);
 
                     levelOfDetail* lod = root->getLodInfo(currentLOD);
                     if (lod)
                     {
-                        lod->numVerts = (int)ribbonBuilder::ribbons.size();
-                        lod->numBlocks = ribbonBuilder::packed.size() / VEG_BLOCK_SIZE;
-                        lod->unused = ribbonBuilder::packed.size() - ribbonBuilder::ribbons.size();
+                        lod->numVerts = (int)_ribbonBuilder.numVerts();
+                        lod->numBlocks = _ribbonBuilder.numPacked() / VEG_BLOCK_SIZE;
+                        lod->unused = _ribbonBuilder.numPacked() - _ribbonBuilder.numVerts();
                     }
                 }
                 else
@@ -3980,8 +3857,6 @@ void _rootPlant::renderGui(Gui* _gui)
 void _rootPlant::buildAllLods()
 {
     _ribbonBuilder.clearPivot();
-    //ribbonVertex::pivotPoints.clear();
-    //_ribbonBuilder.pivotMap.clear();
     LOGTHEBUILD = true;
     if (LOGTHEBUILD)
     {
@@ -3991,12 +3866,10 @@ void _rootPlant::buildAllLods()
     displayModeSinglePlant = false;
 
     uint start = 0;
-    //settings.pixelSize = 0.001f;    // 1mm just tiny
-    //build(true); // this is just to generate extents    .. Should generate all of teh pivot data as well
     float Y = extents.y;
     fprintf(terrafectorSystem::_logfile, "buildAllLods() Y = %2.2fm\n", Y);
 
-    ribbonBuilder::packed.clear();
+    _ribbonBuilder.clear();
 
     uint startBlock[16][16];
     uint numBlocks[16][16];
@@ -4037,9 +3910,9 @@ void _rootPlant::buildAllLods()
                 settings.pixelSize = lodInfo->pixelSize;
                 settings.seed = 1000 + pIndex;
                 build(pIndex * 256 * sizeof(_plant_anim_pivot));
-                lodInfo->numVerts = (int)ribbonBuilder::ribbons.size();
-                lodInfo->numBlocks = ribbonBuilder::packed.size() / VEG_BLOCK_SIZE - start;
-                lodInfo->unused = ribbonBuilder::packed.size() - ribbonBuilder::ribbons.size();
+                lodInfo->numVerts = (int)_ribbonBuilder.numVerts();
+                lodInfo->numBlocks = _ribbonBuilder.numPacked() / VEG_BLOCK_SIZE - start;
+                lodInfo->unused = _ribbonBuilder.numPacked() - _ribbonBuilder.numVerts();
                 lodInfo->startBlock = start;
 
                 startBlock[pIndex][lod] = start;
@@ -4075,8 +3948,8 @@ void _rootPlant::buildAllLods()
     numBinaryPlants = 1;
     builInstanceBuffer();
 
-    int numV = __min(65536 * 8, ribbonBuilder::packed.size());
-    vertexData->setBlob(ribbonBuilder::packed.data(), 0, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+    int numV = __min(65536 * 8, _ribbonBuilder.numPacked());
+    vertexData->setBlob(_ribbonBuilder.getPackedData(), 0, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
 
     settings.seed = 1000;
 
@@ -4086,7 +3959,7 @@ void _rootPlant::buildAllLods()
     OnDisk.numV = numV;
     for (int i = 0; i < numV; i++)
     {
-        int idx = (ribbonBuilder::packed[i].b >> 8) & 0x3ff;
+        int idx = (_ribbonBuilder.packed[i].b >> 8) & 0x3ff;
         _vegMaterial M;
         M.path = _plantMaterial::static_materials_veg.materialVector[idx].relativePath;
         M.name = _plantMaterial::static_materials_veg.materialVector[idx].displayName;
@@ -4108,7 +3981,7 @@ void _rootPlant::buildAllLods()
 
     std::ofstream osData(resource + root->path + ".binaryData", std::ios::binary);
     osData.write((const char*)plantBuf.data(), OnDisk.numP * sizeof(plant));
-    osData.write((const char*)ribbonBuilder::packed.data(), numV * sizeof(ribbonVertex8));
+    osData.write((const char*)_ribbonBuilder.getPackedData(), numV * sizeof(ribbonVertex8));
     osData.write((const char*)_ribbonBuilder.pivotPoints.data(), OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
 }
 
@@ -4187,7 +4060,7 @@ int _rootPlant::importBinary(std::filesystem::path filepath)
     numBinaryPlants++;
 
     displayModeSinglePlant = false;
-    ribbonBuilder::packed.resize(OnDisk.numV);
+    _ribbonBuilder.packed.resize(OnDisk.numV);  //??? WHY this is just to fool my render function later that checks this size to see if its loaded
     updateMaterialsAndTextures();
 
     importPathVector.push_back(filepath.string());
@@ -4219,8 +4092,8 @@ void _rootPlant::build(uint pivotOffset)
     ribbonVertex::objectScale = vertex_pack_Settings.getScale();
     ribbonVertex::radiusScale = vertex_pack_Settings.radiusScale;
     ribbonVertex::objectOffset = vertex_pack_Settings.getOffset();
-    ribbonBuilder::ribbons.clear();
-    ribbonBuilder::clearStats(9999);     // just very large for now
+    
+    _ribbonBuilder.clearStats(9999);     // just very large for now
     if (displayModeSinglePlant)
     {
         _ribbonBuilder.clearPivot();
@@ -4241,21 +4114,21 @@ void _rootPlant::build(uint pivotOffset)
 
     // Now light the plant
     
-    ribbonBuilder::lightBasic(extents, root->shadowDepth, root->shadowPenetationHeight);
-    ribbonBuilder::pack();
-    ribbonBuilder::finalizeAndFillLastBlock();
+    _ribbonBuilder.lightBasic(extents, root->shadowDepth, root->shadowPenetationHeight);
+    _ribbonBuilder.pack();
+    _ribbonBuilder.finalizeAndFillLastBlock();
 
     
 
 
-    if (ribbonBuilder::packed.size() > 0)
+    if (_ribbonBuilder.numPacked() > 0)
     {
         updateMaterialsAndTextures();
 
-        int numV = __min(65536 * 8, ribbonBuilder::packed.size());
-        vertexData->setBlob(ribbonBuilder::packed.data(), 0, numV * sizeof(ribbonVertex8));
+        int numV = __min(65536 * 8, _ribbonBuilder.numPacked());
+        vertexData->setBlob(_ribbonBuilder.getPackedData(), 0, numV * sizeof(ribbonVertex8));
 
-        totalBlocksToRender = __min(16384 * 32, ribbonBuilder::packed.size() / VEG_BLOCK_SIZE);   // move to ribbonvertex
+        totalBlocksToRender = __min(16384 * 32, _ribbonBuilder.numPacked() / VEG_BLOCK_SIZE);   // move to ribbonvertex
         for (int j = 0; j < totalBlocksToRender; j++)
         {
             blockBuf[j].vertex_offset = VEG_BLOCK_SIZE * j;
@@ -4476,7 +4349,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
     pixelSize = m_halfAngle_to_Pixels * extents.y / glm::length(camVector);
 
 
-    if (!terrainMode && ribbonBuilder::packed.size() > 1 && !displayModeSinglePlant)
+    if (!terrainMode && _ribbonBuilder.numPacked() > 1 && !displayModeSinglePlant)
     {
         FALCOR_PROFILE("compute_veg_lods");
         compute_clearBuffers.dispatch(_renderContext, 1, 1);
@@ -4502,7 +4375,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
     }
 
 
-    if (!terrainMode && ribbonBuilder::packed.size() > 1 && !displayModeSinglePlant)
+    if (!terrainMode && _ribbonBuilder.numPacked() > 1 && !displayModeSinglePlant)
     {
         FALCOR_PROFILE("billboards");
 
@@ -4524,7 +4397,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         gputimeBB = eventBB->getGpuTimeAverage();
     }
 
-    if (terrainMode || ribbonBuilder::packed.size() > 1)
+    if (terrainMode || _ribbonBuilder.numPacked() > 1)
     {
         FALCOR_PROFILE("ribbonShader");
 
@@ -4583,7 +4456,6 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
             vegetationShader_DEBUG_PIXELS.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);   // it changes every time we loose focus
         }
 
-        //vegetationShader.drawInstanced(_renderContext, ribbonVertex::packed.size(), 1);
         if (terrainMode)
         {
             vegetationShader.renderIndirect(_renderContext, drawArgs_vegetation);

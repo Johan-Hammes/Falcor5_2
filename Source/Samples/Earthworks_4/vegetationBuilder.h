@@ -235,32 +235,42 @@ struct ribbonVertex
 
 struct ribbonBuilder
 {
-    static void setup(float scale, float radius, float3 offset);
+    void setup(float scale, float radius, float3 offset);
     int numPivots() { return pivotPoints.size(); }
-    static void finalizeAndFillLastBlock();
+    void finalizeAndFillLastBlock();
     void    startRibbon(bool _cameraFacing, uint pv[4]);
-    static void clearStats(int _max);
+    void clearStats(int _max);
     void clearPivot();
     uint pushPivot(uint _guid, _plant_anim_pivot _pivot);
-    static uint getRoot() { return mainVertex.S_root; }
-    static void setRoot(uint _r) { mainVertex.S_root = _r; }
+    uint getRoot() { return mainVertex.S_root; }
+    void setRoot(uint _r) { mainVertex.S_root = _r; }
     void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
         float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false);
-    static float3 egg(float2 extents, float3 vector, float yOffset);
-    static void lightBasic(float2 extents, float plantDepth, float yOffset);
-    static void pack();
+    float3 egg(float2 extents, float3 vector, float yOffset);
+    void lightBasic(float2 extents, float plantDepth, float yOffset);
+    void pack();
+    void clear();
+    uint numPacked() { return packed.size(); }
+    uint numVerts() { return ribbons.size(); }
+
+    ribbonVertex8* getPackedData() {        return packed.data();    }
+    
+
+    float2 calculate_extents(glm::mat4 view);
+    float buckets_8[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    float4 dU;
 
 
-    static std::vector<ribbonVertex>        ribbons;        // can we get this non static
-    static std::vector<ribbonVertex8>       packed;
-    static ribbonVertex mainVertex;    // used for packing since some things accumulate
+    std::vector<ribbonVertex>        ribbons;        // can we get this non static
+    std::vector<ribbonVertex8>       packed;
+    ribbonVertex mainVertex;    // used for packing since some things accumulate
     std::vector<_plant_anim_pivot>   pivotPoints;
     std::map<int, int> pivotMap;
 
-    static bool pushStart;
-    static int lod_startBlock;   // This is the blok this lod started on
-    static int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
-    static int totalRejectedVerts;   // this will not accept more verts once we push past ? But how to handle when pushing lods
+    bool pushStart;
+    int lod_startBlock;   // This is the blok this lod started on
+    int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
+    int totalRejectedVerts;   // this will not accept more verts once we push past ? But how to handle when pushing lods
 
     // build errors and warnigns
     bool tooManyPivots = false;
