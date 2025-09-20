@@ -129,8 +129,8 @@ inline float3 rot_xz(const float3 v, const float yaw)
     return float3((v.x * c) + (v.z * s), v.y, (-v.x * s) + (v.z * c));
 }
 
-
-inline float3 yawPitch_9_8bit(int yaw, int pitch, const float r) // 9, 8 bits 8 b
+// r is needed since lightcone still uses it
+inline float3 yawPitch_9_8bit(int yaw, int pitch, float r) // 9, 8 bits 8 b
 {
     float plane, x, y, z;
     sincos((yaw - 256) * 0.01227 - r, z, x);
@@ -141,7 +141,7 @@ inline float3 yawPitch_9_8bit(int yaw, int pitch, const float r) // 9, 8 bits 8 
 
 
 // These two can optimize, its only tangent that differs
-inline void extractTangent(inout PSIn o, const ribbonVertex8 v, const float rotation)
+inline void extractTangent(inout PSIn o, const ribbonVertex8 v)
 {
     o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, 0); // remember to add rotation to yaw
     o.tangent = yawPitch_9_8bit(v.d >> 23, (v.d >> 15) & 0xff, 0); // remember to add rotation to yaw
@@ -401,12 +401,12 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     //output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
     
 
-    extractTangent(output, v, 1.57079632679);
+    extractTangent(output, v);
 #endif
 
     float SS = 1; //    pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
 
-    extractTangent(output, v, INSTANCE.rotation); // Likely only after animate, do only once
+    extractTangent(output, v);
     extractUVRibbon(output, v);
     extractFlags(output, v);
 
@@ -452,7 +452,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
     output.eye = normalize(output.pos.xyz - eyePos);
 
-    if (!isCameraFacing)
+    if (isCameraFacing)
     {
         output.tangent = normalize(cross(output.binormal, -output.eye));
     }

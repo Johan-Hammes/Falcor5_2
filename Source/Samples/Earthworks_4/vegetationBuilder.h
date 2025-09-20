@@ -197,169 +197,18 @@ struct packSettings
 
 struct ribbonVertex
 {
+    ribbonVertex8 pack();
+
     static float objectScale;   //  0.002 for trees  // 32meter block 2mm presision
     static float radiusScale;   //  so biggest radius now objectScale / 2.0f;
     static float O;
     static float3 objectOffset;
 
-    static std::vector<ribbonVertex>        ribbons;        // can we get this non static
-    static std::vector<ribbonVertex8>       packed;
-
-
-    std::vector<_plant_anim_pivot>   pivotPoints;
-    std::map<int, int> pivotMap;
-    int numPivots() { return pivotPoints.size(); }
-
-    static bool pushStart;
-    static int lod_startBlock;   // This is the blok this lod started on
-    static int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
-    static int totalRejectedVerts;   // this will not accept more verts once we push past ? But how to handle when pushing lods
-
-    static void setup(float scale, float radius, float3 offset);
-    ribbonVertex8 pack();
-
-
-    void    startRibbon(bool _cameraFacing, uint pv[4])
-    {
-        pushStart = false;   // prepare for a new ribbon to start
-        type = !_cameraFacing;
-        S_root = 0;
-
-        root[0] = pv[0];
-        root[1] = pv[1];
-        root[2] = pv[2];
-        root[3] = pv[3];
-    }
-
-    static void clearStats(int _max)
-    {
-        lod_startBlock = 0;
-        totalRejectedVerts = 0;
-        maxBlocks = _max;
-    }
-
-    bool tooManyPivots = false;
-    void clearPivot();
-    uint pushPivot(uint _guid, _plant_anim_pivot _pivot);
-
-
-    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
-        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false)
-    {
-        if (_uv.y < 0)
-        {
-            bool bCM = true;
-        }
-        if ((ribbons.size() / VEG_BLOCK_SIZE - lod_startBlock) >= maxBlocks)
-        {
-            totalRejectedVerts++;
-            return;
-        }
-
-        position = _node[3];
-        if (fabs(position.x) > 200 || fabs(position.z) > 200)
-        {
-            bool bCM = true;
-        }
-        radius = _radius;
-        bitangent = _node[1];  // right handed matrix : up
-        tangent = _node[0];
-        material = _material;
-        uv = _uv;
-        albedoScale = _albedo;
-        translucencyScale = _translucency;
-
-        leafStiffness = _stiff;
-        leafFrequency = _freq;
-        leafIndex = _index;         // also deprected, since BEzier
-
-        diamond = _diamond;
-
-        leafRoot = S_root;
-        if (_clearLeafRoot)
-        {
-            S_root = 0;
-        }
-        else
-        {
-            S_root++;
-        }
-
-        startBit = pushStart;    // badly named its teh inverse, but after the first bit we clear iyt for teh rest of teh ribbon
-
-        uint idx = ribbonVertex::ribbons.size();
-        if ((idx > 0) && (idx % VEG_BLOCK_SIZE == 0) && startBit == true)
-        {
-            // start of a new block, but we are in teh middle of a ribbon, repeat the last one as a start
-            ribbonVertex R = ribbonVertex::ribbons.back();
-            R.startBit = false;
-
-            if (_clearLeafRoot)
-            {
-                S_root = 0;
-            }
-            else
-            {
-                R.leafRoot++; // This is the previous one plus 1 more
-                leafRoot = R.leafRoot + 1;  // advance teh new vertex one more
-                S_root = leafRoot + 1;
-            }
-
-            ribbonVertex::ribbons.push_back(R);
-        }
-
-        ribbonVertex::ribbons.push_back(*this);
-
-        pushStart = true;
-    }
-
-    float3 egg(float2 extents, float3 vector, float yOffset)
-    {
-        float3 V = glm::normalize(vector) * extents.x;
-        if (V.y > 0)
-        {
-            V.y *= extents.y * (1.f - yOffset);
-        }
-        else
-        {
-            V.y *= extents.y * yOffset;
-        }
-        return V;
-    }
-
-    void lightBasic(float2 extents, float plantDepth, float yOffset)
-    {
-        float midHeight = yOffset * extents.y;
-        float3 Ldir = position - float3(0, midHeight, 0);
-        float3 edge = egg(extents, Ldir, yOffset);
-        lightCone = float4(glm::normalize(Ldir), 0);    // 0 is just 180 degrees so wide, fixme tighter at ythe bottom
-        float depthMeters = __max(0, glm::length(edge) - glm::length(Ldir));
-        lightDepth = depthMeters / plantDepth;
-        if (position.y < midHeight)
-        {
-            lightDepth = (depthMeters + (midHeight - position.y)) / plantDepth;
-        }
-
-        float3 P = position;
-        P.y = 0;
-        float dx = glm::length(P);
-        float aoW = 0.3f + 0.7f * dx / extents.x;
-        float aoH = 0.4f + 0.6f * position.y / extents.y;
-        ambientOcclusion = __max(aoW, aoH);
-        if (position.y < midHeight)
-        {
-            float scale = (midHeight - position.y) / midHeight;
-            ambientOcclusion *= (1.f - scale * 0.5f);
-        }
-    }
-
-    // FIXME void light(lightCone light Depth ao shadow)
-
-    int     type = 0;
+    int     faceCamera = 0;           // part of vertex and bigger class
+    bool    diamond = false;   // This piece will use Diomond generation og GPU
     bool    startBit = false;
     float3  position;
     int     material;
-    //float   anim_blend;     //??? deprecated
     float2  uv;
     float3  bitangent;
     float3  tangent;
@@ -372,18 +221,50 @@ struct ribbonVertex
     float albedoScale = 1.f;
     float translucencyScale = 1.f;
 
-    uint root[4] = { 0, 0, 0, 0 };
+    uint pivots[4] = { 0, 0, 0, 0 };    // part of vertex and bigger class
 
-    static uint S_root;
-    uint leafRoot = 0;
-    float leafStiffness = 1.f;
-    float leafFrequency = 10.f;
-    float leafIndex = 0.f;
-
-    bool diamond = false;   // This piece will use Diomond generation og GPU
+    static uint S_root;                 // part of vertex and bigger class
+    uint    leafRoot = 0;
+    float   leafStiffness = 1.f;
+    float   leafFrequency = 10.f;
+    float   leafIndex = 0.f;
 };
-#pragma optimize("", on)
 
+
+
+
+struct ribbonBuilder
+{
+    static void setup(float scale, float radius, float3 offset);
+    int numPivots() { return pivotPoints.size(); }
+    static void finalizeAndFillLastBlock();
+    void    startRibbon(bool _cameraFacing, uint pv[4]);
+    static void clearStats(int _max);
+    void clearPivot();
+    uint pushPivot(uint _guid, _plant_anim_pivot _pivot);
+    static uint getRoot() { return mainVertex.S_root; }
+    static void setRoot(uint _r) { mainVertex.S_root = _r; }
+    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
+        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false);
+    static float3 egg(float2 extents, float3 vector, float yOffset);
+    static void lightBasic(float2 extents, float plantDepth, float yOffset);
+    static void pack();
+
+
+    static std::vector<ribbonVertex>        ribbons;        // can we get this non static
+    static std::vector<ribbonVertex8>       packed;
+    static ribbonVertex mainVertex;    // used for packing since some things accumulate
+    std::vector<_plant_anim_pivot>   pivotPoints;
+    std::map<int, int> pivotMap;
+
+    static bool pushStart;
+    static int lod_startBlock;   // This is the blok this lod started on
+    static int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
+    static int totalRejectedVerts;   // this will not accept more verts once we push past ? But how to handle when pushing lods
+
+    // build errors and warnigns
+    bool tooManyPivots = false;
+};
 
 
 
@@ -679,7 +560,7 @@ public:
         {
             archive_float2(stem_to_leaf_Roll);
         }
-        
+
     }
 };
 CEREAL_CLASS_VERSION(_leafBuilder, 102);
@@ -948,7 +829,7 @@ public:
     std::vector<plant> plantData;           // for laoding onlt
     std::vector<ribbonVertex8> vertexData;
     std::vector < _plant_anim_pivot> pivotData;
-    
+
     uint numP;
     uint numV;
 
@@ -961,7 +842,7 @@ public:
         archive(materials);
         archive(numP);
         archive(numV);
-        
+
     }
 };
 CEREAL_CLASS_VERSION(binaryPlantOnDisk, 100);
@@ -982,16 +863,16 @@ class recentFiles
     //void get(std::string pth);
     std::array<_pathSort, 10> paths;
 
-    
+
     std::sort(paths.begin(), paths.end(), [](float3 a, float3 b) {
-        // Custom comparison logic 
-        return a.x > b.x; // this sorts in ascending order 
+        // Custom comparison logic
+        return a.x > b.x; // this sorts in ascending order
         });
         */
     template<class Archive>
     void serialize(Archive& archive)
     {
-      //  archive(paths);
+        //  archive(paths);
     }
 };
 CEREAL_CLASS_VERSION(recentFiles, 100);

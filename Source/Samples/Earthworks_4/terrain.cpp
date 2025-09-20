@@ -48,7 +48,7 @@ _lastFile terrainManager::lastfile;
 
 void setupVert(ribbonVertex* r, int start, float3 pos, float radius, int _mat = 0)
 {
-    r->type = false;
+    r->faceCamera = true;
     r->startBit = start;
     r->position = pos;
     r->radius = radius;
@@ -312,7 +312,7 @@ void _shadowEdges::load(std::string filename, float _angle)
 
 
 
-
+/*
 void _leaf::load()
 {
     std::filesystem::path path = terrainManager::lastfile.leaves;
@@ -497,14 +497,7 @@ void _leaf::renderGui(Gui* _gui)
     if (ImGui::DragFloat("translucency", &translucencyScale, 0.01f, 0, 2, "%2.2f")) changed = true;
     if (ImGui::DragFloat("translucency new", &translucencyScaleNew, 0.01f, 0, 2, "%2.2f")) changed = true;
 
-    /*
-    if (ImGui::Selectable(textureName.c_str()))
-    {
-        loadTexture();
-    }
-    ImGui::Text("material index - %d", material);
-    */
-
+   
 
 
 
@@ -574,7 +567,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
             float s_Length = (stem_length.x * (1.f + distribution(generator) * stem_length.y)) * stemStep * 0.001f * _age;
             float t = (float)i * stemStep;
 
-            ribbon[ribbonLength].type = integrate_stem ? rotate : 0;
+            ribbon[ribbonLength].faceCamera = integrate_stem ? rotate : 0;
             ribbon[ribbonLength].startBit = i > 0;
             ribbon[ribbonLength].position = _pos;
             ribbon[ribbonLength].radius = stem_width * .001f * 0.5f * _age;
@@ -638,7 +631,7 @@ void _leaf::buildLeaf(float _age, float _lodPixelsize, int _seed, glm::mat4 vert
         if (du > 1) du = 1;
         if (leafCNT < 3) du = 1;
 
-        ribbon[ribbonLength].type = !rotate;
+        ribbon[ribbonLength].faceCamera = rotate;
         ribbon[ribbonLength].startBit = !firstleafVertex;
         ribbon[ribbonLength].position = _pos;
         ribbon[ribbonLength].radius = l_W * 0.5f * du;
@@ -746,17 +739,7 @@ void _twig::reloadMaterials()
 {
     stem_Material.index = _plantMaterial::static_materials_veg.find_insert_material(stem_Material.name);
     sprite_Material.index = _plantMaterial::static_materials_veg.find_insert_material(sprite_Material.name);
-    /*
-    for (int m = 0; m < materialList.size(); m++)
-    {
-        materialList[m].index = _plantMaterial::static_materials_veg.find_insert_material(materialList[m].name);
-    }
-
-    for (int m = 0; m < leafmaterialList.size(); m++)
-    {
-        leafmaterialList[m].index = _plantMaterial::static_materials_veg.find_insert_material(leafmaterialList[m].name);
-    }
-    */
+   
 }
 
 
@@ -956,39 +939,7 @@ void _twig::renderGui(Gui* _gui)
 
 
 
-        /*
-        ImGui::NewLine();
-        ImGui::Text("leaf materials");
-        if (ImGui::Button("add leafmaterial"))
-        {
-            leafmaterialList.emplace_back();
-        }
-        for (int m = 0; m < leafmaterialList.size(); m++)
-        {
-            ImGui::PushID(7800 + m);
-            {
-                ImGui::Text("%d", leafmaterialList[m].index);
-                ImGui::SameLine(0, 10);
-                ImGui::SetNextItemWidth(200);
-                if (ImGui::Button(leafmaterialList[m].displayname.c_str()))
-                {
-                    std::filesystem::path path = terrainManager::lastfile.vegMaterial;
-                    FileDialogFilterVec filters = { {"vegetationMaterial"} };
-                    if (openFileDialog(filters, path))
-                    {
-                        leafmaterialList[m].index = _plantMaterial::static_materials_veg.find_insert_material(path);
-                        leafmaterialList[m].name = path.string();       // FIXME dont liek this,. should be relative
-                        leafmaterialList[m].displayname = path.filename().string();
-                        terrainManager::lastfile.vegMaterial = path.string();
-                    }
-                }
-
-
-            }
-            ImGui::PopID();
-        }
-        */
-
+        
 
         ImGui::NewLine();
         ImGui::Text("lodding");
@@ -1053,7 +1004,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
         if (has_stem || (lod == 0))
         {
-            ribbon[ribbonLength].type = 0;
+            ribbon[ribbonLength].faceCamera = 1;
             ribbon[ribbonLength].startBit = i > 0;
             ribbon[ribbonLength].position = _pos;
             ribbon[ribbonLength].radius = stem_width * .001f * 0.5f * pow(leafAge, 0.4f);
@@ -1129,15 +1080,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
     //if (tipleaves)
     {
-        /*
-        leaves.buildLeaf(1.0f, 0.f, 100, stalk, _pos, (glm::vec3)stalk[2], lod);
-        if (lod > 0)
-        {
-            for (int k = 0; k < leaves.ribbonLength; k++) {
-                ribbon[leafOffset + k] = leaves.ribbon[k];
-            }
-            leafOffset += leaves.ribbonLength;
-        }*/
+        
     }
 
     if (lod == 0)
@@ -1159,37 +1102,7 @@ void _twig::build(float _age, float _lodPixelsize, glm::mat4 _start, int rndSeed
 
         leafOffset = 2;
     }
-    /*
-     if (lod == 0)
-     {
-         // simplify the shape
-         int current = 1;
-         float step = stemStep * startSegment;
-         for (int i = startSegment; i < ribbonLength; i++)
-         {
-             if (step > ribbon[i].radius * 2 || (i == ribbonLength-1))
-             {
-                 ribbon[current] = ribbon[i];
-                 current++;
-                 step = 0;
-             }
-             step += stemStep;
-         }
-
-         // fix up first width since thias l is likely original stem width and will cut things off
-         ribbon[0].radius = (ribbon[0].radius + ribbon[1].radius) / 2.0f;
-         leafOffset = current;
-
-         // and fix dU
-         for (int i = 0; i < ribbonLength; i++)
-         {
-             ribbon[i].uv.x = ribbon[i].radius / maxRadiusLod0;
-         }
-
-         // and move the last one higher to include th top leaves
-         ribbon[current - 1].position.y = extents.y;
-     }
-     */
+    
 
     ribbonLength = leafOffset;
 
@@ -1607,10 +1520,7 @@ float3 _cubemap::toVec(int face, int y, int x)
     return glm::normalize(V);
 }
 
-/*
-float3 _cubemap::toVec(glm::int3 c)
-{
-} */
+
 
 
 float _cubemap::sampleDistance(float3 _v)
@@ -1773,31 +1683,7 @@ void _GroveTree::renderGui(Gui* _gui)
     ImGui::PushFont(_gui->getFont("roboto_20"));
     {
 
-        /*
-        leafBuilder.renderGui(_gui);
-        if (leafBuilder.changed)
-        {
-            leafBuilder.changed = false;
-            leafBuilder.ribbonLength = 0;
-
-            for (int y = 0; y < 10; y++)
-            {
-                for (int x = 0; x < 10; x++)
-                {
-                    glm::mat4 vertex = glm::mat4(1.0);
-
-                    vertex = glm::rotate(vertex, 0.628f * (float)x + (y), glm::vec3(0, 1, 0));
-                    //vertex = glm::translate(vertex, (glm::vec3)vertex[2] * 0.02f);
-                    //vertex = glm::translate(vertex, glm::vec3(0, 0.1 * y, 0));
-
-                    leafBuilder.buildLeaf((10 - y) * 0.1f, 0.001f, y * 102 + x, vertex, glm::vec3(0, 0.1 * y, 0) + (glm::vec3)vertex[2] * 0.02f);
-                }
-
-            }
-
-            rebuildRibbons_Leaf();
-        }
-        */
+       
 
         Gui::Window weedPanel(_gui, "weed builder##tfPanel", { 900, 900 }, { 100, 100 });
         {
@@ -2049,7 +1935,7 @@ void _GroveTree::importTwig()
                     float3 v0 = float3(vin.x, vin.z + vin.x, -vin.y);
                     vin = readVertex();
                     float3 v1 = float3(vin.x, vin.z + vin.x, -vin.y);
-                    twig[twiglength].type = 0;
+                    twig[twiglength].faceCamera = 1;
                     twig[twiglength].startBit = i > 0;
                     twig[twiglength].position = (v0 + v1) * 0.5f;
                     twig[twiglength].bitangent = (v1 - v0) * 0.5f;
@@ -2216,11 +2102,7 @@ void _GroveTree::load()
                     if (oldNumVerts < numVerts) {
                         if ((numVerts == 8) && (!currentBranch->isDead)) {
                             // so when the verts increase we have hit the endcap of a branch
-                            /*
-                            endLeaves.emplace_back();
-                            endLeaves.back().pos = center;
-                            endLeaves.back().dir = nodeDir;
-                            */
+                            
                         }
                         else if (numVerts == 5) {
                             numDeadEnds++;
@@ -2301,18 +2183,7 @@ void _GroveTree::rebuildVisibility()
                 branch.isVisible = anyVisible;
             }
 
-            /*
-            if (!vis.SmallerThan)
-            {
-                bool anyVisible = false;
-                for (auto& node : branch.nodes)
-                {
-                    node.isVisible = node.radius > vis.radiusCutoff;
-                    anyVisible |= node.isVisible;
-                }
-                branch.isVisible = anyVisible;
-            }
-            */
+           
         }
 
 
@@ -2471,7 +2342,7 @@ void _GroveTree::rebuildRibbons()
 
                 if (node.isNodeVisible)
                 {
-                    branchRibbons[numBranchRibbons].type = 0;
+                    branchRibbons[numBranchRibbons].faceCamera = 1;
                     branchRibbons[numBranchRibbons].startBit = notFirst;
                     branchRibbons[numBranchRibbons].position = node.pos;
                     branchRibbons[numBranchRibbons].bitangent = node.dir;
@@ -2614,7 +2485,7 @@ void _GroveTree::rebuildRibbons()
 
 
     toPlant();
-    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
+    ribbonBuilder::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
     for (int i = 0; i < numBranchRibbons; i++)
     {
         packedRibbons[i] = branchRibbons[i].pack();
@@ -2626,7 +2497,7 @@ void _GroveTree::rebuildRibbons()
 void _GroveTree::rebuildRibbons_Leaf()
 {
     toPlant();
-    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
+    ribbonBuilder::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
 
     for (int i = 0; i < leafBuilder.ribbonLength; i++)
     {
@@ -2641,7 +2512,7 @@ void _GroveTree::rebuildRibbons_Twig()
 
     extents = twigBuilder.extents;
     toPlant();
-    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
+    ribbonBuilder::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
 
     // Doen myy multi plant lighting hier
     for (int i = 0; i < twigBuilder.ribbonLength; i++)
@@ -2660,7 +2531,7 @@ void _GroveTree::rebuildRibbons_Weed()
 {
     extents = weedBuilder.extents;
     toPlant();
-    ribbonVertex::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
+    ribbonBuilder::setup(gpuPlant.scale, gpuPlant.radiusScale, gpuPlant.offset);
 
     // Doen myy multi plant lighting hier
     for (int i = 0; i < weedBuilder.ribbonLength; i++)
@@ -2680,40 +2551,7 @@ void _GroveTree::rebuildRibbons_Weed()
 }
 
 
-/*
-glm::int3 _GroveTree::cubeLookup(glm::vec3 Vin)
-{
-    glm::vec3 V = glm::normalize((Vin - light.center) * light.scale);
-    glm::int3 R;
-    if ((fabs(V.x) > fabs(V.y)) && (fabs(V.x) > fabs(V.z)))
-    {
-        if (V.x > 0) R.x = 0;
-        else R.x = 1;
-        V /= fabs(V.x);
-        R.y = (int)floor(V.y * 8.f) + 8;
-        R.z = (int)floor(V.z * 8.f) + 8;
-    }
-    else if (fabs(V.y) > fabs(V.x))
-    {
-        if (V.y > 0) R.x = 2;
-        else R.x = 3;
-        V /= fabs(V.y);
-        R.y = (int)floor(V.x * 8.f) + 8;
-        R.z = (int)floor(V.z * 8.f) + 8;
-    }
-    else
-    {
-        if (V.z > 0) R.x = 4;
-        else R.x = 5;
-        V /= fabs(V.z);
-        R.y = (int)floor(V.x * 8.f) + 8;
-        R.z = (int)floor(V.y * 8.f) + 8;
-    }
 
-
-    return R;
-}
-*/
 
 
 
@@ -2760,7 +2598,7 @@ void _GroveTree::calcLight()
 }
 
 
-
+*/
 
 
 
@@ -4698,7 +4536,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
     }
     if (ImGui::BeginPopup("tree"))      // modal
     {
-        groveTree.renderGui(_gui);
+        //groveTree.renderGui(_gui);
         ImGui::EndPopup();
     }
 
@@ -6678,7 +6516,7 @@ void replaceAll_TM(std::string& str, const std::string& from, const std::string&
         start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
     }
 }
-
+/*
 void terrainManager::bakeVegetation(int baseSize, float clipCenter, std::string _ext)
 {
     int superSample = 8;
@@ -6821,7 +6659,7 @@ void terrainManager::bakeVegetation(int baseSize, float clipCenter, std::string 
         //Mat.serialize(archive, _PLANTMATERIALVERSION);
     }
 }
-
+*/
 
 
 bool terrainManager::update(RenderContext* _renderContext)
@@ -8289,16 +8127,16 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
             ShaderVar& var = block->findMember("T");        // FIXME pre get
             _plantMaterial::static_materials_veg.setTextures(var);
             _plantMaterial::static_materials_veg.modified = false;
-            groveTree.bChanged = true;
+            //groveTree.bChanged = true;
         }
 
         if (_plantMaterial::static_materials_veg.modifiedData)
         {
             _plantMaterial::static_materials_veg.rebuildStructuredBuffer();
             _plantMaterial::static_materials_veg.modifiedData = false;
-            groveTree.bChanged = true;
+            //groveTree.bChanged = true;
         }
-
+        /*
         if (groveTree.bChanged)
         {
             auto& block = ribbonShader.Vars()->getParameterBlock("textures");
@@ -8357,7 +8195,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
 
             ribbonShader.drawInstanced(_renderContext, groveTree.numBranchRibbons, ribbonInstanceNumber * ribbonInstanceNumber);
         }
-
+        */
 
 
         if (!useFreeCamWhileGliding && (terrainMode == _terrainMode::glider) && numLoadedRibbons > 1)
@@ -9781,7 +9619,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
             if (keyEvent.key == Input::Key::B)
             {
                 //bakeOneVeg = true;
-                bakeVegetation();
+                //bakeVegetation();
             }
         }
 
@@ -10097,7 +9935,7 @@ bool terrainManager::onMouseEvent(const MouseEvent& mouseEvent, glm::vec2 _scree
             camPos.x = cos(mouseVegPitch) * sin(mouseVegYaw);
             camPos.z = cos(mouseVegPitch) * cos(mouseVegYaw);
             _camera->setPosition((camPos * mouseVegOrbit) + float3(0, 1000, 0));
-            _camera->setTarget(glm::vec3(0, 1000.f + groveTree.treeHeight * 0.5f, 0));
+            _camera->setTarget(glm::vec3(0, 1000.f, 0));
         }
         if ((terrainMode == _terrainMode::glider))
         {

@@ -98,7 +98,7 @@ struct _shadowEdges
 
 
 
-
+/*
 struct _leaf
 {
     void renderGui(Gui* _gui);
@@ -647,7 +647,7 @@ struct _GroveTree
     void toPlant();
 };
 CEREAL_CLASS_VERSION(_GroveTree, 101);
-
+*/
 
 
 template<typename K, typename V = K>
@@ -1097,7 +1097,7 @@ private:
     //bool bakeOneVeg = false;
     BlendState::SharedPtr           blendstateVegBake;
     //void bakeVegetation(int baseSize = 64, float clipCenter = 1.f, std::string _ext = "_BB");
-    void bakeVegetation(int baseSize = 64, float clipCenter = 1.f, std::string _ext = "_billboard");
+    //void bakeVegetation(int baseSize = 64, float clipCenter = 1.f, std::string _ext = "_billboard");
     computeShader		compute_bakeFloodfill;
     int ribbonInstanceNumber = 1;
     float ribbonSpacing = 3.0f;             // the size fo the extents
@@ -1380,7 +1380,7 @@ public:
 private:
 
     bool requestPopupTree = false;
-    _GroveTree groveTree;
+    //_GroveTree groveTree;
     //public:
         //static materialCache_plants    vegetationMaterialCache;
 
