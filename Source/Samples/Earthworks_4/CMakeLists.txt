@@ -43,6 +43,8 @@ target_sources(Earthworks_4 PRIVATE
     glider.h
     cfd.h
     cfd.cpp
+	ribbonBuilder.h
+    ribbonBuilder.cpp
 	vegetationBuilder.h
     vegetationBuilder.cpp
     PerlinNoise.hpp

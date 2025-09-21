@@ -17,9 +17,10 @@
 #include <random>
 
 #include"terrafector.h"
-#include"hlsl/terrain/vegetation_defines.hlsli"
-#include"hlsl/terrain/groundcover_defines.hlsli"    // FIXME combine these two
+//#include"hlsl/terrain/vegetation_defines.hlsli"
+//#include"hlsl/terrain/groundcover_defines.hlsli"    // FIXME combine these two
 
+#include "ribbonBuilder.h"
 
 using namespace Falcor;
 
@@ -191,91 +192,6 @@ struct packSettings
     float getScale() { return objectSize / 16384.0f; }
     float3 getOffset() { return objectOffset * objectSize; }
 };
-
-
-
-
-struct ribbonVertex
-{
-    ribbonVertex8 pack();
-
-    static float objectScale;   //  0.002 for trees  // 32meter block 2mm presision
-    static float radiusScale;   //  so biggest radius now objectScale / 2.0f;
-    static float O;
-    static float3 objectOffset;
-
-    int     faceCamera = 0;           // part of vertex and bigger class
-    bool    diamond = false;   // This piece will use Diomond generation og GPU
-    bool    startBit = false;
-    float3  position;
-    int     material;
-    float2  uv;
-    float3  bitangent;
-    float3  tangent;
-    float   radius;
-
-    float4  lightCone = { 0, 1, 0, 1 };
-    float   lightDepth = 0.2f;
-    float ambientOcclusion = 1.f;
-    unsigned char shadow = 255;         // ??? I think this in now unused
-    float albedoScale = 1.f;
-    float translucencyScale = 1.f;
-
-    uint pivots[4] = { 0, 0, 0, 0 };    // part of vertex and bigger class
-
-    static uint S_root;                 // part of vertex and bigger class
-    uint    leafRoot = 0;
-    float   leafStiffness = 1.f;
-    float   leafFrequency = 10.f;
-    float   leafIndex = 0.f;
-};
-
-
-
-
-struct ribbonBuilder
-{
-    void setup(float scale, float radius, float3 offset);
-    int numPivots() { return pivotPoints.size(); }
-    void finalizeAndFillLastBlock();
-    void    startRibbon(bool _cameraFacing, uint pv[4]);
-    void clearStats(int _max);
-    void clearPivot();
-    uint pushPivot(uint _guid, _plant_anim_pivot _pivot);
-    uint getRoot() { return mainVertex.S_root; }
-    void setRoot(uint _r) { mainVertex.S_root = _r; }
-    void set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot = true,
-        float _stiff = 0.5f, float _freq = 0.1f, float _index = 0.f, bool _diamond = false);
-    float3 egg(float2 extents, float3 vector, float yOffset);
-    void lightBasic(float2 extents, float plantDepth, float yOffset);
-    void pack();
-    void clear();
-    uint numPacked() { return packed.size(); }
-    uint numVerts() { return ribbons.size(); }
-
-    ribbonVertex8* getPackedData() {        return packed.data();    }
-    
-
-    float2 calculate_extents(glm::mat4 view);
-    float buckets_8[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    float4 dU;
-
-
-    std::vector<ribbonVertex>        ribbons;        // can we get this non static
-    std::vector<ribbonVertex8>       packed;
-    ribbonVertex mainVertex;    // used for packing since some things accumulate
-    std::vector<_plant_anim_pivot>   pivotPoints;
-    std::map<int, int> pivotMap;
-
-    bool pushStart;
-    int lod_startBlock;   // This is the blok this lod started on
-    int maxBlocks;   // this will not accept more verts once we push past ? But how to handle when pushing lods
-    int totalRejectedVerts;   // this will not accept more verts once we push past ? But how to handle when pushing lods
-
-    // build errors and warnigns
-    bool tooManyPivots = false;
-};
-
 
 
 class _vegMaterial
