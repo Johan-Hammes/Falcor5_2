@@ -529,9 +529,6 @@ private:
     Texture::SharedPtr	  spriteTexture = nullptr;
     Texture::SharedPtr	  spriteNormalsTexture = nullptr;
 
-    pixelShader vegetationShader;
-    pixelShader vegetationShader_Bake;
-    Buffer::SharedPtr       ribbonDataVegBuilder;
 
     pixelShader ribbonShader;
     uint numLoadedRibbons;  // paraglider only
@@ -832,24 +829,8 @@ public:
         Texture::SharedPtr	  skyTexture;
         Texture::SharedPtr	  envTexture;
         Texture::SharedPtr	  dappledLightTexture;
-        // sky mesh
-
-        int numSegments = 2000;
-
-        Buffer::SharedPtr blockData;
-        Buffer::SharedPtr instanceData;
-        Buffer::SharedPtr plantData;
-        Buffer::SharedPtr vertexData;
-        std::array<plant, 256> plantBuf;
-        std::array<plant_instance, 16384> instanceBuf;
-        std::array<block_data, 16384> blockBuf;
-        std::array<ribbonVertex8, 128 * 256> vertexBuf;
-
-
-
-        //_rootPlant ROOT;
-
     }vegetation;
+
 private:
     bool showGUI = true;
 

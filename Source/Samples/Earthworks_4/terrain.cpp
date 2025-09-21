@@ -696,10 +696,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainSpiteShader.Vars()->setBuffer("instanceBuffer", split.buffer_instance_quads);        // WHY BOTH
         terrainSpiteShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
         terrainSpiteShader.Vars()->setSampler("gSmpLinearClamp", sampler_Clamp);
-        //terrainSpiteShader.Vars()->setTexture("gAlbedo", spriteTexture);
-        //terrainSpiteShader.Vars()->setTexture("gNorm", spriteNormalsTexture);
-        //terrainSpiteShader.Vars()->setTexture("gEnv", );
-        //terrainSpiteShader.Vars()->setTexture("gHalfBuffer", _hdrHalfCopy);
 
         
 
@@ -713,13 +709,10 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
 
 
 
-        std::mt19937 G(12);
-        std::uniform_real_distribution<> D(-1.f, 1.f);
-        std::uniform_real_distribution<> D2(0.7f, 1.4f);
         ribbonData[0] = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
         ribbonData[1] = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
 
-        ribbonDataVegBuilder = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
+        //ribbonDataVegBuilder = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
 
         
 
@@ -783,72 +776,6 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
             rsDesc.setFillMode(RasterizerState::FillMode::Solid).setCullMode(RasterizerState::CullMode::Front);
             rasterstateGliderWing = RasterizerState::create(rsDesc);
         }
-
-
-        vegetation.plantData = Buffer::createStructured(sizeof(plant), 256);
-        vegetation.instanceData = Buffer::createStructured(sizeof(plant_instance), 16384);
-        vegetation.blockData = Buffer::createStructured(sizeof(block_data), 16384);        // big enough to house inatnces * blocks per instance   8 Mb for now
-        vegetation.vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 256 * 128);
-
-        vegetation.plantBuf[0].radiusScale = ribbonVertex::radiusScale;
-        vegetation.plantBuf[0].scale = ribbonVertex::objectScale;
-        vegetation.plantBuf[0].offset = ribbonVertex::objectOffset;
-        vegetation.plantBuf[0].Ao_depthScale = 10;
-        vegetation.plantBuf[0].bDepth = 1;
-        vegetation.plantBuf[0].bScale = 1;
-        vegetation.plantBuf[0].sunTilt = -0.2f;
-
-        //std::mt19937 generator(100);
-        std::uniform_real_distribution<> RND(-1.f, 1.f);
-
-        for (int i = 0; i < 16384; i++)
-        {
-            vegetation.instanceBuf[i].plant_idx = 0;
-            vegetation.instanceBuf[i].position = { RND(generator) * 5, 0, RND(generator) * 5 };
-            vegetation.instanceBuf[i].scale = 1.f + RND(generator) * 0.5f;
-            vegetation.instanceBuf[i].rotation = RND(generator) * 3.14f;
-            vegetation.instanceBuf[i].time_offset = RND(generator) * 100;
-        }
-        vegetation.instanceBuf[0].position = { 0, 0, 0 };
-        vegetation.instanceBuf[0].scale = 1.f;
-        vegetation.instanceBuf[0].rotation = 0;
-
-        for (int i = 0; i < 16384; i++)
-        {
-            vegetation.blockBuf[i].vertex_offset = 0;
-            vegetation.blockBuf[i].instance_idx = i;
-            vegetation.blockBuf[i].section_idx = 0;
-        }
-
-        //std::array<ribbonVertex8, 128 * 256> vertexBuf;
-
-        vegetationShader.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
-        vegetationShader.Vars()->setBuffer("plant_buffer", vegetation.plantData);
-        vegetationShader.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
-        vegetationShader.Vars()->setBuffer("block_buffer", vegetation.blockData);
-        vegetationShader.Vars()->setBuffer("vertex_buffer", vegetation.vertexData);
-        //vegetationShader.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
-        vegetationShader.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
-        //vegetationShader.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
-        vegetationShader.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
-        vegetationShader.Vars()->setSampler("gSamplerClamp", sampler_ClampAnisotropic);              // fixme only cvlamlX
-
-
-                   // fixme only cvlamlX
-
-        
-
-        vegetationShader_Bake.add("_BAKE", "");
-        vegetationShader_Bake.load("Samples/Earthworks_4/hlsl/terrain/render_vegetation_ribbons.hlsl", "vsMain", "psMain", Vao::Topology::LineStrip, "gsMain");
-        vegetationShader_Bake.Vars()->setBuffer("plant_buffer", vegetation.plantData);
-        vegetationShader_Bake.Vars()->setBuffer("instance_buffer", vegetation.instanceData);
-        vegetationShader_Bake.Vars()->setBuffer("block_buffer", vegetation.blockData);
-        vegetationShader_Bake.Vars()->setBuffer("vertex_buffer", vegetation.vertexData);
-        //vegetationShader_Bake.Vars()->setBuffer("instanceBuffer", ribbonDataVegBuilder);
-        vegetationShader_Bake.Vars()->setBuffer("materials", _plantMaterial::static_materials_veg.sb_vegetation_Materials);
-        //vegetationShader_Bake.Vars()->setBuffer("instances", split.buffer_clippedloddedplants);
-        vegetationShader_Bake.Vars()->setSampler("gSampler", sampler_Ribbons);              // fixme only cvlamlX
-
 
 
 
@@ -935,8 +862,8 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         vegetation.dappledLightTexture = Texture::createFromFile(settings.dirResource + "/vegetation/dappled_noise_01.jpg", false, true);
         triangleShader.Vars()->setTexture("gSky", vegetation.skyTexture);
         ribbonShader.Vars()->setTexture("gEnv", vegetation.envTexture);
-        vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
-        vegetationShader_Bake.Vars()->setTexture("gEnv", vegetation.envTexture);
+        //vegetationShader.Vars()->setTexture("gEnv", vegetation.envTexture);
+        //vegetationShader_Bake.Vars()->setTexture("gEnv", vegetation.envTexture);
 
         
 
@@ -5669,7 +5596,7 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
         rappersvilleShader.Vars()["PerFrameCB"]["view"] = view;
         rappersvilleShader.Vars()["PerFrameCB"]["viewproj"] = viewproj;
         rappersvilleShader.Vars()["PerFrameCB"]["eye"] = _camera->getPosition();
-        //rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
+        rappersvilleShader.drawInstanced(_renderContext, 3, numrapperstri);
 
     }
 

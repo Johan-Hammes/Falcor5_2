@@ -42,8 +42,6 @@ ribbonBuilder _ribbonBuilder;
 _plantBuilder* _rootPlant::selectedPart = nullptr;
 _plantMaterial* _rootPlant::selectedMaterial = nullptr;
 std::mt19937 _rootPlant::generator(100);
-std::uniform_real_distribution<> _rootPlant::rand_1(-1.f, 1.f);
-std::uniform_real_distribution<> _rootPlant::rand_01(0.f, 1.f);
 std::uniform_int_distribution<> _rootPlant::rand_int(0, 65535);
 std::uniform_int_distribution<> DD_0_255(0, 255);   // for pivot shifts
 
@@ -799,7 +797,7 @@ Gui* _plantBuilder::_gui;
 
 template <class T>     T randomVector<T>::get()
 {
-    static int rnd_idx = 0;
+    
     rnd_idx += _rootPlant::rand_int(_rootPlant::generator);
     rnd_idx %= data.size();
     return data[rnd_idx];
@@ -930,10 +928,9 @@ ImVec4 mat_color = ImVec4(0.0f, 0.01f, 0.07f, 1);
 
 
 
+
 // _leafBuilder
 // -----------------------------------------------------------------------------------------------------------------------------------
-
-
 void _leafBuilder::loadPath()
 {
     std::ifstream is(terrafectorEditorMaterial::rootFolder + path);
@@ -964,7 +961,6 @@ void _leafBuilder::load()
     }
 }
 
-
 void _leafBuilder::save()
 {
     if (changedForSave) {
@@ -977,7 +973,6 @@ void _leafBuilder::save()
         ImGui::PopStyleColor();
     }
 }
-
 
 void _leafBuilder::saveas()
 {
@@ -1109,23 +1104,19 @@ void _leafBuilder::treeView()
         CLICK_PART;
         ImGui::TreePop();
     }
-
 }
 
-#define RND_ALBEDO(data) (data * (1.f + 0.3f * (float)distrib(_rootPlant::generator)))
-#define RND_B(data) (data.x * (1.f + data.y * (float)distrib(_rootPlant::generator)))
-#define RND_CRV(data) (data.x + (data.y * (float)distrib(_rootPlant::generator)))
-
-//#define CURVE(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[0])     // pitch
-//#define TWIST(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[1])     // roll
-//#define CURVE_Z(_mat,_ang)  glm::rotate(glm::mat4(1.0), _ang, (glm::vec3)_mat[2])   // yaw
+std::uniform_real_distribution<> d_1_1(-1.f, 1.f);
+#define RND_ALBEDO(data) (data * (1.f + 0.3f * (float)d_1_1(_rootPlant::generator)))
+#define RND_B(data) (data.x * (1.f + data.y * (float)d_1_1(_rootPlant::generator)))
+#define RND_CRV(data) (data.x + (data.y * (float)d_1_1(_rootPlant::generator)))
 
 #define GROW(_mat,_length)   _mat[3] += _mat[1] * _length
-
 #define ROLL(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 1, 0))
 #define PITCH(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(1, 0, 0))
 #define YAW(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 0, 1))
-//#define RPY(_mat,_r,_p,_y)  TWIST(_mat,_r) * CURVE(_mat,_p) * CURVE_Z(_mat,_y)
+
+#define ROLL_HORIZONTAL(_mat)   while (fabs(_mat[2][1]) > 0.04f || (_mat[0][1] >= 0))   {    ROLL(_mat, 0.03f);     }
 
 void _leafBuilder::clear_build_info()
 {
@@ -1135,12 +1126,10 @@ void _leafBuilder::clear_build_info()
 }
 
 
-//#pragma optimize("", off)
 glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
 {
     uint startVerts = _ribbonBuilder.numVerts();
 
-    std::uniform_real_distribution<> distrib(-1.f, 1.f);
     std::uniform_real_distribution<> d50(0.5f, 1.5f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     std::uniform_int_distribution<> distPerlin(1, 50000);
@@ -1154,12 +1143,12 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
     float age = pow(_settings.normalized_age, 1.f);
     bool stemVisible = false;
 
-
-    // freq and stiffness needs to app,y to both stem and leaf
-    float lengthS = RND_B(leaf_length) * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
+    float lengthS = RND_B(leaf_length) * 0.001f * age;                  // freq and stiffness needs to apply to both stem and leaf
     float widthS = RND_B(leaf_width) * 0.001f * age;
     float freq = rootFrequency() * sqrt(lengthS) / sqrt(widthS);
     float stiffness = 1.f / ossilation_stiffness;
+
+    
 
     // stem
     if (stem_length.x > 0)
@@ -1169,12 +1158,11 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
         float curve = RND_CRV(stem_curve) / 100.f * age;
 
         // Lodding stem, but use length instead............................................................
-        bool showStem = width > _settings.pixelSize;
         int numStem = glm::clamp((int)((length / _settings.pixelSize) / 8.f * 100.f), 1, stemVerts.y);     // 1 for every 8 pixels, clampped
         float step = 99.f / (numStem);
         float cnt = 0.f;
 
-        if (_addVerts && showStem)
+        if (_addVerts && (width > _settings.pixelSize))
         {
             _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
             _ribbonBuilder.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
@@ -1187,7 +1175,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
             GROW(node, length);
 
             cnt++;
-            if (_addVerts && showStem && cnt >= step)
+            if (stemVisible && cnt >= step)
             {
                 _ribbonBuilder.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
                 cnt -= step;
@@ -1197,15 +1185,12 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
         GROW(node, -width * 0.5f);  // Now move ever so slghtly backwards for better penetration of stem to leaf
     }
 
-
-
-    // rotation from stem to leaf
-    ROLL(node, RND_CRV(stem_to_leaf_Roll));
+    
+    ROLL(node, RND_CRV(stem_to_leaf_Roll));                         // rotation from stem to leaf
     PITCH(node, RND_CRV(stem_to_leaf));
 
 
     // build the leaf
-    // WILL BE significantly better if we calc start and end positions
     {
         _vegMaterial mat = materials.get();
         float albedoScale = RND_ALBEDO(glm::lerp(mat.albedoScale.y, mat.albedoScale.x, age));
@@ -1217,109 +1202,66 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
         float curve = RND_CRV(leaf_curve) / 100.f * age;
         float twist = RND_CRV(leaf_twist) / 100.f * age;
 
-        // some of this detail needs to go into the left data and user set
-        //float freq = rootFrequency() * sqrt(length * 100) / sqrt(width * 100);
-        //float stiffness = 1.f / ossilation_stiffness;
-
         // Lodding leaf............................................................
-        // random width to test
         bool showLeaf = (width * d50(_rootPlant::generator)) > _settings.pixelSize;
-        int numLeaf = glm::clamp((int)((length / _settings.pixelSize) / leafLengthSplit * 100.f), numVerts.x - 1, numVerts.y - 1);     // 1 for every 8 pixels, clampped
-        bool forceFacing = false;// numLeaf == 1;
-        uint firstVis = 0;
-        uint lastVis = 99;
-        bool first = true;
-
-        for (int i = 0; i < 100; i++)
+        if (showLeaf)
         {
-            float t = (float)i / 100.f;
-            float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
-            if (first)
+            int numLeaf = glm::clamp((int)((length / _settings.pixelSize) / leafLengthSplit * 100.f), numVerts.x - 1, numVerts.y - 1);
+            float step = 99.f / numLeaf;
+            float cnt = 0;
+            bool useDiamond = (useTwoVertDiamond && (numLeaf == 1));
+
+            for (int i = 0; i < 100; i++)
             {
-                if (width * du <= _settings.pixelSize)
+                float t = (float)i / 99.f;
+                float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
+                if (numLeaf == 1) du = 1.f;
+
+                float perlinScale = glm::smoothstep(0.f, 0.3f, t) * age;
+                float noise = (float)perlin.normalizedOctave1D(perlinCurve.y * t, 4);
+                PITCH(node, noise * perlinCurve.x * perlinScale);
+
+                noise = (float)perlinTWST.normalizedOctave1D(perlinTwist.y * t, 4) * age;
+                ROLL(node, noise * perlinTwist.x * perlinScale);
+
+                ROLL(node, twist);
+                PITCH(node, curve);
+                GROW(node, length);
+
+                if (_addVerts)
                 {
-                    firstVis = i;
-                    lastVis = i;
-                }
-                else first = false;
-            }
-            else
-            {
-                if (width * du > _settings.pixelSize)
-                {
-                    lastVis = i;
-                }
-            }
-
-        }
-        float step = (float)(lastVis - firstVis) / numLeaf;
-        float cnt = 0;
-
-        // Fixme search for first and last vertex on size
-        //showLeaf = lastVis > firstVis;
-        bool useDiamond = (useTwoVertDiamond && (numLeaf == 1));
-        if (useDiamond)
-        {
-            firstVis = 0;
-            lastVis = 99;
-            step = 99;
-        }
-
-
-
-        for (int i = 0; i < 100; i++)
-        {
-            float t = (float)i / 99.f;
-            float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
-            if (numLeaf == 1) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
-
-            float perlinScale = glm::smoothstep(0.f, 0.3f, t) * age;
-            float noise = (float)perlin.normalizedOctave1D(perlinCurve.y * t, 4);
-            PITCH(node, noise * perlinCurve.x * perlinScale);
-
-            noise = (float)perlinTWST.normalizedOctave1D(perlinTwist.y * t, 4) * age;
-            ROLL(node, noise * perlinTwist.x * perlinScale);
-
-            ROLL(node, twist);
-            PITCH(node, curve);
-            GROW(node, length);
-
-
-            if (_addVerts && i == firstVis && showLeaf)
-            {
-                uint oldRoot = _ribbonBuilder.getRoot();
-                _ribbonBuilder.startRibbon(cameraFacing || forceFacing, _settings.pivotIndex);
-                if (stemVisible)
-                {
-                    _ribbonBuilder.setRoot(oldRoot);
-                    // uglu but means that the two ribbon-s share the one root
-                }
-
-                _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
-                cnt = 0;
-            }
-            else if (i > firstVis)
-            {
-                cnt++;
-                if (_addVerts && (i <= lastVis) && showLeaf && cnt >= step)
-                {
-                    _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
-                    cnt -= step;
+                    if (i == 0)
+                    {
+                        uint oldRoot = _ribbonBuilder.getRoot();
+                        _ribbonBuilder.startRibbon(cameraFacing, _settings.pivotIndex);
+                        if (stemVisible)
+                        {
+                            _ribbonBuilder.setRoot(oldRoot);
+                            // uglu but means that the two ribbon-s share the one root
+                        }
+                        _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
+                        cnt = 0;
+                    }
+                    else
+                    {
+                        cnt++;
+                        if (cnt >= step)
+                        {
+                            _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
+                            cnt -= step;
+                        }
+                    }
                 }
             }
         }
-
     }
 
     uint numVerts = _ribbonBuilder.numVerts() - startVerts;
     if (numVerts > 0) numInstancePacked++;
     numVertsPacked += numVerts;
-
     changedForSave |= changed;
-
     return node;
 }
-#pragma optimize("", on)
 
 
 
@@ -1371,7 +1313,6 @@ void _stemBuilder::save()
             changedForSave = false;
         }
         ImGui::PopStyleColor();
-
     }
 }
 
@@ -1389,6 +1330,7 @@ void _stemBuilder::saveas()
         }
     }
 }
+
 
 void _stemBuilder::renderGui()
 {
@@ -1479,19 +1421,11 @@ void _stemBuilder::renderGui()
         R_CURVE("node bend", node_angle, "stem bend at a node", "random");
         R_CURVE("perlin Pitch", perlinCurve, "amount", "repeats");
         R_CURVE("perlin Yaw", perlinTwist, "amount", "repeats");
-        //ImGui::GetStyle().Colors[ImGuiCol_Header] = mat_color;
         style.Colors[ImGuiCol_Header] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
         stem_Material.renderGui(gui_id);
-        //style.FrameBorderSize = 1;
-        //if (ImGui::Checkbox("bake-2 replaces stem", &bake2_replaces_stem)) changed = true;
-        //style.FrameBorderSize = 0;
-        //CHECKBOX("bake-2 replaces stem", &bake2_replaces_stem, "Stem will only be used in baking but replaced by bake-2 in final detail");
         R_FLOAT("length split", nodeLengthSplit, 0.1f, 4.f, 100.f, "Number of pixels to insert a new node in this leaf, pusg it higher for very curved leaves");
 
         stemReplacement.renderGui("stem override", gui_id);
-
-
-
 
         ImGui::TreePop();
     }
@@ -1519,15 +1453,10 @@ void _stemBuilder::renderGui()
 
         ImGui::NewLine();
         CHECKBOX("unique tip", &unique_tip, "load a different part for the tip \nif off it will reuse one of the breanch / leaf parts");
-        //style.FrameBorderSize = 1;
-        //if (ImGui::Checkbox("unique_tip", &unique_tip)) changed = true;
-        //style.FrameBorderSize = 0;
 
         if (unique_tip)
         {
             R_LENGTH("tip age", tip_age, "age of the tip\n-1 means that the tip plant will decide", "random");
-
-            //ImGui::GetStyle().Colors[ImGuiCol_Header] = leaf_color;
             style.Colors[ImGuiCol_Header] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
             tip.renderGui("tip", gui_id);
         }
@@ -1536,13 +1465,6 @@ void _stemBuilder::renderGui()
 
     // tip
     ImGui::NewLine();
-    style.Colors[ImGuiCol_Header] = ImVec4(0.01f, 0.01f, 0.01f, 1.f);
-    //if (ImGui::TreeNodeEx("tip", flags))
-    {
-
-
-        //ImGui::TreePop();
-    }
 
     changedForSave |= changed;
     anyChange |= changed;
@@ -1557,10 +1479,8 @@ void _stemBuilder::treeView()
     if (_rootPlant::selectedPart == this) {
         style.FrameBorderSize = 3;
         flags = flags | ImGuiTreeNodeFlags_Selected;
-        //style.Colors[ImGuiCol_Header] = selected_color;
         style.Colors[ImGuiCol_Border] = ImVec4(0.7f, 0.7f, 0.7f, 1);
     }
-
 
     if (changedForSave) style.Colors[ImGuiCol_Header] = selected_color;
 
@@ -1570,8 +1490,6 @@ void _stemBuilder::treeView()
             if (_ribbonBuilder.tooManyPivots)     ImGui::SetTooltip("ERROR - more than 255 pivots");
             else ImGui::SetTooltip("%d instances \n%d verts \n%d / %d pivots ", numInstancePacked, numVertsPacked, numPivots, _ribbonBuilder.numPivots());
         }
-
-
 
         style.FrameBorderSize = 0;
         CLICK_PART;
@@ -1590,18 +1508,17 @@ void _stemBuilder::treeView()
 lodBake* _stemBuilder::getBakeInfo(uint i)
 {
     if (i < lod_bakeInfo.size()) return &lod_bakeInfo[i];
-
-    return nullptr;
+    else return nullptr;
 }
 
 levelOfDetail* _stemBuilder::getLodInfo(uint i)
 {
     if (i < lodInfo.size()) return &lodInfo[i];
-    return nullptr;
+    else return nullptr;
 }
 
 
-#pragma optimize("", on)
+
 glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera)
 {
     lodBake& lB = lod_bakeInfo[_bakeIndex];
@@ -1612,10 +1529,7 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         float w = lB.extents.x * lB.bakeWidth;
         uint mat = lB.material.index;
 
-
-        //float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
-        //float tipLength = glm::length(tip_NODE[3] - last[3]);
-        float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);
+        float tipLength = glm::dot(tip_NODE[3] - last[3], node[1]);
         GROW(last, tipLength);
 
         // adjust start end
@@ -1623,16 +1537,16 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         GROW(node, totalLenght * lB.bake_V.x);
         GROW(last, -totalLenght * (1 - lB.bake_V.y));
 
-        _faceCamera = lB.faceCamera;
-        _ribbonBuilder.startRibbon(_faceCamera, _settings.pivotIndex);
-
         // ROTATE node and last so axis lines up
         float4 tangent = glm::normalize(last[3] - node[3]);
         node[1] = tangent;
         last[1] = tangent;
-        _ribbonBuilder.set(node, w * 0.99f, mat, float2(0.99f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);  // only 60% width, save pixels but test
-        _ribbonBuilder.set(last, w * 0.99f, mat, float2(0.99f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
+
+        _ribbonBuilder.startRibbon(lB.faceCamera, _settings.pivotIndex);
+        _ribbonBuilder.set(node, w, mat, float2(1.f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
+        _ribbonBuilder.set(last, w, mat, float2(1.f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
     }
+
     return last;
 }
 
@@ -1645,7 +1559,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
 
     glm::mat4 node = NODES.front();
     glm::mat4 last = NODES.back();
-    float tipLength = glm::dot(tip_NODE[3] - last[3], last[1]);     // Grow it to the tip, this is good
+    float tipLength = glm::dot(tip_NODE[3] - last[3], node[1]); 
     GROW(last, tipLength);
 
     glm::vec4 step = (last[3] - node[3]);
@@ -1658,43 +1572,33 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
 
     _ribbonBuilder.startRibbon(lB.faceCamera, _settings.pivotIndex);
 
-    std::vector<glm::mat4> all = NODES;
-    //all.push_back(tip_NODE);
-
     for (int i = 0; i < 4; i++)
     {
         glm::mat4 CURRENT = node;
 
-        if (all.size() > 3)
+        if (NODES.size() > 3)
         {
             int currentIdx = 0;
             for (int iN = 0; iN < NODES.size() - 1; iN++)
             {
-                float3 rel = all[iN][3] - node[3];
-                float3 rel2 = all[iN + 1][3] - node[3];
+                float3 rel = NODES[iN][3] - node[3];
+                float3 rel2 = NODES[iN + 1][3] - node[3];
                 float d = glm::dot(rel, (float3)node[1]);
                 float d2 = glm::dot(rel2, (float3)node[1]);
-
-                //fprintf(terrafectorSystem::_logfile, "node4 %d, %2.3f, %2.3f\n", i, d, d2);
 
                 if (d <= 0 && d2 > 0)
                 {
                     float total = (d2 - d) + 0.0000001;   // add a samll bit for when we have no tip and this becomes zero
-
-                    CURRENT[3] = glm::lerp(all[iN][3], all[iN + 1][3], -d / total);
-                    //fprintf(terrafectorSystem::_logfile, "found\n");
+                    CURRENT[3] = glm::lerp(NODES[iN][3], NODES[iN + 1][3], -d / total);
                     break;
                 }
             }
         }
 
-        _ribbonBuilder.set(CURRENT, w * lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, mat, float2(lod_bakeInfo[_bakeIndex].dU[i] * 0.99f, 1.f - (0.3333333f * i)), 1.f, 1.f);
-        //R_verts.set(CURRENT, w , mat, float2(1.f, 1.f - (0.3333333f * i)), 1.f, 1.f);
+        _ribbonBuilder.set(CURRENT, w * lod_bakeInfo[_bakeIndex].dU[i], mat, float2(lod_bakeInfo[_bakeIndex].dU[i], 1.f - (0.3333333f * i)), 1.f, 1.f);
         node[3] += step;
         node[1] += binorm_step;
     }
-
-    //R_verts.set(last, w * lod_bakeInfo[_bakeIndex].dU[3] * 0.6f, mat, float2(lod_bakeInfo[_bakeIndex].dU[3] * 0.6f, 1.f), 1.f, 1.f);
 
     return last;
 }
@@ -1708,12 +1612,11 @@ glm::mat4  _stemBuilder::build_n(buildSetting _settings, uint _bakeIndex, bool _
 
 void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 {
+    tip.reset();
     _settings.isBaking = false;
-    // reset teh seed so all lods build teh same here
-
     _settings.seed = (_settings.seed % 5000) + 30001;
     _rootPlant::generator.seed(_settings.seed + 1999);
-    //if ()
+
     {
         // walk the tip back ever so slightly
         glm::mat4 node = NODES.back();
@@ -1721,10 +1624,7 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 
         if (roll_horizontal)
         {
-            while (fabs(node[2][1]) > 0.05f)
-            {
-                ROLL(node, 0.01f);
-            }
+            ROLL_HORIZONTAL(node);
             ROLL(node, -1.570796326f);
         }
 
@@ -1734,18 +1634,12 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 
         if (unique_tip && tip.get().plantPtr)
         {
-            std::uniform_real_distribution<> distrib(-1.f, 1.f);
             _settings.node_age = RND_B(tip_age);
             tip_NODE = tip.get().plantPtr->build(_settings, _addVerts);
         }
         else
         {
-            _plantRND LEAF = leaves.get();
-            //if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
-            //if (LEAF.plantPtr) tip_NODE = LEAF.plantPtr->build(_settings, _addVerts);
-            //NODES.push_back( NODES.back() );
-
-            //tip_NODE = NODES.back();
+            //_plantRND LEAF = leaves.get();
         }
     }
 }
@@ -1753,20 +1647,16 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 
 void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVerts)
 {
+    leaves.reset(); // so order remains the same
     _settings.isBaking = false;
     numLeavesBuilt = 0;
-    std::uniform_real_distribution<> distrib(-1.f, 1.f);
     // reset teh seed so all lods build teh same here
     _rootPlant::generator.seed(_settings.seed + 999);
-
-
-    //int oldSeed = (_settings.seed % 1000) + 10001 + (_settings.callDepth * 100000);
     int oldSeed = _settings.seed * 10 + 1;//
     std::mt19937 MT(_settings.seed + 999);
-    std::uniform_real_distribution<> DDD(-1.f, 1.f);
-
+    
     // side nodes
-    uint end = NODES.size() - 1; // - WE NEVER INCLUDE THE TIP HERE, always just add that in build_tip()
+    uint end = NODES.size() - 1; // - do not include the tip
 
 
     for (int i = 0; i <= end; i++)
@@ -1775,9 +1665,6 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
         {
             float leafAge = 1.f - pow(i / age, leaf_age_power);
             int numL = (int)RND_B(numLeaves);
-
-
-
             float t = (float)i / age;
             float t_live = glm::clamp((i - firstLiveSegment) / (age - firstLiveSegment), 0.f, 1.f);
             t_live = 1.f - pow(t_live, leaf_age_power);
@@ -1785,8 +1672,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
 
             for (int j = 0; j < numL; j++)
             {
-                float rndRoll = 6.28f * DDD(MT);
-
+                float rndRoll = 6.28f * d_1_1(MT);
                 numLeavesBuilt++;
                 glm::mat4 node = NODES[i];
                 float A = leaf_angle.x + leaf_angle.y * leafAge;// +RND_B(leaf_rnd);   // +DDD(MT)
@@ -1794,11 +1680,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
 
                 if (roll_horizontal)
                 {
-                    while (fabs(node[2][1]) > 0.04f || (node[0][1] >= 0))
-                        //while (fabs(node[2][1]) > 0.04f)
-                    {
-                        ROLL(node, 0.03f);
-                    }
+                    ROLL_HORIZONTAL(node);
                     if (j % 2)    ROLL(node, rollOffset);
                     else        ROLL(node, -rollOffset);
                 }
@@ -1807,26 +1689,10 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
                     ROLL(node, rollOffset);
                 }
 
-
-
-
                 ROLL(node, nodeTwist);
-                if ((numL == 1) && (i & 0x1))  ROLL(node, 3.14f);
+                if ((numL == 1) && (i & 0x1))  ROLL(node, 3.14f);   // 180 degrees is 1 leaf
                 PITCH(node, -A);
                 GROW(node, W * 0.35f);   // 70% out, has to make up for alpha etcDman I want to grow here to some % of branch width
-
-                /*
-                if (roll_horizontal)
-                {
-                    //lets creep up on it inasead
-                    //while (fabs(node[2][1]) > 0.01f && (node[0][1] >= 0))
-
-                    while (fabs(node[2][1]) > 0.01f)
-                    {
-                        ROLL(node, 0.01f);
-                    }
-                    ROLL(node, -1.570796326f);
-                }*/
 
                 // And now rotate upwards again.
                 // ZERO is not acceptable for an age, if true, dont acll anything
@@ -1846,47 +1712,22 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
     }
 }
 
-#pragma optimize("", on)
+
 void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 {
     _rootPlant::generator.seed(_settings.seed + 33);
-    std::uniform_real_distribution<> distrib(-1.f, 1.f);
     std::uniform_int_distribution<> distAlbedo(-50, 50);
     glm::mat4 node = _settings.root;
-
-    const siv::PerlinNoise perlin{ (uint)_settings.seed + 101 };
-    const siv::PerlinNoise perlinTWST{ (uint)_settings.seed + 99 };
-
-    if (roll_horizontal)
-    {
-        while (fabs(node[0][1]) > 0.04f || (node[2][1] >= 0))
-        {
-            ROLL(node, 0.03f);
-        }
-    }
-
-
+    if (roll_horizontal)    {   ROLL_HORIZONTAL(node);    }
     NODES.clear();
     NODES.push_back(node);
 
-
-
-
-    _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
     age = RND_B(numSegments);
-    if (_settings.node_age > 0.f)      // if passed in from root use that
-    {
-        age = _settings.node_age;
-    }
-    else
-    {
-        age *= abs(_settings.node_age);     // negative values are relative
-    }
+    if (_settings.node_age > 0.f)       {        age = _settings.node_age;          }// if passed in from root use that
+    else                                {        age *= abs(_settings.node_age);    } // negative values are relative
     int iAge = __max(1, (int)age);
 
-
-
-    tip_width = RND_B(stem_width) * 0.001f;                  // tip radius
+    tip_width = RND_B(stem_width) * 0.001f;                         // tip radius
     root_width = tip_width + RND_B(stem_d_width) * 0.001f * age;    // root radius  //?? iAge
     float rootPow = stem_pow_width.x;
     float dR = (root_width - tip_width);
@@ -1899,6 +1740,7 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
     bool visible = root_width > pixRandFoViz;
     if (_addVerts && visible) {
+        _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
         _ribbonBuilder.set(node, root_width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
     }
 
@@ -1918,10 +1760,6 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
             float L = RND_B(stem_length) * 0.001f / 20.f;
             float C = RND_CRV(stem_curve) / 20.f / age;
             float P = RND_CRV(stem_phototropism) / 20.f / age;
-            //if (_settings.isBaking) {
-            //    P = 5.0f / 20.f;
-            //}
-
             float t = (float)i / age;
             float W = root_width - dR * pow(t, rootPow);
             float nodePixels = (L * 20) / _settings.pixelSize;
@@ -1933,25 +1771,18 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
             {
                 if (!_settings.isBaking)
                 {
-
                     PITCH(node, C);
-
-
 
                     // Phototropy - custom axis
                     float pScale = 1.f - fabs(node[1][1]);
                     if (pScale > 0.05f)
                     {
                         float3 axis = glm::cross(float3(0, 1, 0), (glm::vec3)node[1]);
-                        //glm::mat4 pRot = glm::mat4(1.0);
                         float3 XX = float3(0, 0, 0);
                         XX.x = glm::dot(axis, (glm::vec3)node[0]);
                         XX.z = glm::dot(axis, (glm::vec3)node[2]);
                         node = glm::rotate(node, -P * pScale, glm::normalize(XX));
                     }
-
-
-
 
                     {
                         //perlinData
@@ -1966,18 +1797,10 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
                         noise = perlinData[(int)(step * perlinTwist.y + _settings.seed + 400) % 1024];// (float)perlinTWST.normalizedOctave1D(perlinTwist.y * step, 4, 0.7);
                         YAW(node, perlinScale * noise * perlinTwist.x * 0.01f);
                     }
-
-                    // Force root straigth if baking
-                    //if (pScale < 0.995f && _settings.isBaking && _settings.pivotDepth == 1)
-                    //if (pScale > 0.05f && _settings.pivotDepth == 0)
-
-
                 }
-
 
                 GROW(node, L);
                 cnt++;
-
 
                 float t = (float)i / age + ((float)j / 20.f * (1.f / age));
                 float W = root_width - dR * pow(t, rootPow);
@@ -1992,13 +1815,9 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
             // now rotate for teh next segment
             ROLL(node, RND_CRV(node_rotation) / age);
-            //PITCH(node, RND_CRV(node_angle) / age);   // What was I thinking here
             YAW(node, RND_CRV(node_angle) / age);
         }
     }
-
-
-    
 }
 
 
@@ -2018,6 +1837,8 @@ void _stemBuilder::clear_build_info()
         if (L.plantPtr)  L.plantPtr->clear_build_info();
     }
 }
+
+
 
 glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 {
@@ -2056,7 +1877,6 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
     if (_addVerts)
     {
         levelOfDetail lod = lodInfo.front();             // no parent can push us past this, similar when I do sun Parts, there will be a lod set for that add
-        std::uniform_real_distribution<> distrib(-1.f, 1.f);
         for (int i = 0; i < lodInfo.size() - 1; i++)
         {
             // FIXME we want random pixelSize here for smoother crossovers but 
@@ -2093,8 +1913,6 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
         if ((_ribbonBuilder.numVerts() - startVerts) > 0) numInstancePacked++;
         numVertsPacked += leafVerts - tipVerts;
     }
-
-
 
     _settings.callDepth--;
     return tip_NODE;
@@ -2264,20 +2082,10 @@ void _clumpBuilder::renderGui()
 
     ImGui::SameLine(0, 20);
     ImGui::NewLine();
-    /*
-    float l = 1;
-    if (NODES.size() >= 2)
-    {
-        l = glm::length(NODES.back()[3] - NODES.front()[3]);
-    }
-    if (l == 0) l = 1; // avoid devide by zero
-    ImGui::Text("%2.3fHz", 1.f / (rootFrequency() / sqrt(l)));
-    */
-
+    
     R_FLOAT("stiffness", ossilation_stiffness, 0.1f, 0.8f, 20.f, "");
     R_FLOAT("sqrt(sway)", ossilation_constant_sqrt, 0.1f, 1.01f, 100.f, "");
-    //R_FLOAT("root-tip", ossilation_power, 0.01f, 0.02f, 1.8f, "");
-
+    
     ImGui::NewLine();
     ImGui::PushFont(_gui->getFont("bold"));
     {
@@ -2425,11 +2233,9 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
 {
     bool forcePHOTOTROPY = _settings.isBaking;
     glm::mat4 ORIGINAL = _settings.root;
-    std::uniform_real_distribution<> distrib(-1.f, 1.f);
 
     int oldSeed = _settings.seed;
     std::mt19937 MT(_settings.seed + 999);
-    std::uniform_real_distribution<> DDD(-1.f, 1.f);
     _rootPlant::generator.seed(_settings.seed + 333);
 
     _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
@@ -2462,8 +2268,8 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
         float2 rndPos;
         do
         {
-            rndPos.x = DDD(MT);
-            rndPos.y = DDD(MT);
+            rndPos.x = d_1_1(MT);
+            rndPos.y = d_1_1(MT);
             l = glm::length(rndPos);
         } while (l >= 1.f);
 
@@ -2472,10 +2278,10 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
         node[3] += node[0] * rndPos.x * w;
         node[3] += node[2] * rndPos.y * h;
 
-        //float c_angle = DDD(MT) * child_angle.x;
-        //float c_angle_age = DDD(MT) * child_angle.y;
-        float c_rnd = DDD(MT) * child_rnd.x;
-        float c_rndp = DDD(MT) * child_rnd.x;
+        //float c_angle = d_1_1(MT) * child_angle.x;
+        //float c_angle_age = d_1_1(MT) * child_angle.y;
+        float c_rnd = d_1_1(MT) * child_rnd.x;
+        float c_rndp = d_1_1(MT) * child_rnd.x;
         float c_age = RND_B(child_age);
         float c_rot = atan2(rndPos.x, rndPos.y);
         float t = l;     // center to edge
@@ -2518,7 +2324,6 @@ glm::mat4 _clumpBuilder::buildChildren(buildSetting _settings, bool _addVerts)
         tipDistance = __max(tipDistance, glm::dot((float3)TIP[3] - (float3)ORIGINAL[3], CENTER_DIR));
     }
 
-    //CENTER_DIR
 
     START = nodeCENTERLINE;
     TIP_CENTER = nodeCENTERLINE;
@@ -2549,8 +2354,7 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
 
         // clumps do not indent whne addign a pivot, all children are at the same level, saves us a silly level
         _settings.pivotIndex[_settings.pivotDepth] = _ribbonBuilder.pushPivot(_settings.seed, p);
-        numPivots++;
-        
+        numPivots++;        
     }
 
 
@@ -2571,8 +2375,6 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
 
         if (lod.useGeometry || _settings.isBaking)
         {
-            //_settings.pixelSize *= lod.geometryPixelScale;
-
             buildChildren(_settings, true);
         }
 
@@ -2584,7 +2386,7 @@ glm::mat4 _clumpBuilder::build(buildSetting _settings, bool _addVerts)
     return TIP_CENTER;
 }
 
-//#pragma optimize("", off)
+
 glm::mat4  _clumpBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _faceCamera)
 {
     lodBake& lB = lod_bakeInfo[_bakeIndex];
@@ -2645,11 +2447,8 @@ glm::mat4  _clumpBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool 
         }
     }
     return TIP_CENTER;
-
-
-
 }
-#pragma optimize("", on)
+
 
 
 
@@ -2697,7 +2496,7 @@ bool _rootPlant::onKeyEvent(const KeyboardEvent& keyEvent)
             //lodInfo->pixelSize = extents.y / lodInfo->numPixels;
             settings.pixelSize = lodInfo->pixelSize;
         }
-        if (keyEvent.key == Input::Key::Z)
+        if (keyEvent.key == Input::Key::X)
         {
             showDebugInShader = !showDebugInShader;
         }
@@ -2738,20 +2537,7 @@ void _rootPlant::onLoad()
     compute_calulate_lod.Vars()->setBuffer("block_buffer", blockData);
     compute_calulate_lod.Vars()->setBuffer("feedback", buffer_feedback);
 
-    std::uniform_real_distribution<> RND(-1.f, 1.f);
-
-    for (int i = 0; i < 16384; i++)
-    {
-        instanceBuf[i].plant_idx = 0;
-        instanceBuf[i].position = { RND(generator) * 25, 1000.f, RND(generator) * 25 };
-        instanceBuf[i].scale = 1.f + RND(generator) * 0.2f;
-        instanceBuf[i].rotation = RND(generator) * 3.14f;
-        instanceBuf[i].time_offset = RND(generator) * 100;
-    }
-    instanceBuf[0].position = { 0, 1000, 0 };
-    instanceBuf[0].scale = 1.f;
-    instanceBuf[0].rotation = 0;
-    instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
+    builInstanceBuffer();
 
     Sampler::Desc samplerDesc;
     samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(4);
@@ -2881,7 +2667,7 @@ void _rootPlant::onLoad()
         perlinData[i] -= sum;
     }
 }
-//#pragma optimize("", off)
+
 
 
 void _rootPlant::renderGui_perf(Gui* _gui)
@@ -4146,7 +3932,6 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
 
 void _rootPlant::builInstanceBuffer()
 {
-    std::uniform_real_distribution<> RND(-1.f, 1.f);
     const siv::PerlinNoise perlin{ 100 };
     totalInstances = __min(16384, totalInstances);  // becuase thats the size fo my buffer
 
@@ -4158,10 +3943,10 @@ void _rootPlant::builInstanceBuffer()
             {
                 int index = j * 256 + i;
                 instanceBuf[index].plant_idx = index % 4;
-                instanceBuf[index].position = { (float)(j - 32) * 1.4 + RND(generator) * 0.1f, 1000.f, (float)(i - 128) * 0.35f + RND(generator) * 0.1f };
-                instanceBuf[index].scale = 1.f + RND(generator) * 0.15f;
-                instanceBuf[index].rotation = RND(generator) * 3.14f;
-                instanceBuf[index].time_offset = RND(generator) * 100;
+                instanceBuf[index].position = { (float)(j - 32) * 1.4 + d_1_1(generator) * 0.1f, 1000.f, (float)(i - 128) * 0.35f + d_1_1(generator) * 0.1f };
+                instanceBuf[index].scale = 1.f + d_1_1(generator) * 0.15f;
+                instanceBuf[index].rotation = d_1_1(generator) * 3.14f;
+                instanceBuf[index].time_offset = d_1_1(generator) * 100;
             }
         }
     }
@@ -4173,7 +3958,7 @@ void _rootPlant::builInstanceBuffer()
         {
             while (sum < 1.f)
             {
-                pos = { RND(generator) * instanceArea[0], 1000.f, RND(generator) * instanceArea[0] };
+                pos = { d_1_1(generator) * instanceArea[0], 1000.f, d_1_1(generator) * instanceArea[0] };
                 float noise = perlin.octave2D_01(pos.x / 2.f, pos.z / 2.f, 3);
                 sum += pow(noise, 3);
             }
@@ -4181,9 +3966,9 @@ void _rootPlant::builInstanceBuffer()
 
             instanceBuf[i].plant_idx = 0;
             instanceBuf[i].position = pos;
-            instanceBuf[i].scale = 1.f + RND(generator) * 0.83f;
-            instanceBuf[i].rotation = RND(generator) * 3.14f;
-            instanceBuf[i].time_offset = RND(generator) * 100;
+            instanceBuf[i].scale = 1.f + d_1_1(generator) * 0.83f;
+            instanceBuf[i].rotation = d_1_1(generator) * 3.14f;
+            instanceBuf[i].time_offset = d_1_1(generator) * 100;
         }
     }
     else
@@ -4195,7 +3980,7 @@ void _rootPlant::builInstanceBuffer()
             int type = i % (numBinaryPlants);
             while (sum < 1)
             {
-                pos = { RND(generator) * instanceArea[type], 1000.f, RND(generator) * instanceArea[type] };
+                pos = { d_1_1(generator) * instanceArea[type], 1000.f, d_1_1(generator) * instanceArea[type] };
                 float noise = perlin.octave2D_01(pos.x / 2.f + type, pos.z / 2.f, 3);
                 sum += pow(noise, 5);
             }
@@ -4203,9 +3988,9 @@ void _rootPlant::builInstanceBuffer()
 
             instanceBuf[i].plant_idx = type * 4;
             instanceBuf[i].position = pos;
-            instanceBuf[i].scale = 1.f + RND(generator) * 0.2f;
-            instanceBuf[i].rotation = RND(generator) * 3.14f;
-            instanceBuf[i].time_offset = RND(generator) * 100;
+            instanceBuf[i].scale = 1.f + d_1_1(generator) * 0.2f;
+            instanceBuf[i].rotation = d_1_1(generator) * 3.14f;
+            instanceBuf[i].time_offset = d_1_1(generator) * 100;
         }
     }
 

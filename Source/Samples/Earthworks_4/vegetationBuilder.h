@@ -390,10 +390,12 @@ template <class T> class randomVector
 public:
     randomVector() { data.resize(1); }      // minimum size has to be one, otherwise get() is dangerous, does not explain clear()
     std::vector<T> data;
+    int rnd_idx = 0;
 
     void renderGui(char* name, uint& gui_id);
     void clear() { data.clear(); }
     T get();
+    void reset() { rnd_idx = 0; }
 };
 
 
@@ -922,8 +924,6 @@ public:
 
     // randomizer
     static std::mt19937 generator;
-    static std::uniform_real_distribution<> rand_1;
-    static std::uniform_real_distribution<> rand_01;
     static std::uniform_int_distribution<> rand_int;
 
     // cleanup for left side
@@ -947,6 +947,215 @@ CEREAL_CLASS_VERSION(_rootPlant, 100);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*  Backyup using first al;d last vbis
+
+glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
+{
+    uint startVerts = _ribbonBuilder.numVerts();
+
+    std::uniform_real_distribution<> d50(0.5f, 1.5f);
+    std::uniform_int_distribution<> distAlbedo(-50, 50);
+    std::uniform_int_distribution<> distPerlin(1, 50000);
+
+    const siv::PerlinNoise::seed_type seed = distPerlin(_rootPlant::generator);
+    const siv::PerlinNoise perlin{ seed };
+    const siv::PerlinNoise::seed_type seedT = distPerlin(_rootPlant::generator);
+    const siv::PerlinNoise perlinTWST{ seedT };
+
+    glm::mat4 node = _settings.root;
+    float age = pow(_settings.normalized_age, 1.f);
+    bool stemVisible = false;
+
+    float lengthS = RND_B(leaf_length) * 0.001f * age;                  // freq and stiffness needs to apply to both stem and leaf
+    float widthS = RND_B(leaf_width) * 0.001f * age;
+    float freq = rootFrequency() * sqrt(lengthS) / sqrt(widthS);
+    float stiffness = 1.f / ossilation_stiffness;
+
+    // stem
+    if (stem_length.x > 0)
+    {
+        float length = RND_B(stem_length) / 100.f * 0.001f * age;   // to meters and numSegments
+        float width = stem_width.x * 0.001f * age;
+        float curve = RND_CRV(stem_curve) / 100.f * age;
+
+        // Lodding stem, but use length instead............................................................
+        int numStem = glm::clamp((int)((length / _settings.pixelSize) / 8.f * 100.f), 1, stemVerts.y);     // 1 for every 8 pixels, clampped
+        float step = 99.f / (numStem);
+        float cnt = 0.f;
+
+        if (_addVerts && (width > _settings.pixelSize))
+        {
+            _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
+            _ribbonBuilder.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
+            stemVisible = true;
+        }
+
+        for (int i = 0; i < 100; i++)
+        {
+            PITCH(node, curve);
+            GROW(node, length);
+
+            cnt++;
+            if (stemVisible && cnt >= step)
+            {
+                _ribbonBuilder.set(node, width * 0.5f, stem_Material.index, float2(1.f, (float)i / 99.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
+                cnt -= step;
+            }
+        }
+
+        GROW(node, -width * 0.5f);  // Now move ever so slghtly backwards for better penetration of stem to leaf
+    }
+
+
+    ROLL(node, RND_CRV(stem_to_leaf_Roll));                         // rotation from stem to leaf
+    PITCH(node, RND_CRV(stem_to_leaf));
+
+
+    // build the leaf
+    {
+        _vegMaterial mat = materials.get();
+        float albedoScale = RND_ALBEDO(glm::lerp(mat.albedoScale.y, mat.albedoScale.x, age));
+        float translucentScale = glm::lerp(mat.translucencyScale.y, mat.translucencyScale.x, age);
+
+        float length = RND_B(leaf_length) / 100.f * 0.001f * age;   // to meters and numSegments  // FIXME scale to neter built into macro, rename macro for distamce only
+        float width = RND_B(leaf_width) * 0.001f * age;
+        float gravi = RND_CRV(gravitrophy) / 100.f * age;
+        float curve = RND_CRV(leaf_curve) / 100.f * age;
+        float twist = RND_CRV(leaf_twist) / 100.f * age;
+
+        // Lodding leaf............................................................
+        bool showLeaf = (width * d50(_rootPlant::generator)) > _settings.pixelSize;
+        if (showLeaf)
+        {
+            int numLeaf = glm::clamp((int)((length / _settings.pixelSize) / leafLengthSplit * 100.f), numVerts.x - 1, numVerts.y - 1);
+            uint firstVis = 0;
+            uint lastVis = 99;
+            bool first = true;
+
+            for (int i = 0; i < 100; i++)
+            {
+                float t = (float)i / 100.f;
+                float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
+                if (first)
+                {
+                    if (width * du <= _settings.pixelSize)
+                    {
+                        firstVis = i;
+                        lastVis = i;
+                    }
+                    else first = false;
+                }
+                else
+                {
+                    if (width * du > _settings.pixelSize)
+                    {
+                        lastVis = i;
+                    }
+                }
+
+            }
+            float step = (float)(lastVis - firstVis) / numLeaf;
+            float cnt = 0;
+
+            // Fixme search for first and last vertex on size
+            bool useDiamond = (useTwoVertDiamond && (numLeaf == 1));
+            if (useDiamond)
+            {
+                firstVis = 0;
+                lastVis = 99;
+                step = 99;
+            }
+
+
+
+            for (int i = 0; i < 100; i++)
+            {
+                float t = (float)i / 99.f;
+                float du = __min(1.f, sin(pow(t, width_offset.x) * 3.1415f) + width_offset.y);
+                if (numLeaf == 1) du = 1.f;  //??? use 3 mqybe, 2 still curts dcorners
+
+                float perlinScale = glm::smoothstep(0.f, 0.3f, t) * age;
+                float noise = (float)perlin.normalizedOctave1D(perlinCurve.y * t, 4);
+                PITCH(node, noise * perlinCurve.x * perlinScale);
+
+                noise = (float)perlinTWST.normalizedOctave1D(perlinTwist.y * t, 4) * age;
+                ROLL(node, noise * perlinTwist.x * perlinScale);
+
+                ROLL(node, twist);
+                PITCH(node, curve);
+                GROW(node, length);
+
+
+                if (_addVerts && i == firstVis)
+                {
+                    uint oldRoot = _ribbonBuilder.getRoot();
+                    _ribbonBuilder.startRibbon(cameraFacing, _settings.pivotIndex);
+                    if (stemVisible)
+                    {
+                        _ribbonBuilder.setRoot(oldRoot);
+                        // uglu but means that the two ribbon-s share the one root
+                    }
+
+                    _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
+                    cnt = 0;
+                }
+                else if (i > firstVis)
+                {
+                    cnt++;
+                    if (_addVerts && (i <= lastVis) && cnt >= step)
+                    {
+                        _ribbonBuilder.set(node, width * 0.5f * du, mat.index, float2(du, 1.f - t), albedoScale, translucentScale, !(pivotType == pivot_leaf), stiffness, freq, pow((float)i / 99.f, ossilation_power), useDiamond);
+                        cnt -= step;
+                    }
+                }
+            }
+        }
+    }
+
+    uint numVerts = _ribbonBuilder.numVerts() - startVerts;
+    if (numVerts > 0) numInstancePacked++;
+    numVertsPacked += numVerts;
+    changedForSave |= changed;
+    return node;
+}
+
+*/
 
 
 
