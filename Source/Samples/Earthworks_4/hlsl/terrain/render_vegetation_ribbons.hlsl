@@ -851,6 +851,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     //dappled = vOut.Shadow;
 #endif
 
+    //return float4(dappled, dappled, dappled, 1);
     //float Shadow= pow(shadow(vOut.worldPos, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
     //dappled *= vOut.Shadow;
 
@@ -875,7 +876,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= pow(t, 2);
         }
     }
-    color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight * dappled;
+    color += trans * pow(albedo.rgb, 1.5) * 1000 * vOut.diffuseLight * dappled;
 
     
     // apply JHFAA to edges    

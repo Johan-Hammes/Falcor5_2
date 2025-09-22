@@ -697,24 +697,12 @@ void terrainManager::onLoad(RenderContext* pRenderContext, FILE* _logfile)
         terrainSpiteShader.Vars()->setSampler("gSampler", sampler_ClampAnisotropic);
         terrainSpiteShader.Vars()->setSampler("gSmpLinearClamp", sampler_Clamp);
 
-        
-
-        
-
-
-
-
-
-
 
 
 
         ribbonData[0] = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
         ribbonData[1] = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
 
-        //ribbonDataVegBuilder = Buffer::createStructured(sizeof(unsigned int) * 6, 1024 * 1024 * 10); // just a nice amount for now
-
-        
 
 
 

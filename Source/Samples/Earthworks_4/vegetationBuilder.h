@@ -24,6 +24,12 @@
 
 using namespace Falcor;
 
+#define MAX_PLANT_BLOCKS 2097152
+#define MAX_PLANT_INSTANCES 16384
+#define MAX_PLANT_BILLBOARDS 65536
+#define MAX_PLANT_PLANTS 1024
+#define MAX_PLANT_PIVOTS MAX_PLANT_PLANTS * 256
+#define MAX_PLANT_VERTS 524288
 
 class _plantMaterial;
 
@@ -837,7 +843,6 @@ public:
 
     bool displayModeSinglePlant = true;
 
-    int totalInstances = 16384;
     float instanceArea[4] = { 10.f, 10.f, 10.f, 10.f };
     bool cropLines = false;
     void builInstanceBuffer();
@@ -881,16 +886,15 @@ public:
 
     computeShader		compute_bakeFloodfill;
 
+
+
     Buffer::SharedPtr blockData;
     Buffer::SharedPtr instanceData;
     Buffer::SharedPtr instanceData_Billboards;
     Buffer::SharedPtr plantData;
-    Buffer::SharedPtr plantpivotData;
-    Buffer::SharedPtr vertexData;
+    Buffer::SharedPtr plantpivotData;               // this is loaded from ribbonBuilder, or imported
+    Buffer::SharedPtr vertexData;                   // this is loaded from ribbonBuilder, or imported
     std::array<plant, 256> plantBuf;
-    std::array<plant_instance, 16384> instanceBuf;
-    std::array<block_data, 16384 * 32> blockBuf;
-    std::array<ribbonVertex8, 128 * 256> vertexBuf;
     uint totalBlocksToRender = 0;
     uint unusedVerts = 0;
     void updateMaterialsAndTextures();

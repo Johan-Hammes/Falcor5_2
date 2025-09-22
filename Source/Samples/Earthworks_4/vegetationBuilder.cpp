@@ -2506,14 +2506,16 @@ bool _rootPlant::onKeyEvent(const KeyboardEvent& keyEvent)
     return false;
 }
 
+
 void _rootPlant::onLoad()
 {
-    plantData = Buffer::createStructured(sizeof(plant), 256);
-    plantpivotData = Buffer::createStructured(sizeof(_plant_anim_pivot), 256 * 256);
-    instanceData = Buffer::createStructured(sizeof(plant_instance), 16384 * 4);
-    instanceData_Billboards = Buffer::createStructured(sizeof(plant_instance), 16384 * 4, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
-    blockData = Buffer::createStructured(sizeof(block_data), 16384 * 128, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);        // big enough to house inatnces * blocks per instance   8 Mb for now
-    vertexData = Buffer::createStructured(sizeof(ribbonVertex8), 65536 * 8);
+    plantData = Buffer::createStructured(sizeof(plant), MAX_PLANT_PLANTS);
+    plantpivotData = Buffer::createStructured(sizeof(_plant_anim_pivot), MAX_PLANT_PIVOTS);
+    instanceData = Buffer::createStructured(sizeof(plant_instance), MAX_PLANT_INSTANCES);
+    instanceData_Billboards = Buffer::createStructured(sizeof(plant_instance), MAX_PLANT_BILLBOARDS, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
+    blockData = Buffer::createStructured(sizeof(block_data), MAX_PLANT_BLOCKS, Resource::BindFlags::ShaderResource | Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);        // big enough to house inatnces * blocks per instance   8 Mb for now
+    vertexData = Buffer::createStructured(sizeof(ribbonVertex8), MAX_PLANT_VERTS);
+
     drawArgs_vegetation = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
     drawArgs_billboards = Buffer::createStructured(sizeof(t_DrawArguments), 1, Resource::BindFlags::UnorderedAccess | Resource::BindFlags::IndirectArg);
 
@@ -3572,7 +3574,8 @@ void _rootPlant::build(uint pivotOffset)
         int numV = __min(65536 * 8, _ribbonBuilder.numPacked());
         vertexData->setBlob(_ribbonBuilder.getPackedData(), 0, numV * sizeof(ribbonVertex8));
 
-        totalBlocksToRender = __min(16384 * 32, _ribbonBuilder.numPacked() / VEG_BLOCK_SIZE);   // move to ribbonvertex
+        std::array<block_data, 65536> blockBuf; // allows 2 million triangles
+        totalBlocksToRender = __min(65536, _ribbonBuilder.numPacked() / VEG_BLOCK_SIZE);   // move to ribbonvertex
         for (int j = 0; j < totalBlocksToRender; j++)
         {
             blockBuf[j].vertex_offset = VEG_BLOCK_SIZE * j;
@@ -3800,7 +3803,7 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
         compute_calulate_lod.Vars()["gConstantBuffer"]["lastPlant"] = lastPlant;
         compute_calulate_lod.Vars()["gConstantBuffer"]["firstLod"] = firstLod;
         compute_calulate_lod.Vars()["gConstantBuffer"]["lastLod"] = lastLod;
-        compute_calulate_lod.dispatch(_renderContext, 16384 / 256, 1);
+        compute_calulate_lod.dispatch(_renderContext, MAX_PLANT_INSTANCES / 256, 1);
     }
 
     
@@ -3932,8 +3935,8 @@ void _rootPlant::render(RenderContext* _renderContext, const Fbo::SharedPtr& _fb
 
 void _rootPlant::builInstanceBuffer()
 {
+    std::array<plant_instance, MAX_PLANT_INSTANCES> instanceBuf;
     const siv::PerlinNoise perlin{ 100 };
-    totalInstances = __min(16384, totalInstances);  // becuase thats the size fo my buffer
 
     if (cropLines)
     {
@@ -3954,7 +3957,7 @@ void _rootPlant::builInstanceBuffer()
     {
         static float sum = 0;
         float3 pos;
-        for (int i = 0; i < 16384; i++)
+        for (int i = 0; i < MAX_PLANT_INSTANCES; i++)
         {
             while (sum < 1.f)
             {
@@ -3975,7 +3978,7 @@ void _rootPlant::builInstanceBuffer()
     {
         static float sum = 0;
         float3 pos;
-        for (int i = 0; i < 16384; i++)
+        for (int i = 0; i < MAX_PLANT_INSTANCES; i++)
         {
             int type = i % (numBinaryPlants);
             while (sum < 1)
@@ -3999,5 +4002,5 @@ void _rootPlant::builInstanceBuffer()
     instanceBuf[0].scale = 1.f;
     instanceBuf[0].rotation = 0;
 
-    instanceData->setBlob(instanceBuf.data(), 0, 16384 * sizeof(plant_instance));
+    instanceData->setBlob(instanceBuf.data(), 0, MAX_PLANT_INSTANCES * sizeof(plant_instance));
 }

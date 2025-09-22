@@ -534,7 +534,6 @@ private:
     uint numLoadedRibbons;  // paraglider only
     Buffer::SharedPtr       ribbonData[2];  // also paraglider  - split these into seperate block at least, not true groveTree.bChanged writes to this, so duplicate maybe
     uint bufferidx = 0;
-    //std::vector< Texture::SharedPtr> ribbonTextures;        // remove becomes part of the cache
 
     Buffer::SharedPtr       triangleData;
     Fbo::SharedPtr		bakeFbo_plants;
