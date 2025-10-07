@@ -49,7 +49,6 @@ void main(uint dispatchId : SV_DispatchThreadId)
 
     //float OH = gHgt[uint2(128, 128)].r - (tile.scale_1024 * 2048);	// Its corner origin rather than middle
     //tile.origin.y = OH;
-
     
 
 	if(dispatchId < tile.numQuads )
@@ -61,7 +60,9 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		//uint cx = XYZ >> 31;
 		//uint cy = (XYZ >> 21) & 0x1;
 
-        const float plantY = plant_buffer[PLANT_INDEX(SRTI) * 4].size.y * SCALE(SRTI);;
+        const float plantY = plant_buffer[PLANT_INDEX(SRTI)].size.y * SCALE(SRTI);;
+
+        
 
         uint x10 = ((XYZ >> 22) & 0x3ff);
         uint y10 = ((XYZ >> 12) & 0x3ff);   // 10 bit values

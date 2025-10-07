@@ -26,6 +26,8 @@ void main(uint idx : SV_DispatchThreadId)
     for (int i = 0; i < 32; i++)
     {
         feedback[0].numLod[i] = 0;
+        feedback[0].numPlantsType[i] = 0;
+
     }
     feedback[0].numBlocks = 0;
 

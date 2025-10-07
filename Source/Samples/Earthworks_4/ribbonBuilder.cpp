@@ -136,6 +136,8 @@ void    ribbonBuilder::startRibbon(bool _cameraFacing, uint pv[4])
 void ribbonBuilder::set(glm::mat4 _node, float _radius, int _material, float2 _uv, float _albedo, float _translucency, bool _clearLeafRoot,
     float _stiff, float _freq, float _index, bool _diamond)
 {
+    //fprintf(terrafectorSystem::_logfile, "  set : mat %d  -   \n", _material);
+
     if (_uv.y < 0)
     {
         bool bCM = true;

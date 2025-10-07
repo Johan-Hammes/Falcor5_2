@@ -574,10 +574,10 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
             terrain.terrainSpiteShader.Vars()["LightsCB"]["sunDirection"] = global_sun_direction; // should come from somewehere else common
             terrain.terrainSpiteShader.Vars()["LightsCB"]["sunRightVector"] = sunRight; // should come from somewehere else common
             terrain.terrainSpiteShader.Vars()["LightsCB"]["sunUpVector"] = sunUp; // should come from somewehere else common
-            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["screenSize"] = screenSize;
-            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
-            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
-            terrain.terrainSpiteShader.Vars()["gConstantBuffer"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
+            terrain.terrainSpiteShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
+            terrain.terrainSpiteShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;
+            terrain.terrainSpiteShader.Vars()["PerFrameCB"]["fog_far_log_F"] = atmosphere.getFar().m_logEnd;
+            terrain.terrainSpiteShader.Vars()["PerFrameCB"]["fog_far_one_over_k"] = atmosphere.getFar().m_oneOverK;
 
             terrain.rappersvilleShader.Vars()["PerFrameCB"]["screenSize"] = screenSize;
             terrain.rappersvilleShader.Vars()["PerFrameCB"]["fog_far_Start"] = atmosphere.getFar().m_params._near;

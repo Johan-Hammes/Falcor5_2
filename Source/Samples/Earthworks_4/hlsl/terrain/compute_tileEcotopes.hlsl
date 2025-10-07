@@ -31,6 +31,7 @@ cbuffer gConstants
 
 
 Buffer<uint> plantIndex;
+Buffer<uint> plantDensity;
 //Buffer<float> totalDensity;
 
 
@@ -207,13 +208,13 @@ void main(int2 crd : SV_DispatchThreadId)
         uint rnd = gNoise.Load(int3(x_idx & 0xff, y_idx & 0xff, 0));
 
         int sum = 0;
-        int ecotopeForPlants = 20;
+        int ecotopeForPlants = 200; // just large
         // FIXME, This shoudl be done with some interlocked add function on a wider tile bases but per plant
         // problem wiuth that is that its not repeatble, order of writes matter
 
         for (i = 0; i < numEcotopes; i++)
         {
-            uint density = plantIndex.Load(i * (16 * 65) + (lod * 65));
+            uint density = plantDensity.Load((i * 16) + lod);
             sum += (int) ((float) density * weights[i] * permanence.b);
             if ((sum * permanence.b) > rnd)
             {
@@ -222,36 +223,31 @@ void main(int2 crd : SV_DispatchThreadId)
             }
         }
 
-//        if (lod == 13 && weights[3] > 0.4 && !(crd.x % 3) && !(crd.y % 3))
-//        {
-//            ecotopeForPlants = 3;
- //       }
+
 
         if (crd.x < 4)
-            ecotopeForPlants = 20;
+            ecotopeForPlants = 200;
         if (crd.x > 252)
-            ecotopeForPlants = 20;
+            ecotopeForPlants = 200;
         if (crd.y < 4)
-            ecotopeForPlants = 20;
+            ecotopeForPlants = 200;
         if (crd.y > 252)
-            ecotopeForPlants = 20;      //??? ??? I need to check we now only drop 3 at the far side, maybe not enough
+            ecotopeForPlants = 200;      //??? ??? I need to check we now only drop 3 at the far side, maybe not enough
 
 
         
-        int offset = rnd & 0x3ff;
+        int offset = rnd & 0x3ff;       // 1024
         if (ecotopeForPlants < numEcotopes)
         {
-            const int thisplantIndex = plantIndex.Load(ecotopeForPlants * (16 * 65) + (lod * 65) + 1 + (offset >> 4));
-            if (thisplantIndex > 0)
+            const int thisplantIndex = plantIndex.Load((ecotopeForPlants * 16 * 64) + (lod * 64) + (offset >> 4));
+            if (thisplantIndex < 65535)
             {
-            //const int thisplantIndex = plantIndex[ecotopeForPlants][offset >> 4].x;
                 uint uHgt = (gHeight[crd].r - OH) / tile.scale_1024;
-
                 uint slot = 0;
                 InterlockedAdd(tiles[tileIndex].numQuads, 1, slot);
                 feedback[0].plants_culled = slot;
                 quad_instance[tileIndex * numQuadsPerTile + slot].xyz = pack_pos(crd.x - 4, crd.y - 4, uHgt, rnd); // FIXME - redelik seker die is verkeerd -ek dink ek pak 2 extra sub pixel bits 
-                quad_instance[tileIndex * numQuadsPerTile + slot].s_r_idx = pack_SRTI(1, rnd, tileIndex, thisplantIndex - 1); //(1 << 31) + (child_idx << 11) + (0);
+                quad_instance[tileIndex * numQuadsPerTile + slot].s_r_idx = pack_SRTI(1, rnd, tileIndex, thisplantIndex);
             }
         }
         

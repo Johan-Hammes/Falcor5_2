@@ -89,7 +89,8 @@ void main(uint dispatchId : SV_DispatchThreadId)
 		
 		
 		// *** and now build the lookup table for the plants compute shader
-        if ((unpackFrustum(t) >0) && tiles[t].lod > 10 && tiles[t].numPlants > 0)
+        //if ((unpackFrustum(t) >0) && tiles[t].lod > 5 && tiles[t].numPlants > 0)
+        if ((unpackFrustum(t) > 0) && lod > 5 && tiles[t].numPlants > 0)
 		//if (tiles[t].numPlants > 0)
 		{
 			uint totalPlants = tiles[t].numPlants;

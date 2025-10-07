@@ -36,9 +36,17 @@ cbuffer gConstantBuffer
 	float3 	right;
 	int		alpha_pass;
     
-    float3 sunDirection_OLD;
-    float padd001;
 
+
+    float3 eye;
+};
+
+cbuffer PerFrameCB
+{
+    bool gConstColor;
+    float3 gAmbient;
+	
+	// volume fog parameters
     float2 screenSize;
     float fog_far_Start;
     float fog_far_log_F; //(k-1 / k) / log(far)		// FIXME might be k-2 to make up for half pixel offsets
@@ -47,10 +55,17 @@ cbuffer gConstantBuffer
     float fog_near_Start;
     float fog_near_log_F; //(k-1 / k) / log(far)		// FIXME might be k-2 to make up for half pixel offsets
     float fog_near_one_over_k; // 1.0 / k
-
-    float3 eye;
+	
+    float gisOverlayStrength;
+    int showGIS;
+    float redStrength;
+    float redScale;
+    float4 gisBox;
+	
+    float redOffset;
+    float3 padding;
+	
 };
-
 
 float4 sunLight(float3 posKm)
 {
@@ -159,7 +174,7 @@ GSOut vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
         output.pos = float4(unpack_pos(plant.xyz, tiles[tileIDX].origin, tiles[tileIDX].scale_1024), 1);
         output.scale = SCALE(plant.s_r_idx);
-        output.index = PLANT_INDEX(plant.s_r_idx) * 4;
+        output.index = PLANT_INDEX(plant.s_r_idx);
         output.sunlight = sunLight(output.pos.xyz * 0.001).rgb;
 
         // Now for my atmospeher code --------------------------------------------------------------------------------------------------------
@@ -226,7 +241,7 @@ void gsMain(point GSOut sprite[1], inout TriangleStream<GSOut> OutputStream)
     else
     {
         // add back in       float scale = 1 - pt[0].lineScale.z;
-        float X = PLANT.size.x * 0.8 * sprite[0].scale;
+        float X = PLANT.size.x * 1.0 * sprite[0].scale;
         float Y = PLANT.size.y * sprite[0].scale;
         float scale = 1 - 0.8;
 
@@ -310,7 +325,7 @@ float4 psMain(GSOut vOut) : SV_TARGET
 		//far one
         float3 atmosphereUV;
         atmosphereUV.xy = vOut.pos.xy / screenSize;
-        atmosphereUV.z = log(length(vOut.eye.xyz) / fog_far_Start) * fog_far_log_F + fog_far_one_over_k;
+        atmosphereUV.z = log(length(vOut.worldPos.xyz - eye.xyz) / fog_far_Start) * fog_far_log_F + fog_far_one_over_k;
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);
         color.rgb *= gAtmosphereOutscatter.Sample(gSmpLinearClamp, atmosphereUV).rgb;
@@ -318,6 +333,7 @@ float4 psMain(GSOut vOut) : SV_TARGET
         float4 inscatter = textureBicubic(atmosphereUV);
         color.rgb += inscatter.rgb;
     }
+
 
     // apply JHFAA to edges    
     if (alpha < 0.9)

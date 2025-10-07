@@ -215,9 +215,12 @@ public:
 
     ecotopeGpuConstants constantbuffer;
     //float totalDensity[12][16];             // ecotope / lod
-    uint plantIndex[12][16][65];            // total density and 64 index values  and
+    uint plantIndex[24][16][64];            // total density and 64 index values  and  (24 ecotopes , 16 lods, 64 possible values)
     Buffer::SharedPtr piBuffer = nullptr;
     Buffer::SharedPtr getPLantBuffer() { return piBuffer; }
+    uint plantDensity[24][16];            // total density and 64 index values  and  (24 ecotopes , 16 lods)
+    Buffer::SharedPtr pdBuffer = nullptr;
+    Buffer::SharedPtr getPLantDesityBuffer() { return pdBuffer; }
 
     bool change = false;
     static float terrainSize;

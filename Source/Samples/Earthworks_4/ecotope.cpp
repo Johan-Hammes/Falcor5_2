@@ -7,7 +7,7 @@
 #include <fstream>
 #include "imgui.h"
 
-//#pragma optimize("", off)
+#pragma optimize("", off)
 
 #include "vegetationBuilder.h"
 
@@ -186,7 +186,7 @@ void ecotope::addPlant()
                 P.index = std::stoi(I);
             }
             */
-            int idx = ecotopeSystem::pVegetation->importBinary(path);   // return vlaue still wronf since we load 4 variations
+            int idx =  ecotopeSystem::pVegetation->importBinary(path);   // return vlaue still wronf since we load 4 variations
             if (idx >= 0)
             {
                 P.index = idx;
@@ -272,7 +272,7 @@ void ecotope::renderPlantGUI(Gui* _gui)
         ImGui::DragFloat("relative density", &plants[selectedPlant].density, 0.001f, 0.0f, 1.0f);
         //ImGui::DragFloat("scale", &plants[selectedPlant].scale, 0, 1000, 0.1f);
         ImGui::DragFloat("variance", &plants[selectedPlant].scaleVariation, 0, 1000, 0.1f);
-        ImGui::DragInt("lod", &plants[selectedPlant].lod, 1, 2, 16);
+        ImGui::DragInt("lod", &plants[selectedPlant].lod, 0.1f, 2, 16);
         ImGui::Text("pixelSize for lod %d = %f", plants[selectedPlant].lod, ecotopeSystem::terrainSize / 248.0f / pow(2, plants[selectedPlant].lod));
         ImGui::Text("spacing for density %3.2f = %3.2f m between plants", plants[selectedPlant].density, ecotopeSystem::terrainSize / 248.0f / pow(2, plants[selectedPlant].lod) / plants[selectedPlant].density);
         ImGui::Text("integer density %d / 64", plants[selectedPlant].percentageOfLodTotalInt);
@@ -368,8 +368,12 @@ void ecotopeSystem::renderGUI(Gui* _pGui)
             sprintf(nameEdit, "%s", ecotopes[i].name.c_str());
             if (ImGui::Button(nameEdit, ImVec2(W - 10, 30))) {
                 selectedEcotope = i;
-                constantbuffer.debug = selectedEcotope;
-                if (showDebug) change = true;
+                
+                if (showDebug)
+                {
+                    constantbuffer.debug = selectedEcotope;
+                    change = true;
+                }
             }
         }
     }
@@ -442,7 +446,20 @@ void ecotopeSystem::rebuildRuntime() {
 
     //constantbuffer.tileXY = 999;
 
-    memset(plantIndex, 0, sizeof(uint) * 12 * 16 * 65);
+    //memset(plantIndex, 0, sizeof(uint) * 24 * 16 * 64);
+    //memset(plantDensity, 0, sizeof(uint) * 24 * 16);
+
+    for (int e = 0; e < 24; e++)
+    {
+        for (int l = 0; l < 16; l++)
+        {
+            plantDensity[e][l] = 0;
+            for (int p = 0; p < 64; p++)
+            {
+                plantIndex[e][l][p] = 65535;
+            }
+        }
+    }
 
     for (int ect = 0; ect < constantbuffer.numEcotopes; ect++)
     {
@@ -467,17 +484,17 @@ void ecotopeSystem::rebuildRuntime() {
                     ecotopes[ect].totalPlantDensity[lod] += P.density;
                 }
             }
-
-            if (ecotopes[ect].totalPlantDensity[lod] > 0)
+            saturate(ecotopes[ect].totalPlantDensity[lod]); // clamp 0-1
+            /*if (ecotopes[ect].totalPlantDensity[lod] > 0)
             {
                 if (ecotopes[ect].totalPlantDensity[lod] > 1)
                 {
                     ecotopes[ect].totalPlantDensity[lod] = 1;
                 }
-            }
+            }*/
 
             //constantbuffer.totalDensity[i][lod].x = (uint)(__min(ecotopes[i].totalPlantDensity[lod], 1.0f) * 65535);
-            plantIndex[ect][lod][0] = (uint)(__min(ecotopes[ect].totalPlantDensity[lod], 1.0f) * 65535);
+            plantDensity[ect][lod] = (uint)(__min(ecotopes[ect].totalPlantDensity[lod], 1.0f) * 65535);
 
             int slotCount = 0;
             for (auto& P : ecotopes[ect].plants)
@@ -487,7 +504,7 @@ void ecotopeSystem::rebuildRuntime() {
                     //P.index = std::stoi(I);
                     // FIXME importBinary must not load the same one again needs a cache if I am going to use it like this
                     
-                    int idx = ecotopeSystem::pVegetation->importBinary(P.path);   // return vlaue still wronf since we load 4 variations
+                    int idx =  ecotopeSystem::pVegetation->importBinary(P.path);   // return vlaue still wronf since we load 4 variations
                     if (idx >= 0)
                     {
                         P.index = idx;
@@ -496,7 +513,7 @@ void ecotopeSystem::rebuildRuntime() {
                     P.percentageOfLodTotalInt = (int)(P.density / ecotopes[ect].totalPlantDensity[lod] * 64.0f);
                     int to = __min(64, slotCount + P.percentageOfLodTotalInt);
                     for (int j = slotCount; j < to; j++) {
-                        plantIndex[ect][lod][j+1] = P.index + 1;
+                        plantIndex[ect][lod][j] = P.index;
                         slotCount++;
                     }
                 }
@@ -508,7 +525,13 @@ void ecotopeSystem::rebuildRuntime() {
     {
         piBuffer = Buffer::createTyped(ResourceFormat::R32Uint, sizeof(uint) * 12 * 16 * 65, Resource::BindFlags::ShaderResource);
     }
-    piBuffer->setBlob(plantIndex, 0, sizeof(uint) * 12 * 16 * 65);
+    piBuffer->setBlob(plantIndex, 0, sizeof(uint) * 24 * 16 * 64);
+
+    if (pdBuffer == nullptr)
+    {
+        pdBuffer = Buffer::createTyped(ResourceFormat::R32Uint, sizeof(uint) * 12 * 16 * 65, Resource::BindFlags::ShaderResource);
+    }
+    pdBuffer->setBlob(plantDensity, 0, sizeof(uint) * 24 * 16);
 }
 
 

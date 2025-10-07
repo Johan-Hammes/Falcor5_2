@@ -24,8 +24,8 @@
 
 using namespace Falcor;
 
-#define MAX_PLANT_BLOCKS 2097152
-#define MAX_PLANT_INSTANCES 16384
+#define MAX_PLANT_BLOCKS 1048576
+#define MAX_PLANT_INSTANCES 65536
 #define MAX_PLANT_BILLBOARDS 65536
 #define MAX_PLANT_PLANTS 1024
 #define MAX_PLANT_PIVOTS MAX_PLANT_PLANTS * 256
@@ -373,20 +373,13 @@ public:
     template<class Archive>
     void serialize(Archive& archive)
     {
-        /*        if (plantPtr)
-                {
-                    archive(plantPtr->name);
-                    archive(plantPtr->path);
-                    archive(type);
-                }
-                else
-                {*/
         archive(name);
         archive(path);
         archive(type);
-        //}
     }
 };
+
+
 
 
 
@@ -403,6 +396,54 @@ public:
     T get();
     void reset() { rnd_idx = 0; }
 };
+
+
+
+// Slow replace
+class _new_plantRND
+{
+public:
+    std::string path;
+    std::string name;
+    plantType  type = PLANT_END;
+    float3 params;
+    std::shared_ptr<_plantBuilder> plantPtr;
+
+    void loadFromFile();
+    void reload();
+    bool renderGui(uint& gui_id);
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(CEREAL_NVP(path));
+        archive(CEREAL_NVP(name));
+        archive(CEREAL_NVP(type));
+        archive_float3(params);
+    }
+};
+CEREAL_CLASS_VERSION(_new_plantRND, 100);
+
+class semirandomBranch
+{
+public:
+    std::vector<_new_plantRND> branchData;
+    std::array<short, 1024> RND;
+
+    void buildArray();
+    void renderGui(char* name, uint& gui_id);
+    void clear() { branchData.clear(); }
+    _new_plantRND* get(float _val);
+
+    template<class Archive>
+    void serialize(Archive& archive)
+    {
+        archive(CEREAL_NVP(branchData));
+        for (auto& M : branchData) M.reload();
+        buildArray();
+    }
+};
+CEREAL_CLASS_VERSION(semirandomBranch, 100);
 
 
 

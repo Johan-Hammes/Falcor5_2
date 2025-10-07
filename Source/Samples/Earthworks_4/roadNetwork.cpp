@@ -1137,7 +1137,7 @@ void roadNetwork::renderGUI(Gui* _gui)
     ImGui::SameLine();
     if (ImGui::Button("Upgrade", ImVec2(W, 0))) { upgrade(upgradeFrom); }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Use this ONLY when the data format has changed and you HAVE to upgrade\n It will reset data in your file otherwise to their default value");
+        ImGui::SetTooltip("Use this ONLY when the branchData format has changed and you HAVE to upgrade\n It will reset branchData in your file otherwise to their default value");
 
     ImGui::Separator();
     ImGui::NewLine();

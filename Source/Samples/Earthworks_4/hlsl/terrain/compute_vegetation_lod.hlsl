@@ -38,8 +38,9 @@ void main(uint idx : SV_DispatchThreadId)
 {
     uint slot = 0;
     const plant_instance INSTANCE = instance_buffer[idx];
-    //const plant PLANT = plant_buffer[INSTANCE.plant_idx];
-    const plant PLANT = plant_buffer[0];
+    const plant PLANT = plant_buffer[INSTANCE.plant_idx];
+    InterlockedAdd(feedback[0].numPlantsType[INSTANCE.plant_idx], 1, slot);
+    //const plant PLANT = plant_buffer[0];
 
     if (INSTANCE.plant_idx >= firstPlant && INSTANCE.plant_idx < lastPlant)
     {
@@ -92,9 +93,9 @@ void main(uint idx : SV_DispatchThreadId)
                     for (int i = 0; i < PLANT.lods[lod].numBlocks; i++)
                     {
                         block_buffer[slot + i].instance_idx = idx;
-                        block_buffer[slot + i].plant_idx = INSTANCE.plant_idx;
-                        block_buffer[slot + i].section_idx = 0; // FIXME add later
-                        block_buffer[slot + i].vertex_offset = PLANT.lods[lod].startVertex + (i * VEG_BLOCK_SIZE);
+                        //block_buffer[slot + i].plant_idx = INSTANCE.plant_idx;
+                        //block_buffer[slot + i].section_idx = 0; // FIXME add later
+                        block_buffer[slot + i].vertex_offset = (PLANT.lods[lod].startVertex + i) * VEG_BLOCK_SIZE;
                     }
                 }
             }

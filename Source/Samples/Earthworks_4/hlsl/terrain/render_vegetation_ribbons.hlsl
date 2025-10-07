@@ -86,6 +86,57 @@ cbuffer PerFrameCB
 
 
 
+
+float4 cubic(float v)
+{
+    float4 n = float4(1.0, 2.0, 3.0, 4.0) - v;
+    float4 s = n * n * n;
+    float x = s.x;
+    float y = s.y - 4.0 * s.x;
+    float z = s.z - 4.0 * s.y + 6.0 * s.x;
+    float w = 6.0 - x - y - z;
+    return float4(x, y, z, w) * (1.0 / 6.0);
+}
+
+float4 textureBicubic(float3 texCoords)
+{
+    float4 texSize;
+    gAtmosphereInscatter.GetDimensions(0, texSize.x, texSize.y, texSize.z, texSize.w);
+    float2 invTexSize = 1.0 / texSize.xy;
+   
+    texCoords.xy = texCoords.xy * texSize.xy - 0.5;
+
+   
+    float2 fxy = frac(texCoords.xy);
+    texCoords.xy -= fxy;
+
+    float4 xcubic = cubic(fxy.x);
+    float4 ycubic = cubic(fxy.y);
+
+    float4 c = texCoords.xxyy + float2(-0.5, +1.5).xyxy;
+    
+    float4 s = float4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
+    float4 offset = c + float4(xcubic.yw, ycubic.yw) / s;
+    
+    offset *= invTexSize.xxyy;
+
+    
+    float4 sample0 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.xz, texCoords.z));
+    float4 sample1 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.yz, texCoords.z));
+    float4 sample2 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.xw, texCoords.z));
+    float4 sample3 = gAtmosphereInscatter.Sample(gSmpLinearClamp, float3(offset.yw, texCoords.z));
+
+
+    float sx = s.x / (s.x + s.y);
+    float sy = s.z / (s.z + s.w);
+
+    return lerp(lerp(sample3, sample2, sx), lerp(sample1, sample0, sx), sy);
+}
+
+
+
+
+
 float4 sunLight(float3 posKm)
 {
     float2 sunUV;
@@ -111,7 +162,7 @@ struct PSIn
     float2 uv : TEXCOORD; // texture uv
     float4 lighting : TEXCOORD1; // uv, sunlight, ao
     nointerpolation uint4 flags : TEXCOORD2; // material        BLENDINDICES[n]
-    float3 eye : TEXCOORD3; // can this become SVPR  or per plant somehow, feels overkill here per vertex
+    float4 eye : TEXCOORD3; // can this become SVPR  or per plant somehow, feels overkill here per vertex
     float4 colour : TEXCOORD4;
     float3 lineScale : TEXCOORD5; // its w and h for boillboard
     float3 sunUV : TEXCOORD6;
@@ -143,8 +194,8 @@ inline float3 yawPitch_9_8bit(int yaw, int pitch, float r) // 9, 8 bits 8 b
 // These two can optimize, its only tangent that differs
 inline void extractTangent(inout PSIn o, const ribbonVertex8 v)
 {
-    o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, 0); // remember to add rotation to yaw
-    o.tangent = yawPitch_9_8bit(v.d >> 23, (v.d >> 15) & 0xff, 0); // remember to add rotation to yaw
+    o.binormal = yawPitch_9_8bit(v.c >> 23, (v.c >> 15) & 0xff, 0);
+    o.tangent = yawPitch_9_8bit(v.d >> 23, (v.d >> 15) & 0xff, 0);
 }
 
 inline void extractUVRibbon(inout PSIn o, const ribbonVertex8 v)
@@ -210,7 +261,7 @@ void bezierLeaf(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm, in
 
     pos = PVT.root + normalize(c) * S;
 
-    float flutterStrength = length(wind) * 0.5 * PVT.shift * sin(time / PVT.frequency * 4.283 * freq_scale);
+    float flutterStrength = length(wind) * 0.005 * PVT.shift * sin(time / PVT.frequency * 4.283 * freq_scale);
     float3 N = cross(binorm, tangent);
     tangent = normalize(tangent + N * flutterStrength);
 }
@@ -220,17 +271,17 @@ void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm
 {
     const float S = 1.f / length(PVT.extent);
     const float3 rel = pos - PVT.root;
-    const float3 b = normalize(rel) * 0.5; // feel like I should combine these two
+    const float3 b = normalize(rel) * 0.5;
     const float t = length(rel) / S;
     const float3 right = cross(rel, wind);
 
     const float pushScale = 1.f - abs(dot(normalize(PVT.extent), normalize(wind)));
 
-    wind /= PVT.stiffness; //??? pow() to scale effect better, sane for wind as well
+    wind /= PVT.stiffness;
     
     //  now ossilate
-    float swayStrength = 0.5 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
-    float sideStrength = 0.5 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
+    float swayStrength = 0.25 * sin(time / PVT.frequency * 6.283 * freq_scale + PVT.offset);
+    float sideStrength = 0.25 * sin(time / PVT.frequency * 4.283 * freq_scale + PVT.offset + 1);
     float3 c = b * 2 + (wind * (pushScale + swayStrength)) + (right * length(wind) * sideStrength);
     
     float3 bc = normalize(c - b) * 0.5;
@@ -246,80 +297,142 @@ void bezierPivotSum(_plant_anim_pivot PVT, inout float3 pos, inout float3 binorm
 }
 
 
+
+
+/*  This is a temporary function that mimics some form of wind schanging strenth and swirling as it moves over the terrain
+    - In a real application it is likely replaced with a wind simulation and lookup
+    - It also should most likely run inside compute and write to plant instance to save processign here
+    - It returns a boolean since we cannot compyte crossproduct of (0, 0, 0) so animating with zero wind is imposssible
+*/
+bool animateWind(inout float3 _wind, float3 _pos, float3 _plantRoot, float _rot)
+{
+    float dx = dot(_pos.xz, windDir.xz) * 0.1;
+    float strenth = (1 + 0.6 * sin(dx - time * windStrength * 1 * 0.025));
+    strenth = windStrength * (0.4 + smoothstep(0.4, 1.3, strenth));
+    float ss = sin(_pos.x * 0.3 - time * 0.4) + sin(_pos.z * 0.3 - time * 0.3);
+    float3x3 rot = AngleAxis3x3(ss * 1.3, float3(0, 1, 0));
+    _wind = normalize(mul(windDir, rot));
+    _wind = rot_xz(_wind, -_rot) * strenth * 0.01; // rotate the wind into the plant frame
+    _wind.y = 0;
+
+    // Human
+/*
+    float3 humanPos = 4 * float3(sin(time * 0.1), 0, cos(time * 0.1));
+    float3 humanDir = -normalize(float3(-humanPos.z, 0, humanPos.x)); //???
+    float3 tangent = normalize(humanPos);
+    float3 rel = _plantRoot - humanPos;
+    rel.y = 0;
+    if (length(rel) < 5.5)
+    {
+        if (dot(rel, tangent) < 0)
+            tangent *= -1;
+        tangent.y = -0.05;
+
+        float3 vertDistance = _pos - humanPos;
+        vertDistance.y = 0;
+        strenth = 1.4 * pow(smoothstep(0.6, 0.3, length(vertDistance)), 2);
+        float3 newWind = rot_xz(normalize(tangent), -_rot) * strenth;
+        newWind = rot_xz(normalize(tangent), -_rot) * strenth;
+        newWind.y = -0.2;
+        _wind += newWind;
+
+    }
+*/
+/*
+    float3 humanPos = 2 * float3(sin(time * 0.1), 0, cos(time * 0.1));
+    float3 humanDir = -normalize(float3(-humanPos.z, 0, humanPos.x)); //???
+    float3 tangent = normalize(humanPos);
+    float3 rel = _plantRoot - humanPos;
+    rel.y = 0;
+    if (length(rel) < 10.5)
+    {
+        
+        float3 vertDistance = _pos - humanPos;
+        vertDistance.y = 0;
+        float wave = 1.5 + sin(time * length(vertDistance) * 0.002) ;
+        strenth = 0.6 * pow(smoothstep(10.0, 5.3, length(vertDistance)), 2.2) * wave;
+        float3 newWind = rot_xz(normalize(rel), -_rot) * strenth;
+        //newWind.y = -0.2;
+
+
+        float ss = sin(_pos.x * 1.3 - time * 1.0) + sin(_pos.z * 1.3 - time * 1.8);
+        float3x3 rot = AngleAxis3x3(ss * 0.63, float3(0, 1, 0));
+        newWind = normalize(mul(newWind, rot));
+
+
+        _wind += newWind * strenth;
+
+    }
+*/
+/*
+    // Helicopter
+    float2 helicopterPos = 20 * float2(sin(time * 0.05), cos(time * 0.05));
+    float3 rel = _pos.xz - helicopterPos;
+    if (length(rel) < 10)
+    {
+        float strenth = 50 * saturate(1.f / length(rel));
+        //_wind.xz += strenth * normalize(rel);
+    }
+
+    // Vehicle
+    float2 vehiclePos = 10 * float2(sin(time * 0.01), cos(time * 0.01));
+    float2 vehicleDir = normalize(float2(-vehiclePos.y, vehiclePos.x)); //???
+    float2 vehicleTangent = normalize(vehiclePos); //???
+    rel = _pos.xz - vehiclePos;
+    if (length(rel) < 20)
+    {
+        float2 dir = normalize(vehicleDir + vehicleTangent * 0.5);
+        float strenth = 50 * saturate(1.f / length(rel)) * dot(normalize(rel), dir);
+        //_wind.xz += strenth * vehicleTangent;
+    }
+*/
+    return (strenth < 0.00001);
+}
+
 #define A ((_v.g >> 24) & 0xff)
 #define B ((_v.g >> 16) & 0xff)
 #define C ((_v.g >> 8) & 0xff)
 #define D (_v.g & 0xff)
 #define F (_v.h & 0xff)
-
-float3 allPivotsSum(inout float3 _position, inout float3 _binormal, inout float3 _tangent, ribbonVertex8 _v, uint _vId,
-                    const plant _plant, const plant_instance _instance)
+float3 bezierAnimate(inout float3 _position, inout float3 _binormal, inout float3 _tangent, ribbonVertex8 _v, uint _vId, const plant _plant, const plant_instance _instance)
 {
-    
-    // WIND ################################################################################################################
-    float dx = dot(_instance.position.xz, windDir.xz) * 0.4; // so repeat roughly every 100m
-    float newWindStrenth = (1 + 0.6 * pow(sin(dx - time * windStrength * 1 * 0.025), 13)); //so 0.3 - 1.7 of set speed   pow(0.2 and 0.6 bot steepends it)
-    newWindStrenth = windStrength; //    13 * windStrength * (0.4 + smoothstep(0.4, 1.3, newWindStrenth));
-    float ss = 0; //
-    sin(_instance.position.x * 0.3 - time * 0.4) + sin(_instance.position.z * 0.3 - time * 0.3); // swirl strenth -2 to 2
-    float3x3 rot = AngleAxis3x3(ss * 1.3, float3(0, 1, 0));
-    float3 NewWindDir = normalize(mul(windDir, rot));
-
-    //newWindStrenth = 10 * (1.2 + sin(time * 0.3));
-    //NewWindDir = float3(-0.0, 0, -1);
-    //newWindStrenth += 0.00000001;
-    //newWindStrenth = windStrength * 10; // * sin(time * 0.5);
-    NewWindDir = rot_xz(NewWindDir, -_instance.rotation) * newWindStrenth * 0.01;
-    NewWindDir.y = 0;
-    
-
-    if (newWindStrenth < 0.00000001)
-        return 0;
-
-    const uint pivotOffset = _instance.plant_idx * 256;
-
-
+    float3 wind;
+    if (animateWind(wind, _instance.position + _position, _instance.position, _instance.rotation))
+        return 0; // there is an anomoly at 0, cant do cross product so avoid animating
+        
     if (F > 0)
     {
         _plant_anim_pivot PVT;
         ribbonVertex8 vRoot = vertex_buffer[_vId - F];
-        //pivots[numPivots].root = rot_xz(float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset, _instance.rotation);
         PVT.root = float3((vRoot.a >> 16) & 0x3fff, vRoot.a & 0xffff, (vRoot.b >> 18) & 0x3fff) * _plant.scale - _plant.offset;
-        //PVT.extent = yawPitch_9_8bit(vRoot.c >> 23, (vRoot.c >> 15) & 0xff, 0);
-        //PVT.extent = normalize(PVT.extent) * 20.01;
-        //PVT.extent = PVT.root + float3(0, 0.1, 0);
         PVT.stiffness = 1 / (((_v.h >> 16) & 0xff) * 0.004);
         PVT.frequency = ((_v.h >> 8) & 0xff) * 0.004;
         PVT.shift = ((_v.h >> 24) & 0xff) * 0.004;
         PVT.offset = _vId - F;
-        //bezierPivotSum(PVT, _position, _binormal, NewWindDir, _instance.scale);
-        bezierLeaf(PVT, _position, _binormal, _tangent, NewWindDir, _instance.scale, PVT.shift);
+        bezierLeaf(PVT, _position, _binormal, _tangent, wind, _instance.scale, PVT.shift);
+    }
 
-        //float flutterStrength = newWindStrenth * 0.005 * PVT.shift * sin(time / PVT.frequency * 4.283 * _instance.scale) / PVT.stiffness;
-
-        //float3 N = cross(_binormal, _tangent);
-
-        //_tangent = normalize(_tangent + N * flutterStrength);
-
+    const uint pivotOffset = _instance.plant_idx * 256;
+    if (D < 255)
+    {
+        bezierPivotSum(plant_pivot_buffer[C + pivotOffset], _position, _binormal, wind, _instance.scale);
     }
 
     if (C < 255)
     {
-        bezierPivotSum(plant_pivot_buffer[C + pivotOffset], _position, _binormal, NewWindDir, _instance.scale);
+        bezierPivotSum(plant_pivot_buffer[C + pivotOffset], _position, _binormal, wind, _instance.scale);
     }
 
     if (B < 255)
     {
-        bezierPivotSum(plant_pivot_buffer[B + pivotOffset], _position, _binormal, NewWindDir, _instance.scale);
+        bezierPivotSum(plant_pivot_buffer[B + pivotOffset], _position, _binormal, wind, _instance.scale);
     }
 
     if (A < 255)
     {
-        bezierPivotSum(plant_pivot_buffer[A + pivotOffset], _position, _binormal, NewWindDir, _instance.scale);
+        bezierPivotSum(plant_pivot_buffer[A + pivotOffset], _position, _binormal, wind, _instance.scale);
     }
 
-
-    // FIXME add debug colours again, both _t and pivotpoitns
     return 0;
 }
 
@@ -338,10 +451,12 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
     output.pos.xyz = INSTANCE.position;
     output.pos.w = 1;
-    output.eye = normalize(output.pos.xyz - eyePos);
+    output.eye.xyz = output.pos.xyz - eyePos;
+    output.eye.w = length(output.eye.xyz);
+    output.eye.xyz = normalize(output.eye.xyz);
 
     output.binormal = float3(0, 1, 0);
-    output.tangent = normalize(cross(output.binormal, -output.eye));
+    output.tangent = normalize(cross(output.binormal, -output.eye.xyz));
     output.normal = cross(output.binormal, output.tangent);
 
     output.AlbedoScale = 1;
@@ -404,11 +519,13 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     extractTangent(output, v);
 #endif
 
-    float SS = 1; //    pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
+    float SS = 1 - pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
 
     extractTangent(output, v);
     extractUVRibbon(output, v);
     extractFlags(output, v);
+
+    
 
     output.AlbedoScale = 0.1 + ((v.f >> 8) & 0xff) * 0.008;
     output.TranslucencyScale = ((v.f >> 0) & 0xff) * 0.008;
@@ -418,7 +535,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float sunCone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
         float sunDepth = (v.e & 0xff) * 0.00784; //depth8   // sulight % how deep inside this plant 0..1 sun..shadow
         float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), sunDirection)); // - sunCone * 0 sunCosTheta sunCone biasess this bigger or smaller 0 is 180 degrees
-        output.Shadow = saturate(a * (sunDepth) + sunDepth) * SS; // darker to middle
+        output.Shadow = saturate(a * sunDepth + sunDepth); // darker to middle
         //output.Shadow = SS; // darker to middle
         output.AmbietOcclusion = pow(((v.f >> 24) / 255.f), 3);
 
@@ -437,7 +554,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.pos.xyz += root;
 
 #else
-    output.debugColour = allPivotsSum(output.pos.xyz, output.binormal, output.tangent, v, BLOCK.vertex_offset + vId, PLANT, INSTANCE);
+    output.debugColour = bezierAnimate(output.pos.xyz, output.binormal, output.tangent, v, BLOCK.vertex_offset + vId, PLANT, INSTANCE);
 
     //SCALE and root here.
     output.pos.xyz = rot_xz(output.pos.xyz, INSTANCE.rotation);
@@ -448,13 +565,17 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
     output.binormal = rot_xz(output.binormal, INSTANCE.rotation);
     output.tangent = rot_xz(output.tangent, INSTANCE.rotation); // write sinlge rot_xz that can do all 4
 #endif
+
+    
     
 
-    output.eye = normalize(output.pos.xyz - eyePos);
+    output.eye.xyz = output.pos.xyz - eyePos;
+    output.eye.w = length(output.eye.xyz);
+    output.eye.xyz = normalize(output.eye.xyz);
 
     if (isCameraFacing)
     {
-        output.tangent = normalize(cross(output.binormal, -output.eye));
+        output.tangent = normalize(cross(output.binormal, -output.eye.xyz));
     }
     output.normal = cross(output.binormal, output.tangent);
     output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb; // should really happen lower but i guess its fast
@@ -469,9 +590,9 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
         float dappled = pow(1 - output.Shadow, 2);
         float3 N = output.normal;
-        if (dot(N, output.eye) < 0)
+        if (dot(N, output.eye.xyz) < 0)
             N *= -1;
-        float ndoth = saturate(dot(N, normalize(sunDirection + output.eye)));
+        float ndoth = saturate(dot(N, normalize(sunDirection + output.eye.xyz)));
         float ndots = dot(N, sunDirection);
 
         output.vertexLight.rgb = output.diffuseLight * 3.14 * (saturate(ndots)) * albedo * dappled;
@@ -546,7 +667,11 @@ void gsMain(point PSIn pt[1], inout TriangleStream<PSIn> OutputStream)
 // HOLY fukcing shit, this is bad anythign above 6
 // at 6 I can still get gain out of this
 [maxvertexcount(4)]
-void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
+
+    void gsMain
+    (line
+    PSIn L[2], inout
+    TriangleStream<PSIn> OutputStream)
 {
     PSIn v;
 
@@ -612,7 +737,9 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
         //v.pos = mul(L[0].pos + float4(v.tangent * v.lineScale, 0), viewproj);
-            v.eye = normalize(v.pos.xyz - eyePos);
+            v.eye.xyz = v.pos.xyz - eyePos;
+            v.eye.w = length(v.eye.xyz);
+            v.eye.xyz = normalize(v.eye.xyz);
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
 
@@ -621,7 +748,9 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
         //v.pos = mul(L[0].pos - float4(v.tangent * v.lineScale, 0), viewproj);
-            v.eye = normalize(v.pos.xyz - eyePos);
+            v.eye.xyz = v.pos.xyz - eyePos;
+            v.eye.w = length(v.eye.xyz);
+            v.eye.xyz = normalize(v.eye.xyz);
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
 
@@ -630,7 +759,9 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.pos = L[1].pos - float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
-            v.eye = normalize(v.pos.xyz - eyePos);
+            v.eye.xyz = v.pos.xyz - eyePos;
+            v.eye.w = length(v.eye.xyz);
+            v.eye.xyz = normalize(v.eye.xyz);
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
 
@@ -638,7 +769,9 @@ void gsMain(line PSIn L[2], inout TriangleStream<PSIn> OutputStream)
             v.pos = L[1].pos + float4(v.tangent * v.lineScale.x, 0);
             v.sunUV.x = dot(v.pos.xyz, sunRightVector);
             v.sunUV.y = dot(v.pos.xyz, sunUpVector);
-            v.eye = normalize(v.pos.xyz - eyePos);
+            v.eye.xyz = v.pos.xyz - eyePos;
+            v.eye.w = length(v.eye.xyz);
+            v.eye.xyz = normalize(v.eye.xyz);
             v.pos = mul(v.pos, viewproj);
             OutputStream.Append(v);
         }
@@ -757,7 +890,11 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 
 #else
 
-float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
+float4 psMain
+    (PSIn
+    vOut,
+    bool isFrontFace : SV_IsFrontFace) :
+    SV_TARGET
 {
     
 /*
@@ -766,8 +903,10 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     else
         return float4(1, 0, vOut.uv.y, 1);
 */
+
     
     
+    clip(vOut.uv.y);
 #if defined(_DEBUG_PIXELS)
     if (vOut.uv.y < 0)
     {
@@ -794,7 +933,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     const int frontback = (int) !isFrontFace;
     const float flipNormal = (isFrontFace * 2 - 1);
     
-    float4 albedo = textures.T[MAT.albedoTexture].SampleBias(gSamplerClamp, vOut.uv.xy, -0.0);
+    float4 albedo = textures.T[MAT.albedoTexture].SampleBias(gSampler, vOut.uv.xy, -0.0);
     albedo.rgb *= vOut.AlbedoScale * MAT.albedoScale[frontback] * 2.f;
     float alpha = pow(albedo.a, MAT.alphaPow);
 
@@ -826,7 +965,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             return float4(0, 0, 1, 1);
             return float4(nTex, 1);
 */
-       float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSamplerClamp, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
         N = normalize(-(normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal * flipNormal));
         //albedo.rgb = normalTex;
 
@@ -835,7 +974,7 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     }
     // ??? is it all channels or just the normal that shouldd flip
     //N *= flipNormal;
-    float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye)));
+    float ndoth = saturate(dot(N, normalize(sunDirection + vOut.eye.xyz)));
     float ndots = dot(N, sunDirection);
 
     //albedo.a = 1;
@@ -848,7 +987,8 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 #else
     dappled = gDappledLight.Sample(gSampler, frac(vOut.sunUV.xy * PLANT.shadowUVScale)).r;
     dappled = smoothstep(vOut.Shadow - PLANT.shadowSoftness, vOut.Shadow + PLANT.shadowSoftness, dappled);
-    //dappled = vOut.Shadow;
+    //dappled = smoothstep(0.5 - PLANT.shadowSoftness, 0.5 + PLANT.shadowSoftness, dappled);
+    //dappled = 1 - vOut.Shadow;
 #endif
 
     //return float4(dappled, dappled, dappled, 1);
@@ -858,17 +998,20 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     // sunlight
     float3 color = vOut.diffuseLight * 3.14 * (saturate(ndots)) * albedo.rgb * dappled;
     
+
     // environment cube light
-    color += 0.9 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
+    color += 0.95 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb; // * pow(vOut.AmbietOcclusion, 0.3);
     
+
     // specular sunlight
     float RGH = MAT.roughness[frontback] + 0.001;
     float pw = 15.f / RGH;
     color += pow(ndoth, pw) * 0.6 * dappled * vOut.diffuseLight * (1 - RGH);
+    
 
     // translucent light    
     float3 TN = vOut.normal * flipNormal;
-    float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye)) * vOut.TranslucencyScale * MAT.translucency * dappled;
+    float3 trans = (saturate(-ndots)) * saturate(dot(-sunDirection, vOut.eye.xyz)) * vOut.TranslucencyScale * MAT.translucency * dappled;
     {
         if (MAT.translucencyTexture >= 0)
         {
@@ -876,9 +1019,26 @@ float4 psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
             trans *= pow(t, 2);
         }
     }
-    color += trans * pow(albedo.rgb, 1.5) * 1000 * vOut.diffuseLight * dappled;
+    color += trans * pow(albedo.rgb, 1.5) * 300 * vOut.diffuseLight * dappled;
 
-    
+
+    // Now for my atmospeher code --------------------------------------------------------------------------------------------------------
+    // FIXME per plant rather
+	{
+		//far one
+        float3 atmosphereUV;
+        atmosphereUV.xy = vOut.pos.xy / screenSize;
+        atmosphereUV.z = log(vOut.eye.w / fog_far_Start) * fog_far_log_F + fog_far_one_over_k;
+        atmosphereUV.z = max(0.01, atmosphereUV.z);
+        atmosphereUV.z = min(0.99, atmosphereUV.z);
+        color.rgb *= gAtmosphereOutscatter.Sample(gSmpLinearClamp, atmosphereUV).rgb;
+
+        float4 inscatter = textureBicubic(atmosphereUV);
+        color.rgb += inscatter.rgb;
+    }
+
+
+
     // apply JHFAA to edges    
     if (alpha < 0.9)
     {

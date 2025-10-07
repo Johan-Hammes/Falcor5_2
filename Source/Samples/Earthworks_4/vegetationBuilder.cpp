@@ -796,8 +796,7 @@ Gui* _plantBuilder::_gui;
 
 
 template <class T>     T randomVector<T>::get()
-{
-    
+{    
     rnd_idx += _rootPlant::rand_int(_rootPlant::generator);
     rnd_idx %= data.size();
     return data[rnd_idx];
@@ -807,7 +806,6 @@ template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
 {
     bool first = true;
 
-    //if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed )) //
     {
         ImGui::Text(name);
         ImGui::SameLine(180, 0);
@@ -815,15 +813,122 @@ template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
         ImGui::SameLine(0, 10);
         if (ImGui::Button("+", ImVec2(20, 0))) { data.emplace_back(); }
 
-
         for (auto& D : data) D.renderGui(gui_id);
-
-        //ImGui::TreePop();
     }
 }
 
 
 
+
+// New random branches with age factor
+
+
+// FXME can I amstarct this away mnore, and combine it with the load at the bottom of the file that is amlmost identical
+void _new_plantRND::loadFromFile()
+{
+    std::filesystem::path filepath;
+    FileDialogFilterVec filters = { {"leaf"}, {"stem"}, {"clump"} };
+    if (openFileDialog(filters, filepath))
+    {
+        if (filepath.string().find("leaf") != std::string::npos) { plantPtr.reset(new _leafBuilder); type = P_LEAF; }
+        if (filepath.string().find("stem") != std::string::npos) { plantPtr.reset(new _stemBuilder);  type = P_STEM; }
+        if (filepath.string().find("clump") != std::string::npos) { plantPtr.reset(new _clumpBuilder);  type = P_CLUMP; }
+
+        path = materialCache::getRelative(filepath.string());
+        name = filepath.filename().string();
+        plantPtr->path = path;
+        plantPtr->name = name;
+        plantPtr->loadPath();
+    }
+}
+
+
+void _new_plantRND::reload()
+{
+    switch (type)
+    {
+    case P_LEAF:   plantPtr.reset(new _leafBuilder);   break;
+    case P_STEM:   plantPtr.reset(new _stemBuilder);   break;
+    case P_CLUMP:   plantPtr.reset(new _clumpBuilder);   break;
+    default:  plantPtr.reset();  break;
+    }
+
+    if (plantPtr)
+    {
+        plantPtr->path = path;
+        plantPtr->name = name;
+        plantPtr->loadPath();
+    }
+}
+
+
+bool _new_plantRND::renderGui(uint& gui_id)
+{
+    bool changed = false;
+    if (ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
+    {
+        TOOLTIP(path.c_str());
+        if (ImGui::IsItemClicked()) { loadFromFile(); changed = true; }
+
+        ImGui::DragFloat3("params", &params.x, 0.001f, 0.f, 1.f);
+        ImGui::TreePop();
+    }
+    return changed;
+}
+
+
+void semirandomBranch::buildArray()
+{
+    _rootPlant::generator.seed(1000);
+    std::uniform_real_distribution<> d_30(0.75f, 1.333333f);
+
+    for (int i = 0; i < 1024; i++)
+    {
+        RND[i] = -1;
+
+        if (branchData.size() > 0)
+        {
+            float _t = (float)i / 1024.f;
+            int idx = 0;
+            float percentage = 0.f;
+            for (int j = 0; j < branchData.size(); j++)
+            {
+                float offset = fabs(branchData[j].params.y - _t) / branchData[j].params.z;
+                float val = branchData[j].params.x * glm::smoothstep(0.f, 1.f, offset) * d_30(_rootPlant::generator);
+                if (val > percentage)
+                {
+                    percentage = val;
+                    idx = j;
+                }
+            }
+            RND[i] = idx;
+        }
+    }
+    
+}
+
+_new_plantRND* semirandomBranch::get(float _val)
+{
+    short idx = RND[(uint)(glm::fract(_val) * 1024.f)];
+    if (idx >= 0) return &branchData[idx];
+    else return nullptr;
+}
+
+
+void semirandomBranch::renderGui(char* name, uint& gui_id)
+{
+    bool first = true;
+
+    {
+        ImGui::Text(name);
+        ImGui::SameLine(180, 0);
+        if (ImGui::Button("-", ImVec2(20, 0))) { branchData.pop_back(); buildArray();        }
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button("+", ImVec2(20, 0))) { branchData.emplace_back(); buildArray();        }
+
+        for (auto& D : branchData) if (D.renderGui(gui_id)) { buildArray(); }
+    }
+}
 
 bool anyChange = true;
 
@@ -1116,7 +1221,8 @@ std::uniform_real_distribution<> d_1_1(-1.f, 1.f);
 #define PITCH(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(1, 0, 0))
 #define YAW(_mat,_ang)  _mat = glm::rotate(_mat, _ang, glm::vec3(0, 0, 1))
 
-#define ROLL_HORIZONTAL(_mat)   while (fabs(_mat[2][1]) > 0.04f || (_mat[0][1] >= 0))   {    ROLL(_mat, 0.03f);     }
+#define ROLL_HORIZONTAL(_mat)   while (fabs(_mat[0][1]) > 0.04f || (_mat[2][1] >= 0))   {    ROLL(_mat, 0.03f);     }
+#define ROLL_HORIZONTAL_B(_mat)   while (fabs(_mat[2][1]) > 0.04f || (_mat[0][1] >= 0))   {    ROLL(_mat, 0.03f);     }
 
 void _leafBuilder::clear_build_info()
 {
@@ -1167,6 +1273,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
             _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
             _ribbonBuilder.set(node, width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f, !(pivotType == pivot_leaf), stiffness, freq);
             stemVisible = true;
+            //fprintf(terrafectorSystem::_logfile, "  leaf-stem : mat %d  -  % \n", stem_Material.index, stem_Material.name.c_str());
         }
 
         for (int i = 0; i < 100; i++)
@@ -1193,6 +1300,7 @@ glm::mat4 _leafBuilder::build(buildSetting _settings, bool _addVerts)
     // build the leaf
     {
         _vegMaterial mat = materials.get();
+        //fprintf(terrafectorSystem::_logfile, "  leaf : mat %d  -  % \n", mat.index, mat.name.c_str());
         float albedoScale = RND_ALBEDO(glm::lerp(mat.albedoScale.y, mat.albedoScale.x, age));
         float translucentScale = glm::lerp(mat.translucencyScale.y, mat.translucencyScale.x, age);
 
@@ -1542,6 +1650,7 @@ glm::mat4  _stemBuilder::build_2(buildSetting _settings, uint _bakeIndex, bool _
         node[1] = tangent;
         last[1] = tangent;
 
+        //fprintf(terrafectorSystem::_logfile, "  _stemBuilder::build_2 : mat %d  -  % \n", lB.material.index, lB.material.name.c_str());
         _ribbonBuilder.startRibbon(lB.faceCamera, _settings.pivotIndex);
         _ribbonBuilder.set(node, w, mat, float2(1.f, 0.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
         _ribbonBuilder.set(last, w, mat, float2(1.f, 1.f), 1.f, 1.f, true, 0.5f, 0.1f, 0.0f, true);
@@ -1570,6 +1679,7 @@ glm::mat4  _stemBuilder::build_4(buildSetting _settings, uint _bakeIndex, bool _
     step *= (lB.bake_V.y - lB.bake_V.x) / 3.f;
     binorm_step *= (lB.bake_V.y - lB.bake_V.x) / 3.f;
 
+    //fprintf(terrafectorSystem::_logfile, "  _stemBuilder::build_4 : mat %d  -  % \n", lB.material.index, lB.material.name.c_str());
     _ribbonBuilder.startRibbon(lB.faceCamera, _settings.pivotIndex);
 
     for (int i = 0; i < 4; i++)
@@ -1624,7 +1734,7 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 
         if (roll_horizontal)
         {
-            ROLL_HORIZONTAL(node);
+            ROLL_HORIZONTAL_B(node);
             ROLL(node, -1.570796326f);
         }
 
@@ -1658,7 +1768,7 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
     // side nodes
     uint end = NODES.size() - 1; // - do not include the tip
 
-
+    float nodeRoll = 0;
     for (int i = 0; i <= end; i++)
     {
         if (i >= firstLiveSegment)
@@ -1670,17 +1780,26 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
             t_live = 1.f - pow(t_live, leaf_age_power);
             float W = root_width - (root_width - tip_width) * pow(t, stem_pow_width.x);
 
+            float rndRoll = 6.28f * d_1_1(MT);
+            float halfTwist = 6.283185307f / (float)numL / 2.f;
+            nodeRoll += halfTwist;
+            //nodeRoll += rndRoll / (float)numL;
+
             for (int j = 0; j < numL; j++)
             {
-                float rndRoll = 6.28f * d_1_1(MT);
+                
                 numLeavesBuilt++;
                 glm::mat4 node = NODES[i];
                 float A = leaf_angle.x + leaf_angle.y * leafAge;// +RND_B(leaf_rnd);   // +DDD(MT)
-                float nodeTwist = rndRoll * leaf_rnd.x + 6.283185307f / (float)numL * (float)j;
+                //float nodeTwist = rndRoll * leaf_rnd.x + 6.283185307f / (float)numL * (float)j;
+                
+                
+
+                ROLL(node, nodeRoll);
 
                 if (roll_horizontal)
                 {
-                    ROLL_HORIZONTAL(node);
+                    ROLL_HORIZONTAL_B(node);
                     if (j % 2)    ROLL(node, rollOffset);
                     else        ROLL(node, -rollOffset);
                 }
@@ -1689,10 +1808,14 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
                     ROLL(node, rollOffset);
                 }
 
+                float nodeTwist = 6.283185307f / (float)numL * (float)j;    // this takes us around
+                nodeTwist += d_1_1(MT) * leaf_rnd.x;
                 ROLL(node, nodeTwist);
+                
                 if ((numL == 1) && (i & 0x1))  ROLL(node, 3.14f);   // 180 degrees is 1 leaf
                 PITCH(node, -A);
-                GROW(node, W * 0.35f);   // 70% out, has to make up for alpha etcDman I want to grow here to some % of branch width
+                GROW(node, W * 0.45f / fabs(sin(A)));   // 70% out, has to make up for alpha etcDman I want to grow here to some % of branch width
+                // likely dependent on pitch
 
                 // And now rotate upwards again.
                 // ZERO is not acceptable for an age, if true, dont acll anything
@@ -1723,7 +1846,10 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
     NODES.push_back(node);
 
     age = RND_B(numSegments);
-    if (_settings.node_age > 0.f)       {        age = _settings.node_age;          }// if passed in from root use that
+    if (_settings.node_age > 0.f)
+    {
+        age = _settings.node_age * RND_B(float2(1, numSegments.y));
+    }// if passed in from root use that
     else                                {        age *= abs(_settings.node_age);    } // negative values are relative
     int iAge = __max(1, (int)age);
 
@@ -1738,11 +1864,21 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
     std::uniform_real_distribution<> d50(0.5f, 1.5f);
     float pixRandFoViz = _settings.pixelSize * d50(_rootPlant::generator);
 
-    bool visible = root_width > pixRandFoViz;
+    bool visible = root_width > pixRandFoViz && (stem_Material.index >= 0);
     if (_addVerts && visible) {
+        //fprintf(terrafectorSystem::_logfile, "  _stemBuilder::build_NODES : mat %d  -  % \n", stem_Material.index, stem_Material.name.c_str());
         _ribbonBuilder.startRibbon(true, _settings.pivotIndex);
         _ribbonBuilder.set(node, root_width * 0.5f, stem_Material.index, float2(1.f, 0.f), 1.f, 1.f);   // set very first one
     }
+
+    // FIXME - VERY bad need way to control ut a bit with LOD but puxels make no sense on this scale
+    float stemLenght = glm::length(tip_NODE[3] - node[3]);
+    float stemPixels = (stemLenght * 20) / _settings.pixelSize;
+    int stemNumSegments = (int)nodeLengthSplit;// glm::clamp((int)(stemPixels / nodeLengthSplit), 1, 10);     // 1 for every 8 pixels, clampped
+    float totalStep = 20.f * iAge / (float)stemNumSegments;
+    float cnt = 0;
+
+    float V = 0.f;
 
     for (int i = 0; i < iAge; i++)
     {
@@ -1759,16 +1895,22 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
             float nodeAge = glm::clamp((age - i) / numLiveNodes, 0.f, 1.f);
             float L = RND_B(stem_length) * 0.001f / 20.f;
             float C = RND_CRV(stem_curve) / 20.f / age;
-            float P = RND_CRV(stem_phototropism) / 20.f / age;
+            //float P = RND_CRV(stem_phototropism) / 20.f / age;
             float t = (float)i / age;
             float W = root_width - dR * pow(t, rootPow);
-            float nodePixels = (L * 20) / _settings.pixelSize;
-            int nodeNumSegments = glm::clamp((int)(nodePixels / nodeLengthSplit), 1, 20);     // 1 for every 8 pixels, clampped
-            float segStep = 19.f / (float)nodeNumSegments;
+            //float nodePixels = (L * 20) / _settings.pixelSize;
+            //int nodeNumSegments = glm::clamp((int)(nodePixels / nodeLengthSplit), 1, 20);     // 1 for every 8 pixels, clampped
+            //float segStep = 19.f / (float)nodeNumSegments;
 
-            float cnt = 0;
+            // Phototropism with changes on age
+            float pScale = (nodeAge * stem_phototropism.y) + ((1.f - nodeAge) * (1.f - stem_phototropism.y));
+            float P = pScale * stem_phototropism.x / 20.f / age;
+
+
+            //float cnt = 0;
             for (int j = 0; j < 20; j++)
             {
+                V += L / W;
                 if (!_settings.isBaking)
                 {
                     PITCH(node, C);
@@ -1804,11 +1946,12 @@ void _stemBuilder::build_NODES(buildSetting _settings, bool _addVerts)
 
                 float t = (float)i / age + ((float)j / 20.f * (1.f / age));
                 float W = root_width - dR * pow(t, rootPow);
-                visible = W > pixRandFoViz;
-                if (_addVerts && visible && cnt >= segStep)
+                visible = W > pixRandFoViz && (stem_Material.index >= 0);
+                if (_addVerts && visible && cnt >= totalStep)
                 {
-                    _ribbonBuilder.set(node, W * 0.5f, stem_Material.index, float2(1.f, i + (float)j / 99.f), 1.f, 1.f);
-                    cnt -= segStep;
+                    //float V = (i + (float)j / 20.f) * 0.5f;
+                    _ribbonBuilder.set(node, W * 0.5f, stem_Material.index, float2(1.f, V), 1.f, 1.f);
+                    cnt -= totalStep;
                 }
             }
             NODES.push_back(node);
@@ -2703,8 +2846,13 @@ void _rootPlant::renderGui_perf(Gui* _gui)
 
         //ImGui::Text("%2.2f M tris", (float)totalBlocksToRender * VEG_BLOCK_SIZE * 2.f / 1000000.f);
     }
-    else if (root)
+    else
     {
+        for (int i = 0; i < 5; i++)
+        {
+            ImGui::Text("%2d:  %d plants", i, feedback.numPlantsType[i]);
+        }
+
         R_FLOAT("lod Bias", loddingBias, 0.01f, 0.1f, 10.f, "");
         ImGui::Text("plantZero, %2.2fpix - lod %d", feedback.plantZero_pixeSize, feedback.plantZeroLod);
 
@@ -2712,17 +2860,26 @@ void _rootPlant::renderGui_perf(Gui* _gui)
             ImGui::Text("billboard %6d", feedback.numLod[0]);
             for (int i = 1; i < 10; i++)
             {
-                if (root->getLodInfo(i))
+                if (root)
+                {
+                    if (root->getLodInfo(i))
+                    {
+                        ImGui::Text("%2d:", i);
+                        ImGui::SameLine(30);
+                        ImGui::Text("%6d", feedback.numLod[i]);
+                        ImGui::SameLine(130);
+                        ImGui::Text("%3d", root->getLodInfo(i)->numBlocks);
+                        ImGui::SameLine(200);
+                        ImGui::Text("%3d", root->getLodInfo(i)->numVerts);
+                        ImGui::SameLine(300);
+                        ImGui::Text("%2.2f", feedback.numLod[i] * root->getLodInfo(i)->numVerts * 2 / 1000000.f);
+                    }
+                }
+                else
                 {
                     ImGui::Text("%2d:", i);
                     ImGui::SameLine(30);
                     ImGui::Text("%6d", feedback.numLod[i]);
-                    ImGui::SameLine(130);
-                    ImGui::Text("%3d", root->getLodInfo(i)->numBlocks);
-                    ImGui::SameLine(200);
-                    ImGui::Text("%3d", root->getLodInfo(i)->numVerts);
-                    ImGui::SameLine(300);
-                    ImGui::Text("%2.2f", feedback.numLod[i] * root->getLodInfo(i)->numVerts * 2 / 1000000.f);
                 }
             }
         }
@@ -2973,6 +3130,7 @@ void _rootPlant::renderGui(Gui* _gui)
                     if (ImGui::Button("Build.all lods", ImVec2(columnWidth / 2 - 10, 0)))
                     {
                         fprintf(terrafectorSystem::_logfile, "about to buildAllLods();\n");
+                        fflush(terrafectorSystem::_logfile);
                         buildAllLods();
                     }
 
@@ -3324,6 +3482,7 @@ void _rootPlant::buildAllLods()
     uint start = 0;
     float Y = extents.y;
     fprintf(terrafectorSystem::_logfile, "buildAllLods() Y = %2.2fm\n", Y);
+    fflush(terrafectorSystem::_logfile);
 
     _ribbonBuilder.clear();
 
@@ -3361,6 +3520,7 @@ void _rootPlant::buildAllLods()
             if (lodInfo)
             {
                 fprintf(terrafectorSystem::_logfile, "lod %d : pixelSize = %2.2fm\n", lod, lodInfo->pixelSize);
+                fflush(terrafectorSystem::_logfile);
 
                 //lodInfo->pixelSize = Y / lodInfo->numPixels;// *lodInfo->geometryPixelScale;
                 settings.pixelSize = lodInfo->pixelSize;
@@ -3371,6 +3531,9 @@ void _rootPlant::buildAllLods()
                 lodInfo->unused = _ribbonBuilder.numPacked() - _ribbonBuilder.numVerts();
                 lodInfo->startBlock = start;
 
+                fprintf(terrafectorSystem::_logfile, "post build %d verts\n", lodInfo->numVerts);
+                fflush(terrafectorSystem::_logfile);
+
                 startBlock[pIndex][lod] = start;
                 numBlocks[pIndex][lod] = lodInfo->numBlocks;
 
@@ -3378,7 +3541,7 @@ void _rootPlant::buildAllLods()
                 plantBuf[pIndex].numLods = __max(plantBuf[pIndex].numLods, lod);    // omdat ons nou agteruit gaan
                 plantBuf[pIndex].lods[lod - 1].pixSize = (float)lodInfo->numPixels;
                 plantBuf[pIndex].lods[lod - 1].numBlocks = lodInfo->numBlocks;
-                plantBuf[pIndex].lods[lod - 1].startVertex = start * VEG_BLOCK_SIZE;
+                plantBuf[pIndex].lods[lod - 1].startVertex = start;
 
 
 
@@ -3394,6 +3557,7 @@ void _rootPlant::buildAllLods()
     // Now log this
     fprintf(terrafectorSystem::_logfile, "\nbuildAllLods() : %s\n", root->name.c_str());
     fprintf(terrafectorSystem::_logfile, "  size : %2.2f, %2.2f\n", plantBuf[0].size.x, plantBuf[0].size.y);
+    fprintf(terrafectorSystem::_logfile, "  lod, blocks, startV, pixSize\n");
     for (int i = 0; i < plantBuf[0].numLods; i++)
     {
         fprintf(terrafectorSystem::_logfile, "  %d : %d, %d, %2.2f\n", i, plantBuf[0].lods[i].numBlocks, plantBuf[0].lods[i].startVertex, plantBuf[0].lods[i].pixSize);
@@ -3403,9 +3567,17 @@ void _rootPlant::buildAllLods()
     plantData->setBlob(plantBuf.data(), 0, 1 * sizeof(plant));
     numBinaryPlants = 1;
     builInstanceBuffer();
+    fprintf(terrafectorSystem::_logfile, "  just set plants\n");
+    fflush(terrafectorSystem::_logfile);
 
     int numV = __min(65536 * 8, _ribbonBuilder.numPacked());
     vertexData->setBlob(_ribbonBuilder.getPackedData(), 0, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+    fprintf(terrafectorSystem::_logfile, "  just set verts (%d), packed %d, numMaterials %d\n", numV, (int)_ribbonBuilder.packed.size(), (int)_plantMaterial::static_materials_veg.materialVector.size());
+    for (int i = 0; i < (int)_plantMaterial::static_materials_veg.materialVector.size(); i++)
+    {
+        fprintf(terrafectorSystem::_logfile, "    material %d, %s\n", i, _plantMaterial::static_materials_veg.materialVector[i].displayName.c_str());
+    }
+    fflush(terrafectorSystem::_logfile);
 
     settings.seed = 1000;
 
@@ -3416,12 +3588,18 @@ void _rootPlant::buildAllLods()
     for (int i = 0; i < numV; i++)
     {
         int idx = (_ribbonBuilder.packed[i].b >> 8) & 0x3ff;
+        fprintf(terrafectorSystem::_logfile, "  %d,", idx);
+        fflush(terrafectorSystem::_logfile);
+
+        
         _vegMaterial M;
         M.path = _plantMaterial::static_materials_veg.materialVector[idx].relativePath;
         M.name = _plantMaterial::static_materials_veg.materialVector[idx].displayName;
         M.index = idx;
         OnDisk.materials[idx] = M;
     }
+    fprintf(terrafectorSystem::_logfile, "  found %d materials % \n", (int)OnDisk.materials.size());
+    fflush(terrafectorSystem::_logfile);
 
     lodBake* lodZero = root->getBakeInfo(0);
     if (lodZero)
@@ -3429,11 +3607,16 @@ void _rootPlant::buildAllLods()
         OnDisk.billboardMaterial = lodZero->material;
     }
 
+    fprintf(terrafectorSystem::_logfile, "  about to save\n");
+    fflush(terrafectorSystem::_logfile);
 
     std::string resource = terrafectorEditorMaterial::rootFolder;
     std::ofstream os(resource + root->path + ".binary");
     cereal::JSONOutputArchive archive(os);
     archive(OnDisk);
+
+    fprintf(terrafectorSystem::_logfile, "  about to save bianry\n");
+    fflush(terrafectorSystem::_logfile);
 
     std::ofstream osData(resource + root->path + ".binaryData", std::ios::binary);
     osData.write((const char*)plantBuf.data(), OnDisk.numP * sizeof(plant));
@@ -3445,6 +3628,7 @@ void _rootPlant::buildAllLods()
 
 void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
 {
+    fprintf(terrafectorSystem::_logfile, "\n\n onLoad()  %s\n", path.c_str());
     plantData.resize(numP);
     vertexData.resize(numV);
     pivotData.resize(numP * 256);
@@ -3453,6 +3637,8 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
     osData.read((char*)plantData.data(), numP * sizeof(plant));
     osData.read((char*)vertexData.data(), numV * sizeof(ribbonVertex8));
     osData.read((char*)pivotData.data(), numP * 256 * sizeof(_plant_anim_pivot));
+
+    fprintf(terrafectorSystem::_logfile, "%d plants, %d verts, %d pivots\n", numP, numV, numP*256);
 
     // load materials, and build remapper
     std::string resource = terrafectorEditorMaterial::rootFolder;
@@ -3471,12 +3657,15 @@ void binaryPlantOnDisk::onLoad(std::string path, uint vOffset)
         V.b += (indexLookup[idx] << 8);
     }
 
+    vOffset /= VEG_BLOCK_SIZE;
+    fprintf(terrafectorSystem::_logfile, "set voFFSET %d BLOCKS\n", vOffset);
     for (auto& P : plantData)
     {
         P.billboardMaterialIndex = billboardIndex;
-        for (int i = 0; i <= P.numLods; i++)
+        for (int i = 0; i < P.numLods; i++)
         {
-            P.lods[i].startVertex += vOffset;
+            fprintf(terrafectorSystem::_logfile, "LOD %d, start %d, size %d, pixSize %2.2f\n", i, P.lods[i].startVertex, P.lods[i].numBlocks, P.lods[i].pixSize);
+            P.lods[i].startVertex += vOffset;  // count in blocks
         }
     }
 }
@@ -3506,9 +3695,13 @@ int _rootPlant::importBinary(std::filesystem::path filepath)
     plantData->setBlob(OnDisk.plantData.data(), binPlantOffset, OnDisk.numP * sizeof(plant));
 
     int numV = __min(65536 * 8, OnDisk.numV);
-    vertexData->setBlob(OnDisk.vertexData.data(), binVertexOffset, numV * sizeof(ribbonVertex8));                // FIXME uploads should be smaller
+    vertexData->setBlob(OnDisk.vertexData.data(), binVertexOffset, numV * sizeof(ribbonVertex8));
 
     plantpivotData->setBlob(OnDisk.pivotData.data(), binPivotOffset, OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
+
+    fprintf(terrafectorSystem::_logfile, "sizeof(ribbonVertex8) %d\n", (int)sizeof(ribbonVertex8));
+    fprintf(terrafectorSystem::_logfile, "sizeof(plant) %d\n", (int)sizeof(plant));
+    fprintf(terrafectorSystem::_logfile, "sizeof(_plant_anim_pivot) %d\n", (int)sizeof(_plant_anim_pivot));
 
     binVertexOffset += numV * sizeof(ribbonVertex8);
     binPlantOffset += OnDisk.numP * sizeof(plant);
@@ -3945,11 +4138,11 @@ void _rootPlant::builInstanceBuffer()
             for (int i = 0; i < 256; i++)
             {
                 int index = j * 256 + i;
-                instanceBuf[index].plant_idx = index % 4;
+                instanceBuf[index].plant_idx = 0;
                 instanceBuf[index].position = { (float)(j - 32) * 1.4 + d_1_1(generator) * 0.1f, 1000.f, (float)(i - 128) * 0.35f + d_1_1(generator) * 0.1f };
                 instanceBuf[index].scale = 1.f + d_1_1(generator) * 0.15f;
                 instanceBuf[index].rotation = d_1_1(generator) * 3.14f;
-                instanceBuf[index].time_offset = d_1_1(generator) * 100;
+                //instanceBuf[index].time_offset = d_1_1(generator) * 100;
             }
         }
     }
@@ -3971,7 +4164,7 @@ void _rootPlant::builInstanceBuffer()
             instanceBuf[i].position = pos;
             instanceBuf[i].scale = 1.f + d_1_1(generator) * 0.83f;
             instanceBuf[i].rotation = d_1_1(generator) * 3.14f;
-            instanceBuf[i].time_offset = d_1_1(generator) * 100;
+            //instanceBuf[i].time_offset = d_1_1(generator) * 100;
         }
     }
     else
@@ -3989,11 +4182,11 @@ void _rootPlant::builInstanceBuffer()
             }
             sum -= 1;
 
-            instanceBuf[i].plant_idx = type * 4;
+            instanceBuf[i].plant_idx = type;
             instanceBuf[i].position = pos;
             instanceBuf[i].scale = 1.f + d_1_1(generator) * 0.2f;
             instanceBuf[i].rotation = d_1_1(generator) * 3.14f;
-            instanceBuf[i].time_offset = d_1_1(generator) * 100;
+            //instanceBuf[i].time_offset = d_1_1(generator) * 100;
         }
     }
 

@@ -392,21 +392,14 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 
 		//far one
 		float3 atmosphereUV;
-        atmosphereUV.xy = vIn.pos.xy / float2(4096, 2160);//        screenSize;
+        atmosphereUV.xy = vIn.pos.xy / screenSize;
 		atmosphereUV.z = log( length( vIn.eye.xyz ) / fog_far_Start ) * fog_far_log_F + fog_far_one_over_k;
         atmosphereUV.z = max(0.01, atmosphereUV.z);
         atmosphereUV.z = min(0.99, atmosphereUV.z);
 		colour.rgb *= gAtmosphereOutscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
-		//colour.rgb += gAtmosphereInscatter.Sample( gSmpLinearClamp, atmosphereUV ).rgb;
-        //colour.r = atmosphereUV.z;
 
         float4 inscatter = textureBicubic(atmosphereUV);
         colour.rgb += inscatter.rgb;
-        
-		//atmosphereUV.z = log( length(vIn.eye.xyz) / fog_near_Start) * fog_near_log_F + fog_near_one_over_k;   
-		//float4 FOG = gSmokeAndDustInscatter.Sample( gSmpLinearClamp, atmosphereUV );
-		//colour.rgb *= FOG.a;
-		//colour.rgb += FOG.rgb;
 	}
 		
 
