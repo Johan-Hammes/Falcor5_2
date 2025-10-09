@@ -818,13 +818,13 @@ template <class T>     void randomVector<T>::renderGui(char* name, uint& gui_id)
 }
 
 
-
+bool anyChange = true;
 
 // New random branches with age factor
 
 
 // FXME can I amstarct this away mnore, and combine it with the load at the bottom of the file that is amlmost identical
-void _new_plantRND::loadFromFile()
+void _randomBranch::loadFromFile()
 {
     std::filesystem::path filepath;
     FileDialogFilterVec filters = { {"leaf"}, {"stem"}, {"clump"} };
@@ -843,7 +843,7 @@ void _new_plantRND::loadFromFile()
 }
 
 
-void _new_plantRND::reload()
+void _randomBranch::reload()
 {
     switch (type)
     {
@@ -862,7 +862,7 @@ void _new_plantRND::reload()
 }
 
 
-bool _new_plantRND::renderGui(uint& gui_id)
+bool _randomBranch::renderGui(uint& gui_id)
 {
     bool changed = false;
     if (ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_Framed))
@@ -870,14 +870,15 @@ bool _new_plantRND::renderGui(uint& gui_id)
         TOOLTIP(path.c_str());
         if (ImGui::IsItemClicked()) { loadFromFile(); changed = true; }
 
-        ImGui::DragFloat3("params", &params.x, 0.001f, 0.f, 1.f);
+        if (ImGui::DragFloat3("params", &params.x, 0.001f, 0.f, 1.f)) { changed = true; }
+        TOOLTIP("density, midd, range");
         ImGui::TreePop();
     }
     return changed;
 }
 
 
-void semirandomBranch::buildArray()
+void semiRandomBranch::buildArray()
 {
     _rootPlant::generator.seed(1000);
     std::uniform_real_distribution<> d_30(0.75f, 1.333333f);
@@ -894,7 +895,7 @@ void semirandomBranch::buildArray()
             for (int j = 0; j < branchData.size(); j++)
             {
                 float offset = fabs(branchData[j].params.y - _t) / branchData[j].params.z;
-                float val = branchData[j].params.x * glm::smoothstep(0.f, 1.f, offset) * d_30(_rootPlant::generator);
+                float val = branchData[j].params.x * glm::smoothstep(1.f, 0.f, offset) * d_30(_rootPlant::generator);
                 if (val > percentage)
                 {
                     percentage = val;
@@ -907,7 +908,7 @@ void semirandomBranch::buildArray()
     
 }
 
-_new_plantRND* semirandomBranch::get(float _val)
+_randomBranch* semiRandomBranch::get(float _val)
 {
     short idx = RND[(uint)(glm::fract(_val) * 1024.f)];
     if (idx >= 0) return &branchData[idx];
@@ -915,22 +916,32 @@ _new_plantRND* semirandomBranch::get(float _val)
 }
 
 
-void semirandomBranch::renderGui(char* name, uint& gui_id)
+bool semiRandomBranch::renderGui(char* name, uint& gui_id)
 {
     bool first = true;
+    bool changed = false;
 
     {
         ImGui::Text(name);
         ImGui::SameLine(180, 0);
-        if (ImGui::Button("-", ImVec2(20, 0))) { branchData.pop_back(); buildArray();        }
+        if (ImGui::Button("-", ImVec2(20, 0))) { branchData.pop_back();        }
         ImGui::SameLine(0, 10);
-        if (ImGui::Button("+", ImVec2(20, 0))) { branchData.emplace_back(); buildArray();        }
+        if (ImGui::Button("+", ImVec2(20, 0))) { branchData.emplace_back();      }
 
-        for (auto& D : branchData) if (D.renderGui(gui_id)) { buildArray(); }
+        for (int i = 0; i < 1024; i+=100)
+        {
+            ImGui::Text("%d, ", RND[i]);
+            ImGui::SameLine(0, 5);
+        }
+        ImGui::NewLine();
+
+        for (auto& D : branchData) if (D.renderGui(gui_id)) { std::sort(branchData.begin(), branchData.end()); buildArray(); changed = true;        }
     }
+
+    return changed;
 }
 
-bool anyChange = true;
+
 
 ImVec4 selected_color = ImVec4(0.4f, 0.1f, 0.0f, 1);
 ImVec4 stem_color = ImVec4(0.05f, 0.02f, 0.0f, 1);
@@ -1557,7 +1568,8 @@ void _stemBuilder::renderGui()
         R_FLOAT("age_power", leaf_age_power, 0.1f, 1.f, 25.f, "");
         CHECKBOX("age override", &leaf_age_override, " If set false we pass in -1 and the leaf can set its own age, if true we set the age");
         style.Colors[ImGuiCol_Header] = ImVec4(0.03f, 0.03f, 0.03f, 1.f);
-        leaves.renderGui("leaves", gui_id);
+        //leaves.renderGui("leaves", gui_id);
+        if (branches.renderGui("branches", gui_id)) { changed = true; }
 
         ImGui::NewLine();
         CHECKBOX("unique tip", &unique_tip, "load a different part for the tip \nif off it will reuse one of the breanch / leaf parts");
@@ -1757,7 +1769,7 @@ void _stemBuilder::build_tip(buildSetting _settings, bool _addVerts)
 
 void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVerts)
 {
-    leaves.reset(); // so order remains the same
+    //leaves.reset(); // so order remains the same
     _settings.isBaking = false;
     numLeavesBuilt = 0;
     // reset teh seed so all lods build teh same here
@@ -1826,9 +1838,10 @@ void _stemBuilder::build_leaves(buildSetting _settings, uint _max, bool _addVert
                 _settings.normalized_age = t_live;
                 if (_settings.normalized_age > 0.05f)
                 {
+                    float branchAge = (i / (float)age) + (j / (float)age / (float)numL);
                     _rootPlant::generator.seed(_settings.seed);
-                    _plantRND LEAF = leaves.get();
-                    if (LEAF.plantPtr) LEAF.plantPtr->build(_settings, _addVerts);
+                    _randomBranch *pBranch = branches.get(branchAge);
+                    if (pBranch->plantPtr) pBranch->plantPtr->build(_settings, _addVerts);
                 }
             }
         }
@@ -3171,7 +3184,7 @@ void _rootPlant::renderGui(Gui* _gui)
                                 ImGui::SameLine(0, 10);
                                 ImGui::SetNextItemWidth(100);
                                 //ImGui::Text("%5.1fmm", lodInfo->pixelSize * 1000.f);
-                                if (ImGui::DragFloat("##pixelSize", &(lodInfo->pixelSize), 0.0001f, 0.001f, 1.f, "%1.3fm"))
+                                if (ImGui::DragFloat("##pixelSize", &(lodInfo->pixelSize), 0.001f, 0.001f, 1.f, "%1.3fm", 5.f))
                                 {
                                     anyChange = true;
                                     settings.pixelSize = lodInfo->pixelSize;
@@ -3368,6 +3381,7 @@ void _rootPlant::renderGui(Gui* _gui)
 
             static float numPix = 100;
             numPix = vertex_pack_Settings.objectSize / settings.pixelSize;
+            /*
             if (ImGui::DragFloat("size", &vertex_pack_Settings.objectSize, 0.01f, 1.f, 64.f, "%3.2fm")) anyChange = true;
             if (ImGui::DragFloat("radius", &vertex_pack_Settings.radiusScale, 0.001f, 0.1f, 8.f, "%3.2fm")) anyChange = true;
             if (ImGui::DragFloat("num pix", &numPix, 1.f, 1.f, 1000.f, "%3.4f")) { settings.pixelSize = vertex_pack_Settings.objectSize / numPix; anyChange = true; }
@@ -3375,7 +3389,7 @@ void _rootPlant::renderGui(Gui* _gui)
             if (ImGui::DragFloat("pix SZ", &settings.pixelSize, 0.001f, 0.001f, 1.f, "%3.2fm")) {
                 numPix = vertex_pack_Settings.objectSize / settings.pixelSize; anyChange = true;
             }
-
+            */
             if (ImGui::DragInt("seed", &settings.seed, 1, 0, 1000)) { anyChange = true; }
 
 

@@ -535,7 +535,7 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
         float sunCone = (((v.e >> 8) & 0x7f) * 0.01575) - 1; //cone7
         float sunDepth = (v.e & 0xff) * 0.00784; //depth8   // sulight % how deep inside this plant 0..1 sun..shadow
         float a = saturate(dot(normalize(lightCone - sunDirection * PLANT.sunTilt), sunDirection)); // - sunCone * 0 sunCosTheta sunCone biasess this bigger or smaller 0 is 180 degrees
-        output.Shadow = saturate(a * sunDepth + sunDepth); // darker to middle
+        output.Shadow = SS;// * saturate(a * sunDepth + sunDepth); // darker to middle
         //output.Shadow = SS; // darker to middle
         output.AmbietOcclusion = pow(((v.f >> 24) / 255.f), 3);
 
@@ -1000,7 +1000,7 @@ float4 psMain
     
 
     // environment cube light
-    color += 0.95 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb; // * pow(vOut.AmbietOcclusion, 0.3);
+    color += 0.5 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb; // * pow(vOut.AmbietOcclusion, 0.3);
     
 
     // specular sunlight
@@ -1019,7 +1019,7 @@ float4 psMain
             trans *= pow(t, 2);
         }
     }
-    color += trans * pow(albedo.rgb, 1.5) * 300 * vOut.diffuseLight * dappled;
+    color += trans * pow(albedo.rgb, 1.5) * 100 * vOut.diffuseLight * dappled;
 
 
     // Now for my atmospeher code --------------------------------------------------------------------------------------------------------

@@ -577,7 +577,7 @@ public:
         double imageCacheIOTime;
     } stream;   // IO and feedback
 
-    _terrainMode terrainMode = _terrainMode::vegetation;
+    _terrainMode terrainMode = _terrainMode::roads;
 private:
     bool hasChanged = false;
 

@@ -234,7 +234,7 @@ public:
     levelOfDetail(uint _numPix) { numPixels = _numPix; }
 
     int numPixels = 100;        // this is the number of height pixels to use for this lod. Used to calculate pixel size
-    float pixelSize = 10.f;      // This is for plant on GPU - determines when to split
+    float pixelSize = 0.1f;      // This is for plant on GPU - determines when to split
 
     float geometryPixelScale = 1.f;    // Deprecated
     bool useGeometry = true;
@@ -400,18 +400,23 @@ public:
 
 
 // Slow replace
-class _new_plantRND
+class _randomBranch
 {
 public:
     std::string path;
     std::string name;
     plantType  type = PLANT_END;
-    float3 params;
+    float3 params = {1.f, 0.5f, 2.f};           // everywhere
     std::shared_ptr<_plantBuilder> plantPtr;
 
     void loadFromFile();
     void reload();
     bool renderGui(uint& gui_id);
+
+    bool operator < (const _randomBranch& _b) const
+    {
+        return (params.y < _b.params.y);
+    }
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -422,18 +427,18 @@ public:
         archive_float3(params);
     }
 };
-CEREAL_CLASS_VERSION(_new_plantRND, 100);
+CEREAL_CLASS_VERSION(_randomBranch, 100);
 
-class semirandomBranch
+class semiRandomBranch
 {
 public:
-    std::vector<_new_plantRND> branchData;
+    std::vector<_randomBranch> branchData;
     std::array<short, 1024> RND;
 
     void buildArray();
-    void renderGui(char* name, uint& gui_id);
+    bool renderGui(char* name, uint& gui_id);
     void clear() { branchData.clear(); }
-    _new_plantRND* get(float _val);
+    _randomBranch* get(float _val);
 
     template<class Archive>
     void serialize(Archive& archive)
@@ -443,7 +448,7 @@ public:
         buildArray();
     }
 };
-CEREAL_CLASS_VERSION(semirandomBranch, 100);
+CEREAL_CLASS_VERSION(semiRandomBranch, 100);
 
 
 
@@ -616,6 +621,8 @@ public:
     bool    twistAway = false;      // I think deprecated, cant  do in rameworkif single leaf, activelt twist stem to the other side
     randomVector<_plantRND> leaves;
 
+    semiRandomBranch    branches;   // can be leases or clusters as well as stems, basically anything
+
     // tip
     bool unique_tip;
     randomVector<_plantRND> tip;
@@ -702,9 +709,30 @@ public:
         {
             archive(hasPivot);
         }
+
+        if (_version >= 106)
+        {
+            archive(CEREAL_NVP(branches));
+        }
+        else
+        {
+            // convert leabes to brancges
+            branches.branchData.clear();
+            for (auto& M : leaves.data)
+            {
+                _randomBranch b;
+                b.name = M.name;
+                b.path = M.path;
+                b.type = M.type;
+                b.reload();
+                branches.branchData.push_back(b);
+            };
+            branches.buildArray();
+        }
+        
     }
 };
-CEREAL_CLASS_VERSION(_stemBuilder, 105);
+CEREAL_CLASS_VERSION(_stemBuilder, 106);
 
 
 

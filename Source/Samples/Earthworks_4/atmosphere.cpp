@@ -69,7 +69,7 @@ void atmosphereAndFog::onLoad(RenderContext* _renderContext, FILE* _logfile)
     samplerDesc.setAddressingMode(Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap, Sampler::AddressMode::Wrap).setFilterMode(Sampler::Filter::Linear, Sampler::Filter::Linear, Sampler::Filter::Linear).setMaxAnisotropy(8);
     sampler_Trilinear = Sampler::create(samplerDesc);
 
-    mainFar.onLoad(FogVolumeParameters{ 256/2, 128/2, 256*1, Falcor::ResourceFormat::R11G11B10Float, true, false, 50.f, 20000.f });
+    mainFar.onLoad(FogVolumeParameters{ 256, 128, 256*1, Falcor::ResourceFormat::R11G11B10Float, true, false, 50.f, 20000.f });
     //mainFar.onLoad(FogVolumeParameters{ 256, 128, 256, Falcor::ResourceFormat::R11G11B10Float, true, false, 50.f, 20000.f });
     mainNear.onLoad(FogVolumeParameters{ 256, 128, 256, Falcor::ResourceFormat::RGBA16Float, false, false, 1.f, 100.f });
     parabolicFar.onLoad(FogVolumeParameters{ 128, 128, 32, Falcor::ResourceFormat::R11G11B10Float, true, true, 100.f, 20000.f });
