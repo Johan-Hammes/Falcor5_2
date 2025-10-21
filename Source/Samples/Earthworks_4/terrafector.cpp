@@ -30,7 +30,7 @@ lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeLow;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_bakeHigh;
 lodTriangleMesh_LoadCombiner terrafectorSystem::loadCombine_LOD4_overlay;
 
-ecotopeSystem *terrafectorSystem::pEcotopes = nullptr;
+ecotopeSystem* terrafectorSystem::pEcotopes = nullptr;
 //GraphicsProgram::SharedPtr		terrafectorSystem::topdownProgramForBlends = nullptr;
 FILE* terrafectorSystem::_logfile;
 uint logTab;
@@ -95,14 +95,14 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 
 
 
-#define HEADER(txt)		 ImGui::PushFont(_gui->getFont("roboto_26")); \
+#define HEADER(txt)		 ImGui::PushFont(_gui->getFont("header2")); \
 						ImGui::Text(txt); \
 						ImGui::PopFont();
 
 #define FLOAT_BOOL(name, val)	bool boolean = val > 0; \
 								if (ImGui::Checkbox(name, &boolean)) { val = boolean; changed = true;}
 
-#define HEADER_BOOL(txt, name, toggle)	ImGui::PushFont(_gui->getFont("roboto_26")); \
+#define HEADER_BOOL(txt, name, toggle)	ImGui::PushFont(_gui->getFont("header2")); \
 										ImGui::Text(txt); \
 										ImGui::PopFont(); \
 										ImGui::SameLine();\
@@ -155,7 +155,7 @@ void tileTriangleBlock::insertTriangle(const uint _material, const float3 pos[3]
 
         verts.push_back(V);
 
-        
+
     }
 }
 
@@ -505,7 +505,7 @@ void lodTriangleMesh_LoadCombiner::loadToGPU(std::string _path, bool _log)
         if (file)
         {
             fwrite(&lod, sizeof(uint), 1, file);
-            for (uint i=0; i<tiles.size(); i++)
+            for (uint i = 0; i < tiles.size(); i++)
             {
                 fwrite(&gpuTiles[i].numVerts, sizeof(uint), 1, file);
                 fwrite(&gpuTiles[i].numTriangles, sizeof(uint), 1, file);
@@ -616,7 +616,7 @@ uint materialCache::find_insert_material(const std::string _path, const std::str
 uint materialCache::find_insert_material(const std::filesystem::path _path)
 {
 
-    
+
 
     logTab++;
     for (uint i = 0; i < materialVector.size(); i++)
@@ -891,7 +891,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
     if (ImGui::Button("large")) { ICON_SIZE = 200.f; GRID_SIZE = 210; }
     ImGui::SameLine();
 
-    
+
 
 
     auto& style = ImGui::GetStyle();
@@ -979,7 +979,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                 uint x = subCount % numColumns;
                 uint y = (int)floor(subCount / numColumns);
                 /*ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + rootPos.y));
-                
+
 
                 int size = material.displayName.size() - 19;
                 if (size >= 0)
@@ -992,7 +992,7 @@ void materialCache::renderGui(Gui* mpGui, Gui::Window& _window)
                 } */
 
                 //ImGui::SetCursorPos(ImVec2(x * 140 + rootPos.x, y * 160 + 20 + rootPos.y));
-                ImGui::SetCursorPos(ImVec2(x* GRID_SIZE + rootPos.x, y* GRID_SIZE + rootPos.y));
+                ImGui::SetCursorPos(ImVec2(x * GRID_SIZE + rootPos.x, y * GRID_SIZE + rootPos.y));
                 if (material.thumbnail) {
                     if (_window.imageButton("testImage", material.thumbnail, float2(ICON_SIZE, ICON_SIZE)))
                     {
@@ -1060,7 +1060,7 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
     char text[1024];
     ImGui::PushFont(mpGui->getFont("roboto_26"));
     ImGui::Text("Tex [%d]   %3.1fMb", (int)textureVector.size(), texture_memory_in_Mb);
-   
+
     ImGui::PopFont();
 
 
@@ -1074,7 +1074,7 @@ void materialCache::renderGuiTextures(Gui* mpGui, Gui::Window& _window)
             Texture* pT = textureVector[i].get();
             sprintf(text, "%s##%d", pT->getName().c_str(), i);
 
-            if (ImGui::Selectable(text))           {         }
+            if (ImGui::Selectable(text)) {}
 
             if (ImGui::IsItemHovered())
             {
@@ -1181,7 +1181,7 @@ void terrafectorElement::splitAndCacheMesh(const std::string _path)
     const aiScene* scene = nullptr;
     scene = importer.ReadFile(_path.c_str(), flags);
 
-    
+
 
     if (scene)
     {
@@ -1452,7 +1452,7 @@ void terrafectorElement::loadPath(std::string _path)
             std::string ext = entry.path().extension().string();
             if (ext.find("fbx") != std::string::npos ||
                 ext.find("obj") != std::string::npos ||
-                ext.find("dxf") != std::string::npos){
+                ext.find("dxf") != std::string::npos) {
                 terrafectorElement& e = find_insert(entry.path().filename().string(), tf_fbx, newPath);
             }
         }
@@ -1493,7 +1493,7 @@ void terrafectorEditorMaterial::import(std::filesystem::path  _path, bool _repla
         cereal::JSONInputArchive archive(is);
         serialize(archive, TFMATERIAL_VERSION_LOAD);
         //archive(*this);
-        
+
 
         if (_replacePath) fullPath = _path;
         reloadTextures();
@@ -1507,7 +1507,7 @@ void terrafectorEditorMaterial::import(bool _replacePath) {
     //if (openFileDialog(filters, path))
     if (openFileDialog({ {"terrafectorMaterial"} }, path))
     {
-        import(path, _replacePath);
+import(path, _replacePath);
     }
 }
 
@@ -1632,7 +1632,7 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
 
 
 
-    ImGui::PushFont(_gui->getFont("roboto_32"));
+    ImGui::PushFont(_gui->getFont("header1"));
     {
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
         char txt[256];
@@ -1645,7 +1645,8 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
         style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
     }
     ImGui::PopFont();
-    ImGui::PushFont(_gui->getFont("roboto_20"));
+
+    ImGui::PushFont(_gui->getFont("header2"));
     {
         ImGui::SameLine();
         if (isModified)
@@ -1682,364 +1683,361 @@ bool terrafectorEditorMaterial::renderGUI(Gui* _gui)
     ImGui::PopFont();
 
 
-
-
-
-    ImGui::NewLine();
-
-    ImGui::Columns(3);
+    float lineHeight = _gui->getFont("default")->FontSize;
+    ImGui::PushFont(_gui->getFont("default"));
     {
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.1f, 0.5f);
-        ImGui::BeginChildFrame(123450, ImVec2(columnWidth, 180));
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+        ImGui::NewLine();
+
+        ImGui::Columns(3);
         {
-            HEADER("uv");
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.1f, 0.1f, 0.9f);
+            ImGui::BeginChildFrame(123450, ImVec2(columnWidth, lineHeight * 11));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
-                changed |= ImGui::DragFloat2("scale", &_constData.uvScale.x, 0.1f, -10.0f, 10.0f);
-                TOOLTIP("base uv scale");
-
-                float R = _constData.uvRotation * 57.2958f;
-
-                if (ImGui::DragFloat("rotation", &R, 1.f, 0.0f, 360.f, "%3.1f"))
+                HEADER("uv");
                 {
-                    changed |= true;
-                    _constData.uvRotation = R / 57.2958f;
-                }
-                TOOLTIP("radians : 1.57079632679489 = 90 degrees");
+                    changed |= ImGui::DragFloat2("scale", &_constData.uvScale.x, 0.1f, -10.0f, 10.0f);
+                    TOOLTIP("base uv scale");
 
-                ImGui::NewLine();
+                    float R = _constData.uvRotation * 57.2958f;
 
-                changed |= ImGui::DragFloat("world size", &_constData.worldSize, 0.1f, 1.0f, 32.0f, "%2.2f m");
-                TOOLTIP("detail texture world size");
+                    if (ImGui::DragFloat("rotation", &R, 1.f, 0.0f, 360.f, "%3.1f"))
+                    {
+                        changed |= true;
+                        _constData.uvRotation = R / 57.2958f;
+                    }
+                    TOOLTIP("radians : 1.57079632679489 = 90 degrees");
 
-                R = _constData.uvWorldRotation * 57.2958f;
-                if (ImGui::DragFloat("world rotation", &R, 1.f, 0.0f, 360.f, "%3.1f"))
-                {
-                    changed |= true;
-                    _constData.uvWorldRotation = R / 57.2958f;
-                }
-                TOOLTIP("radians : 1.57079632679489 = 90 degrees");
+                    ImGui::NewLine();
 
-                ImGui::NewLine();
+                    changed |= ImGui::DragFloat("world size", &_constData.worldSize, 0.1f, 1.0f, 32.0f, "%2.2f m");
+                    TOOLTIP("detail texture world size");
 
-                FLOAT_BOOL("bezier - soft edges", _constData.baseAlphaClampU);
-                TOOLTIP("clamp u for edge masks");
-                if (_constData.baseAlphaClampU) {
-                    changed |= ImGui::DragFloat2("uv_clamped", &_constData.uvScaleClampAlpha.x, 0.01f, 0.0f, 1.0f);
-                    TOOLTIP("alpha clamp uv scale\nThis is ONLY applied to the base alpha texture when it is also clamped in U");
+                    R = _constData.uvWorldRotation * 57.2958f;
+                    if (ImGui::DragFloat("world rotation", &R, 1.f, 0.0f, 360.f, "%3.1f"))
+                    {
+                        changed |= true;
+                        _constData.uvWorldRotation = R / 57.2958f;
+                    }
+                    TOOLTIP("radians : 1.57079632679489 = 90 degrees");
+
+                    ImGui::NewLine();
+
+                    FLOAT_BOOL("bezier - soft edges", _constData.baseAlphaClampU);
+                    TOOLTIP("clamp u for edge masks");
+                    if (_constData.baseAlphaClampU) {
+                        changed |= ImGui::DragFloat2("uv_clamped", &_constData.uvScaleClampAlpha.x, 0.01f, 0.0f, 1.0f);
+                        TOOLTIP("alpha clamp uv scale\nThis is ONLY applied to the base alpha texture when it is also clamped in U");
+                    }
                 }
             }
-        }
-        ImGui::EndChildFrame();
+            ImGui::EndChildFrame();
 
 
 
 
-        ImGui::NewLine();
-        style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f);
-        ImGui::BeginChildFrame(177756, ImVec2(columnWidth, 90));
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-        {
-            HEADER("stamp");
-            //if (isStamp)
+            ImGui::NewLine();
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.9f);
+            ImGui::BeginChildFrame(177756, ImVec2(columnWidth, lineHeight * 4));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
-                changed |= ImGui::Checkbox("##isStamp", &isStamp);
+                HEADER("stamp");
+                ImGui::SameLine(0, 30);
+                changed |= ImGui::Checkbox("##stmp", &isStamp);
                 changed |= ImGui::SliderFloat("width", &stampWidth, 0.1f, 10.f, "%.2f m");
                 changed |= ImGui::SliderFloat("height", &stampHeight, 0.1f, 10.f, "%.2f m");
             }
-        }
-        ImGui::EndChildFrame();
+            ImGui::EndChildFrame();
 
 
-
-        ImGui::NewLine();
-        style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.7f);
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.01f, 0.7f);
-        ImGui::BeginChildFrame(123456, ImVec2(columnWidth, 340));
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-        {
-            HEADER_BOOL("alpha", "##useAlpha", _constData.useAlpha);
-            if (_constData.useAlpha)
-            {
-                ImGui::SameLine(columnWidth / 2);
-                FLOAT_BOOL("debug", _constData.debugAlpha);
-
-                ImGui::NewLine();
-                ImGui::Text("vertex colour (red)");
-                changed |= ImGui::SliderFloat("##vertexalpha", &_constData.vertexAlphaScale, 0, 1, "%.2f");
-                TOOLTIP("vertex alpha influence - packed in red");
-
-                ImGui::NewLine();
-                float Y0 = ImGui::GetCursorPosY();
-                ImGui::Text("base texture");
-                changed |= ImGui::SliderFloat("##texturealpha", &_constData.baseAlphaScale, 0, 1, "%.2f");
-                TOOLTIP("texture alpha influence");
-                if (_constData.baseAlphaScale > 0)
-                {
-                    TEXTURE(baseAlpha, "");
-
-                    ImGui::PushItemWidth(columnWidth / 2 - 10);
-                    {
-                        changed |= ImGui::DragFloat("##brightnessAlpha", &_constData.baseAlphaBrightness, 0.01f, -1, 1);
-                        TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
-                        ImGui::SameLine();
-                        changed |= ImGui::DragFloat("##constrastAlpha", &_constData.baseAlphaContrast, 0.1f, 0.1f, 5);
-                        TOOLTIP("contrast \n\nclamp(alpha  * contrast + brighness)");
-
-
-                    }
-                    ImGui::PopItemWidth();
-                }
-
-
-                ImGui::SetCursorPosY(Y0 + 130);
-                ImGui::Text("detail texture");
-                changed |= ImGui::SliderFloat("##detailalpha", &_constData.detailAlphaScale, 0, 1, "%.2f");
-                TOOLTIP("detail texture influence");
-                if (_constData.detailAlphaScale > 0)
-                {
-                    TEXTURE(detailAlpha, "");
-
-                    ImGui::PushItemWidth(columnWidth / 2 - 10);
-                    {
-                        changed |= ImGui::DragFloat("##brightnessAlphaDetail", &_constData.detailAlphaBrightness, 0.05f, -1, 1);
-                        TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
-                        ImGui::SameLine();
-                        changed |= ImGui::DragFloat("##constrastAlphaDetail", &_constData.detailAlphaContrast, 0.1f, 0.1f, 5);
-                        TOOLTIP("contrast \n\nclamp(alpha  * contrast + brighness)");
-                    }
-                    ImGui::PopItemWidth();
-
-                }
-            }
-        }
-        ImGui::EndChildFrame();
-
-        //if (_constData.materialType == 0)
-        {
             ImGui::NewLine();
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.02f, 0.07f, 0.7f);
-            ImGui::BeginChildFrame(1234561, ImVec2(columnWidth, 220));
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.01f, 0.0f, 0.9f);
+            ImGui::BeginChildFrame(123456, ImVec2(columnWidth, lineHeight * 14));
             style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
             {
-                HEADER("physics");
-                ImGui::Text("dry grip value");
-                ImGui::Text("wet grip value");
-                ImGui::Text("what else");
+                HEADER_BOOL("alpha", "##useAlpha", _constData.useAlpha);
+                if (_constData.useAlpha)
+                {
+                    ImGui::SameLine(columnWidth / 2);
+                    FLOAT_BOOL("debug", _constData.debugAlpha);
+
+                    ImGui::NewLine();
+                    ImGui::Text("vertex colour (red)");
+                    changed |= ImGui::SliderFloat("##vertexalpha", &_constData.vertexAlphaScale, 0, 1, "%.2f");
+                    TOOLTIP("vertex alpha influence - packed in red");
+
+                    ImGui::NewLine();
+                    float Y0 = ImGui::GetCursorPosY();
+                    ImGui::Text("base texture");
+                    changed |= ImGui::SliderFloat("##texturealpha", &_constData.baseAlphaScale, 0, 1, "%.2f");
+                    TOOLTIP("texture alpha influence");
+                    if (_constData.baseAlphaScale > 0)
+                    {
+                        TEXTURE(baseAlpha, "");
+
+                        ImGui::PushItemWidth(columnWidth / 2 - 10);
+                        {
+                            changed |= ImGui::DragFloat("##brightnessAlpha", &_constData.baseAlphaBrightness, 0.01f, -1, 1);
+                            TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
+                            ImGui::SameLine();
+                            changed |= ImGui::DragFloat("##constrastAlpha", &_constData.baseAlphaContrast, 0.1f, 0.1f, 5);
+                            TOOLTIP("contrast \n\nclamp(alpha  * contrast + brighness)");
+
+
+                        }
+                        ImGui::PopItemWidth();
+                    }
+
+
+                    ImGui::SetCursorPosY(Y0 + 130);
+                    ImGui::Text("detail texture");
+                    changed |= ImGui::SliderFloat("##detailalpha", &_constData.detailAlphaScale, 0, 1, "%.2f");
+                    TOOLTIP("detail texture influence");
+                    if (_constData.detailAlphaScale > 0)
+                    {
+                        TEXTURE(detailAlpha, "");
+
+                        ImGui::PushItemWidth(columnWidth / 2 - 10);
+                        {
+                            changed |= ImGui::DragFloat("##brightnessAlphaDetail", &_constData.detailAlphaBrightness, 0.05f, -1, 1);
+                            TOOLTIP("brightness \n\nclamp(alpha  * contrast + brighness)");
+                            ImGui::SameLine();
+                            changed |= ImGui::DragFloat("##constrastAlphaDetail", &_constData.detailAlphaContrast, 0.1f, 0.1f, 5);
+                            TOOLTIP("contrast \n\nclamp(alpha  * contrast + brighness)");
+                        }
+                        ImGui::PopItemWidth();
+
+                    }
+                }
             }
             ImGui::EndChildFrame();
-        }
 
-    }
-
-
-    ImGui::NextColumn();
-    {
-        if (_constData.materialType == 1)
-        {
-            char name[256];
-            HEADER("Sub materials");
-            for (uint i = 0; i < 8; i++)
+            //if (_constData.materialType == 0)
             {
-
-                SUBMATERIAL(i, "");
-
-                sprintf(name, "alpha##%d", i);
-                int alpha = ((_constData.subMaterials[i] >> 16) & 0xff);
-                if (ImGui::SliderInt(name, &alpha, 0, 255))
-                {
-                    _constData.subMaterials[i] &= 0xff00ffff;
-                    _constData.subMaterials[i] += alpha << 16;
-                    changed |= true;
-                    rebuildConstantbuffer();
-                }
-
-                sprintf(name, "control##%d", i);
-                int ctrl = ((_constData.subMaterials[i] >> 24) & 0xff);
-                if (ImGui::SliderInt(name, &ctrl, 0, 5))
-                {
-                    _constData.subMaterials[i] &= 0x00ffffff;
-                    _constData.subMaterials[i] += ctrl << 24;
-                    changed |= true;
-                    rebuildConstantbuffer();
-                }
                 ImGui::NewLine();
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.01f, 0.02f, 0.07f, 0.9f);
+                ImGui::BeginChildFrame(1234561, ImVec2(columnWidth, lineHeight * 5));
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+                {
+                    HEADER("physics");
+                    ImGui::Text("dry grip value");
+                    ImGui::Text("wet grip value");
+                    ImGui::Text("what else");
+                }
+                ImGui::EndChildFrame();
             }
 
         }
 
 
-        if (_constData.materialType == 0)
+        ImGui::NextColumn();
         {
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.08f, 0.01f, 0.01f, 0.7f);
-            ImGui::BeginChildFrame(123451, ImVec2(columnWidth, 360));
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+            if (_constData.materialType == 1)
             {
-
-                HEADER_BOOL("elevation", "##useElevation", _constData.useElevation);
-                if (_constData.useElevation)
+                char name[256];
+                HEADER("Sub materials");
+                for (uint i = 0; i < 8; i++)
                 {
+
+                    SUBMATERIAL(i, "");
+
+                    sprintf(name, "alpha##%d", i);
+                    int alpha = ((_constData.subMaterials[i] >> 16) & 0xff);
+                    if (ImGui::SliderInt(name, &alpha, 0, 255))
+                    {
+                        _constData.subMaterials[i] &= 0xff00ffff;
+                        _constData.subMaterials[i] += alpha << 16;
+                        changed |= true;
+                        rebuildConstantbuffer();
+                    }
+
+                    sprintf(name, "control##%d", i);
+                    int ctrl = ((_constData.subMaterials[i] >> 24) & 0xff);
+                    if (ImGui::SliderInt(name, &ctrl, 0, 5))
+                    {
+                        _constData.subMaterials[i] &= 0x00ffffff;
+                        _constData.subMaterials[i] += ctrl << 24;
+                        changed |= true;
+                        rebuildConstantbuffer();
+                    }
                     ImGui::NewLine();
-                    changed |= ImGui::Checkbox("absolute", &useAbsoluteElevation);
-                    _constData.useAbsoluteElevation = useAbsoluteElevation;
-                    TOOLTIP("is true, use absolute height and blend with terrain\notherwise offset is relative i.e. raise or lower the existing ground");
-                    ImGui::SameLine(columnWidth / 2);
+                }
 
-                    FLOAT_BOOL("vertex.y", _constData.useVertexY);
-                    TOOLTIP("add the vertex heights in the mesh");
+            }
 
+
+            if (_constData.materialType == 0)
+            {
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.08f, 0.01f, 0.01f, 0.9f);
+                ImGui::BeginChildFrame(123451, ImVec2(columnWidth, lineHeight * 14));
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+                {
+
+                    HEADER_BOOL("elevation", "##useElevation", _constData.useElevation);
+                    if (_constData.useElevation)
+                    {
+                        ImGui::NewLine();
+                        changed |= ImGui::Checkbox("absolute", &useAbsoluteElevation);
+                        _constData.useAbsoluteElevation = useAbsoluteElevation;
+                        TOOLTIP("is true, use absolute height and blend with terrain\notherwise offset is relative i.e. raise or lower the existing ground");
+                        ImGui::SameLine(columnWidth / 2);
+
+                        FLOAT_BOOL("vertex.y", _constData.useVertexY);
+                        TOOLTIP("add the vertex heights in the mesh");
+
+                        //ImGui::NewLine();
+
+                        changed |= ImGui::DragFloat("y offset", &_constData.YOffset, 0.1f, -10, 10, "%.3f m");
+                        TOOLTIP("offset to shift the mesh up or down");
+
+                        ImGui::NewLine();
+
+                        TEXTURE(baseElevation, "");
+                        changed |= ImGui::DragFloat("base scale ##elevation", &_constData.baseElevationScale, 0.001f, 0, 1, "%.3f m");
+                        TOOLTIP("scale of the displacement texture");
+                        changed |= ImGui::DragFloat("base offset ##elevation", &_constData.baseElevationOffset, 0.1f, 0, 1, "%.2f");
+                        TOOLTIP("texture value that represents zero");
+
+                        ImGui::NewLine();
+
+                        TEXTURE(detailElevation, "");
+                        changed |= ImGui::DragFloat("detail scale ##elevation", &_constData.detailElevationScale, 0.001f, 0, 1, "%.3f m");
+                        TOOLTIP("offset to shift the mesh up or down");
+                        changed |= ImGui::DragFloat("detail offset ##elevation", &_constData.detailElevationOffset, 0.1f, 0, 1, "%.2f");
+                        TOOLTIP("texture value that represents zero");
+
+                        if (textureIndex[baseElevation] == -1) _constData.baseElevationScale = 0;
+                        if (textureIndex[detailElevation] == -1) _constData.detailElevationScale = 0;
+
+                    }
+                }
+                ImGui::EndChildFrame();
+            }
+
+            if (_constData.materialType == 0)
+            {
+                ImGui::NewLine();
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.06f, 0.1f, 0.01f, 0.9f);
+                ImGui::BeginChildFrame(123453, ImVec2(columnWidth, lineHeight * 22));
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+                {
+                    HEADER_BOOL("albedo & pbr", "####useAlbedo", _constData.useColour);
+                    if (_constData.useColour)
+                    {
+                        ImGui::NewLine();
+                        changed |= ImGui::Combo("##material index", &_constData.standardMaterialType, "tarmac\0soil\0grass\0");
+                        TOOLTIP("material index\n It sets reflectance, microFiber, microShadow and lightWrap to fixed values");
+                        ImGui::NewLine();
+
+                        TEXTURE(baseAlbedo, "");
+
+                        ImGui::Text("        ");
+                        ImGui::SameLine();
+                        changed |= ImGui::SliderFloat("##albedoScale", &_constData.albedoBlend, -1, 1, "base     :    detail");
+                        TOOLTIP("blend between main and detail texture \n\n-1 : all main texture \n 0 : 50/50 \n 1 : all detail \n\nA = lerp(albedo, 0.5, saturate(blend)); \nB = lerp(detail, 0.5, saturate(-blend)); \nOut.Albedo.rgb = clamp(0.04, 0.90, A * B * scaleAlbedo * 2); // 0.04, 0.90 charcoal to fresh snow\n");
+                        TEXTURE(detailAlbedo, "");
+
+                        changed |= ImGui::ColorEdit3("albedo scale", &_constData.albedoScale.x);
+                        TOOLTIP("fixed colour scale \n128 128 128 means no change\nIf the texture is averaged around 0.5 (WARNING ABOUT SRGB)\nthis can be absolute albedo\nThis value is in linear colour - you CANNOT copy values from photoshop in SRGB");
+
+                        if (textureIndex[baseAlbedo] == -1) _constData.albedoBlend = 1;
+                        if (textureIndex[detailAlbedo] == -1) _constData.albedoBlend = -1;
+
+
+
+                        ImGui::NewLine();
+                        HEADER("roughness");
+
+                        TEXTURE(baseRoughness, "");
+
+                        ImGui::Text("        ");
+                        ImGui::SameLine();
+                        changed |= ImGui::SliderFloat("##roughnessScale", &_constData.roughnessBlend, -1, 1, "base     :    detail");
+                        TOOLTIP("blend between main and detail texture \n\n-1 : all main texture \n 0 : 50/50 \n 1 : all detail \n\nA = lerp(albedo, 0.5, saturate(blend)); \nB = lerp(detail, 0.5, saturate(-blend)); \nOut.Albedo.rgb = clamp(0.04, 0.90, A * B * scaleAlbedo * 2); // 0.04, 0.90 charcoal to fresh snow\n");
+                        TEXTURE(detailRoughness, "");
+
+                        changed |= ImGui::SliderFloat("rough scale", &_constData.roughnessScale, 0.1f, 10);
+
+                        if (textureIndex[baseRoughness] == -1) _constData.roughnessBlend = 1;
+                        if (textureIndex[detailRoughness] == -1) _constData.roughnessBlend = -1;
+
+
+                        ImGui::NewLine();
+                        HEADER("porosity");
+                        changed |= ImGui::SliderFloat("porosity", &_constData.porosity, 0, 1);
+
+                        ImGui::NewLine();
+                        ImGui::Text("not doing ao at the moment, will try real time");
+                    }
+                }
+                ImGui::EndChildFrame();
+
+
+            }
+        }
+
+
+        ImGui::NextColumn();
+        {
+            if (_constData.materialType == 0)
+            {
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.03f, 0.03f, 0.03f, 0.9f);
+                ImGui::BeginChildFrame(123454, ImVec2(columnWidth, lineHeight * 40));
+                style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+                {
+                    HEADER_BOOL("ecotopes", "##useEcotopes", _constData.useEcotopes);
+
+                    changed |= ImGui::SliderFloat("elevation", &_constData.permanenceElevation, 0, 1, "ecotope   :   terrafector");
+                    TOOLTIP("what controls the final elevation");
+                    changed |= ImGui::SliderFloat("colour", &_constData.permanenceColour, 0, 1, "ecotope   :   terrafector");
+                    TOOLTIP("what controls the final colour");
+                    changed |= ImGui::SliderFloat("ecotopes", &_constData.permanenceEcotopes, 0, 1, "ecotope   :   terrafector");
+                    TOOLTIP("what controls the final ecotopes");
                     //ImGui::NewLine();
 
-                    changed |= ImGui::DragFloat("y offset", &_constData.YOffset, 0.1f, -10, 10, "%.3f m");
-                    TOOLTIP("offset to shift the mesh up or down");
 
+                    changed |= ImGui::SliderFloat3("cull", &_constData.cullA, 0, 1);
+                    //changed |= ImGui::SliderFloat("cull bushes", &_constData.cullB, 0, 1);
+                    //changed |= ImGui::SliderFloat("cull trees", &_constData.cullC, 0, 1);
+                    //ImGui::NewLine();
                     ImGui::NewLine();
 
-                    TEXTURE(baseElevation, "");
-                    changed |= ImGui::DragFloat("base scale ##elevation", &_constData.baseElevationScale, 0.001f, 0, 1, "%.3f m");
-                    TOOLTIP("scale of the displacement texture");
-                    changed |= ImGui::DragFloat("base offset ##elevation", &_constData.baseElevationOffset, 0.1f, 0, 1, "%.2f");
-                    TOOLTIP("texture value that represents zero");
-
-                    ImGui::NewLine();
-
-                    TEXTURE(detailElevation, "");
-                    changed |= ImGui::DragFloat("detail scale ##elevation", &_constData.detailElevationScale, 0.001f, 0, 1, "%.3f m");
-                    TOOLTIP("offset to shift the mesh up or down");
-                    changed |= ImGui::DragFloat("detail offset ##elevation", &_constData.detailElevationOffset, 0.1f, 0, 1, "%.2f");
-                    TOOLTIP("texture value that represents zero");
-
-                    if (textureIndex[baseElevation] == -1) _constData.baseElevationScale = 0;
-                    if (textureIndex[detailElevation] == -1) _constData.detailElevationScale = 0;
-
-                }
-            }
-            ImGui::EndChildFrame();
-        }
-
-        if (_constData.materialType == 0)
-        {
-            ImGui::NewLine();
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.06f, 0.1f, 0.01f, 0.7f);
-            ImGui::BeginChildFrame(123453, ImVec2(columnWidth, 580));
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-            {
-                HEADER_BOOL("albedo & pbr", "####useAlbedo", _constData.useColour);
-                if (_constData.useColour)
-                {
-                    ImGui::NewLine();
-                    changed |= ImGui::Combo("##material index", &_constData.standardMaterialType, "tarmac\0soil\0grass\0");
-                    TOOLTIP("material index\n It sets reflectance, microFiber, microShadow and lightWrap to fixed values");
-                    ImGui::NewLine();
-
-                    TEXTURE(baseAlbedo, "");
-
-                    ImGui::Text("        ");
-                    ImGui::SameLine();
-                    changed |= ImGui::SliderFloat("##albedoScale", &_constData.albedoBlend, -1, 1, "base     :    detail");
-                    TOOLTIP("blend between main and detail texture \n\n-1 : all main texture \n 0 : 50/50 \n 1 : all detail \n\nA = lerp(albedo, 0.5, saturate(blend)); \nB = lerp(detail, 0.5, saturate(-blend)); \nOut.Albedo.rgb = clamp(0.04, 0.90, A * B * scaleAlbedo * 2); // 0.04, 0.90 charcoal to fresh snow\n");
-                    TEXTURE(detailAlbedo, "");
-
-                    changed |= ImGui::ColorEdit3("albedo scale", &_constData.albedoScale.x);
-                    TOOLTIP("fixed colour scale \n128 128 128 means no change\nIf the texture is averaged around 0.5 (WARNING ABOUT SRGB)\nthis can be absolute albedo\nThis value is in linear colour - you CANNOT copy values from photoshop in SRGB");
-
-                    if (textureIndex[baseAlbedo] == -1) _constData.albedoBlend = 1;
-                    if (textureIndex[detailAlbedo] == -1) _constData.albedoBlend = -1;
-
-
-
-                    ImGui::NewLine();
-                    HEADER("roughness");
-
-                    TEXTURE(baseRoughness, "");
-
-                    ImGui::Text("        ");
-                    ImGui::SameLine();
-                    changed |= ImGui::SliderFloat("##roughnessScale", &_constData.roughnessBlend, -1, 1, "base     :    detail");
-                    TOOLTIP("blend between main and detail texture \n\n-1 : all main texture \n 0 : 50/50 \n 1 : all detail \n\nA = lerp(albedo, 0.5, saturate(blend)); \nB = lerp(detail, 0.5, saturate(-blend)); \nOut.Albedo.rgb = clamp(0.04, 0.90, A * B * scaleAlbedo * 2); // 0.04, 0.90 charcoal to fresh snow\n");
-                    TEXTURE(detailRoughness, "");
-
-                    changed |= ImGui::SliderFloat("rough scale", &_constData.roughnessScale, 0.1f, 10);
-
-                    if (textureIndex[baseRoughness] == -1) _constData.roughnessBlend = 1;
-                    if (textureIndex[detailRoughness] == -1) _constData.roughnessBlend = -1;
-
-
-                    ImGui::NewLine();
-                    HEADER("porosity");
-                    changed |= ImGui::SliderFloat("porosity", &_constData.porosity, 0, 1);
-
-                    ImGui::NewLine();
-                    ImGui::Text("not doing ao at the moment, will try real time");
-                }
-            }
-            ImGui::EndChildFrame();
-
-
-        }
-    }
-
-
-    ImGui::NextColumn();
-    {
-        if (_constData.materialType == 0)
-        {
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.03f, 0.03f, 0.03f, 0.7f);
-            ImGui::BeginChildFrame(123454, ImVec2(columnWidth, 850));
-            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
-            {
-                HEADER_BOOL("ecotopes", "##useEcotopes", _constData.useEcotopes);
-
-                changed |= ImGui::SliderFloat("elevation", &_constData.permanenceElevation, 0, 1, "ecotope   :   terrafector");
-                TOOLTIP("what controls the final elevation");
-                changed |= ImGui::SliderFloat("colour", &_constData.permanenceColour, 0, 1, "ecotope   :   terrafector");
-                TOOLTIP("what controls the final colour");
-                changed |= ImGui::SliderFloat("ecotopes", &_constData.permanenceEcotopes, 0, 1, "ecotope   :   terrafector");
-                TOOLTIP("what controls the final ecotopes");
-                //ImGui::NewLine();
-
-
-                changed |= ImGui::SliderFloat3("cull", &_constData.cullA, 0, 1);
-                //changed |= ImGui::SliderFloat("cull bushes", &_constData.cullB, 0, 1);
-                //changed |= ImGui::SliderFloat("cull trees", &_constData.cullC, 0, 1);
-                //ImGui::NewLine();
-                ImGui::NewLine();
-
-                if (_constData.useEcotopes)
-                {
-
-
-                    TEXTURE(ecotope, "");
-
-                    ImGui::NewLine();
-
-
-                    for (uint i = 0; i < 15; i++)
+                    if (_constData.useEcotopes)
                     {
-                        if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
-                             changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
-                        }
-                        else
+
+
+                        TEXTURE(ecotope, "");
+
+                        ImGui::NewLine();
+
+
+                        for (uint i = 0; i < 15; i++)
                         {
-                            char ect_name[256];
-                            sprintf(ect_name, "ecotope %d", i);
-                            changed |= ImGui::ColorEdit4(ect_name, &_constData.ecotopeMasks[i][0], true);
+                            if (i < terrafectorSystem::pEcotopes->ecotopes.size()) {
+                                changed |= ImGui::ColorEdit4(terrafectorSystem::pEcotopes->ecotopes[i].name.c_str(), &_constData.ecotopeMasks[i][0], true);
+                            }
+                            else
+                            {
+                                char ect_name[256];
+                                sprintf(ect_name, "ecotope %d", i);
+                                changed |= ImGui::ColorEdit4(ect_name, &_constData.ecotopeMasks[i][0], true);
+                            }
+                            TOOLTIP("remember to set alpha");
+                            if (i % 3 == 2) ImGui::NewLine();
+
                         }
-                        TOOLTIP("remember to set alpha");
-                        if (i % 3 == 2) ImGui::NewLine();
 
                     }
-
                 }
+                ImGui::EndChildFrame();
+
+
+
             }
-            ImGui::EndChildFrame();
-
-
-
         }
-    }
 
+    }
+    ImGui::PopFont();
 
     ImGui::Columns(1);
 
@@ -2125,11 +2123,6 @@ void terrafectorSystem::renderGui(Gui* mpGui, Gui::Window& _window)
     ImVec4 oldText = style.Colors[ImGuiCol_Text];
     root.renderGui(mpGui);
     style.Colors[ImGuiCol_Text] = oldText;
-
-    // Materials
-    //ImGui::NewLine();
-    //terrafectorEditorMaterial::static_materials.renderGui(mpGui, _window);
-
 }
 
 

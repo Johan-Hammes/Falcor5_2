@@ -4,9 +4,65 @@
 #include "imgui_internal.h"
 
 
-#pragma optimize( "", off )
+//#pragma optimize( "", off )
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
+
+
+void replaceAll_rd(std::string& str, const std::string& from, const std::string& to) {
+    if (from.empty())
+        return;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
+
+
+/*  roadMaterialLayer
+    --------------------------------------------------------------------------------------------------------------------*/
+bool roadMaterialLayer::renderGui(Gui* _gui, Gui::Window& _window)
+{
+    bool changed = false;
+
+    ImGui::Text(displayName.c_str());
+    if (ImGui::Combo("mode", (int*)&bezierIndex, "Inner\0Outer")) { changed = true; }
+    TOOLTIP("unused in most slots, i.e. lanes which is assigend to a specific lane\nbut used for maun tarmac as a form of control");
+
+    if (ImGui::Combo("side A", (int*)&sideA, "Inner\0Outer")) { changed = true; }
+    TOOLTIP("use the inner our outer spline");
+    changed |= ImGui::DragFloat("offset A", &offsetA, 0.001f, -10.f, 10.f, "%2.3fm");
+    TOOLTIP("offset from the spline\nwhich side is in or out???");
+
+    if (ImGui::Combo("side B", (int*)&sideB, "Inner\0Outer")) { changed = true; }
+    TOOLTIP("use the inner our outer spline");
+    changed |= ImGui::DragFloat("offset B", &offsetB, 0.001f, -10.f, 10.f, "%2.3fm");
+    TOOLTIP("offset from the spline\npositive values shift towards the outside\nnegative values to the inside");
+
+    if (ImGui::Button(material.c_str(), ImVec2(300, 0)))
+    {
+        std::filesystem::path path;
+        FileDialogFilterVec filters = { {"terrafectorMaterial"} };
+        if (openFileDialog(filters, path))
+        {
+            std::string P = path.string();
+            replaceAll_rd(P, "\\", "/");
+            if (P.find(terrafectorEditorMaterial::rootFolder) == 0) {
+                std::string relative = P.substr(terrafectorEditorMaterial::rootFolder.length());
+                materialIndex = terrafectorEditorMaterial::static_materials.find_insert_material(P);
+                material = relative;
+                displayName = path.filename().string();
+                changed = true;
+            }
+        }
+    }
+    TOOLTIP(material.c_str());
+
+    return changed;
+}
+
+
 
 /*  roadMaterialGroup
     --------------------------------------------------------------------------------------------------------------------*/
@@ -34,6 +90,76 @@ void roadMaterialGroup::save()
     std::ofstream os(terrafectorEditorMaterial::rootFolder + relativePath);
     cereal::JSONOutputArchive archive(os);
     serialize(archive, 0);
+}
+
+bool roadMaterialGroup::renderGui(Gui* _gui, Gui::Window& _window)
+{
+    auto& style = ImGui::GetStyle();
+    ImGuiStyle oldStyle = style;
+    //style.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.02f, 0.01f, 0.80f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.13f, 0.14f, 0.17f, 0.70f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.14f, 0.17f, 0.90f);
+
+    style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+    //style.Colors[ImGuiCol_ButtonHovered] = MED(0.86f);
+
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+    style.FrameRounding = 4.0f;
+
+    ImGui::PushFont(_gui->getFont("header1"));
+    {
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        char txt[256];
+        sprintf(txt, "%s", displayName.c_str());
+        if (ImGui::InputText("##name", txt, 256))
+        {
+            displayName = txt;
+        }
+        TOOLTIP(relativePath.c_str());
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.5f);
+    }
+    ImGui::PopFont();
+
+    ImGui::PushFont(_gui->getFont("header2"));
+    {
+        ImGui::SameLine();
+        if (changedForSave)
+        {
+            style.Colors[ImGuiCol_Button] = ImVec4(0.99f, 0.17f, 0.13f, 0.9f);
+            ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 200);
+            if (ImGui::Button("Save", ImVec2(80, 0))) { save(); changedForSave = false; }
+            TOOLTIP(relativePath.c_str());
+            style.Colors[ImGuiCol_Button] = ImVec4(0.47f, 0.77f, 0.83f, 0.5f);
+        }
+
+        if (ImGui::Button("-", ImVec2(20, 0))) { layers.pop_back(); }
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button("+", ImVec2(20, 0))) { layers.emplace_back(); }
+    }
+    ImGui::PopFont();
+
+
+    bool changed = false;
+    ImGui::PushFont(_gui->getFont("default"));
+    {
+        
+        int id = 12345;
+        for (auto& L : layers)
+        {
+            ImGui::PushID(id);
+            id++;
+            changed |= L.renderGui(_gui, _window);
+            ImGui::Separator();
+            ImGui::PopID();
+        }
+    }
+    ImGui::PopFont();
+
+    changedForSave |= changed;
+    style = oldStyle;
+    return changed;
 }
 
 
@@ -177,7 +303,7 @@ void roadMaterialCache::renameMoveMaterial(roadMaterialGroup& _material)
     std::string windowspath = terrafectorEditorMaterial::rootFolder + _material.relativePath;     // to open in that directory
     //replaceAllrm(windowspath, "/", "\\");
     std::filesystem::path path = windowspath;
-    
+
 
     FileDialogFilterVec filters = { {"roadMaterial"} };
     if (saveFileDialog(filters, path))
@@ -194,6 +320,18 @@ void roadMaterialCache::renameMoveMaterial(roadMaterialGroup& _material)
             _material.save();
         }
     }
+}
+
+
+
+bool roadMaterialCache::renderGuiSelect(Gui* _gui, Gui::Window& _window)
+{
+    if (selectedMaterial >= 0)
+    {
+        return materialVector[selectedMaterial].renderGui(_gui, _window);
+    }
+
+    return false;
 }
 
 
@@ -262,7 +400,10 @@ void roadMaterialCache::renderGui(Gui* _gui, Gui::Window& _window)
         uint y = (int)floor(subCount / numColumns);
         ImGui::SetCursorPos(ImVec2(x * GRID_SIZE + rootPos.x, y * GRID_SIZE + rootPos.y));
         if (material.thumbnail) {
-            if (_window.imageButton("testImage", material.thumbnail, float2(ICON_SIZE, ICON_SIZE))) {}
+            if (_window.imageButton("testImage", material.thumbnail, float2(ICON_SIZE, ICON_SIZE)))
+            {
+                selectedMaterial = displaySortMap[cnt].index;
+            }
         }
         else
         {
@@ -274,7 +415,7 @@ void roadMaterialCache::renderGui(Gui* _gui, Gui::Window& _window)
         {
             if (ImGui::Selectable("rename / move")) { renameMoveMaterial(material); }
 
-            
+
             if (ImGui::Selectable("Explorer")) {
                 std::string cmdExp = "explorer " + terrafectorEditorMaterial::rootFolder + material.relativePath;
                 cmdExp = cmdExp.substr(0, cmdExp.find_last_of("\\/") + 1);

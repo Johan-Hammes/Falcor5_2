@@ -286,6 +286,24 @@ void ribbonBuilder::lightBasic(float2 extents, float plantDepth, float yOffset)
 }
 
 
+/*  I think I want an envelope - but lest do egg first, with very small H
+*   very not good for long branch with leaves at the tip
+*   The medium term is likely some sort of cubemap, where each voxel calculates a direction and horizon and maybe some sort of density
+*   and then some way to do this for specific sub branches, once at highest resolution and then save it all
+*   the mess migth eb what to do with branches that leaves long lines, or should we do it for leaves only?
+*/
+void ribbonBuilder::lightBranch(uint from, uint to, float3 root, float3 tip, float plantDepth, float yOffset, float rootAO)
+{
+    float3 middle = (root * 0.6667f) + (tip * 0.3333f);
+    // just cheat and use half lenghts for now
+    for (int i = from; i < to; i++)
+    {
+        auto& R = ribbons[i];
+    }
+}
+
+
+
 
 void ribbonBuilder::finalizeAndFillLastBlock()
 {

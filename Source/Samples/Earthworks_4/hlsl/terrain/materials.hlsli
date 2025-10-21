@@ -80,9 +80,9 @@ struct TF_material
 
 struct _uv
 {
-    float2 object;      // object space
-    float2 side;        // modified object for solving sides of beziers
-    float2 world;       // world space scale only - about 1mm presision at 16km should be ok for now
+    float2 object; // object space
+    float2 side; // modified object for solving sides of beziers
+    float2 world; // world space scale only - about 1mm presision at 16km should be ok for now
 };
 
 
@@ -136,7 +136,7 @@ float solveAlpha(const TF_material _mat, _uv uv, float _vertexAlpha)
             {
                 uv.side.xy *= _mat.uvScale;    // without rotate
                 uv.side.x = clamp(sideAlpha, 0.1, 0.9);
-                float alphaBase = gmyTextures.T[_mat.baseAlphaTexture].Sample(gSmpLinear, uv.side).r;
+                float alphaBase = gmyTextures.T[_mat.baseAlphaTexture].SampleLevel (gSmpLinear, uv.side, 3).r;
 
                 sideAlpha = lerp(1, saturate((alphaBase + _mat.baseAlphaBrightness) * _mat.baseAlphaContrast), _mat.baseAlphaScale);
             }
@@ -155,10 +155,12 @@ float solveAlpha(const TF_material _mat, _uv uv, float _vertexAlpha)
             alpha *= lerp(1, smoothstep(0, 1, _vertexAlpha), _mat.vertexAlphaScale);
             alpha *= lerp(1, saturate((alphaBase + _mat.baseAlphaBrightness) * _mat.baseAlphaContrast), _mat.baseAlphaScale);
             alpha *= lerp(1, saturate((alphaDetail + _mat.detailAlphaBrightness) * _mat.detailAlphaContrast), _mat.detailAlphaScale);
+        
         }
     }
 
-    return alpha;
+    return saturate(alpha);
+
 }
 
 
@@ -180,26 +182,31 @@ struct PS_OUTPUT_Terrafector
 
 void solveElevationColour(inout PS_OUTPUT_Terrafector output, const TF_material MAT, const _uv uv, const float alpha, const float vertex_heigth)
 {
+    
     // Elevation
     output.Elevation = 0;
     if (MAT.useElevation)
     {
-        if (MAT.useVertexY)
-        {
-            output.Elevation.r = vertex_heigth;
-        }
+        
         output.Elevation.r += MAT.YOffset;
         output.Elevation.r += (gmyTextures.T[MAT.baseElevationTexture].Sample(gSmpLinear, uv.object).r - MAT.baseElevationOffset) * MAT.baseElevationScale;
         output.Elevation.r += (gmyTextures.T[MAT.detailElevationTexture].Sample(gSmpLinear, uv.world).r - MAT.detailElevationOffset) * MAT.detailElevationScale;
-
         output.Elevation.r *= alpha;
 
-        if (MAT.useAbsoluteElevation > 0.5) {
+        if (MAT.useAbsoluteElevation > 0.5)
+        {
+            if (MAT.useVertexY)
+            {
+                output.Elevation.r += vertex_heigth * alpha;
+            }
             output.Elevation.a = alpha;
+            
         }
         else {
+            //output.Elevation.r *= alpha;
             output.Elevation.a = 0;  // since that causes OneMinusSrcAlpha to 1
         }
+
     }
 
 
@@ -227,9 +234,13 @@ void solveElevationColour(inout PS_OUTPUT_Terrafector output, const TF_material 
         output.PBR.rgb = saturate(pow(rA * rB * 2, MAT.roughnessScale));
         output.PBR.a = alpha;
     }
+    else
+    {
+        output.PBR.a = 0;
+    }
 
 
-
+    // FIXME this has to deal with alpha properly
     output.Alpha = float4(1-MAT.permanenceElevation, 1-MAT.permanenceColour, 1-MAT.permanenceEcotopes, alpha);
     //output.Alpha = float4(1, 1, 1, 0);
 

@@ -2032,42 +2032,48 @@ glm::mat4 _stemBuilder::build(buildSetting _settings, bool _addVerts)
 
     if (_addVerts)
     {
+        bool found = false;
         levelOfDetail lod = lodInfo.front();             // no parent can push us past this, similar when I do sun Parts, there will be a lod set for that add
         for (int i = 0; i < lodInfo.size() - 1; i++)
         {
-            // FIXME we want random pixelSize here for smoother crossovers but 
+            // FIXME we want random pixelSize here for smoother crossovers but
+            // But this is VERY bad, it ashould take overall lengrth into account
             GLOBAL_RND_SIZE = 0;
             if (_settings.callDepth > 1) GLOBAL_RND_SIZE = 0.2f;
             if (_settings.pixelSize * RND_B(float2(1.f, GLOBAL_RND_SIZE)) <= lodInfo[i].pixelSize)
             {
                 lod = lodInfo[i];
+                found = true;
             }
         }
 
-
-        if (!_settings.isBaking)    // so do not use any of these during a bake
+        if (found)
         {
-            if (lod.bakeType == BAKE_DIAMOND)       build_2(_settings, lod.bakeIndex, true);
-            if (lod.bakeType == BAKE_4)             build_4(_settings, lod.bakeIndex, true);
-            if (lod.bakeType == BAKE_N)             build_n(_settings, lod.bakeIndex, true);    // FIXME
-        }
 
-        if (lod.useGeometry || _settings.isBaking)
-        {
-            build_tip(_settings, true);
-            tipVerts = _ribbonBuilder.numVerts();
-
-            if (lod.bakeType == BAKE_NONE || _settings.isBaking)      // Only build nodes if we dont use the core bake at all, or we are Baking
+            if (!_settings.isBaking)    // so do not use any of these during a bake
             {
-                build_NODES(_settings, true);
+                if (lod.bakeType == BAKE_DIAMOND)       build_2(_settings, lod.bakeIndex, true);
+                if (lod.bakeType == BAKE_4)             build_4(_settings, lod.bakeIndex, true);
+                if (lod.bakeType == BAKE_N)             build_n(_settings, lod.bakeIndex, true);    // FIXME
             }
 
-            leafVerts = _ribbonBuilder.numVerts();
-            build_leaves(_settings, 100000, true);
-        }
+            if (lod.useGeometry || _settings.isBaking)
+            {
+                build_tip(_settings, true);
+                tipVerts = _ribbonBuilder.numVerts();
 
-        if ((_ribbonBuilder.numVerts() - startVerts) > 0) numInstancePacked++;
-        numVertsPacked += leafVerts - tipVerts;
+                if (lod.bakeType == BAKE_NONE || _settings.isBaking)      // Only build nodes if we dont use the core bake at all, or we are Baking
+                {
+                    build_NODES(_settings, true);
+                }
+
+                leafVerts = _ribbonBuilder.numVerts();
+                build_leaves(_settings, 100000, true);
+            }
+
+            if ((_ribbonBuilder.numVerts() - startVerts) > 0) numInstancePacked++;
+            numVertsPacked += leafVerts - tipVerts;
+        }
     }
 
     _settings.callDepth--;
@@ -2801,6 +2807,7 @@ void _rootPlant::onLoad()
         blendDesc.setRtParams(i, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlphaSaturate, BlendState::BlendFunc::One);
     }
     blendDesc.setRtParams(3, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlphaSaturate, BlendState::BlendFunc::One);
+    blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::One, BlendState::BlendFunc::Zero, BlendState::BlendFunc::SrcAlphaSaturate, BlendState::BlendFunc::One);
     blendstateBake = BlendState::create(blendDesc);
 
     compute_bakeFloodfill.load("Samples/Earthworks_4/hlsl/terrain/compute_bakeFloodfill.hlsl");
@@ -3055,7 +3062,7 @@ void _rootPlant::renderGui_load(Gui* _gui)
                     build(true);    //to get extetns
                     buildFullResolution();
                     extents = root->calculate_extents(bakeViewAdjusted);
-
+                    builInstanceBuffer();
                 }
             }
         }
@@ -3635,6 +3642,8 @@ void _rootPlant::buildAllLods()
     std::ofstream osData(resource + root->path + ".binaryData", std::ios::binary);
     osData.write((const char*)plantBuf.data(), OnDisk.numP * sizeof(plant));
     osData.write((const char*)_ribbonBuilder.getPackedData(), numV * sizeof(ribbonVertex8));
+    // If n ot existing en pand the ivot points
+    if (_ribbonBuilder.pivotPoints.size() < 256) _ribbonBuilder.pivotPoints.resize(256);
     osData.write((const char*)_ribbonBuilder.pivotPoints.data(), OnDisk.numP * 256 * sizeof(_plant_anim_pivot));
 }
 
@@ -3818,7 +3827,7 @@ void _rootPlant::build(uint pivotOffset)
     buildTime = (float)duration_cast<microseconds>(stop - start).count() / 1000.f;
 }
 
-
+#pragma optimize("", off)
 
 #define bakeSuperSample 8
 #define bakeMipToSave 3
@@ -3826,13 +3835,75 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
 {
     if (!root) return;
 
+    int maxMIPY = (int)log2(_info->pixHeight / 16); // how many mips to get to 16
+    int wScaler = 4;// _info->pixHeight / 16;
+
     float W = _info->extents.x * _info->bakeWidth;      // this is half width
     float H0 = _info->extents.y * _info->bake_V.x;
     float H1 = _info->extents.y * _info->bake_V.y;
     float delH = H1 - H0;
-    int iW = 4 * (int)(_info->pixHeight * W * 2.f / delH / 4.f + 1) * bakeSuperSample;      // *4  /4 is to keep blocks of 4
-    iW = __max(4, iW);
+    int iW = wScaler * (int)ceil(_info->pixHeight * W * 2.f / delH / wScaler) * bakeSuperSample;      // *4  /4 is to keep blocks of 4
+    iW = __max(wScaler, iW);
     int iH = _info->pixHeight * bakeSuperSample;
+
+    // new try
+    float fW = _info->pixHeight * W * 2.f / delH;   // pefect fractional pixels
+    //fW /= pow(2, maxMIPY);  // fractional at max mip
+    //fW /= 4;    // fractional in block sizes
+    int newIW = (int)floor(fW + 0.7f);  //so we mostly go larger but sometimes smaller
+    iW = newIW * 4 * (int)pow(2, maxMIPY) * bakeSuperSample;
+
+    /*  New new new code
+    *   Lets stick with width for now, pick it like above, but then scale the VIEW matrix to make the content fit the new width
+    */
+    // BIG IF
+    float HorizontalScale = 1.f;
+    if (_info->pixHeight == 32)
+    {
+        if (fW < 24) newIW = 16;
+        else if (fW < 40) newIW = 32;
+        else newIW = 48;
+
+        iW = newIW * bakeSuperSample;
+        HorizontalScale = (float)newIW / fW;
+        maxMIPY = 2;    // down to 8 high or 2 blocks, single block is too restrictive
+    }
+    else if (_info->pixHeight == 64)
+    {
+        if (fW < 24) newIW = 16;
+        else if (fW < 24) newIW = 16; //16, 8, 4
+        else if (fW < 40) newIW = 32; // 31, 16, 8
+        else if (fW < 56) newIW = 48; // 48, 24, 12  etc
+        else if (fW < 72) newIW = 64;
+        else if (fW < 88) newIW = 80;
+        else if (fW < 104) newIW = 96;
+        else newIW = 112;
+
+        iW = newIW * bakeSuperSample;
+        HorizontalScale = (float)newIW / fW;
+        maxMIPY = 2;    // down to 16 high or 4 blocks, single block is too restrictive
+    }
+    else
+    {
+        maxMIPY = 3;    // down to 16 high or 4 blocks, single block is too restrictive
+
+        if (fW < 12) { newIW = 8; maxMIPY = 1; }    // 8, 4
+        else if (fW < 24) { newIW = 16; maxMIPY = 2; }  // 16, 8, 4
+        else
+        {
+            for (int i = 32; i < 1024; i += 32)
+            {
+                if (fW > (i - 16))
+                {
+                    newIW = i;
+                }
+            }
+        }
+
+        iW = newIW * bakeSuperSample;
+        HorizontalScale = (float)newIW / fW;
+    }
+    fprintf(terrafectorSystem::_logfile, "bake hgt %d, width %d, lods %d, %2.2f horScale, %2.2f fW pix\n", _info->pixHeight, newIW, maxMIPY, HorizontalScale, fW);
 
     Fbo::SharedPtr fbo;
     {
@@ -3853,6 +3924,7 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
         renderContext->clearRtv(fbo->getRenderTargetView(4).get(), glm::vec4(1.0, 1.0f, 1.0f, 1.0f));
     }
 
+    VIEW[0] *= HorizontalScale;
     glm::mat4 V, VP;
     V = glm::inverse(VIEW);
     VP = glm::orthoLH(-W, W, H0, H1, -1000.0f, 1000.0f) * V;
@@ -3919,15 +3991,19 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
         fbo->getColorTexture(3).get()->generateMips(renderContext);
         fbo->getColorTexture(4).get()->generateMips(renderContext);
 
+        fbo->getColorTexture(0).get()->captureToFile(0, 0, newDir + "_FULL_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
+        fbo->getColorTexture(2).get()->captureToFile(0, 0, newDir + "_FULL_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
+
+
         fbo->getColorTexture(0).get()->captureToFile(bakeMipToSave, 0, newDir + "_albedo.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::ExportAlpha);
         fbo->getColorTexture(1).get()->captureToFile(bakeMipToSave, 0, newDir + "_normal_float16.pfm", Bitmap::FileFormat::PfmFile, Bitmap::ExportFlags::None);
         fbo->getColorTexture(2).get()->captureToFile(bakeMipToSave, 0, newDir + "_normal.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
         fbo->getColorTexture(4).get()->captureToFile(bakeMipToSave, 0, newDir + "_translucency.png", Bitmap::FileFormat::PngFile, Bitmap::ExportFlags::None);
 
         // FIXME total num MIps to build
-        int maxHmip = (int)log2(iH / 4);
-        int maxWmip = (int)log2(iW / 4);
-        int totalMIP = __min(maxHmip, maxWmip) - 2; // -2 for the supersampling
+        //int maxHmip = (int)log2(iH / 4);
+        //int maxWmip = (int)log2(iW / 4);
+        int totalMIP = maxMIPY;// __min(maxHmip, maxWmip) - bakeMipToSave; // -bakeMipToSave for the supersampling
         std::string mipNumber = std::to_string(totalMIP);
         {
             std::string png = newDir + "_albedo.png";
@@ -3961,8 +4037,8 @@ void _rootPlant::bake(std::string _path, std::string _seed, lodBake* _info, glm:
 
         Mat._constData.translucency = _info->translucency;
         Mat._constData.alphaPow = _info->alphaPow;
-        Mat._constData.roughness[0] = 0.6f;
-        Mat._constData.roughness[1] = 0.6f;
+        Mat._constData.roughness[0] = 0.8f;
+        Mat._constData.roughness[1] = 0.8f;
 
         std::ofstream os(resource + _info->material.path);
         cereal::JSONOutputArchive archive(os);

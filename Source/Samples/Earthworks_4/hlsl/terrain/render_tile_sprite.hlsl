@@ -300,7 +300,7 @@ float4 psMain(GSOut vOut) : SV_TARGET
 
     
     // environment cube light
-    color += 0.939 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb;// * pow(vOut.AmbietOcclusion, 0.3);
+    color += 0.539 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb;// * pow(vOut.AmbietOcclusion, 0.3);
 
  // specular sunlight
     float RGH = MAT.roughness[0] + 0.001;
@@ -317,7 +317,7 @@ float4 psMain(GSOut vOut) : SV_TARGET
             trans *= pow(t, 2);
         }
     }
-    color += trans * pow(albedo.rgb, 1.5) * 15 * vOut.diffuseLight * Shadow;
+    color += trans * pow(albedo.rgb, 1.5) * 150 * vOut.diffuseLight * Shadow;
 
 // Now for my atmospeher code --------------------------------------------------------------------------------------------------------
 // FIXME per plant rather

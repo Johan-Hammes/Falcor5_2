@@ -312,7 +312,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	Attr.mesh_Cavity = 1;
 	Attr.CURVATURE = 0;
 	
-    mat.roughness = 0.7;//    saturate(PBR.g);
+    mat.roughness = saturate(PBR.g);
 	
 	prepareMaterialLayerTerrain( Attr, mat );
 	
@@ -357,7 +357,7 @@ float4 psMain(terrainVSOut vIn) : SV_TARGET0
 	diffuse *= (1 - mat.fresnel);
 	specular *= mat.fresnel;
 
-    diffuse += float3(0.01, 0.02, 0.04) * 1.82 * mat.diff.rgb;
+    diffuse += float3(0.01, 0.02, 0.04) * 1.32 * mat.diff.rgb;
 	float3 colour = diffuse + specular * 0.1;
 	
 	/*

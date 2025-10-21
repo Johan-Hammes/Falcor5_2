@@ -66,6 +66,7 @@ struct ribbonBuilder
     
     float3 egg(float2 extents, float3 vector, float yOffset);
     void lightBasic(float2 extents, float plantDepth, float yOffset);
+    void lightBranch(uint from, uint to, float3 root, float3 tip, float plantDepth, float yOffset, float rootAO);
     
     uint numPacked() { return packed.size(); }
     uint numVerts() { return ribbons.size(); }

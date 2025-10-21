@@ -483,6 +483,9 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
     output.diffuseLight = sunLight(output.pos.xyz * 0.001).rgb;
     output.diffuseLight = sunLight(INSTANCE.position * 0.001).rgb;
+
+    float SS = 1 - pow(shadow(output.pos.xyz + INSTANCE.position, 0), 0.25); // Should realyl fo this in VS, just make sunlight zero
+    output.Shadow = 1;//SS;
     
     return output;
 
@@ -509,11 +512,11 @@ PSIn vsMain(uint vId : SV_VertexID, uint iId : SV_InstanceID)
 
     
     output.colour.a = 1;
-    if(bake_radius_alpha < 0.95f)
+    //if(R < 1)
     {
-        //output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.85f, bake_radius_alpha, R);
+        output.colour.a = 1.f - smoothstep(bake_radius_alpha * 0.95f, bake_radius_alpha, R);
     }
-    //output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.9f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
+    output.colour.a *= (1.f - smoothstep(bake_height_alpha * 0.96f, bake_height_alpha, output.pos.y)); //last 10% f16tof32 tip asdouble well
     
 
     extractTangent(output, v);
@@ -808,10 +811,12 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         //alpha = textures.T[MAT.alphaTexture].Sample(gSampler, vOut.uv.xy).r;
         //
     }
+    alpha = pow(alpha, MAT.alphaPow);
     alpha *= vOut.colour.a;
 
-    float rnd = 0.25 + 0.5 * rand_1_05(vOut.pos.xy);
+    float rnd = 0.4 + 0.2 * rand_1_05(vOut.pos.xy);
     clip(alpha - rnd);
+    //clip(alpha - 0.2);
 
     float3 color = textures.T[MAT.albedoTexture].Sample(gSampler, vOut.uv.xy).rgb;// * vOut.AlbedoScale * pow(vOut.AmbietOcclusion, 2);
 
@@ -823,7 +828,7 @@ PS_OUTPUT_Bake psMain(PSIn vOut, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     {
         color = color * (0.9 + 0.1 * vOut.AmbietOcclusion);
     }
-    output.albedo = float4(pow(color, 1.0 / 2.2), 1);
+    output.albedo = float4(pow(color, 1.0 / 2.2), alpha);
     
 
     float3 N = vOut.normal;
@@ -906,7 +911,7 @@ float4 psMain
 
     
     
-    clip(vOut.uv.y);
+    clip(vOut.uv.y - 0.001);
 #if defined(_DEBUG_PIXELS)
     if (vOut.uv.y < 0)
     {
@@ -966,6 +971,7 @@ float4 psMain
             return float4(nTex, 1);
 */
         float3 normalTex = ((textures.T[MAT.normalTexture].Sample(gSampler, vOut.uv.xy).rgb) * 2.0) - 1.0;
+        //if (length(normalTex) < 0.7) return float4(1, 0, 0, 1);
         N = normalize(-(normalTex.r * vOut.tangent) + (normalTex.g * vOut.binormal) + (normalTex.b * vOut.normal * flipNormal));
         //albedo.rgb = normalTex;
 
@@ -1000,7 +1006,7 @@ float4 psMain
     
 
     // environment cube light
-    color += 0.5 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb; // * pow(vOut.AmbietOcclusion, 0.3);
+    color += 1.95 * gEnv.SampleLevel(gSampler, N * float3(1, 1, -1), 0).rgb * albedo.rgb * pow(vOut.AmbietOcclusion, 0.3);
     
 
     // specular sunlight

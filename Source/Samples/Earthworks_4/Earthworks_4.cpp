@@ -61,7 +61,7 @@ void Earthworks_4::onGuiMenubar(Gui* _gui)
             ImGui::SetCursorPos(ImVec2(10, -3));
             ImGui::Text("Earthworks 4");
 
-            ImGui::SetCursorPos(ImVec2(screenSize.x - 120, -3));
+            ImGui::SetCursorPos(ImVec2(screenSize.x - 150, -3));
             ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
 
             ImGui::SetCursorPos(ImVec2(screenSize.x - 15, -3));
@@ -140,19 +140,24 @@ void Earthworks_4::onGuiRender(Gui* _gui)
         if (screenSize.y > 1600.f) scale = 0.9f;
         _gui->addFont("header0", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 20);
         _gui->addFont("header1", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 40);
-        _gui->addFont("header2", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 55);
+        _gui->addFont("header2", "Framework/Fonts/Nunito-Bold.ttf", scale * screenSize.y / 55);
         _gui->addFont("default", "Framework/Fonts/Nunito-Regular.ttf", scale * screenSize.y / 65);
         _gui->addFont("bold", "Framework/Fonts/Nunito-Bold.ttf", scale * screenSize.y / 65);
         _gui->addFont("italic", "Framework/Fonts/Nunito-Italic.ttf", scale * screenSize.y / 65);
+
+        
 
         _gui->addFont("small", "Framework/Fonts/Nunito-Bold.ttf", scale * screenSize.y / 100);
         guiStyle();
         first = false;
     }
 
+    ImGui::GetIO().FontDefault = _gui->getFont("default");
+    
     //ImGui::NewLine();
     //ImGui::SameLine(30, 0);
     //ImGui::Text("%3.1f fps", 1000.0 / gpFramework->getFrameRate().getAverageFrameTime());
+    /*
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.f, 0.f, 0.f, 0.f));
     Gui::Window fpsA(_gui, "##fps", { 500, 200 }, { 100, 200 }, Gui::WindowFlags::Empty | Gui::WindowFlags::NoResize);
     {
@@ -164,7 +169,7 @@ void Earthworks_4::onGuiRender(Gui* _gui)
 
     fpsA.release();
     ImGui::PopStyleColor();
-
+    */
 
     if (showEditGui)
     {
@@ -614,6 +619,8 @@ void Earthworks_4::onFrameUpdate(RenderContext* _renderContext)
 void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::SharedPtr& pTargetFbo)
 {
     gpDevice->toggleVSync(refresh.vsync);
+
+    // ??? Cant we just loop this until fullResetDoNotRender maybe even inside
     onFrameUpdate(_renderContext);
 
 
@@ -653,6 +660,10 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
 
         _renderContext->blit(hdrFbo->getColorTexture(0)->getSRV(0, 1, 0, 1), hdrHalfCopy->getRTV());
 
+        if (refresh.minimal)
+        {
+            Sleep(20);      // aim for 15fps in this mode
+        }
     }
     /*
     if (changed) slowTimer = 10;
@@ -660,9 +671,9 @@ void Earthworks_4::onFrameRender(RenderContext* _renderContext, const Fbo::Share
     if (refresh.minimal && (slowTimer < 0))
     {
         Sleep(30);      // aim for 15fps in this mode
-    }*/
+    }
     static uint cnt = 0;
-
+    */
     /*
     if (terrain.cfd.recordingCFD)
     {

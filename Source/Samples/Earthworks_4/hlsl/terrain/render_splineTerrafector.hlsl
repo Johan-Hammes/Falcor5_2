@@ -161,14 +161,14 @@ PS_OUTPUT_Terrafector fixedMaterials(const uint material, const float2 uv, const
     case MATERIAL_SOLID:
     {
         output.Elevation.a = color.a;
-        output.Elevation.r = color.a * height;
+        output.Elevation.r = height * color.a;
         return output;
     }
     break;
     case MATERIAL_CURVATURE:
     {
         output.Elevation.a = 0;
-        output.Elevation.r = 0.2 * cos((abs(uv.x)) * 1.57079632679);
+                output.Elevation.r = 0.1 * pow(cos((abs(uv.x)) * 1.57079632679), 0.85);
         return output;
     }
     break;
@@ -198,7 +198,6 @@ PS_OUTPUT_Terrafector psMain(splineVSOut vIn)  : SV_TARGET
     _uv uv;
     solveUV(MAT, vIn.posW.xz, vIn.texCoords.xy, uv);
     float alpha = solveAlpha(MAT, uv, vIn.colour.r) * vIn.colour.a;
-    
 	
     
     if (MAT.materialType == MATERIAL_TYPE_STANDARD)

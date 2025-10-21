@@ -35,7 +35,7 @@ using namespace Assimp;
 #include <chrono>
 using namespace std::chrono;
 
-#pragma optimize("", off)
+//#pragma optimize("", off)
 
 #define TOOLTIP(x)  if (ImGui::IsItemHovered()) {ImGui::SetTooltip(x);}
 
@@ -1209,7 +1209,7 @@ void terrainManager::init_TopdownRender()
         blendDesc.setRtBlend(i, true);
         blendDesc.setRtParams(i, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::SrcAlpha, BlendState::BlendFunc::OneMinusSrcAlpha);
     }
-
+    //??? hoekom het ek dit gedoen
     blendDesc.setRtParams(0, BlendState::BlendOp::Add, BlendState::BlendOp::Add, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha, BlendState::BlendFunc::One, BlendState::BlendFunc::OneMinusSrcAlpha);
     split.blendstateRoadsCombined = BlendState::create(blendDesc);
 
@@ -2143,6 +2143,9 @@ void terrainManager::onGuiRenderParaglider(Gui::Window& _window, Gui* pGui, floa
 void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 {
     if (!showGUI) return;
+
+    ImGui::PushFont(_gui->getFont("default"));
+
     if (requestPopupSettings) {
         ImGui::OpenPopup("settings");
         requestPopupSettings = false;
@@ -2152,9 +2155,6 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
         settings.renderGui(_gui);
         ImGui::EndPopup();
     }
-
-
-
 
     if (requestPopupDebug) {
         ImGui::OpenPopup("debug");
@@ -2459,10 +2459,12 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
 
         }
         ImGui::PopFont();
-
         style = oldStyle;   // reset it
     }
     rightPanel.release();
+
+
+
 
     switch (terrainMode)
     {
@@ -2506,17 +2508,6 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
     break;
     case _terrainMode::terrafector:
     {
-        /*
-        Gui::Window tfPanel(_gui, "##tfPanel", { 900, 900 }, { 100, 100 });
-        {
-            ImGui::PushFont(_gui->getFont("roboto_20"));
-            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
-                reset(true);
-            }
-            ImGui::PopFont();
-        }
-        tfPanel.release();
-        */
         Gui::Window terrafectorMaterialPanel_2(_gui, "Terrafector materials##2", { 900, 900 }, { 100, 100 });
         {
             terrafectorEditorMaterial::static_materials.renderGui(_gui, terrafectorMaterialPanel_2);
@@ -2527,20 +2518,23 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
     case _terrainMode::roads:
 
         //ImGui::PushFont(_gui->getFont("roboto_20"));
-        //_gui->setActiveFont("roboto_20");
+    
     {
         Gui::Window tfPanel(_gui, "Material##tfPanel", { 900, 900 }, { 100, 100 });
         {
-
-            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui)) {
-                reset(true);
-            }
-
+            if (terrafectorEditorMaterial::static_materials.renderGuiSelect(_gui))                reset(true);
         }
         tfPanel.release();
 
-
-
+        Gui::Window rmPanel(_gui, "Road mat##tfPanel", { 900, 900 }, { 100, 100 });
+        {
+            if (roadMaterialCache::getInstance().renderGuiSelect(_gui, rmPanel))
+            {
+                mRoadNetwork.updateAllRoads();
+                reset(true);
+            }
+        }
+        rmPanel.release();
 
         Gui::Window terrafectorMaterialPanel(_gui, "Terrafector materials", { 900, 900 }, { 100, 100 });
         {
@@ -2566,13 +2560,14 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
             //terrafectors.renderGui(_gui, terrafectorPanel);
         }
         texturePanel.release();
+        
 
 
         if (mRoadNetwork.currentIntersection || mRoadNetwork.currentRoad)
         {
             Gui::Window roadPanel(_gui, "Road##roadPanel", { 200, 200 }, { 100, 100 });
             {
-                ImGui::PushFont(_gui->getFont("roboto_20"));
+                //ImGui::PushFont(_gui->getFont("roboto_20"));
                 static bool fullWidth = false;
                 roadPanel.windowSize(180 + fullWidth * 460, 0);
 
@@ -2594,7 +2589,7 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
                     }
                 }
 
-                ImGui::PopFont();
+                //ImGui::PopFont();
             }
             roadPanel.release();
         }
@@ -2646,6 +2641,8 @@ void terrainManager::onGuiRender(Gui* _gui, fogAtmosphericParams* pAtmosphere)
             ImGui::PopFont();
         }
     }
+
+    ImGui::PopFont();
 }
 
 
@@ -3895,7 +3892,7 @@ void terrainManager::onGuiMenubar(Gui* pGui)
     }
 
     float x = ImGui::GetCursorPosX();
-    ImGui::SetCursorPos(ImVec2(screenSize.x - 700, 0));
+    ImGui::SetCursorPos(ImVec2(screenSize.x - 1200, 0));
     ImGui::Text(lastfile.terrain.c_str());
     ImGui::SetCursorPos(ImVec2(x, 0));
 }
@@ -4765,7 +4762,7 @@ void terrainManager::splitChild(quadtree_tile* _tile, RenderContext* _renderCont
         // Not nessesary but nice where we lack data for now
         _renderContext->clearFbo(split.tileFbo.get(), glm::vec4(0.3f, 0.3f, 0.3f, 1.0f), 1.0f, 0, FboAttachmentType::All);
 
-        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(3).get(), glm::vec4(1.0f, 1.0f, 1.0f, 0.0f));
+        _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(3).get(), glm::vec4(1.0f, 0.07f, 1.0f, 0.0f)); // PBR
 
         _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(4).get(), glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
         _renderContext->clearRtv(split.tileFbo.get()->getRenderTargetView(5).get(), glm::vec4(1.0f, 1.0f, 1.0f, 0.0f));
@@ -5760,13 +5757,13 @@ void terrainManager::onFrameRender(RenderContext* _renderContext, const Fbo::Sha
     }
 
     {
-        //FALCOR_PROFILE("terrain_under_mouse");
+        FALCOR_PROFILE("terrain_under_mouse");
         compute_TerrainUnderMouse.Vars()["gConstants"]["mousePos"] = mousePosition;
         compute_TerrainUnderMouse.Vars()["gConstants"]["mouseDir"] = mouseDirection;
         compute_TerrainUnderMouse.Vars()["gConstants"]["mouseCoords"] = mouseCoord;
         compute_TerrainUnderMouse.Vars()->setTexture("gHDRBackbuffer", _fbo->getColorTexture(0));
 
-        compute_TerrainUnderMouse.dispatch(_renderContext, 32, 1);
+        compute_TerrainUnderMouse.dispatch(_renderContext, 1, 1);
 
         _renderContext->copyResource(split.buffer_feedback_read.get(), split.buffer_feedback.get());
 
@@ -6917,7 +6914,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                 if (keyEvent.key == Input::Key::B)
                 {
                     bSplineAsTerrafector = !bSplineAsTerrafector;
-                    reset(true);
+                    mRoadNetwork.updateAllRoads();
                     return true;
                 }
             }
@@ -7101,6 +7098,7 @@ bool terrainManager::onKeyEvent(const KeyboardEvent& keyEvent)
                     else
                     {
                         bSplineAsTerrafector = !bSplineAsTerrafector;
+                        mRoadNetwork.updateAllRoads();
                         reset(true);
                     }
                 }

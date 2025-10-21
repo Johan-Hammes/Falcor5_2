@@ -254,8 +254,8 @@ void main(int2 crd : SV_DispatchThreadId)
         // write final colours
         if (debug < 0)
         {
-            gHeight[crd] = hgt + (hgt_1 + hgt_2);//			*permanence.r;
-            float l = saturate((lod - 7.f) / 10.f);
+            //gHeight[crd] = hgt + (hgt_1 + hgt_2) * (1 - permanence.r); //			*permanence.r;
+            float l = saturate((lod - 7.f) / 10.f) * permanence.b;
 
             gAlbedo[crd] = lerp(gAlbedo[crd], col_new * 2, l); //permanence.g
   //          gAlbedo[crd] = gInEct[1][crd].rgb;
