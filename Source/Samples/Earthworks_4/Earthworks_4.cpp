@@ -870,14 +870,14 @@ int main(int argc, char** argv)
 
     SampleConfig config;
     config.windowDesc.title = "Earthworks 4";
-    config.windowDesc.resizableWindow = false;
-    config.windowDesc.mode = Window::WindowMode::Fullscreen;
+    config.windowDesc.resizableWindow = true;
+    config.windowDesc.mode = Window::WindowMode::Normal;
     if (allScreens) {
         //config.windowDesc.mode = Window::WindowMode::AllScreens;
     }
-    config.windowDesc.width = 2560;
-    config.windowDesc.height = 1440;
-    config.windowDesc.monitor = 1;
+    config.windowDesc.width = 800;
+    config.windowDesc.height = 600;
+    config.windowDesc.monitor = 0;
 
     // HDR
     // config.windowDesc.monitor = 1;
