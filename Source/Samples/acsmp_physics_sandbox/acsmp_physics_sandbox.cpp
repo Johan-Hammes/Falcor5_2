@@ -61,6 +61,7 @@ void acsmp_physics_sandbox::onGuiMenubar(Gui* _gui)
 
         // call sub menus here
 
+        ImGui::SetCursorPos(ImVec2(250, 0));
         if (ImGui::BeginMenu("settings"))
         {
             ImGui::Text("camera");
@@ -123,7 +124,7 @@ void acsmp_physics_sandbox::onGuiRender(Gui* _gui)
     }
     else
     {
-        // this is the fullscreen HUD mode
+        // this is the fullscreen HUD mode FIXME make it always on
         ImGuiIO& io = ImGui::GetIO();
         io.WantCaptureMouse = true; // need to look when this has to be false
 
@@ -235,7 +236,7 @@ void acsmp_physics_sandbox::onFrameRender(RenderContext* _renderContext, const F
         // clear
         {
             graphicsState->setFbo(pTargetFbo);
-            const float4 clearColor(0.0f, 0.f, 0.f, 1);
+            const float4 clearColor(0.0f, 0.02f, 0.01f, 1);
             _renderContext->clearFbo(pTargetFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
             _renderContext->clearFbo(hdrFbo.get(), clearColor, 1.0f, 0, FboAttachmentType::All);
         }
