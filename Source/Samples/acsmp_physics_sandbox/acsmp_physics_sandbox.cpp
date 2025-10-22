@@ -260,7 +260,6 @@ void acsmp_physics_sandbox::onFrameRender(RenderContext* _renderContext, const F
     if (refresh.minimal)
     {
         // This mode saves your GPU during normal work while allowing to quickly test full performance
-        // aim for 15fps in this mode
         Sleep(20);
     }
 }
@@ -386,27 +385,25 @@ void acsmp_physics_sandbox::guiStyle()
 
 int main(int argc, char** argv)
 {
-    bool allScreens = false;
-    for (int i = 0; i < argc; i++)
-    {
-        if (std::string(argv[i]).find("-allscreens") != std::string::npos) allScreens = true;
-    }
-
     SampleConfig config;
     config.windowDesc.title = "acsmp_physics_sandbox";
     config.windowDesc.resizableWindow = true;
     config.windowDesc.mode = Window::WindowMode::Normal;
-    if (allScreens) {
-        //config.windowDesc.mode = Window::WindowMode::AllScreens;
-    }
     //config.windowDesc.width = 800;
     //config.windowDesc.height = 600;
     //config.windowDesc.monitor = 0;
 
-    // HDR
-    // this code is needed to run correctly on an HDR monitor, no idea how to automatically detect this
+    for (int i = 0; i < argc; i++)
+    {
+        if (std::string(argv[i]).find("-allscreens") != std::string::npos)
+        {
+            config.windowDesc.mode = Window::WindowMode::AllScreens;
+        }
+    }
+
+    // HDR - this code is needed to run correctly on an HDR monitor, no idea how to automatically detect this
     // config.windowDesc.monitor = 1;
-    //config.deviceDesc.colorFormat = ResourceFormat::RGB10A2Unorm;
+    // config.deviceDesc.colorFormat = ResourceFormat::RGB10A2Unorm;
 
     acsmp_physics_sandbox::UniquePtr pRenderer = std::make_unique<acsmp_physics_sandbox>();
     Sample::run(config, pRenderer);
